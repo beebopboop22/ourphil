@@ -36,7 +36,7 @@ const MonthlyEvents = () => {
           return a.startDate - b.startDate;
         });
 
-      setEvents(sorted.slice(0, 12)); // Show up to 12 events
+      setEvents(sorted.slice(0, 12));
     };
 
     fetchEvents();
@@ -46,8 +46,12 @@ const MonthlyEvents = () => {
 
   return (
     <div className="w-full max-w-screen-xl mx-auto mb-12 px-4">
-      <h2 className="text-black text-2xl font-bold mb-1 text-left">🎉 Upcoming Philly Traditions</h2>
-      <p className="text-gray-600 text-sm mb-4 text-left">Iconic city happenings you can take part in</p>
+      <h2 className="text-black text-4xl font-[Barrio] mb-2 text-left">
+        Philly Traditions
+      </h2>
+      <p className="text-gray-600 text-sm mb-4 text-left">
+        Iconic city happenings you can take part in
+      </p>
 
       <div className="overflow-x-auto scrollbar-hide">
         <div className="flex gap-4 pb-2">
@@ -60,7 +64,7 @@ const MonthlyEvents = () => {
               className="relative min-w-[250px] max-w-[250px] bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-105 overflow-hidden flex flex-col border border-yellow-200"
             >
               {event.isActive && (
-                <div className="active-badge absolute top-2 left-2 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                <div className="absolute top-2 left-2 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
                   🟢 Active
                 </div>
               )}
@@ -86,6 +90,7 @@ const MonthlyEvents = () => {
 };
 
 export default MonthlyEvents;
+
 
 
 

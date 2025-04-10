@@ -1,3 +1,4 @@
+// src/SportsEventsGrid.jsx
 import React, { useEffect, useState } from 'react';
 
 const teamSlugs = [
@@ -25,7 +26,6 @@ const SportsEventsGrid = () => {
           allEvents.push(...(data.events || []));
         }
 
-        // Sort by date
         allEvents.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
 
         setEvents(allEvents);
@@ -41,8 +41,10 @@ const SportsEventsGrid = () => {
 
   return (
     <div className="w-full max-w-screen-xl mx-auto mb-12 px-4">
-      <h2 className="text-black text-2xl font-bold mb-1 text-left">🏟️ Upcoming Philly Sports Games</h2>
-      <p className="text-gray-600 text-sm mb-4 text-left">Catch the Phillies, Sixers, Eagles, Flyers & Union in action</p>
+      <h2 className="text-black text-4xl font-[Barrio] mb-2 text-left">SPORTS</h2>
+      <p className="text-gray-600 text-sm mb-4 text-left">
+        Catch the Phillies, Sixers, Eagles, Flyers & Union in action
+      </p>
 
       {loading ? (
         <p>Loading events...</p>

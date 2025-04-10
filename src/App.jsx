@@ -22,6 +22,7 @@ import TriviaNights from './TriviaNights';
 import SportsEventsGrid from './SportsEventsGrid';
 import ConcertEventsGrid from './ConcertEventsGrid';
 import HeroLanding from './HeroLanding'; 
+import PopularGroups from './PopularGroups';
 
 
 
@@ -92,26 +93,15 @@ function App() {
     <div className="min-h-screen flex flex-col bg-white-100 p-4 pt-20">
     <Navbar />
     <HeroLanding />
-    <h1
-  className="text-black text-3xl sm:text-5xl md:text-5xl font-bold mb-4 mt-20 text-center tracking-wide"
-  style={{ fontFamily: "'Playfair Display', serif" }}
-></h1>
-
+    
+      <PopularGroups />
 
       <MonthlyEvents />
       <SportsEventsGrid />
       <ConcertEventsGrid />
-      {/* Group Listings */}
-      <GroupsList
-        groups={filteredGroups}
-        searchTerm={searchTerm}
-        selectedType={selectedType}
-        onClearFilters={handleClearFilters}
-        isAdmin={isAdmin}
-      />
-<FilteredGroupSection tag="Running" title="Running Groups" isAdmin={isAdmin} />
-<Voicemail />
-<Footer />
+   
+      <Voicemail />
+      <Footer />
 
 
     </div>

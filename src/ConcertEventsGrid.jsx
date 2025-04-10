@@ -1,3 +1,4 @@
+// src/ConcertEventsGrid.jsx
 import React, { useEffect, useState } from 'react';
 
 const ConcertEventsGrid = () => {
@@ -8,7 +9,7 @@ const ConcertEventsGrid = () => {
     const fetchEvents = async () => {
       try {
         const response = await fetch(
-`https://api.seatgeek.com/2/events?taxonomies.name=concert&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+          `https://api.seatgeek.com/2/events?taxonomies.name=concert&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
         );
         const data = await response.json();
         setEvents(data.events || []);
@@ -24,8 +25,10 @@ const ConcertEventsGrid = () => {
 
   return (
     <div className="w-full max-w-screen-xl mx-auto mb-12 px-4">
-      <h2 className="text-black text-2xl font-bold mb-1 text-left">🎶 Upcoming Concerts in Philly</h2>
-      <p className="text-gray-600 text-sm mb-4 text-left">Live music all over the city — here's what's next</p>
+      <h2 className="text-black text-4xl font-[Barrio] mb-2 text-left">CONCERTS</h2>
+      <p className="text-gray-600 text-sm mb-4 text-left">
+        Live music all over the city — here's what's next
+      </p>
 
       {loading ? (
         <p>Loading concerts...</p>
@@ -54,6 +57,7 @@ const ConcertEventsGrid = () => {
                       {weekday}
                     </div>
                   </div>
+
                   <div className="p-4 flex flex-col justify-between flex-grow">
                     <h3 className="text-md font-semibold text-indigo-800 mb-1 truncate">
                       {event.short_title}
@@ -84,4 +88,3 @@ const ConcertEventsGrid = () => {
 };
 
 export default ConcertEventsGrid;
-
