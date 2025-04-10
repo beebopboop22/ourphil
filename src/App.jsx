@@ -89,7 +89,7 @@ function App() {
   });
 
   return (
-<div className="min-h-screen flex flex-col bg-white-100  p-4">
+    <div className="min-h-screen flex flex-col bg-white-100 p-4 pt-20">
     <Navbar />
     <HeroLanding />
     <h1
