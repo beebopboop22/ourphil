@@ -11,7 +11,7 @@ const SportsEventsGrid = () => {
       try {
         const slugQuery = teamSlugs.map(slug => `performers.slug=${slug}`).join('&');
         const response = await fetch(
-          `https://api.seatgeek.com/2/events?${slugQuery}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}&client_secret=${import.meta.env.VITE_SEATGEEK_CLIENT_SECRET}`
+          `https://api.seatgeek.com/2/events?${slugQuery}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
         );
         const data = await response.json();
         setEvents(data.events || []);
