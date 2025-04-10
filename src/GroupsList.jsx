@@ -31,58 +31,46 @@ const GroupsList = ({ groups, isAdmin }) => {
     }
   }, [groups]);
 
-  const handleClearFilters = () => {
-    setSearchTerm('');
-    setSelectedType('');
-  };
-
-  const trimmedSearch = searchTerm.trim().toLowerCase();
-  const trimmedType = selectedType.trim();
-
   const filteredGroups = groups.filter(group => {
     const name = group.Name?.toLowerCase() || '';
-    const matchesSearch = name.includes(trimmedSearch);
-    const matchesType = trimmedType === '' || group.Type?.includes(trimmedType);
-    return matchesSearch && matchesType;
+    return (
+      name.includes(searchTerm.trim().toLowerCase()) &&
+      (selectedType === '' || group.Type?.includes(selectedType))
+    );
   });
 
-  const featuredGroups = filteredGroups.filter(group => group.featured);
+  const featuredGroups = (searchTerm || selectedType) ? [] : filteredGroups.filter(group => group.featured);
   const otherGroups = filteredGroups.filter(group => !group.featured);
 
-  const groupsWithMascots = [];
-  otherGroups.forEach((group, index) => {
-    groupsWithMascots.push(group);
-    if ((index + 1) % 12 === 0) {
-      groupsWithMascots.push({ Name: '__MASCOT_INSERT__' });
-    }
-  });
-
-  const visibleGroups = groupsWithMascots.slice(0, visibleCount);
-
   return (
-    <div className="bg-indigo-50 py-16 px-4">
-      <div className="max-w-screen-xl mx-auto">
-        <div className="mb-10 text-center">
-        <h2 className="text-8xl mb-2 text-indigo-900" style={{ fontFamily: "'Barrio', sans-serif" }}>
-  Active Communities
-</h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            The real heartbeat of the city. Find your people. Or add your own.
-          </p>
-        </div>
+    <div className="relative py-20 px-4 mt-12 overflow-hidden bg-neutral-50">
 
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-4 max-w-5xl mx-auto">
+      {/* Big Heart Logo */}
+      <img
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
+        alt="Philly Heart"
+        className="absolute opacity-10 rotate-12 w-[600px] bottom-[-100px] right-[-100px] pointer-events-none z-0"
+      />
+
+      <div className="relative max-w-screen-xl mx-auto z-10 text-center">
+
+        <h2 className="text-5xl font-[Barrio] text-gray-800 mb-3">Active Communities</h2>
+        <p className="text-gray-600 text-md mb-8 max-w-2xl mx-auto">
+          Groups, crews & secret societies hiding in plain sight.
+        </p>
+
+        <div className="flex flex-wrap justify-center gap-3 mb-10">
           <input
             type="text"
-            placeholder="Search for a group..."
+            placeholder="Search..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-grow px-5 py-3 rounded-full border border-gray-300 shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
+            className="flex-grow px-4 py-2 border border-gray-300 rounded-full max-w-xs"
           />
           <select
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
-            className="w-full sm:w-56 px-4 py-3 rounded-full border border-gray-300 shadow-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
+            className="px-4 py-2 border border-gray-300 rounded-full"
           >
             <option value="">All Types</option>
             {allTypes.map((type) => (
@@ -91,55 +79,31 @@ const GroupsList = ({ groups, isAdmin }) => {
           </select>
         </div>
 
-        <div className="flex items-center gap-4 flex-wrap mb-10 max-w-5xl mx-auto">
-          <span className="text-sm font-medium text-gray-600">Popular group types:</span>
-          {Object.entries(typeCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5)
-            .map(([type, count]) => (
-              <button
-                key={type}
-                onClick={() => setSelectedType(type)}
-                className={`px-3 py-1 rounded-full border text-sm font-medium transition ${
-                  selectedType === type
-                    ? 'bg-white text-indigo-600 border-white'
-                    : 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200'
-                }`}
-              >
-                {type} ({count})
-              </button>
-          ))}
-        </div>
-
+        {/* Featured */}
         {featuredGroups.length > 0 && (
-          <div className="mb-10">
-            <h2 className="text-yellow-500 text-2xl font-bold mb-2">🌟 Bobo's Picks</h2>
-            <p className="text-gray-600 italic mb-4">“If you're looking for groups — oh boy!”</p>
-            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {featuredGroups.slice(0, 4).map((group) => (
-                <GroupCard
-                  key={group.id}
-                  group={group}
-                  isAdmin={isAdmin}
-                  featuredGroupId={featuredGroupId}
-                />
+          <div className="mb-12">
+            <h3 className="text-yellow-500 text-2xl font-bold mb-2">🌟 Bobo's Picks</h3>
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredGroups.map(group => (
+                <GroupCard key={group.id} group={group} isAdmin={isAdmin} featuredGroupId={featuredGroupId} />
               ))}
             </div>
           </div>
         )}
 
+        {/* Main Grid */}
         <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <button
             onClick={() => setShowSubmitModal(true)}
-            className="bg-indigo-100 text-indigo-700 rounded-2xl p-6 flex flex-col justify-center items-center hover:bg-indigo-200 transition w-full h-full"
+            className="bg-white border border-gray-200 text-gray-700 rounded-2xl p-6 flex flex-col justify-center items-center hover:shadow-md transition w-full h-full"
           >
             <div className="text-4xl mb-2">➕</div>
             <p className="text-sm font-semibold">Add a Group</p>
           </button>
 
-          {visibleGroups.map((group, idx) => (
+          {otherGroups.slice(0, visibleCount).map((group, idx) => (
             <GroupCard
-              key={group.id || `mascot-${idx}`}
+              key={group.id || idx}
               group={group}
               isAdmin={isAdmin}
               featuredGroupId={featuredGroupId}
@@ -147,30 +111,24 @@ const GroupsList = ({ groups, isAdmin }) => {
           ))}
         </div>
 
-        {visibleCount < groupsWithMascots.length && (
+        {visibleCount < otherGroups.length && (
           <div className="flex justify-center mt-8">
             <button
-              onClick={() => setVisibleCount((prev) => prev + 8)}
-              className="bg-white text-indigo-700 px-6 py-2 rounded-full font-semibold shadow hover:shadow-lg hover:bg-indigo-50 transition"
+              onClick={() => setVisibleCount(prev => prev + 8)}
+              className="px-6 py-2 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-50"
             >
               Show More
             </button>
           </div>
         )}
+
+        {showSubmitModal && (
+          <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
+        )}
       </div>
-
-      {showSubmitModal && (
-        <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
-      )}
-
-      <button
-        onClick={() => setShowSubmitModal(true)}
-        className="fixed bottom-5 right-5 bg-white text-indigo-700 px-6 py-4 rounded-full shadow-xl text-base font-semibold z-50 hover:scale-105 hover:bg-indigo-50 transition-all"
-      >
-        + Submit a Group
-      </button>
     </div>
   );
 };
 
 export default GroupsList;
+
