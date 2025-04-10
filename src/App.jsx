@@ -110,7 +110,6 @@ function App() {
         isAdmin={isAdmin}
       />
 <FilteredGroupSection tag="Running" title="Running Groups" isAdmin={isAdmin} />
-<PetfinderGrid />
 <Voicemail />
 <Footer />
 

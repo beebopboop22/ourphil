@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 
-const teamSlugs = ['philadelphia-phillies'];
+const teamSlugs = [
+  'philadelphia-phillies',
+  'philadelphia-76ers',
+  'philadelphia-eagles',
+  'philadelphia-flyers',
+  'philadelphia-union',
+];
 
 const SportsEventsGrid = () => {
   const [events, setEvents] = useState([]);
@@ -9,12 +15,20 @@ const SportsEventsGrid = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const slugQuery = teamSlugs.map(slug => `performers.slug=${slug}`).join('&');
-        const response = await fetch(
-          `https://api.seatgeek.com/2/events?${slugQuery}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
-        );
-        const data = await response.json();
-        setEvents(data.events || []);
+        let allEvents = [];
+
+        for (const slug of teamSlugs) {
+          const res = await fetch(
+            `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+          );
+          const data = await res.json();
+          allEvents.push(...(data.events || []));
+        }
+
+        // Sort by date
+        allEvents.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
+
+        setEvents(allEvents);
       } catch (error) {
         console.error('Error fetching events:', error);
       } finally {
@@ -27,8 +41,8 @@ const SportsEventsGrid = () => {
 
   return (
     <div className="w-full max-w-screen-xl mx-auto mb-12 px-4">
-      <h2 className="text-black text-2xl font-bold mb-1 text-left">⚾ Upcoming Philly Sports Games</h2>
-      <p className="text-gray-600 text-sm mb-4 text-left">Catch the Phillies in action, home and away</p>
+      <h2 className="text-black text-2xl font-bold mb-1 text-left">🏟️ Upcoming Philly Sports Games</h2>
+      <p className="text-gray-600 text-sm mb-4 text-left">Catch the Phillies, Sixers, Eagles, Flyers & Union in action</p>
 
       {loading ? (
         <p>Loading events...</p>
@@ -57,6 +71,7 @@ const SportsEventsGrid = () => {
                       {weekday}
                     </div>
                   </div>
+
                   <div className="p-4 flex flex-col justify-between flex-grow">
                     <h3 className="text-md font-semibold text-indigo-800 mb-1 truncate">
                       {event.short_title}
