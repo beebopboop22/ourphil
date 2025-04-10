@@ -8,7 +8,7 @@ const ConcertEventsGrid = () => {
     const fetchEvents = async () => {
       try {
         const response = await fetch(
-          `https://api.seatgeek.com/2/events?taxonomies.name=concert&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}&client_secret=${import.meta.env.VITE_SEATGEEK_CLIENT_SECRET}`
+`https://api.seatgeek.com/2/events?taxonomies.name=concert&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
         );
         const data = await response.json();
         setEvents(data.events || []);
