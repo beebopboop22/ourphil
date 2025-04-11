@@ -1,40 +1,25 @@
-// src/SportsPage.jsx
-import React, { useState, useEffect } from 'react';
-import Navbar from './Navbar';
+// src/ConcertsPage.jsx
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
+import Navbar from './Navbar';
 
-const teamSlugs = [
-  'philadelphia-phillies',
-  'philadelphia-76ers',
-  'philadelphia-eagles',
-  'philadelphia-flyers',
-  'philadelphia-union',
-];
-
-const SportsPage = () => {
+const ConcertsPage = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState('');
+  const [selectedVenue, setSelectedVenue] = useState('');
   const [visibleCount, setVisibleCount] = useState(8);
 
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        let allEvents = [];
-
-        for (const slug of teamSlugs) {
-          const res = await fetch(
-            `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
-          );
-          const data = await res.json();
-          allEvents.push(...(data.events || []));
-        }
-
-        allEvents.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
-        setEvents(allEvents);
+        const response = await fetch(
+          `https://api.seatgeek.com/2/events?taxonomies.name=concert&venue.city=Philadelphia&per_page=50&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+        );
+        const data = await response.json();
+        setEvents(data.events || []);
       } catch (error) {
-        console.error('Error fetching events:', error);
+        console.error('Error fetching concerts:', error);
       } finally {
         setLoading(false);
       }
@@ -43,71 +28,73 @@ const SportsPage = () => {
     fetchEvents();
   }, []);
 
+  const venues = Array.from(new Set(events.map(event => event.venue?.name).filter(Boolean))).sort();
+
   const filteredEvents = events.filter(event =>
     event.short_title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    (selectedTeam === '' || event.performers?.[0]?.slug === selectedTeam)
+    (selectedVenue === '' || event.venue?.name === selectedVenue)
   );
 
   return (
     <>
       <Helmet>
-        <title>Philly Sports – Upcoming Games & Tickets | Our Philly</title>
+        <title>Philly Concerts – Live Music in Philadelphia | Our Philly</title>
         <meta 
           name="description" 
-          content="Catch every upcoming home game for Philly's teams: Eagles, Phillies, 76ers, Flyers, and Union." 
+          content="Upcoming concerts in Philadelphia. Find shows, venues, and live music all over Philly curated by Our Philly." 
         />
         <meta 
           name="keywords" 
-          content="Philadelphia sports, Eagles tickets, Phillies games, Flyers schedule, 76ers games, Union tickets, Philly sports schedule" 
+          content="Philadelphia concerts, Philly live music, Philly shows, music venues, Philly events" 
         />
-        <link rel="canonical" href="https://ourphilly.com/sports" />
-        <meta property="og:title" content="Philly Sports – Our Philly" />
-        <meta property="og:description" content="See every upcoming home game for Philly sports teams and score tickets." />
+        <link rel="canonical" href="https://ourphilly.com/concerts" />
+        <meta property="og:title" content="Philly Concerts – Our Philly" />
+        <meta property="og:description" content="Find upcoming concerts and live music in Philadelphia." />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ourphilly.com/sports" />
+        <meta property="og:url" content="https://ourphilly.com/concerts" />
         <meta property="og:image" content="https://your-image-url.png" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Philly Sports – Our Philly" />
-        <meta name="twitter:description" content="Upcoming games for Eagles, Phillies, Sixers, Flyers, and Union." />
+        <meta name="twitter:title" content="Philly Concerts – Our Philly" />
+        <meta name="twitter:description" content="Find upcoming concerts and live music in Philadelphia." />
         <meta name="twitter:image" content="https://your-image-url.png" />
       </Helmet>
 
       <div className="min-h-screen bg-white py-16 px-4">
-        <div className="max-w-screen-xl mx-auto text-center">
-          <Navbar />
+        <Navbar />
 
-          <h2 className="text-5xl mt-20 font-[Barrio] text-gray-800 mb-3">Philly Sports</h2>
+        <main className="max-w-screen-xl mx-auto text-center">
+          <h1 className="text-5xl mt-20 font-[Barrio] text-gray-800 mb-3">
+            Philly Concerts
+          </h1>
           <p className="text-gray-600 text-md mb-8 max-w-2xl mx-auto">
-            Upcoming home games for every Philly team.
+            Live music all over the city — here's what's coming up.
           </p>
 
           <div className="flex flex-wrap justify-center gap-3 mb-10">
             <input
               type="text"
-              placeholder="Search events..."
+              placeholder="Search concerts..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-grow px-4 py-2 border border-gray-300 rounded-full max-w-xs"
             />
             <select
-              value={selectedTeam}
-              onChange={(e) => setSelectedTeam(e.target.value)}
+              value={selectedVenue}
+              onChange={(e) => setSelectedVenue(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-full"
             >
-              <option value="">All Teams</option>
-              {teamSlugs.map(slug => (
-                <option key={slug} value={slug}>
-                  {slug.replace('philadelphia-', '').toUpperCase()}
-                </option>
+              <option value="">All Venues</option>
+              {venues.map(venue => (
+                <option key={venue} value={venue}>{venue}</option>
               ))}
             </select>
           </div>
 
           {loading ? (
-            <p>Loading events...</p>
+            <p>Loading concerts...</p>
           ) : (
             <>
-              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <section className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredEvents.slice(0, visibleCount).map(event => {
                   const eventDate = new Date(event.datetime_local);
                   const weekday = eventDate.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
@@ -132,9 +119,9 @@ const SportsPage = () => {
                       </div>
 
                       <div className="p-4 text-left">
-                        <h3 className="text-md font-semibold text-indigo-800 mb-1 truncate">
+                        <h2 className="text-md font-semibold text-indigo-800 mb-1 truncate">
                           {event.short_title}
-                        </h3>
+                        </h2>
                         <p className="text-xs text-gray-500">
                           📅 {eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </p>
@@ -144,13 +131,13 @@ const SportsPage = () => {
                           </p>
                         )}
                         <p className="text-xs text-gray-500 mt-1">
-                          📍 {event.venue?.name}, {event.venue?.city}
+                          📍 {event.venue?.name}
                         </p>
                       </div>
                     </a>
                   );
                 })}
-              </div>
+              </section>
 
               {visibleCount < filteredEvents.length && (
                 <div className="flex justify-center mt-8">
@@ -164,13 +151,10 @@ const SportsPage = () => {
               )}
             </>
           )}
-        </div>
+        </main>
       </div>
     </>
   );
 };
 
-export default SportsPage;
-
-
-
+export default ConcertsPage;

@@ -30,6 +30,8 @@ const Navbar = () => {
           <Link to="/" className={`hover:text-indigo-600 transition ${location.pathname === '/' ? 'text-indigo-600' : 'text-gray-800'}`}>Home</Link>
           <Link to="/sports" className={`hover:text-indigo-600 transition ${location.pathname === '/sports' ? 'text-indigo-600' : 'text-gray-800'}`}>Sports</Link>
           <Link to="/trivia" className={`hover:text-indigo-600 transition ${location.pathname === '/trivia' ? 'text-indigo-600' : 'text-gray-800'}`}>Trivia</Link>
+          <Link to="/groups" className={`hover:text-indigo-600 transition ${location.pathname === '/groups' ? 'text-indigo-600' : 'text-gray-800'}`}>Groups</Link>
+          <Link to="/concerts" className={`hover:text-indigo-600 transition ${location.pathname === '/concerts' ? 'text-indigo-600' : 'text-gray-800'}`}>Concerts</Link>
           <Link to="/volunteer" className="text-sm text-indigo-600 hover:underline">Volunteer</Link>
           <button onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-sm hover:bg-indigo-700 transition">
             + Add a Group
@@ -43,7 +45,7 @@ const Navbar = () => {
           <Link to="/" className="block text-gray-800 hover:text-indigo-600" onClick={() => setMenuOpen(false)}>Home</Link>
           <Link to="/sports" className="block text-gray-800 hover:text-indigo-600" onClick={() => setMenuOpen(false)}>Sports</Link>
           <Link to="/trivia" className="block text-gray-800 hover:text-indigo-600" onClick={() => setMenuOpen(false)}>Trivia</Link>
-          <Link to="/volunteer" className="block text-indigo-600 hover:underline" onClick={() => setMenuOpen(false)}>Volunteer</Link>
+          <Link to="/groups" className="block text-indigo-600 hover:underline" onClick={() => setMenuOpen(false)}>Groups</Link>
           <button onClick={() => { setMenuOpen(false); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }} className="w-full bg-indigo-600 text-white px-4 py-2 rounded-full text-sm hover:bg-indigo-700 transition">
             + Add a Group
           </button>

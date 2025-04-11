@@ -12,6 +12,7 @@ import WSJHeader from './WSJHeader';
 import FeaturedGroups from './FeaturedGroups'; 
 import FilteredGroupSection from './FilteredGroupSection';
 import Voicemail from './Voicemail';
+import GroupsPage from './GroupsPage';
 import MapboxMap from './MapboxMap';
 import PetfinderGrid from './PetfinderGrid';
 import SeptaAlertBanner from './SeptaAlertBanner';
@@ -24,6 +25,9 @@ import ConcertEventsGrid from './ConcertEventsGrid';
 import HeroLanding from './HeroLanding'; 
 import PopularGroups from './PopularGroups';
 import LibraryCardBanner from './LibraryCardBanner';
+import ConcertsPage from './ConcertPage';
+import { Helmet } from 'react-helmet';
+
 
 
 
@@ -92,23 +96,37 @@ function App() {
   });
 
   return (
-    <div className="min-h-screen flex flex-col bg-white-100 p-4 pt-20">
-    <Navbar />
-    <HeroLanding />
-    <LibraryCardBanner />
-    
-      <PopularGroups />
-
-      <MonthlyEvents />
-      <SportsEventsGrid />
-      <ConcertEventsGrid />
-   
-      <Voicemail />
-      <Footer />
-
-
-    </div>
+    <>
+      <Helmet>
+        <title>Our Philly – Philly's Weirdest, Warmest Community Guide</title>
+        <meta name="description" content="Find sports, concerts, neighborhood groups, weird Philly stuff, and more. Built by locals, for locals." />
+        <meta name="keywords" content="Philadelphia, Philly events, Philly sports, Philly concerts, local groups, our philly, philly things to do" />
+        <meta property="og:title" content="Our Philly" />
+        <meta property="og:description" content="Philadelphia's weirdest, warmest community guide." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://ourphilly.com/" />
+        <meta property="og:image" content="https://your-image-url.png" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Our Philly" />
+        <meta name="twitter:description" content="Philadelphia's weirdest, warmest community guide." />
+        <meta name="twitter:image" content="https://your-image-url.png" />
+        <link rel="canonical" href="https://ourphilly.com/" />
+      </Helmet>
+  
+      <div className="min-h-screen flex flex-col bg-white-100 p-4 pt-20">
+        <Navbar />
+        <HeroLanding />
+        <LibraryCardBanner />
+        <PopularGroups />
+        <MonthlyEvents />
+        <SportsEventsGrid />
+        <ConcertEventsGrid />
+        <Voicemail />
+        <Footer />
+      </div>
+    </>
   );
+  
 }
 
 export default App;

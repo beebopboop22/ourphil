@@ -1,8 +1,9 @@
-// src/HeroVoicemail.jsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import Navbar from './Navbar';
 
-const HeroVoicemail = () => {
+
+const VoicemailPage = () => {
   const [latestAudio, setLatestAudio] = useState(null);
 
   useEffect(() => {
@@ -25,20 +26,21 @@ const HeroVoicemail = () => {
   }, []);
 
   return (
-    <section className="w-full bg-blue-900 text-white flex items-center justify-center px-6 py-20">
+    <section className="w-full min-h-screen bg-blue-900 text-white flex items-center justify-center px-6 py-20">
       <div className="max-w-xl w-full text-center">
-
-        <p className="text-3xl md:text-4xl font-extrabold tracking-wide mb-2">
-          <a href="tel:2153233324" className="hover:underline">(215) 323-3324</a>
+        <Navbar />
+      <p className="text-4xl font-extrabold tracking-wide">
+           <a href="tel:2153233324" className="hover:underline">(215) 323-3324</a>
         </p>
-
-        <h2 className="text-4xl md:text-5xl font-[Barrio] mb-6">
+        <h2 className="text-5xl md:text-6xl font-[Barrio] mb-6 ">
           Philly's Anonymous Voicemail
         </h2>
 
-        <p className="text-lg md:text-xl mb-8">
+        <p className="text-xl mb-8">
           Observations or complaints — whatever’s on your mind.
         </p>
+
+        
 
         {latestAudio?.url && (
           <audio controls className="w-full mb-8">
@@ -59,4 +61,5 @@ const HeroVoicemail = () => {
   );
 };
 
-export default HeroVoicemail;
+export default VoicemailPage;
+
