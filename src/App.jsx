@@ -23,6 +23,8 @@ import SportsEventsGrid from './SportsEventsGrid';
 import ConcertEventsGrid from './ConcertEventsGrid';
 import HeroLanding from './HeroLanding'; 
 import PopularGroups from './PopularGroups';
+import LibraryCardBanner from './LibraryCardBanner';
+
 
 
 
@@ -93,6 +95,7 @@ function App() {
     <div className="min-h-screen flex flex-col bg-white-100 p-4 pt-20">
     <Navbar />
     <HeroLanding />
+    <LibraryCardBanner />
     
       <PopularGroups />
 

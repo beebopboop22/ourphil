@@ -26,3 +26,15 @@
   }
 
   @import url('https://fonts.googleapis.com/css2?family=Barrio&display=swap');
+
+
+/* index.css or global.css */
+@keyframes marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+  
+  .animate-marquee {
+    animation: marquee 10s linear infinite;
+  }
+  
