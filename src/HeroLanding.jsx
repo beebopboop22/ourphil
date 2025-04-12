@@ -1,15 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import { DAILY_SPECIALS_2025 } from './constants/specials';
 
 const HeroLanding = () => {
   const [events, setEvents] = useState([]);
   const [email, setEmail] = useState('');
   const [nextGame, setNextGame] = useState(null);
+  const [special, setSpecial] = useState(null);
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      const today = new Date();
+    const today = new Date();
+    const mmdd = `${today.getMonth() + 1}/${today.getDate()}`;
 
+    const forcedSpecial = window.localStorage.getItem('forceSpecial');
+
+    if (forcedSpecial) {
+      setSpecial(forcedSpecial);
+    } else if (DAILY_SPECIALS_2025[mmdd]) {
+      setSpecial(DAILY_SPECIALS_2025[mmdd]);
+    }
+
+    const fetchEvents = async () => {
       const { data, error } = await supabase
         .from('events')
         .select('id, "E Name", Dates, "End Date", "E Link"')
@@ -38,8 +49,7 @@ const HeroLanding = () => {
         const res = await fetch(`https://api.seatgeek.com/2/events?performers.slug=philadelphia-phillies&per_page=1&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`);
         const data = await res.json();
         if (data.events.length > 0) {
-          const game = data.events[0];
-          setNextGame(`${game.short_title}`);
+          setNextGame(data.events[0].short_title);
         }
       } catch (err) {
         console.error('Error fetching sports:', err);
@@ -52,7 +62,6 @@ const HeroLanding = () => {
 
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-20 px-6 overflow-hidden">
-      {/* Heart Logo */}
       <img 
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
         alt="Heart Logo"
@@ -60,14 +69,20 @@ const HeroLanding = () => {
       />
 
       <div className="relative max-w-screen-xl mx-auto flex flex-col items-center text-center z-10">
-
         <h1 className="text-6xl font-[Barrio] font-black mb-4 text-black">
           DIG INTO PHILLY
         </h1>
 
-        {(nextGame || events.length > 0) && (
+        {(special || nextGame || events.length) && (
           <div className="flex justify-center flex-wrap gap-2 text-sm mb-3">
             <span className="font-semibold tracking-wide text-gray-500 uppercase">Tonight!</span>
+
+            {special && (
+              <>
+                <span className="animate-pulse text-green-500">●</span>
+                <span className="text-black">{special}</span>
+              </>
+            )}
 
             {nextGame && (
               <>
@@ -120,10 +135,4 @@ const HeroLanding = () => {
 };
 
 export default HeroLanding;
-
-
-
-
-
-
 
