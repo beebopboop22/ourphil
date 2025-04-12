@@ -27,6 +27,9 @@ import PopularGroups from './PopularGroups';
 import LibraryCardBanner from './LibraryCardBanner';
 import ConcertsPage from './ConcertPage';
 import { Helmet } from 'react-helmet';
+import BokEventsGrid from './BokEventsGrid';
+import BillboardAd from './BillboardAd';
+
 
 
 
@@ -115,6 +118,7 @@ function App() {
   
       <div className="min-h-screen flex flex-col bg-white-100 p-4 pt-20">
         <Navbar />
+        <BillboardAd />
         <HeroLanding />
         <LibraryCardBanner />
         <PopularGroups />
@@ -122,6 +126,7 @@ function App() {
         <SportsEventsGrid />
         <ConcertEventsGrid />
         <Voicemail />
+        <BokEventsGrid />
         <Footer />
       </div>
     </>

@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import { Helmet } from 'react-helmet';
+import FilteredGroupSection from './FilteredGroupSection';
+
 
 const teamSlugs = [
   'philadelphia-phillies',
@@ -75,6 +77,7 @@ const SportsPage = () => {
       <div className="min-h-screen bg-white py-16 px-4">
         <div className="max-w-screen-xl mx-auto text-center">
           <Navbar />
+         
 
           <h2 className="text-5xl mt-20 font-[Barrio] text-gray-800 mb-3">Philly Sports</h2>
           <p className="text-gray-600 text-md mb-8 max-w-2xl mx-auto">
@@ -162,6 +165,8 @@ const SportsPage = () => {
                   </button>
                 </div>
               )}
+               <FilteredGroupSection tag="Sports Leagues" title="Sports Leagues"  />
+               <FilteredGroupSection tag="Sports Fans" title="Sports Fan Groups"  />
             </>
           )}
         </div>
