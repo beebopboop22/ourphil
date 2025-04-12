@@ -29,6 +29,8 @@ import ConcertsPage from './ConcertPage';
 import { Helmet } from 'react-helmet';
 import BokEventsGrid from './BokEventsGrid';
 import BillboardAd from './BillboardAd';
+import SouthStreetEventsGrid from './SouthStreetEventsGrid';
+
 
 
 
@@ -127,6 +129,8 @@ function App() {
         <ConcertEventsGrid />
         <Voicemail />
         <BokEventsGrid />
+        <SouthStreetEventsGrid />
+
         <Footer />
       </div>
     </>
