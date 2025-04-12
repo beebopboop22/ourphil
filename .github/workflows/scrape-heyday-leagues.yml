@@ -1,0 +1,30 @@
+name: Scrape Heyday Leagues
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # Runs daily at 8am UTC (3am ET)
+  workflow_dispatch:  # allows manual run
+
+jobs:
+  scrape-heyday:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python3 scripts/scrape-heyday.py
