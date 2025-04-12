@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import html  # Added for decoding weird characters
 
 load_dotenv()
 
@@ -35,12 +36,12 @@ def scrape_south_street_events():
 
 def parse_event(event):
     return {
-        "title": event.get('name'),
+        "title": html.unescape(event.get('name')),
         "date": event.get('startDate'),
         "end_date": event.get('endDate'),
         "link": event.get('url'),
         "image": event.get('image'),
-        "description": (event.get('description')[:150] + "...") if event.get('description') else None
+        "description": html.unescape((event.get('description')[:150] + "...") if event.get('description') else "")
     }
 
 
@@ -59,3 +60,4 @@ if __name__ == "__main__":
 
     if events:
         upsert_events(events)
+
