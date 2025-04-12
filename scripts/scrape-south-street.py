@@ -5,7 +5,6 @@ from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-# Load env variables
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -15,16 +14,15 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 URL = "https://southstreet.com/things-to-do/"
 
+
 def scrape_south_street_events():
     res = requests.get(URL)
     soup = BeautifulSoup(res.text, 'html.parser')
-
     events = []
 
     for script in soup.find_all('script', type='application/ld+json'):
         data = json.loads(script.string)
 
-        # Some pages may have multiple events in a list
         if isinstance(data, list):
             for item in data:
                 if item.get('@type') == 'Event':
@@ -49,7 +47,10 @@ def parse_event(event):
 def upsert_events(events):
     for event in events:
         print(f"Inserting or Updating: {event['title']}")
-        supabase.table("south_street_events").upsert(event).execute()
+
+        supabase.table("south_street_events") \
+            .upsert(event, on_conflict=["link"]) \
+            .execute()
 
 
 if __name__ == "__main__":
