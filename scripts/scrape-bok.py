@@ -18,7 +18,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Tockify Bok Events URL
 URL = "https://tockify.com/buildingbok/agenda"
 
-
 def scrape_events():
     res = requests.get(URL)
     soup = BeautifulSoup(res.text, 'html.parser')
@@ -46,7 +45,7 @@ def parse_event(event):
 
 def upsert_events(events):
     for event in events:
-        print(f"Inserting: {event['title']}")
+        print(f"Inserting or Updating: {event['title']}")
 
         data = {
             "title": event.get('title'),
@@ -55,7 +54,7 @@ def upsert_events(events):
             "image": event.get('image')
         }
 
-        supabase.table("bok_events").upsert(data).execute()
+        supabase.table("bok_events").upsert(data, on_conflict=["link"]).execute()
 
 
 if __name__ == "__main__":
