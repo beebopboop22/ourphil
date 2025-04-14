@@ -1,4 +1,3 @@
-// src/GroupDetails.jsx
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
@@ -13,9 +12,26 @@ const GroupDetails = () => {
   const { slug } = useParams();
   const [group, setGroup] = useState(null);
   const [relatedGroups, setRelatedGroups] = useState([]);
+  const [groupIndex, setGroupIndex] = useState(null);
+  const [totalGroups, setTotalGroups] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   useEffect(() => {
     const fetchGroup = async () => {
+      const { data: allGroups, error: allError } = await supabase
+        .from('groups')
+        .select('slug')
+        .order('id', { ascending: true });
+
+      if (allError) {
+        console.error('Error fetching all groups:', allError);
+        return;
+      }
+
+      const index = allGroups.findIndex(g => g.slug === slug);
+      setGroupIndex(index + 1);
+      setTotalGroups(allGroups.length);
+
       const { data, error } = await supabase
         .from('groups')
         .select('*')
@@ -35,8 +51,7 @@ const GroupDetails = () => {
           .from('groups')
           .select('*')
           .ilike('Type', `%${types[0]}%`)
-          .neq('slug', slug)
-          .limit(6);
+          .neq('slug', slug);
 
         if (!relatedError) setRelatedGroups(related);
       }
@@ -52,60 +67,84 @@ const GroupDetails = () => {
   const types = group.Type?.split(',').map(t => t.trim()) || [];
 
   return (
-    <div className="min-h-screen bg-neutral-50 pt-20 px-4">
+    <div className="min-h-screen bg-neutral-50 pt-20">
       <Navbar />
 
-      <div className="max-w-screen-xl mx-auto mb-16">
+      {/* Full-width Hero */}
+      <div className="w-full bg-gray-100 border-b border-gray-300 py-10 px-4 mb-16">
+        <div className="max-w-screen-xl mx-auto flex flex-col md:flex-row gap-8 items-center">
 
-        {/* Group Info */}
-        <div className="text-center mb-12">
           {group.imag && (
-            <img 
-              src={group.imag} 
-              alt={group.Name} 
-              className="mx-auto w-40 h-40 object-cover rounded-full mb-4 border-4 border-indigo-100"
-            />
-          )}
-
-          <h1 className="text-4xl font-[Barrio] text-gray-900 mb-2">{group.Name}</h1>
-
-          <p className="text-gray-600 max-w-xl mx-auto mb-4">{group.Description}</p>
-
-          {types.length > 0 && (
-            <div className="flex justify-center flex-wrap gap-2 mb-4">
-              {types.map((type, idx) => (
-                <span key={idx} className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full text-xs">
-                  {type}
-                </span>
-              ))}
+            <div className="w-40 h-40 flex-shrink-0">
+              <img
+                src={group.imag}
+                alt={group.Name}
+                className="w-full h-full object-cover rounded-2xl border-4 border-indigo-100"
+              />
             </div>
           )}
 
-          {group.Link && (
-            <a
-              href={group.Link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block mt-2 bg-indigo-600 text-white text-sm px-4 py-2 rounded-full hover:bg-indigo-700 transition"
-            >
-              Visit Group Website
-            </a>
-          )}
+          <div className="flex-grow text-center md:text-left">
+            {groupIndex && totalGroups && (
+              <p className="text-xs text-gray-500 font-medium mb-1">
+                Group #{groupIndex} of {totalGroups}
+              </p>
+            )}
+
+            <h1 className="text-4xl font-[Barrio] text-gray-900 mb-2">{group.Name}</h1>
+
+            <p className="text-gray-600 mb-3">{group.Description}</p>
+
+            {types.length > 0 && (
+              <div className="flex flex-wrap justify-center md:justify-start gap-2 mb-3">
+                {types.map((type, idx) => (
+                  <span key={idx} className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full">
+                    {type}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {group.Link && (
+              <a
+                href={group.Link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block bg-indigo-600 text-white text-sm px-4 py-2 rounded-full hover:bg-indigo-700 transition"
+              >
+                Visit Group Website
+              </a>
+            )}
+          </div>
         </div>
+      </div>
+
+      <div className="max-w-screen-xl mx-auto px-4">
 
         {/* Related Groups */}
         {relatedGroups.length > 0 && (
           <div className="mb-16">
             <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Similar Groups</h2>
-            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {relatedGroups.map(group => (
+            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {relatedGroups.slice(0, visibleCount).map(group => (
                 <GroupCard key={group.id} group={group} isAdmin={false} />
               ))}
             </div>
+
+            {visibleCount < relatedGroups.length && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={() => setVisibleCount(prev => prev + 10)}
+                  className="px-5 py-2 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-50 transition"
+                >
+                  See More
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Explore the Rest of OurPhilly */}
+        {/* Explore More */}
         <div className="mb-20 text-center">
           <h2 className="text-3xl font-[Barrio] text-indigo-900 mb-2">Explore More Philly Magic</h2>
           <p className="text-gray-600 text-sm mb-6">Find sports, concerts, voicemails & other weird wonderful stuff.</p>
@@ -118,11 +157,10 @@ const GroupDetails = () => {
           </div>
         </div>
 
-        {/* Live Philly Stuff */}
         <MonthlyEvents />
         <SportsEventsGrid />
-        
       </div>
+
       <Voicemail />
       <Footer />
     </div>
@@ -130,5 +168,7 @@ const GroupDetails = () => {
 };
 
 export default GroupDetails;
+
+
 
 
