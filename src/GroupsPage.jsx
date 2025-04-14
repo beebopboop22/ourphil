@@ -2,17 +2,21 @@
 import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { supabase } from './supabaseClient';
-import GroupsList from './GroupsList';
 import Navbar from './Navbar';
+import GroupsHeroSearch from './GroupsHeroSearch';
+import GroupsList from './GroupsList';
+import FilteredGroupSection from './FilteredGroupSection';
 
 const GroupsPage = () => {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState('');
 
   useEffect(() => {
     const fetchGroups = async () => {
       const { data, error } = await supabase
-        .from('groups')  // lowercase confirmed
+        .from('groups')
         .select('*');
 
       if (error) {
@@ -25,6 +29,14 @@ const GroupsPage = () => {
 
     fetchGroups();
   }, []);
+
+  // Apply filtering based on search input
+  const filteredGroups = groups.filter(group => {
+    const name = group.Name?.toLowerCase() || '';
+    const typeMatch = selectedType === '' || group.Type?.toLowerCase().includes(selectedType.toLowerCase());
+    const nameMatch = name.includes(searchTerm.trim().toLowerCase());
+    return typeMatch && nameMatch;
+  });
 
   return (
     <>
@@ -50,14 +62,35 @@ const GroupsPage = () => {
         <meta name="twitter:image" content="https://your-image-url.png" />
       </Helmet>
 
-      <div className="min-h-screen bg-neutral-50 py-10 px-4">
+      <div className="min-h-screen bg-white-50 py-10 px-4">
         <Navbar />
 
         <div className="max-w-screen-xl mx-auto">
           {loading ? (
             <div className="text-center py-20 text-gray-500">Loading Groups...</div>
           ) : (
-            <GroupsList groups={groups} isAdmin={false} />
+            <>
+              {/* 🔍 Hero Search */}
+              <GroupsHeroSearch
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                selectedType={selectedType}
+                setSelectedType={setSelectedType}
+                allGroups={groups}
+              />
+
+              {/* 🔎 Search Results - always show */}
+              <GroupsList
+                groups={filteredGroups}
+                isAdmin={false}
+              />
+
+              {/* 📌 Curated Sections - always show */}
+              <FilteredGroupSection tag="Sports League" title="Spring Sports Leagues" />
+              <FilteredGroupSection tag="Arts" title="Arts & Crafts" />
+              <FilteredGroupSection tag="Cycling" title="Cycling Crews" />
+              <FilteredGroupSection tag="" title="Recently Added" sortByDate />
+            </>
           )}
         </div>
       </div>
@@ -66,3 +99,4 @@ const GroupsPage = () => {
 };
 
 export default GroupsPage;
+

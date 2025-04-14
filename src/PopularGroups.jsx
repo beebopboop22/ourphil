@@ -75,13 +75,14 @@ const PopularGroups = ({ isAdmin }) => {
 
         {visibleCount < groups.length && (
           <div className="flex justify-center mt-8">
-            <button
-              onClick={() => setVisibleCount(prev => prev + 6)}
-              className="px-6 py-2 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-50"
-            >
-              Show More
-            </button>
-          </div>
+          <a
+            href="/groups"
+            className="px-6 py-2 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-50"
+          >
+            Explore All Groups
+          </a>
+        </div>
+        
         )}
 
         {showSubmitModal && (
