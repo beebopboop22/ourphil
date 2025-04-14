@@ -128,8 +128,7 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
       )}
 
       {imageUrl && (
-        <a href={group.Link} target="_blank" rel="noopener noreferrer">
-          <img
+        <a href={`/groups/${group.slug}`} className="block">          <img
             src={imageUrl}
             alt={group.Name}
             className="w-full h-48 object-cover"

@@ -166,6 +166,19 @@ const HeroLanding = () => {
           DIG INTO PHILLY
         </h1>
 
+         {/* Nav */}
+         <div className="flex justify-center flex-wrap gap-3 text-md mb-6 text-gray-600">
+          <Link to="/groups">Groups</Link>
+          <span>&bull;</span>
+          <Link to="/sports">Sports</Link>
+          <span>&bull;</span>
+          <Link to="/concerts">Concerts</Link>
+          <span>&bull;</span>
+          <Link to="/trivia">Trivia</Link>
+          <span>&bull;</span>
+          <Link to="/voicemail">Voicemail</Link>
+        </div>
+
         {/* Special + Today/Tomorrow */}
         <div className="flex justify-center flex-wrap gap-2 text-sm mb-3">
           {special && (
@@ -181,18 +194,7 @@ const HeroLanding = () => {
         {/* Coming Up */}
         {renderComingUp()}
 
-        {/* Nav */}
-        <div className="flex justify-center flex-wrap gap-3 text-md mb-6 text-gray-600">
-          <Link to="/groups">Groups</Link>
-          <span>&bull;</span>
-          <Link to="/sports">Sports</Link>
-          <span>&bull;</span>
-          <Link to="/concerts">Concerts</Link>
-          <span>&bull;</span>
-          <Link to="/trivia">Trivia</Link>
-          <span>&bull;</span>
-          <Link to="/voicemail">Voicemail</Link>
-        </div>
+       
 
         {/* Email */}
         <div className="flex justify-center">

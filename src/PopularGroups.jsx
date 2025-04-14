@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import GroupCard from './GroupCard';
 import SubmitGroupModal from './SubmitGroupModal';
 import { supabase } from './supabaseClient';
+import { Link } from 'react-router-dom';
+
 
 const PopularGroups = ({ isAdmin }) => {
   const [groups, setGroups] = useState([]);
@@ -54,7 +56,7 @@ const PopularGroups = ({ isAdmin }) => {
               <a
                 key={group.id}
                 href={group.Link}
-                target="_blank"
+                to={`/groups/${group.slug}`}
                 rel="noopener noreferrer"
                 className="min-w-[200px] block"
               >
