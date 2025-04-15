@@ -30,6 +30,8 @@ import { Helmet } from 'react-helmet';
 import BokEventsGrid from './BokEventsGrid';
 import BillboardAd from './BillboardAd';
 import SouthStreetEventsGrid from './SouthStreetEventsGrid';
+import GroupProgressBar from './GroupProgressBar';
+
 
 
 
@@ -118,14 +120,17 @@ function App() {
         <link rel="canonical" href="https://ourphilly.com/" />
       </Helmet>
   
-      <div className="min-h-screen flex flex-col bg-white-100 p-4 pt-20">
+      <div className="min-h-screen flex flex-col bg-white-100  pt-20">
         <Navbar />
-        <BillboardAd />
+        <GroupProgressBar />
         <HeroLanding />
         <LibraryCardBanner />
         <PopularGroups />
+
         <MonthlyEvents />
         <SportsEventsGrid />
+        <BillboardAd />
+
         <ConcertEventsGrid />
         <Voicemail />
         <BokEventsGrid />

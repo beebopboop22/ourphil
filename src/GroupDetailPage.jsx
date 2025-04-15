@@ -7,6 +7,8 @@ import SportsEventsGrid from './SportsEventsGrid';
 import MonthlyEvents from './MonthlyEvents';
 import Voicemail from './Voicemail';
 import Footer from './Footer';
+import GroupProgressBar from './GroupProgressBar';
+
 
 const GroupDetails = () => {
   const { slug } = useParams();
@@ -69,6 +71,7 @@ const GroupDetails = () => {
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
       <Navbar />
+      <GroupProgressBar />
 
       {/* Full-width Hero */}
       <div className="w-full bg-gray-100 border-b border-gray-300 py-10 px-4 mb-16">
