@@ -122,9 +122,10 @@ function App() {
   
       <div className="min-h-screen flex flex-col bg-white-100  pt-20">
         <Navbar />
-        <GroupProgressBar />
-        <HeroLanding />
         <LibraryCardBanner />
+
+        <HeroLanding />
+        <GroupProgressBar />
         <PopularGroups />
 
         <MonthlyEvents />
