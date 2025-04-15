@@ -1,11 +1,6 @@
-// src/TriviaNights.jsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-
-mapboxgl.accessToken = 'pk.eyJ1IjoiYm1jYnJpZGUyMzAyIiwiYSI6ImNtOTY5ZDZzMDA5YzIybG9nbWNmeW5neTYifQ.opZIDulk6EiQhp0ApwYo8g';
 
 const daysOfWeek = [
   'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
@@ -15,11 +10,10 @@ const TriviaNights = () => {
   const [triviaList, setTriviaList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(daysOfWeek[new Date().getDay()]);
-  const mapContainer = React.useRef(null);
-  const map = React.useRef(null);
 
   useEffect(() => {
     const fetchTrivia = async () => {
+      setLoading(true);
       const { data, error } = await supabase
         .from('trivia')
         .select('*')
@@ -36,75 +30,21 @@ const TriviaNights = () => {
     fetchTrivia();
   }, [selectedDay]);
 
-  useEffect(() => {
-    if (!mapContainer.current || !triviaList.length) return;
-
-    if (map.current) {
-      map.current.remove();
-      map.current = null;
-    }
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
-      center: [-75.1652, 39.9526],
-      zoom: 12.5,
-      pitch: 45,
-      bearing: -15,
-      antialias: true,
-    });
-
-    map.current.on('load', () => {
-      map.current.addLayer({
-        id: '3d-buildings',
-        source: 'composite',
-        'source-layer': 'building',
-        filter: ['==', 'extrude', 'true'],
-        type: 'fill-extrusion',
-        minzoom: 15,
-        paint: {
-          'fill-extrusion-color': '#aaa',
-          'fill-extrusion-height': ['get', 'height'],
-          'fill-extrusion-base': ['get', 'min_height'],
-          'fill-extrusion-opacity': 0.6
-        }
-      });
-
-      triviaList.forEach((item) => {
-        const lat = parseFloat(item.latitude);
-        const lng = parseFloat(item.longitude);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          new mapboxgl.Marker({ color: '#FACC15' })
-            .setLngLat([lng, lat])
-            .setPopup(
-              new mapboxgl.Popup({ offset: 25 }).setHTML(
-                `<strong><a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.Bar}</a></strong><br/>${item.Time}`
-              )
-            )
-            .addTo(map.current);
-        }
-      });
-    });
-  }, [triviaList]);
-
   return (
-    <div className="flex w-full h-screen overflow-hidden">
-      <div className="w-1/4 bg-white pt-28 px-6 overflow-y-auto z-10 relative">
-        <div className="mb-6">
-          <Navbar />
-        </div>
+    <div className="min-h-screen bg-stone-100 from-yellow-50 to-gray-100">
+      <Navbar />
 
-        <h1 className="text-2xl font-bold text-black mb-4">
-          Trivia Nights on {selectedDay}
+      <div className="py-10 px-6">
+        <h1 className="text-4xl font-extrabold text-center text-yellow-600 mb-6 drop-shadow-sm">
+          🎉 Trivia Nights on {selectedDay}
         </h1>
 
-        <div className="mb-4">
-          <label htmlFor="day-select" className="block mb-1 text-sm font-medium text-gray-700">Select a day</label>
+        <div className="flex justify-center mb-10">
           <select
             id="day-select"
             value={selectedDay}
             onChange={(e) => setSelectedDay(e.target.value)}
-            className="w-full border-gray-300 rounded-md shadow-sm focus:ring-yellow-500 focus:border-yellow-500"
+            className="text-lg font-semibold bg-white text-gray-800 border-2 border-yellow-500 rounded-lg px-5 py-3 shadow-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none transition"
           >
             {daysOfWeek.map((day) => (
               <option key={day} value={day}>{day}</option>
@@ -113,37 +53,37 @@ const TriviaNights = () => {
         </div>
 
         {loading ? (
-          <p className="text-gray-500 mt-6">Loading...</p>
+          <p className="text-gray-500 text-center text-lg">Loading trivia magic...</p>
         ) : triviaList.length === 0 ? (
-          <p className="text-gray-600 mt-6">No trivia nights listed for this day.</p>
+          <p className="text-gray-600 text-center text-lg">No trivia nights listed for this day.</p>
         ) : (
-          <ul className="space-y-4 mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 px-4">
             {triviaList.map((item) => (
-              <li key={item.id} className="border-b pb-3">
+              <div
+                key={item.id}
+                className="bg-white border border-yellow-300 rounded-xl p-5 shadow-md hover:shadow-xl transition hover:scale-[1.02]"
+              >
                 <a
                   href={item.link || '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-black hover:text-yellow-600"
+                  className="block"
                 >
-                  <p className="text-lg font-semibold">{item.Bar}</p>
-                  <p className="text-sm">{item.Time} – {item.Neighborhood}</p>
+                  <p className="text-xl font-bold text-yellow-700 mb-1">{item.Bar}</p>
+                  <p className="text-sm text-gray-700">{item.Time} — {item.Neighborhood}</p>
                 </a>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
-
-      <div
-        ref={mapContainer}
-        className="w-3/4 h-full"
-      />
     </div>
   );
 };
 
 export default TriviaNights;
+
+
 
 
 
