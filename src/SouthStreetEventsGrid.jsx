@@ -5,6 +5,26 @@ const SouthStreetEventsGrid = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Helper function to display "TODAY", "TOMORROW", or weekday.
+  const getDisplayDay = (eventDate) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Normalize event date to midnight.
+    const normalizedEvent = new Date(eventDate);
+    normalizedEvent.setHours(0, 0, 0, 0);
+
+    if (normalizedEvent.getTime() === today.getTime()) {
+      return 'TODAY';
+    } else if (normalizedEvent.getTime() === tomorrow.getTime()) {
+      return 'TOMORROW';
+    } else {
+      return normalizedEvent.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+    }
+  };
+
   useEffect(() => {
     const fetchEvents = async () => {
       try {
@@ -18,7 +38,7 @@ const SouthStreetEventsGrid = () => {
 
         if (error) throw error;
 
-        // Filter for only today or future events
+        // Filter for only today or future events.
         const upcomingEvents = data.filter((event) => {
           const eventDate = new Date(event.date);
           eventDate.setHours(0, 0, 0, 0);
@@ -63,7 +83,7 @@ const SouthStreetEventsGrid = () => {
             ) : (
               events.map((event) => {
                 const eventDate = new Date(event.date);
-                const weekday = eventDate.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                const displayTag = getDisplayDay(eventDate);
 
                 return (
                   <a
@@ -80,7 +100,7 @@ const SouthStreetEventsGrid = () => {
                         className="w-full h-32 object-cover"
                       />
                       <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                        {weekday}
+                        {displayTag}
                       </div>
                     </div>
 
@@ -107,3 +127,4 @@ const SouthStreetEventsGrid = () => {
 };
 
 export default SouthStreetEventsGrid;
+

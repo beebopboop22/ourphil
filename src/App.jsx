@@ -31,6 +31,8 @@ import BokEventsGrid from './BokEventsGrid';
 import BillboardAd from './BillboardAd';
 import SouthStreetEventsGrid from './SouthStreetEventsGrid';
 import GroupProgressBar from './GroupProgressBar';
+import PlatformPromoBillboard from './PlatformPromoBillboard';
+
 
 
 
@@ -121,22 +123,23 @@ function App() {
       </Helmet>
   
       <div className="min-h-screen flex flex-col bg-white-100  pt-20">
-        <Navbar />
-        <LibraryCardBanner />
-
+        <Navbar />   
+     
+       
         <HeroLanding />
-        <GroupProgressBar />
         <PopularGroups />
+
+
 
         <MonthlyEvents />
         <SportsEventsGrid />
-        <BillboardAd />
-
         <ConcertEventsGrid />
+
+        <LibraryCardBanner />
         <Voicemail />
         <BokEventsGrid />
         <SouthStreetEventsGrid />
-
+        <BillboardAd />
         <Footer />
       </div>
     </>

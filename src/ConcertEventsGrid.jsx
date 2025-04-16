@@ -1,9 +1,29 @@
-// src/ConcertEventsGrid.jsx
 import React, { useEffect, useState } from 'react';
 
 const ConcertEventsGrid = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Helper function to return the appropriate display day label.
+  const getDisplayDay = (eventDate) => {
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+
+    // Helper to compare dates based on year, month, and day.
+    const isSameDay = (d1, d2) =>
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate();
+
+    if (isSameDay(eventDate, today)) {
+      return 'TODAY';
+    } else if (isSameDay(eventDate, tomorrow)) {
+      return 'TOMORROW';
+    } else {
+      return eventDate.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+    }
+  };
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -37,7 +57,7 @@ const ConcertEventsGrid = () => {
           <div className="flex gap-4 pb-2">
             {events.map((event) => {
               const eventDate = new Date(event.datetime_local);
-              const weekday = eventDate.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+              const displayDay = getDisplayDay(eventDate);
 
               return (
                 <a
@@ -54,7 +74,7 @@ const ConcertEventsGrid = () => {
                       className="w-full h-36 object-cover"
                     />
                     <div className="absolute top-2 left-2 bg-black text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
-                      {weekday}
+                      {displayDay}
                     </div>
                   </div>
 
@@ -88,3 +108,4 @@ const ConcertEventsGrid = () => {
 };
 
 export default ConcertEventsGrid;
+

@@ -1,25 +1,29 @@
-// src/HeroLanding.jsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { DAILY_SPECIALS_2025 } from './constants/specials';
 import { Link } from 'react-router-dom';
 
 const HeroLanding = () => {
+  // State declarations
   const [todayEvents, setTodayEvents] = useState([]);
   const [tomorrowEvents, setTomorrowEvents] = useState([]);
   const [fillerEvents, setFillerEvents] = useState([]);
-  const [email, setEmail] = useState('');
   const [todaySports, setTodaySports] = useState([]);
   const [tomorrowSports, setTomorrowSports] = useState([]);
   const [special, setSpecial] = useState(null);
+  const [email, setEmail] = useState('');
 
+  // Date variables
   const today = new Date();
   const tomorrow = new Date();
   tomorrow.setDate(today.getDate() + 1);
 
+  // Utility function to format date as MM/DD
   const formatDateMMDD = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
 
+  // Fetch events and sports data from Supabase and external API
   useEffect(() => {
+    // Generic function to fetch events from the 'events' table
     const fetchEvents = async (date, setter) => {
       const { data, error } = await supabase
         .from('events')
@@ -31,7 +35,8 @@ const HeroLanding = () => {
         return;
       }
 
-      const enhanced = data.map(event => {
+      // Enhance each event with computed start/end dates and active status
+      const enhanced = data.map((event) => {
         const startDateStr = event['Dates']?.split(',')[0]?.trim();
         const endDateStr = event['End Date']?.split(',')[0]?.trim() || startDateStr;
         const startDate = new Date(startDateStr);
@@ -44,6 +49,7 @@ const HeroLanding = () => {
       setter(active);
     };
 
+    // Fetch upcoming filler events (events after tomorrow)
     const fetchUpcomingFillers = async () => {
       const { data, error } = await supabase
         .from('events')
@@ -55,7 +61,7 @@ const HeroLanding = () => {
         return;
       }
 
-      const enhanced = data.map(event => {
+      const enhanced = data.map((event) => {
         const startDateStr = event['Dates']?.split(',')[0]?.trim();
         const startDate = new Date(startDateStr);
         return { ...event, startDate };
@@ -65,9 +71,12 @@ const HeroLanding = () => {
       setFillerEvents(future);
     };
 
+    // Fetch sports events from SeatGeek API
     const fetchSports = async (date, setter) => {
       try {
-        const res = await fetch(`https://api.seatgeek.com/2/events?performers.slug=philadelphia-phillies&per_page=5&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`);
+        const res = await fetch(
+          `https://api.seatgeek.com/2/events?performers.slug=philadelphia-phillies&per_page=5&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+        );
         const data = await res.json();
         const eventsOnDate = data.events.filter(event => {
           const eventDate = new Date(event.datetime_local);
@@ -79,6 +88,7 @@ const HeroLanding = () => {
       }
     };
 
+    // Determine today's special
     const forcedSpecial = window.localStorage.getItem('forceSpecial');
     if (forcedSpecial) {
       setSpecial(forcedSpecial);
@@ -86,75 +96,105 @@ const HeroLanding = () => {
       setSpecial(DAILY_SPECIALS_2025[formatDateMMDD(today)]);
     }
 
+    // Initiate data fetching concurrently
     fetchEvents(today, setTodayEvents);
     fetchEvents(tomorrow, setTomorrowEvents);
     fetchUpcomingFillers();
     fetchSports(today, setTodaySports);
     fetchSports(tomorrow, setTomorrowSports);
-
   }, []);
 
+  // Render the "Tonight!" and "Tomorrow!" list
   const renderTodayTomorrow = () => {
     const usedNames = new Set();
     let items = [];
 
-    todaySports.forEach(item => items.push({ item, label: 'Tonight!', isSports: true }));
-    todayEvents.forEach(item => {
+    // Combine sports and non-sports events for today
+    todaySports.forEach((item) => {
+      items.push({ item, label: 'Tonight!', isSports: true });
+    });
+    todayEvents.forEach((item) => {
       if (!usedNames.has(item['E Name'])) {
         usedNames.add(item['E Name']);
         items.push({ item, label: 'Tonight!', isSports: false });
       }
     });
 
-    tomorrowSports.forEach(item => items.push({ item, label: 'Tomorrow!', isSports: true }));
-    tomorrowEvents.forEach(item => {
+    // Combine sports and non-sports events for tomorrow
+    tomorrowSports.forEach((item) => {
+      items.push({ item, label: 'Tomorrow!', isSports: true });
+    });
+    tomorrowEvents.forEach((item) => {
       if (!usedNames.has(item['E Name'])) {
         usedNames.add(item['E Name']);
         items.push({ item, label: 'Tomorrow!', isSports: false });
       }
     });
 
+    // Limit to four combined items and render them
     return items.slice(0, 4).map(({ item, label, isSports }, idx, arr) => {
       const showLabel = idx === 0 || label !== arr[idx - 1].label;
       return (
         <React.Fragment key={item.id || item.short_title}>
-          {showLabel && <span className="font-semibold tracking-wide text-gray-500 uppercase ml-2">{label}</span>}
+          {showLabel && (
+            <span className="font-semibold tracking-wide text-gray-500 uppercase ml-2">
+              {label}
+            </span>
+          )}
           <span className="animate-pulse text-green-500">●</span>
           {isSports ? (
-            <Link to="/sports" className="text-blue-600 underline">{item.short_title}</Link>
+            <Link to="/sports" className="text-blue-600 underline">
+              {item.short_title}
+            </Link>
           ) : (
-            <a href={item['E Link'] || '#'} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{item['E Name']}</a>
+            <a
+              href={item['E Link'] || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              {item['E Name']}
+            </a>
           )}
         </React.Fragment>
       );
     });
   };
 
+  // Render upcoming filler events ("Coming Up!")
   const renderComingUp = () => {
     const usedNames = new Set([
       ...todayEvents.map(e => e['E Name']),
-      ...tomorrowEvents.map(e => e['E Name'])
+      ...tomorrowEvents.map(e => e['E Name']),
     ]);
 
     const comingUpItems = fillerEvents.filter(e => !usedNames.has(e['E Name'])).slice(0, 3);
 
     return (
-      <>
-        <div className="flex justify-center flex-wrap gap-2 text-sm mb-3 mt-3">
-          <span className="font-semibold tracking-wide text-gray-500 uppercase">Coming Up!</span>
-          {comingUpItems.map(item => (
-            <React.Fragment key={item.id}>
-              <span className="animate-pulse text-green-500">●</span>
-              <a href={item['E Link'] || '#'} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{item['E Name']}</a>
-            </React.Fragment>
-          ))}
-        </div>
-      </>
+      <div className="flex justify-center flex-wrap gap-2 text-sm mb-3 mt-3">
+        <span className="font-semibold tracking-wide text-gray-500 uppercase">
+          Coming Up!
+        </span>
+        {comingUpItems.map(item => (
+          <React.Fragment key={item.id}>
+            <span className="animate-pulse text-green-500">●</span>
+            <a
+              href={item['E Link'] || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              {item['E Name']}
+            </a>
+          </React.Fragment>
+        ))}
+      </div>
     );
   };
 
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-20 px-6 overflow-hidden">
+      {/* Background Image */}
       <img 
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
         alt="Heart Logo"
@@ -166,15 +206,13 @@ const HeroLanding = () => {
           DIG INTO PHILLY
         </h1>
 
-         {/* Nav */}
-         <div className="flex justify-center flex-wrap gap-3 text-md mb-6 text-gray-600">
+        {/* Navigation */}
+        <div className="flex justify-center flex-wrap gap-3 text-md mb-6 text-gray-600">
           <Link to="/groups">Groups</Link>
           <span>&bull;</span>
           <Link to="/sports">Sports</Link>
           <span>&bull;</span>
           <Link to="/concerts">Concerts</Link>
-          <span>&bull;</span>
-          <Link to="/trivia">Trivia</Link>
           <span>&bull;</span>
           <Link to="/voicemail">Voicemail</Link>
         </div>
@@ -183,7 +221,9 @@ const HeroLanding = () => {
         <div className="flex justify-center flex-wrap gap-2 text-sm mb-3">
           {special && (
             <>
-              <span className="font-semibold tracking-wide text-gray-500 uppercase">Tonight!</span>
+              <span className="font-semibold tracking-wide text-gray-500 uppercase">
+                Tonight!
+              </span>
               <span className="animate-pulse text-green-500">●</span>
               <span className="text-black">{special}</span>
             </>
@@ -194,10 +234,8 @@ const HeroLanding = () => {
         {/* Coming Up */}
         {renderComingUp()}
 
-       
-
-        {/* Email */}
-        <div className="flex justify-center">
+        {/* Email Subscription */}
+        <div className="mt-5 flex justify-center">
           <input
             type="email"
             placeholder="Your email"
@@ -218,6 +256,7 @@ const HeroLanding = () => {
 };
 
 export default HeroLanding;
+
 
 
 
