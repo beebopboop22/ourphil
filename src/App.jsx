@@ -1,28 +1,26 @@
-// src/App.jsx
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import GroupsList from './GroupsList';
 import MonthlyEvents from './MonthlyEvents';
 import { fetchGroups } from './utils/fetchGroups';
 import ReviewCarousel from './ReviewCarousel';
 import Sports from './Sports';
 import Navbar from './Navbar';
-import { Link } from 'react-router-dom';
 import WSJHeader from './WSJHeader';
-import FeaturedGroups from './FeaturedGroups'; 
+import FeaturedGroups from './FeaturedGroups';
 import FilteredGroupSection from './FilteredGroupSection';
 import Voicemail from './Voicemail';
 import GroupsPage from './GroupsPage';
 import MapboxMap from './MapboxMap';
 import PetfinderGrid from './PetfinderGrid';
 import SeptaAlertBanner from './SeptaAlertBanner';
-import 'mapbox-gl/dist/mapbox-gl.css'; 
+import 'mapbox-gl/dist/mapbox-gl.css';
 import Footer from './Footer';
-import RotatingFeatureBox from './RotatingFeatureBox'; 
+import RotatingFeatureBox from './RotatingFeatureBox';
 import TriviaNights from './TriviaNights';
 import SportsEventsGrid from './SportsEventsGrid';
 import ConcertEventsGrid from './ConcertEventsGrid';
-import HeroLanding from './HeroLanding'; 
+import HeroLanding from './HeroLanding';
 import PopularGroups from './PopularGroups';
 import LibraryCardBanner from './LibraryCardBanner';
 import ConcertsPage from './ConcertPage';
@@ -32,16 +30,6 @@ import BillboardAd from './BillboardAd';
 import SouthStreetEventsGrid from './SouthStreetEventsGrid';
 import GroupProgressBar from './GroupProgressBar';
 import PlatformPromoBillboard from './PlatformPromoBillboard';
-
-
-
-
-
-
-
-
-
-
 
 function App() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -122,19 +110,22 @@ function App() {
         <link rel="canonical" href="https://ourphilly.com/" />
       </Helmet>
   
-      <div className="min-h-screen flex flex-col bg-white-100  pt-20">
+      {/* Fixed Background Image */}
+      <div className="fixed inset-0 -z-10">
+        <img
+          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NDgwMjI3NiwiZXhwIjozNjc4MTI5ODI3Nn0._JpTXbt3OsVUC_QOX0V9BQtTy0KeFtBBXp8KC87dbuo"
+          alt="City Heart Background"
+          className="w-full h-full object-cover opacity-10"
+        />
+      </div>
+      
+      <div className="min-h-screen flex flex-col bg-white-100 pt-20 relative">
         <Navbar />   
-     
-       
         <HeroLanding />
         <PopularGroups />
-
-
-
         <MonthlyEvents />
         <SportsEventsGrid />
         <ConcertEventsGrid />
-
         <LibraryCardBanner />
         <Voicemail />
         <BokEventsGrid />
@@ -144,7 +135,6 @@ function App() {
       </div>
     </>
   );
-  
 }
 
 export default App;

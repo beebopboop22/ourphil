@@ -44,7 +44,7 @@ const HeroLanding = () => {
         return { ...event, startDate, endDate, isActive };
       });
 
-      const active = enhanced.filter((event) => event.isActive);
+      const active = enhanced.filter(event => event.isActive);
       setter(active);
     };
 
@@ -65,7 +65,7 @@ const HeroLanding = () => {
         return { ...event, startDate };
       });
 
-      const future = enhanced.filter((event) => event.startDate > tomorrow);
+      const future = enhanced.filter(event => event.startDate > tomorrow);
       setFillerEvents(future);
     };
 
@@ -75,7 +75,7 @@ const HeroLanding = () => {
           `https://api.seatgeek.com/2/events?performers.slug=philadelphia-phillies&per_page=5&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
         );
         const data = await res.json();
-        const eventsOnDate = data.events.filter((event) => {
+        const eventsOnDate = data.events.filter(event => {
           const eventDate = new Date(event.datetime_local);
           return eventDate.toDateString() === date.toDateString();
         });
@@ -93,7 +93,6 @@ const HeroLanding = () => {
       setSpecial(DAILY_SPECIALS_2025[formatDateMMDD(today)]);
     }
 
-    // Initiate data fetching concurrently
     fetchEvents(today, setTodayEvents);
     fetchEvents(tomorrow, setTomorrowEvents);
     fetchUpcomingFillers();
@@ -127,7 +126,9 @@ const HeroLanding = () => {
       return (
         <React.Fragment key={item.id || item.short_title}>
           {showLabel && (
-            <span className="font-semibold tracking-wide text-gray-500 uppercase ml-2">{label}</span>
+            <span className="font-semibold tracking-wide text-gray-500 uppercase ml-2">
+              {label}
+            </span>
           )}
           <span className="animate-pulse text-green-500">●</span>
           {isSports ? (
@@ -153,14 +154,16 @@ const HeroLanding = () => {
   const renderComingUp = () => {
     const usedNames = new Set([
       ...todayEvents.map(e => e['E Name']),
-      ...tomorrowEvents.map(e => e['E Name'])
+      ...tomorrowEvents.map(e => e['E Name']),
     ]);
     const comingUpItems = fillerEvents.filter(e => !usedNames.has(e['E Name'])).slice(0, 3);
 
     return (
       <div className="flex justify-center flex-wrap gap-2 text-sm mb-3 mt-3">
-        <span className="font-semibold tracking-wide text-gray-500 uppercase">Coming Up!</span>
-        {comingUpItems.map((item) => (
+        <span className="font-semibold tracking-wide text-gray-500 uppercase">
+          Coming Up!
+        </span>
+        {comingUpItems.map(item => (
           <React.Fragment key={item.id}>
             <span className="animate-pulse text-green-500">●</span>
             <a
@@ -178,16 +181,16 @@ const HeroLanding = () => {
   };
 
   return (
-    <section className="relative w-full bg-white border-b border-gray-200 py-20 px-6 overflow-visible">
-      {/* Floating Background Image */}
+    <section className="relative w-full bg-white border-b border-gray-200 py-20 px-6 overflow-hidden">
+      {/* Floating Background Image for the entire hero */}
       <img 
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NDc2NDIxNCwiZXhwIjozNjc4MTI2MDIxNH0.OqydsGmtiDIrMRHIgnLl2-X2sVp6yu_VyM8kE0q5ljo"
-        alt="Heart Logo"
-        className="absolute -bottom-10 right-10 w-[600px] opacity-10 rotate-6 pointer-events-none"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NDgwMjI3NiwiZXhwIjozNjc4MTI5ODI3Nn0._JpTXbt3OsVUC_QOX0V9BQtTy0KeFtBBXp8KC87dbuo"
+        alt="Heart Logo Background"
+        className="absolute -bottom-24 right-10 w-[600px] opacity-10 rotate-6 pointer-events-none"
       />
 
       <div className="relative max-w-screen-xl mx-auto flex flex-col items-center text-center z-10">
-        {/* New Recycling Banner */}
+        {/* Recycling Banner */}
         <div className="w-full text-center mb-4">
           <a
             href="https://www.phila.gov/services/trash-recycling-city-upkeep/get-a-recycling-bin/"
@@ -195,11 +198,22 @@ const HeroLanding = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            ♻️ The city gives free recycling bins
+            ♻️ The city wants to give you a free recycling bin
           </a>
         </div>
 
-        <h1 className="text-6xl font-[Barrio] font-black mb-4 text-black">DIG INTO PHILLY</h1>
+        {/* Main Heading with Decorative "D" */}
+        <h1 className="text-6xl font-[Barrio] font-black mb-4 text-black relative">
+          <span className="relative inline-block">
+            <span className="relative z-10">D</span>
+            <img 
+              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NDgwMjI3NiwiZXhwIjozNjc4MTI5ODI3Nn0._JpTXbt3OsVUC_QOX0V9BQtTy0KeFtBBXp8KC87dbuo"
+              alt="Decorative small heart"
+              className="absolute top-0 left-0 w-19 opacity-10 pointer-events-none"
+            />
+          </span>
+          IG INTO PHILLY
+        </h1>
 
         {/* Navigation */}
         <div className="flex justify-center flex-wrap gap-3 text-md mb-6 text-gray-600">
@@ -233,7 +247,7 @@ const HeroLanding = () => {
             type="email"
             placeholder="Your email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
             className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none"
           />
           <button
