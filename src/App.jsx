@@ -98,6 +98,7 @@ function App() {
     <>
       <Helmet>
         <title>Our Philly – Philly's Weirdest, Warmest Community Guide</title>
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
         <meta name="description" content="Find sports, concerts, neighborhood groups, weird Philly stuff, and more. Built by locals, for locals." />
         <meta name="keywords" content="Philadelphia, Philly events, Philly sports, Philly concerts, local groups, our philly, philly things to do" />
         <meta property="og:title" content="Our Philly" />
