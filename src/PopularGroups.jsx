@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import SubmitGroupModal from './SubmitGroupModal';
 import { Link } from 'react-router-dom';
+import GroupProgressBar from './GroupProgressBar';
 
 const PopularGroups = ({ isAdmin }) => {
   const [groups, setGroups] = useState([]);
@@ -45,9 +46,8 @@ const PopularGroups = ({ isAdmin }) => {
         <h2 className="text-5xl font-[Barrio] text-gray-800 mb-3 text-center">
           Recently Added Groups
         </h2>
-        <p className="text-gray-600 text-md mb-8 max-w-2xl mx-auto text-center">
-          The newest weirdos in the OurPhilly family.
-        </p>
+
+        <GroupProgressBar />
 
         {/* Mobile Horizontal Scroll Layout */}
         <div className="sm:hidden flex gap-4 overflow-x-auto pb-2">
@@ -136,5 +136,3 @@ const PopularGroups = ({ isAdmin }) => {
 };
 
 export default PopularGroups;
-
-
