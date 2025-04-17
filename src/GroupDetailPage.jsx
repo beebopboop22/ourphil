@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import GroupCard from './GroupCard';
@@ -69,6 +70,11 @@ const GroupDetails = () => {
 
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
+      <Helmet>
+        <title>{group.Name} – Our Philly</title>
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+      </Helmet>
+
       <Navbar />
       <GroupProgressBar />
 
@@ -161,3 +167,4 @@ const GroupDetails = () => {
 };
 
 export default GroupDetails;
+

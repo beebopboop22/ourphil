@@ -39,6 +39,7 @@ const GroupTypePage = () => {
     <>
       <Helmet>
         <title>{tag} Groups – Our Philly</title>
+        <link rel="icon" href="/favicon.ico" />
         <meta name="description" content={`Explore Philly groups for ${tag.toLowerCase()}.`} />
       </Helmet>
 

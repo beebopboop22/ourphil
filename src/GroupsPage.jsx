@@ -44,6 +44,7 @@ const GroupsPage = () => {
     <>
       <Helmet>
         <title>Philly Groups – Neighborhood Crews & Clubs | Our Philly</title>
+        <link rel="icon" href="/favicon.ico" />
         <meta
           name="description"
           content="From sports leagues to social crews, explore Philly's most active local groups and communities."

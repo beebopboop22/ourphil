@@ -39,6 +39,7 @@ const ConcertsPage = () => {
     <>
       <Helmet>
         <title>Philly Concerts – Live Music in Philadelphia | Our Philly</title>
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
         <meta 
           name="description" 
           content="Upcoming concerts in Philadelphia. Find shows, venues, and live music all over Philly curated by Our Philly." 

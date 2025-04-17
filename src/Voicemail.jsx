@@ -29,7 +29,7 @@ const HeroVoicemail = () => {
       <div className="max-w-xl w-full text-center">
 
         <p className="text-3xl md:text-4xl font-extrabold tracking-wide mb-2">
-          <a href="tel:2153233324" className="hover:underline">(215) 323-3324</a>
+          <a href="tel:2158398394" className="hover:underline">(215) 839-8394</a>
         </p>
 
         <h2 className="text-4xl md:text-5xl font-[Barrio] mb-6">
@@ -48,7 +48,7 @@ const HeroVoicemail = () => {
         )}
 
         <a
-          href="tel:2153233324"
+          href="tel:2158398394"
           className="inline-block px-10 py-4 bg-yellow-400 hover:bg-yellow-500 text-blue-900 text-lg font-extrabold rounded-full shadow-lg transition tracking-wide"
         >
           Leave a Voicemail Now
