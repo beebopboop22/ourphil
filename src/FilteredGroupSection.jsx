@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import GroupCard from './GroupCard';
 import SubmitGroupModal from './SubmitGroupModal';
 import { supabase } from './supabaseClient';
@@ -25,7 +26,6 @@ const FilteredGroupSection = ({ tag, title, isAdmin }) => {
 
   const visibleGroups = groups.slice(0, visibleCount);
 
-  // 🎯 Dynamic subtitle based on tag
   const getSubtitle = (tag) => {
     const normalizedTag = tag.toLowerCase();
     switch (normalizedTag) {
@@ -48,6 +48,9 @@ const FilteredGroupSection = ({ tag, title, isAdmin }) => {
     }
   };
 
+  const slugify = (text) =>
+    text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
   return (
     <div className="w-full max-w-screen-xl mx-auto px-4 py-16 border-t border-gray-200">
       <div className="mb-6">
@@ -55,17 +58,6 @@ const FilteredGroupSection = ({ tag, title, isAdmin }) => {
           <h2 className="text-2xl font-bold text-black text-left">{title}</h2>
           <p className="text-gray-600 text-sm text-left">{getSubtitle(tag)}</p>
         </div>
-
-        {visibleCount < groups.length && (
-          <div className="mb-4 text-right">
-            <button
-              onClick={() => setVisibleCount(prev => prev + 6)}
-              className="text-sm font-semibold text-indigo-600 hover:underline"
-            >
-              See More
-            </button>
-          </div>
-        )}
 
         <div className="overflow-x-auto">
           <div className="flex gap-4 pb-2">
@@ -91,7 +83,7 @@ const FilteredGroupSection = ({ tag, title, isAdmin }) => {
                     Description: '',
                     Type: null,
                     Vibes: null,
-                    Link: null // prevent rendering any link text inside GroupCard
+                    Link: null
                   }}
                   isAdmin={false}
                 />
@@ -99,6 +91,17 @@ const FilteredGroupSection = ({ tag, title, isAdmin }) => {
             ))}
           </div>
         </div>
+
+        {visibleCount < groups.length && (
+          <div className="mt-4 text-right">
+            <Link
+              to={`/groups/type/${slugify(tag)}`}
+              className="text-sm font-semibold text-indigo-600 hover:underline"
+            >
+              See More
+            </Link>
+          </div>
+        )}
 
         {showSubmitModal && (
           <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
@@ -109,6 +112,7 @@ const FilteredGroupSection = ({ tag, title, isAdmin }) => {
 };
 
 export default FilteredGroupSection;
+
 
 
 

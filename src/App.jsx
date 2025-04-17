@@ -30,6 +30,8 @@ import BillboardAd from './BillboardAd';
 import SouthStreetEventsGrid from './SouthStreetEventsGrid';
 import GroupProgressBar from './GroupProgressBar';
 import PlatformPromoBillboard from './PlatformPromoBillboard';
+import GroupRecommender from './components/GroupRecommender';
+
 
 function App() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,18 +112,12 @@ function App() {
         <link rel="canonical" href="https://ourphilly.com/" />
       </Helmet>
   
-      {/* Fixed Background Image */}
-      <div className="fixed inset-0 -z-10">
-        <img
-          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NDgwMjI3NiwiZXhwIjozNjc4MTI5ODI3Nn0._JpTXbt3OsVUC_QOX0V9BQtTy0KeFtBBXp8KC87dbuo"
-          alt="City Heart Background"
-          className="w-full h-full object-cover opacity-10"
-        />
-      </div>
+     
       
       <div className="min-h-screen flex flex-col bg-white-100 pt-20 relative">
         <Navbar />   
         <HeroLanding />
+
         <PopularGroups />
         <MonthlyEvents />
         <SportsEventsGrid />

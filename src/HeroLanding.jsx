@@ -132,9 +132,15 @@ const HeroLanding = () => {
           )}
           <span className="animate-pulse text-green-500">●</span>
           {isSports ? (
-            <Link to="/sports" className="text-blue-600 underline">
-              {item.short_title}
-            </Link>
+            <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 underline"
+          >
+            {item.short_title}
+          </a>
+          
           ) : (
             <a
               href={item['E Link'] || '#'}
@@ -190,17 +196,7 @@ const HeroLanding = () => {
       />
 
       <div className="relative max-w-screen-xl mx-auto flex flex-col items-center text-center z-10">
-        {/* Recycling Banner */}
-        <div className="w-full text-center mb-4">
-          <a
-            href="https://www.phila.gov/services/trash-recycling-city-upkeep/get-a-recycling-bin/"
-            className="inline-flex items-center text-sm font-semibold text-blue-600 hover:underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            ♻️ The city wants to give you a free recycling bin
-          </a>
-        </div>
+        
 
         {/* Main Heading with Decorative "D" */}
         <h1 className="text-6xl font-[Barrio] font-black mb-4 text-black relative">
@@ -214,17 +210,6 @@ const HeroLanding = () => {
           </span>
           IG INTO PHILLY
         </h1>
-
-        {/* Navigation */}
-        <div className="flex justify-center flex-wrap gap-3 text-md mb-6 text-gray-600">
-          <Link to="/groups">Groups</Link>
-          <span>&bull;</span>
-          <Link to="/sports">Sports</Link>
-          <span>&bull;</span>
-          <Link to="/concerts">Concerts</Link>
-          <span>&bull;</span>
-          <Link to="/voicemail">Voicemail</Link>
-        </div>
 
         {/* Special + Today/Tomorrow */}
         <div className="flex justify-center flex-wrap gap-2 text-sm mb-3">
@@ -241,22 +226,6 @@ const HeroLanding = () => {
         {/* Coming Up */}
         {renderComingUp()}
 
-        {/* Email Subscription */}
-        <div className="mt-5 flex justify-center">
-          <input
-            type="email"
-            placeholder="Your email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none"
-          />
-          <button
-            onClick={() => alert(`Subscribed: ${email}`)}
-            className="bg-black text-white font-semibold px-6 py-2 rounded-r-lg hover:bg-gray-800 transition"
-          >
-            Subscribe
-          </button>
-        </div>
       </div>
     </section>
   );

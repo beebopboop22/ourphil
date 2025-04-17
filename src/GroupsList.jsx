@@ -42,6 +42,17 @@ const GroupsList = ({ groups, isAdmin }) => {
   const featuredGroups = (!searchTerm && !selectedType) ? filteredGroups.filter(group => group.featured) : [];
   const otherGroups = filteredGroups.filter(group => !group.featured);
 
+  const AddGroupCard = () => (
+    <div
+      onClick={() => setShowSubmitModal(true)}
+      className="cursor-pointer border-2 border-dashed border-indigo-400 rounded-2xl p-6 text-center text-indigo-600 hover:bg-indigo-50 hover:border-indigo-600 transition"
+    >
+      <div className="text-4xl mb-2">＋</div>
+      <div className="font-semibold">Add a Group</div>
+      <div className="text-sm text-gray-500 mt-1">Know a crew that should be listed?</div>
+    </div>
+  );
+
   return (
     <div className="relative py-20 px-4 overflow-hidden bg-white-50">
       {/* Big Heart */}
@@ -68,6 +79,9 @@ const GroupsList = ({ groups, isAdmin }) => {
         {/* Search Results */}
         <div className={`grid gap-6 ${searchTerm ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'}`}>
           
+          {/* Add a Group Card as first item */}
+          <AddGroupCard />
+
           {otherGroups.length === 0 ? (
             <div className="col-span-full text-center text-gray-500 py-10">
               No groups found — try another search or explore below!
@@ -82,7 +96,6 @@ const GroupsList = ({ groups, isAdmin }) => {
               />
             ))
           )}
-
         </div>
 
         {/* Load More */}
@@ -97,18 +110,7 @@ const GroupsList = ({ groups, isAdmin }) => {
           </div>
         )}
 
-        {/* Add Group Card */}
-        <div className="flex justify-center mt-16">
-          <button
-            onClick={() => setShowSubmitModal(true)}
-            className="bg-white border border-gray-300 text-gray-700 rounded-2xl p-8 flex flex-col justify-center items-center hover:shadow-lg transition w-full max-w-lg"
-          >
-            <div className="text-5xl mb-2">➕</div>
-            <p className="text-lg font-semibold">Know a Group We Should Include?</p>
-            <p className="text-sm text-gray-500 mt-1">Add it here!</p>
-          </button>
-        </div>
-
+        {/* Add Group Modal */}
         {showSubmitModal && (
           <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
         )}
@@ -118,5 +120,3 @@ const GroupsList = ({ groups, isAdmin }) => {
 };
 
 export default GroupsList;
-
-

@@ -9,7 +9,6 @@ import Voicemail from './Voicemail';
 import Footer from './Footer';
 import GroupProgressBar from './GroupProgressBar';
 
-
 const GroupDetails = () => {
   const { slug } = useParams();
   const [group, setGroup] = useState(null);
@@ -76,7 +75,6 @@ const GroupDetails = () => {
       {/* Full-width Hero */}
       <div className="w-full bg-gray-100 border-b border-gray-300 py-10 px-4 mb-16">
         <div className="max-w-screen-xl mx-auto flex flex-col md:flex-row gap-8 items-center">
-
           {group.imag && (
             <div className="w-40 h-40 flex-shrink-0">
               <img
@@ -101,9 +99,13 @@ const GroupDetails = () => {
             {types.length > 0 && (
               <div className="flex flex-wrap justify-center md:justify-start gap-2 mb-3">
                 {types.map((type, idx) => (
-                  <span key={idx} className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full">
+                  <Link
+                    key={idx}
+                    to={`/groups/type/${type.toLowerCase().replace(/\s+/g, '-')}`}
+                    className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full hover:bg-indigo-200 transition"
+                  >
                     {type}
-                  </span>
+                  </Link>
                 ))}
               </div>
             )}
@@ -123,11 +125,12 @@ const GroupDetails = () => {
       </div>
 
       <div className="max-w-screen-xl mx-auto px-4">
-
         {/* Related Groups */}
         {relatedGroups.length > 0 && (
           <div className="mb-16">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Similar Groups</h2>
+            <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">
+              More in {types.slice(0, 2).join(', ')}
+            </h2>
             <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {relatedGroups.slice(0, visibleCount).map(group => (
                 <GroupCard key={group.id} group={group} isAdmin={false} />
@@ -147,19 +150,6 @@ const GroupDetails = () => {
           </div>
         )}
 
-        {/* Explore More */}
-        <div className="mb-20 text-center">
-          <h2 className="text-3xl font-[Barrio] text-indigo-900 mb-2">Explore More Philly Magic</h2>
-          <p className="text-gray-600 text-sm mb-6">Find sports, concerts, voicemails & other weird wonderful stuff.</p>
-
-          <div className="flex justify-center flex-wrap gap-4 text-md font-medium">
-            <Link to="/sports" className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full hover:bg-blue-200 transition">⚾ Philly Sports</Link>
-            <Link to="/concerts" className="bg-pink-100 text-pink-800 px-4 py-2 rounded-full hover:bg-pink-200 transition">🎵 Concerts</Link>
-            <Link to="/voicemail" className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-full hover:bg-yellow-200 transition">📞 Anonymous Voicemail</Link>
-            <Link to="/groups" className="bg-green-100 text-green-800 px-4 py-2 rounded-full hover:bg-green-200 transition">🧭 Explore All Groups</Link>
-          </div>
-        </div>
-
         <MonthlyEvents />
         <SportsEventsGrid />
       </div>
@@ -171,7 +161,3 @@ const GroupDetails = () => {
 };
 
 export default GroupDetails;
-
-
-
-

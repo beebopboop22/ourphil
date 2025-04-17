@@ -9,9 +9,10 @@ import TriviaNights from './TriviaNights';
 import GroupsPage from './GroupsPage';
 import VoicemailPage from './VoicemailPage';
 import VolunteerGroups from './VolunteerGroups';
-import './index.css';
 import GroupDetailPage from './GroupDetailPage';
+import GroupTypePage from './GroupTypePage'; // 🆕
 
+import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -24,9 +25,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/volunteer" element={<VolunteerGroups />} />
         <Route path="/concerts" element={<ConcertPage />} />
-        
         <Route path="/groups/:slug" element={<GroupDetailPage />} />
-
+        <Route path="/groups/type/:tagSlug" element={<GroupTypePage />} /> {/* 🆕 */}
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
