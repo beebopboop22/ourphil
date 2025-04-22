@@ -1,172 +1,99 @@
+// src/HeroLanding.jsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
-import { DAILY_SPECIALS_2025 } from './constants/specials';
-import { Link } from 'react-router-dom';
 
 const HeroLanding = () => {
-  const [todayEvents, setTodayEvents] = useState([]);
-  const [tomorrowEvents, setTomorrowEvents] = useState([]);
-  const [fillerEvents, setFillerEvents] = useState([]);
-  const [todaySports, setTodaySports] = useState([]);
-  const [tomorrowSports, setTomorrowSports] = useState([]);
-  const [special, setSpecial] = useState(null);
+  const [upcoming, setUpcoming] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const today = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(today.getDate() + 1);
-
-  const formatDateMMDD = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
-  const formatDateShort = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // helper: pull the first date out of your "Dates" string
+  const parseStartDate = (datesStr) => {
+    if (!datesStr) return null;
+    // split on 'through' or '–' or '-' for multi‑day ranges
+    const [first] = datesStr.split(/through|–|-/);
+    return new Date(first.trim());
+  };
 
   useEffect(() => {
-    const fetchEvents = async (date, setter) => {
-      const { data, error } = await supabase
-        .from('events')
-        .select('id, "E Name", Dates, "End Date", "E Link"')
-        .order('Dates', { ascending: true });
-
-      if (error) return console.error('Error fetching events:', error);
-
-      const enhanced = data.map(event => {
-        const startDateStr = event['Dates']?.split(',')[0]?.trim();
-        const endDateStr = event['End Date']?.split(',')[0]?.trim() || startDateStr;
-        const startDate = new Date(startDateStr);
-        const endDate = new Date(endDateStr);
-        const isActive = startDate <= date && endDate >= date;
-        return { ...event, startDate, endDate, isActive };
-      });
-
-      const active = enhanced.filter(event => event.isActive);
-      setter(active);
-    };
-
-    const fetchUpcomingFillers = async () => {
-      const { data, error } = await supabase
-        .from('events')
-        .select('id, "E Name", Dates, "E Link"')
-        .order('Dates', { ascending: true });
-
-      if (error) return console.error('Error fetching filler events:', error);
-
-      const enhanced = data.map(event => {
-        const startDateStr = event['Dates']?.split(',')[0]?.trim();
-        const startDate = new Date(startDateStr);
-        return { ...event, startDate };
-      });
-
-      const future = enhanced.filter(event => event.startDate > tomorrow);
-      setFillerEvents(future);
-    };
-
-    const fetchSports = async (date, setter) => {
+    const fetchEvents = async () => {
       try {
-        const res = await fetch(
-          `https://api.seatgeek.com/2/events?performers.slug=philadelphia-phillies&per_page=5&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
-        );
-        const data = await res.json();
-        const eventsOnDate = data.events.filter(event => {
-          const eventDate = new Date(event.datetime_local);
-          return eventDate.toDateString() === date.toDateString();
-        });
-        setter(eventsOnDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const { data, error } = await supabase
+          .from('events')
+          .select(`id, "E Name", Dates, "E Link"`)
+          .order('Dates', { ascending: true });
+
+        if (error) throw error;
+
+        const nextThree = data
+          .map((e) => {
+            const startDate = parseStartDate(e.Dates);
+            return { ...e, startDate };
+          })
+          .filter((e) => e.startDate && e.startDate >= today)
+          .slice(0, 3);
+
+        setUpcoming(nextThree);
       } catch (err) {
-        console.error('Error fetching sports:', err);
+        console.error('Error fetching events:', err);
+      } finally {
+        setLoading(false);
       }
     };
 
-    const forcedSpecial = window.localStorage.getItem('forceSpecial');
-    if (forcedSpecial) {
-      setSpecial(forcedSpecial);
-    } else if (DAILY_SPECIALS_2025[formatDateMMDD(today)]) {
-      setSpecial(DAILY_SPECIALS_2025[formatDateMMDD(today)]);
-    }
-
-    fetchEvents(today, setTodayEvents);
-    fetchEvents(tomorrow, setTomorrowEvents);
-    fetchUpcomingFillers();
-    fetchSports(today, setTodaySports);
-    fetchSports(tomorrow, setTomorrowSports);
+    fetchEvents();
   }, []);
-
-  const conciergeNote = () => {
-    const usedNames = new Set();
-    let tonightItems = [];
-    let tomorrowItems = [];
-
-    todaySports.forEach(item => {
-      tonightItems.push(
-        <a href={item.url} key={item.id} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-          {item.short_title}
-        </a>
-      );
-    });
-    todayEvents.forEach(event => {
-      if (!usedNames.has(event['E Name'])) {
-        usedNames.add(event['E Name']);
-        tonightItems.push(
-          <a href={event['E Link']} key={event.id} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-            {event['E Name']}
-          </a>
-        );
-      }
-    });
-
-    tomorrowSports.forEach(item => {
-      tomorrowItems.push(
-        <a href={item.url} key={item.id} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-          {item.short_title}
-        </a>
-      );
-    });
-    tomorrowEvents.forEach(event => {
-      if (!usedNames.has(event['E Name'])) {
-        usedNames.add(event['E Name']);
-        tomorrowItems.push(
-          <a href={event['E Link']} key={event.id} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-            {event['E Name']}
-          </a>
-        );
-      }
-    });
-
-    const fillerItems = fillerEvents.filter(e => !usedNames.has(e['E Name'])).slice(0, 3).map(item => (
-      <a href={item['E Link']} key={item.id} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-        {item['E Name']} ({formatDateShort(item.startDate)})
-      </a>
-    ));
-
-    return (
-<p    className="text-sm text-left text-gray-700 whitespace-pre-line font-reenie leading-relaxed">
-<strong>Concierge Report</strong> Today – {tonightItems.length > 0 ? tonightItems.reduce((acc, curr) => [acc, ', ', curr]) : 'nothing yet'}
-        . Tomorrow – {tomorrowItems.length > 0 ? tomorrowItems.reduce((acc, curr) => [acc, ', ', curr]) : 'nothing lined up'}
-        . Coming Up – {fillerItems.length > 0 ? fillerItems.reduce((acc, curr) => [acc, ', ', curr]) : 'more soon'}
-      </p>
-    );
-  };
 
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-20 px-6 overflow-hidden">
-      <img 
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NDgwMjI3NiwiZXhwIjozNjc4MTI5ODI3Nn0._JpTXbt3OsVUC_QOX0V9BQtTy0KeFtBBXp8KC87dbuo"
+      {/* Heart background */}
+      <img
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbGFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NDgwMjI3NiwiZXhwIjozNjc4MTI5ODI3Nn0._JpTXbt3OsVUC_QOX0V9BQtTy0KeFtBBXp8KC87dbuo"
         alt="Heart Logo Background"
         className="absolute -bottom-24 right-10 w-[600px] opacity-10 rotate-6 pointer-events-none"
       />
+
+      {/* Concierge illustration */}
+      <img
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/Our-Philly-Concierge_Illustration-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyLVBoaWxseS1Db25jaWVyZ2VfSWxsdXN0cmF0aW9uLTEucG5nIiwiaWF0IjoxNzQ1MzM1Mjc2LCJleHAiOjM2NzgxODMxMjc2fQ.HdMKzz1VUeCD8Fh75AmC93KvjXwDyF0281g9xbAvncc"
+        alt="Our Philly Concierge"
+        className="
+  absolute left-1/5 top-1/2 transform -translate-x-1/3 -translate-y-1/2
+  w-32     /* 8rem  / 128px */
+  md:w-64  /* 16rem / 256px */
+  lg:w-96  /* 24rem / 384px */
+  xl:w-[32rem] /* ~512px */
+  z-0
+"    />
+
       <div className="relative max-w-screen-xl mx-auto flex flex-col items-center text-center z-10">
         <h1 className="text-6xl font-[Barrio] font-black mb-6 text-black relative">
-          <span className="relative inline-block">
-            DIG INTO PHILLY
-          </span>
+          <span className="relative inline-block">DIG INTO PHILLY</span>
         </h1>
-        <div className="bg-yellow-50 rounded-xl p-6 mt-4 max-w-3xl mx-auto shadow-md relative">
-          <img
-            src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/Our-Philly-Concierge_Illustration-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyLVBoaWxseS1Db25jaWVyZ2VfSWxsdXN0cmF0aW9uLTEucG5nIiwiaWF0IjoxNzQ0OTA3OTMyLCJleHAiOjM2NzgxNDAzOTMyfQ.OOM1-HQgRQbw5Z0HI8g5c5fPwvWlvXlj3NXiUK-UHYA"
-            alt="Our Philly Concierge"
-            className="absolute bottom-40 w-28 md:w-36 lg:w-40 translate-y-6 z-0"
-          />
-          <div className="relative z-10">
-            {conciergeNote()}
-          </div>
-        </div>
+
+        {loading ? (
+          <p className="text-sm text-gray-700">Loading upcoming events…</p>
+        ) : upcoming.length === 0 ? (
+          <p className="text-sm text-gray-700">No upcoming events found.</p>
+        ) : (
+          <p className="text-sm text-gray-700 inline-flex flex-wrap justify-center gap-4">
+            <strong className="mr-2">COMING UP:</strong>
+            {upcoming.map((evt) => (
+              <a
+                key={evt.id}
+                href={evt['E Link']}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center space-x-1 underline"
+              >
+                <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span>{evt['E Name']}</span>
+              </a>
+            ))}
+          </p>
+        )}
       </div>
     </section>
   );

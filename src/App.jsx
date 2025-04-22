@@ -31,6 +31,7 @@ import SouthStreetEventsGrid from './SouthStreetEventsGrid';
 import GroupProgressBar from './GroupProgressBar';
 import PlatformPromoBillboard from './PlatformPromoBillboard';
 import GroupRecommender from './components/GroupRecommender';
+import EventsGrid from './EventsGrid';
 
 
 function App() {
@@ -127,7 +128,8 @@ function App() {
         <Voicemail />
         <BokEventsGrid />
         <SouthStreetEventsGrid />
-        <BillboardAd />
+        <EventsGrid />
+
         <Footer />
       </div>
     </>
