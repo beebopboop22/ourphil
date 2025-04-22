@@ -26,6 +26,5 @@ jobs:
       - name: Run ANSP scraper
         run: python3 scripts/upsert_ansp_to_supabase.py
         env:
-          # make sure you’ve added these to your repo’s Secrets
-          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
