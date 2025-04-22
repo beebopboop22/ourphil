@@ -1,0 +1,31 @@
+name: Daily ANSP → Supabase
+
+on:
+  # every day at 12:00 AM Eastern (05:00 UTC)
+  schedule:
+    - cron:  '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 python-dotenv supabase
+
+      - name: Run ANSP scraper
+        run: python3 scripts/upsert_ansp_to_supabase.py
+        env:
+          # make sure you’ve added these to your repo’s Secrets
+          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
