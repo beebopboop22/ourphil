@@ -1,0 +1,33 @@
+name: Scrape Fairmount Park Events
+
+on:
+  push:
+    branches:
+      - main
+    # optionally only run when the script itself changes:
+    # paths:
+    #   - 'scripts/scrape-fairmount-park-events.py'
+
+jobs:
+  scrape_fpc:
+    name: Scrape Fairmount Park
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-dotenv supabase requests beautifulsoup4
+
+      - name: Scrape Fairmount Park
+        run: python scripts/scrape-fairmount-park-events.py
