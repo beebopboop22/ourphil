@@ -1,9 +1,9 @@
 name: Daily ANSP → Supabase
 
 on:
-  # every day at 12:00 AM Eastern (05:00 UTC)
   schedule:
-    - cron:  '0 5 * * *'
+    # every day at midnight EDT (05:00 UTC)
+    - cron: '0 5 * * *'
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
           pip install requests beautifulsoup4 python-dotenv supabase
 
       - name: Run ANSP scraper
-        run: python3 scripts/upsert_ansp_to_supabase.py
         env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/upsert_ansp_to_supabase.py
