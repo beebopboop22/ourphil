@@ -20,6 +20,7 @@ const GroupDetails = () => {
 
   useEffect(() => {
     const fetchGroup = async () => {
+      // fetch all slugs to compute index
       const { data: allGroups, error: allError } = await supabase
         .from('groups')
         .select('slug')
@@ -34,6 +35,7 @@ const GroupDetails = () => {
       setGroupIndex(index + 1);
       setTotalGroups(allGroups.length);
 
+      // fetch this group
       const { data, error } = await supabase
         .from('groups')
         .select('*')
@@ -47,6 +49,7 @@ const GroupDetails = () => {
 
       setGroup(data);
 
+      // fetch related by first type
       if (data?.Type) {
         const types = data.Type.split(',').map(t => t.trim());
         const { data: related, error: relatedError } = await supabase
@@ -73,6 +76,42 @@ const GroupDetails = () => {
       <Helmet>
         <title>{group.Name} – Our Philly</title>
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
+        {/* dynamic JSON-LD structured data for this group */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": group.Name,
+            "url": window.location.href,
+            "description": group.Description,
+            ...(group.imag ? { "logo": group.imag } : {}),
+            "sameAs": group.Link ? [ group.Link ] : undefined,
+            "breadcrumb": {
+              "@type": "BreadcrumbList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "Home",
+                  "item": "https://ourphilly.com"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "Groups",
+                  "item": "https://ourphilly.com/groups"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 3,
+                  "name": group.Name,
+                  "item": window.location.href
+                }
+              ]
+            }
+          })}
+        </script>
       </Helmet>
 
       <Navbar />
@@ -167,4 +206,3 @@ const GroupDetails = () => {
 };
 
 export default GroupDetails;
-
