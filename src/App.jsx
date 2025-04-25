@@ -127,7 +127,6 @@ function App() {
         <Voicemail />
         <BokEventsGrid />
         <SouthStreetEventsGrid />
-        <EventsGrid neighborhood="Center City"/>
 
         <Footer />
       </div>
