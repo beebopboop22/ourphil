@@ -48,3 +48,5 @@ tzdata==2025.2
 urllib3==2.3.0
 websockets==14.2
 yarl==1.19.0
+selenium
+webdriver-manager

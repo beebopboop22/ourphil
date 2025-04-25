@@ -121,7 +121,6 @@ function App() {
         <HeroLanding />
 
         <PopularGroups />
-        <MonthlyEvents />
         <SportsEventsGrid />
         <ConcertEventsGrid />
         <LibraryCardBanner />
