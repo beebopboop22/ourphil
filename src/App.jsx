@@ -98,7 +98,7 @@ function App() {
   return (
     <>
       <Helmet>
-        <title>Our Philly – Philly's Weirdest, Warmest Community Guide</title>
+        <title>Our Philly – A City guide for you and me</title>
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
         <meta name="description" content="Find sports, concerts, neighborhood groups, weird Philly stuff, and more. Built by locals, for locals." />
         <meta name="keywords" content="Philadelphia, Philly events, Philly sports, Philly concerts, local groups, our philly, philly things to do" />
