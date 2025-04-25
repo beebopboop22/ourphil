@@ -34,8 +34,6 @@ const Navbar = () => {
 
           {/* Desktop Links */}
           <div className="hidden md:flex items-center space-x-6 text-sm font-medium">
-            <Link to="/" className={`hover:text-indigo-600 transition ${location.pathname === '/' ? 'text-indigo-600' : 'text-gray-800'}`}>Home</Link>
-            <Link to="/groups" className={`hover:text-indigo-600 transition ${location.pathname === '/groups' ? 'text-indigo-600' : 'text-gray-800'}`}>Groups</Link>
             <button
               onClick={handleOpenModal}
               className="bg-indigo-600 text-white px-4 py-2 rounded-full text-sm hover:bg-indigo-700 transition"
@@ -48,10 +46,7 @@ const Navbar = () => {
         {/* Mobile Menu */}
         {menuOpen && (
           <div className="md:hidden bg-white shadow-md px-4 pt-4 pb-6 space-y-4 text-sm font-medium">
-            <Link to="/" className="block text-gray-800 hover:text-indigo-600" onClick={() => setMenuOpen(false)}>Home</Link>
-            <Link to="/sports" className="block text-gray-800 hover:text-indigo-600" onClick={() => setMenuOpen(false)}>Sports</Link>
-            <Link to="/trivia" className="block text-gray-800 hover:text-indigo-600" onClick={() => setMenuOpen(false)}>Trivia</Link>
-            <Link to="/groups" className="block text-indigo-600 hover:underline" onClick={() => setMenuOpen(false)}>Groups</Link>
+
             <button
               onClick={handleOpenModal}
               className="w-full bg-indigo-600 text-white px-4 py-2 rounded-full text-sm hover:bg-indigo-700 transition"
