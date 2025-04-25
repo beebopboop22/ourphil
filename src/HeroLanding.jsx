@@ -48,7 +48,7 @@ const HeroLanding = () => {
             if (!a.isActive && b.isActive) return 1;
             return a.start - b.start;
           })
-          .slice(0, 15);                    // ← limit to 15
+          .slice(0, 15); // ← limit to 15 cards
 
         setEvents(enhanced);
       } catch (err) {
@@ -61,7 +61,14 @@ const HeroLanding = () => {
 
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
-      <div className="relative max-w-screen-xl mx-auto text-center">
+      {/* HUGE Background Illustration */}
+      <img
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/Our-Philly-Concierge_Illustration-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyLVBoaWxseS1Db25jaWVyZ2VfSWxsdXN0cmF0aW9uLTEucG5nIiwiaWF0IjoxNzQ1NjA2MjQzLCJleHAiOjQ4OTkyMDYyNDN9.kfE5uzjbFCSZUDV2d1fsyXIVCX3QdTiD5DbvVKFniCU"
+        alt=""
+        className="absolute bottom-1/4 w-1/3 h-full object-contain opacity-100 pointer-events-none"
+      />
+
+      <div className="relative max-w-screen-xl mx-auto text-center z-10">
         <h1 className="text-8xl font-[Barrio] font-black mb-1 text-black">
           DIG INTO PHILLY
         </h1>
@@ -82,7 +89,6 @@ const HeroLanding = () => {
                 const widthClass = isFeatured
                   ? 'min-w-[380px] max-w-[380px]'
                   : 'min-w-[260px] max-w-[260px]';
-
                 const displayDate = evt.start.toLocaleDateString('en-US',{
                   month:'short', day:'numeric'
                 });
