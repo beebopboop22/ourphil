@@ -104,11 +104,13 @@ const GroupsPage = () => {
                 title="Groups for Philly Sports Fans"
                 seeMoreLink="/groups/type/sports-fans"
               />
-              <Footer />
             </>
           )}
+
         </div>
       </div>
+      <Footer />
+
     </>
   );
 };

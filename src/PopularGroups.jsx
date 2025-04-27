@@ -1,54 +1,92 @@
 // src/PopularGroups.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import SubmitGroupModal from './SubmitGroupModal';
 import { Link } from 'react-router-dom';
 import GroupProgressBar from './GroupProgressBar';
+import { AuthContext } from './AuthProvider';
+import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites';
 
 const PopularGroups = ({ isAdmin }) => {
-  const [groups, setGroups] = useState([]);
-  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const { user } = useContext(AuthContext);
 
+  const [groups, setGroups]         = useState([]);
+  const [favMap, setFavMap]         = useState({});
+  const [favCounts, setFavCounts]   = useState({});
+  const [loadingFavAction, setLoadingFavAction] = useState(false);
+  const [showSubmitModal, setShowSubmitModal]   = useState(false);
+
+  // 1) Load 5 most recent groups
   useEffect(() => {
-    const fetchGroups = async () => {
+    (async () => {
       const { data, error } = await supabase
         .from('groups')
         .select('id, Name, Type, imag, slug, Description')
         .order('id', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching groups:', error);
-        return;
-      }
-
+      if (error) { console.error(error); return; }
       const total = data.length;
-      const recent = data.slice(-5).map((g, i) => ({
+      setGroups(data.slice(-5).map((g,i) => ({
         ...g,
-        groupNumber: total - 5 + i + 1,
-        total,
-      }));
-
-      setGroups(recent);
-    };
-
-    fetchGroups();
+        groupNumber: total - 5 + i + 1
+      })));
+    })();
   }, []);
 
-  return (
-    
-    <div className="relative py-16 px-4 mb-8  bg-neutral-50">
-       {/* Staple-heart centered above the title, bleeding up */}
-       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xLnBuZyIsImlhdCI6MTc0NTYxMjg5OSwiZXhwIjozMzI4MTYxMjg5OX0.NniulJ-CMLkbor5PBSay30rMbFwtGFosxvhAkBKGFbU"
-        alt="Heart Staple"
-        className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 opacity-100 pointer-events-none z-10"
-      />
+  // 2) Load total favorite counts
+  useEffect(() => {
+    if (!groups.length) return;
+    (async () => {
+      const ids = groups.map(g => g.id);
+      const { data, error } = await supabase
+        .from('favorites')
+        .select('group_id')
+        .in('group_id', ids);
+      if (error) { console.error(error); return; }
+      const counts = {};
+      data.forEach(r => counts[r.group_id] = (counts[r.group_id]||0) + 1);
+      setFavCounts(counts);
+    })();
+  }, [groups]);
 
-      {/* Background Image */}
+  // 3) Load this user’s favorites
+  useEffect(() => {
+    if (!user) { setFavMap({}); return; }
+    getMyFavorites().then(rows => {
+      const m = {};
+      rows.forEach(r => m[r.group_id] = r.id);
+      setFavMap(m);
+    }).catch(console.error);
+  }, [user]);
+
+  // 4) Toggle heart
+  const toggleFav = async (groupId) => {
+    if (!user) return;
+    setLoadingFavAction(true);
+    if (favMap[groupId]) {
+      await removeFavorite(favMap[groupId]);
+      setFavMap(m => { const c = {...m}; delete c[groupId]; return c; });
+      setFavCounts(c => ({ ...c, [groupId]: (c[groupId]||1) - 1 }));
+    } else {
+      const { data } = await addFavorite(groupId);
+      setFavMap(m => ({ ...m, [groupId]: data[0].id }));
+      setFavCounts(c => ({ ...c, [groupId]: (c[groupId]||0) + 1 }));
+    }
+    setLoadingFavAction(false);
+  };
+
+  return (
+    <div className="relative py-16 px-4 mb-8 bg-neutral-50">
+      {/* staple-heart above */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xLnBuZyIsImlhdCI6MTc0NTYxMjg5OSwiZXhwIjozMzI4MTYxMjg5OX0.NniulJ-CMLkbor5PBSay30rMbFwtGFosxvhAkBKGFbU"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NTc2MzMzNywiZXhwIjozMzI4MTc2MzMzN30.4VNWfGXA0HU2ogQEo2N2G8MMS-kwWLJ25lb0UcdLyEw"
+        alt="Heart Staple"
+        className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 z-10 pointer-events-none"
+      />
+      {/* faint bg heart */}
+      <img
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NTc2MzMzNywiZXhwIjozMzI4MTc2MzMzN30.4VNWfGXA0HU2ogQEo2N2G8MMS-kwWLJ25lb0UcdLyEw"
         alt="Philly Heart"
-        className="absolute opacity-20 rotate-12 w-[400px] bottom-[-100px] right-[-100px] pointer-events-none z-0"
+        className="absolute opacity-20 rotate-12 w-[400px] bottom-[-100px] pointer-events-none z-0"
       />
 
       <div className="relative max-w-screen-xl mx-auto z-10 text-center">
@@ -56,51 +94,69 @@ const PopularGroups = ({ isAdmin }) => {
           GROUPS GROUPS GROUPS
         </h2>
         <p className="text-lg text-gray-600 mb-6">
-          We're trying to index 1,000 active groups - add yours
+          We're trying to index 1,000 active groups – add yours
         </p>
 
         <GroupProgressBar />
 
-        {/* Horizontal scroll container */}
         <div className="flex gap-4 overflow-x-auto pb-4 mt-6">
-          {groups.map((group) => (
-            <Link
-              key={group.id}
-              to={`/groups/${group.slug}`}
-              className="relative flex-shrink-0 w-[280px] flex flex-col bg-white border border-gray-200 rounded-xl p-3 hover:shadow-md transition text-center"
-            >
-              {/* Image wrapper with group # */}
-              <div className="relative w-full h-32 mb-3">
-                <img
-                  src={group.imag || 'https://via.placeholder.com/150'}
-                  alt={group.Name}
-                  className="w-full h-full object-cover rounded-lg"
-                />
-                <div className="absolute bottom-2 right-2 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                  #{group.groupNumber}
-                </div>
-                {/* Type badge */}
-                {group.Type && (
-                  <div className="absolute top-2 left-2 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                    {group.Type.split(',')[0].trim()}
+          {groups.map(group => {
+            const isFav = Boolean(favMap[group.id]);
+            const count = favCounts[group.id] || 0;
+
+            return (
+              <div
+                key={group.id}
+                className="flex-shrink-0 w-[280px] flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden shadow hover:shadow-md transition h-[350px]"
+              >
+                <Link
+                  to={`/groups/${group.slug}`}
+                  className="flex-grow p-3 flex flex-col"
+                >
+                  <div className="relative w-full h-32 mb-3 flex-shrink-0">
+                    <img
+                      src={group.imag || 'https://via.placeholder.com/150'}
+                      alt={group.Name}
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                    <div className="absolute bottom-2 right-2 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                      #{group.groupNumber}
+                    </div>
+                    {group.Type && (
+                      <div className="absolute top-2 left-2 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                        {group.Type.split(',')[0].trim()}
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {group.Name}
+                  </h3>
+                  {group.Description && (
+                    <p className="text-sm text-gray-600 mb-2 line-clamp-3 flex-grow">
+                      {group.Description}
+                    </p>
+                  )}
+                </Link>
+
+                {/* bottom bar with heart + count */}
+                <div className="bg-gray-100 border-t px-3 py-2 flex items-center justify-center space-x-3">
+                  <button
+                    onClick={() => toggleFav(group.id)}
+                    disabled={loadingFavAction}
+                    className="text-xl"
+                  >
+                    {isFav ? '❤️' : '🤍'}
+                  </button>
+                  <span className="font-[Barrio] text-lg text-gray-800">
+                    {count}
+                  </span>
+                </div>
               </div>
-
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                {group.Name}
-              </h3>
-
-              {group.Description && (
-                <p className="text-sm text-gray-600 mb-2 line-clamp-3">
-                  {group.Description}
-                </p>
-              )}
-            </Link>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Explore All Groups Button */}
         <div className="flex justify-center mt-10">
           <Link
             to="/groups"

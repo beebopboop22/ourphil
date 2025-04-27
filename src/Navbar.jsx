@@ -1,17 +1,26 @@
 // src/Navbar.jsx
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useContext } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import SubmitGroupModal from './SubmitGroupModal';
+import { AuthContext } from './AuthProvider';    // ← import your context
+import { supabase } from './supabaseClient';      // ← to sign out
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useContext(AuthContext);     // ← get current user
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
   const handleOpenModal = () => {
     setShowSubmitModal(true);
-    setMenuOpen(false); // close mobile menu if open
+    setMenuOpen(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/');      // send them home after logout
   };
 
   return (
@@ -21,43 +30,94 @@ const Navbar = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center">
             <img
-              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/logoo.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvbG9nb28ucG5nIiwiaWF0IjoxNzQzODY0MDk4LCJleHAiOjk0NzgyMzg2NDA5OH0.Od0PxsOqyLjqCP2ZN9UAaG821mVvIEaOHq_ACf3Dwsg"
-              alt="Philly Groups Logo"
+              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/logoo.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvbG9nb28ucG5nIiwiaWF0IjoxNzQ1NzYzMzA5LCJleHAiOjMzMjgxNzYzMzA5fQ.5BrTLfgwYzwT3UnYsqOkaJKLTP4pDVME_T-l7fyllc0"
+              alt="Our Philly Logo"
               className="h-10 w-auto"
             />
           </Link>
-
-          {/* Mobile Menu Button */}
-          <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
-            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
 
           {/* Desktop Links */}
           <div className="hidden md:flex items-center space-x-6 text-sm font-medium">
             <button
               onClick={handleOpenModal}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-full text-sm hover:bg-indigo-700 transition"
+              className="bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition"
             >
               + Add a Group
             </button>
+
+            {user ? (
+              <>
+                <Link
+                  to="/profile"
+                  className="text-gray-700 hover:text-gray-900 transition"
+                >
+                  Profile
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="text-gray-700 hover:text-gray-900 transition"
+                >
+                  Log Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="text-gray-700 hover:text-gray-900 transition"
+                >
+                  Log In
+                </Link>
+                <Link
+                  to="/signup"
+                  className="text-indigo-600 hover:text-indigo-800 font-semibold transition"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
+
+          {/* Mobile Menu Button */}
+          <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
+            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
 
         {/* Mobile Menu */}
         {menuOpen && (
           <div className="md:hidden bg-white shadow-md px-4 pt-4 pb-6 space-y-4 text-sm font-medium">
-
             <button
               onClick={handleOpenModal}
-              className="w-full bg-indigo-600 text-white px-4 py-2 rounded-full text-sm hover:bg-indigo-700 transition"
+              className="w-full bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition"
             >
               + Add a Group
             </button>
+
+            {user ? (
+              <>
+                <Link to="/profile" className="block" onClick={()=>setMenuOpen(false)}>
+                  Profile
+                </Link>
+                <button onClick={handleLogout} className="block">
+                  Log Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="block" onClick={()=>setMenuOpen(false)}>
+                  Log In
+                </Link>
+                <Link to="/signup" className="block" onClick={()=>setMenuOpen(false)}>
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         )}
       </nav>
 
-      {/* Modal */}
+      {/* Submit-Group Modal */}
       {showSubmitModal && (
         <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
       )}

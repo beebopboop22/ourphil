@@ -1,7 +1,43 @@
-import React, { useState, useEffect } from 'react';
+// src/GroupCard.jsx
+import React, { useState, useEffect, useContext } from 'react';
 import { supabase } from './supabaseClient';
+import { AuthContext } from './AuthProvider';
+import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites';
 
 const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
+  const { user } = useContext(AuthContext);
+
+  // ── Favorites state ─────────────────────
+  const [favMap, setFavMap] = useState({});
+  const [favLoading, setFavLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    getMyFavorites().then(rows => {
+      const map = {};
+      rows.forEach(r => { map[r.group_id] = r.id });
+      setFavMap(map);
+    });
+  }, [user]);
+
+  const toggleFav = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) return;
+    setFavLoading(true);
+    if (favMap[group.id]) {
+      await removeFavorite(favMap[group.id]);
+      setFavMap(m => { const c = { ...m }; delete c[group.id]; return c; });
+    } else {
+      const { data } = await addFavorite(group.id);
+      setFavMap(m => ({ ...m, [group.id]: data[0].id }));
+    }
+    setFavLoading(false);
+  };
+
+  const isFav = Boolean(favMap[group.id]);
+
+  // ── Your existing states & logic ────────
   const [isHovered, setIsHovered] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -14,7 +50,6 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
   });
   const [allTypes, setAllTypes] = useState([]);
   const [allVibes, setAllVibes] = useState([]);
-
   const isFeatured = group.id === featuredGroupId;
 
   useEffect(() => {
@@ -46,26 +81,20 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
     setIsUploading(true);
     const file = e.dataTransfer.files[0];
     if (!file) return;
-
     const path = `${group.id}-${file.name}`;
     const { error: uploadError } = await supabase.storage
       .from('group-images')
       .upload(path, file, { upsert: true });
-
     if (!uploadError) {
       const { data } = supabase.storage.from('group-images').getPublicUrl(path);
-      const imageUrl = data.publicUrl;
-
       await supabase
         .from('groups')
-        .update({ imag: imageUrl })
+        .update({ imag: data.publicUrl })
         .eq('id', group.id);
-
       window.location.reload();
     } else {
       console.error('Upload error:', uploadError);
     }
-
     setIsUploading(false);
   };
 
@@ -93,11 +122,12 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
     window.location.reload();
   };
 
+  // ── Mascot special case ─────────────────
   if (group.Name === '__MASCOT_INSERT__') {
     return (
       <div className="col-span-1 sm:col-span-2 lg:col-span-1 xl:col-span-1">
         <img
-          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/Ksqk1fh.jpeg?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvS3NxazFmaC5qcGVnIiwiaWF0IjoxNzQzNzcxNTY1LCJleHAiOjM1MDU3NDAyNjc1NjV9.L7p1uZVy72r_jAYKnTxR3z3SjRlMd_20gy3Q3I_Wz2s"
+          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/Ksqk1fh.jpeg?token=…"
           alt="Mascot Gritty"
           className="rounded-2xl w-full h-full object-cover shadow-xl"
         />
@@ -111,24 +141,36 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
 
   return (
     <div
-      className={`relative bg-white rounded-2xl overflow-hidden transition-all duration-500 transform hover:scale-105 ${
-        isHovered ? 'ring-4 ring-indigo-300' : ''
-      } ${
-        isFeatured
+      className={`relative bg-white rounded-2xl overflow-hidden transition-transform duration-500 transform hover:scale-105
+        ${isHovered ? 'ring-4 ring-indigo-300' : ''}
+        ${isFeatured
           ? 'border-4 border-yellow-400 shadow-[0_0_30px_rgba(255,223,0,0.75)]'
           : 'shadow-xl'
-      }`}
+        }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {/* ❤️ Favorite button */}
+      <button
+        onClick={toggleFav}
+        disabled={favLoading}
+        className="absolute top-2 right-2 z-20 text-xl"
+        aria-label={isFav ? 'Remove favorite' : 'Add favorite'}
+      >
+        {isFav ? '❤️' : '🤍'}
+      </button>
+
+      {/* 🌟 Featured badge */}
       {isFeatured && (
         <div className="absolute top-2 left-2 bg-yellow-400 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md z-10">
           🌟 Featured Group
         </div>
       )}
 
+      {/* Image (clickable) */}
       {imageUrl && (
-        <a href={`/groups/${group.slug}`} className="block">          <img
+        <a href={`/groups/${group.slug}`} className="block">
+          <img
             src={imageUrl}
             alt={group.Name}
             className="w-full h-48 object-cover"
@@ -136,8 +178,11 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
         </a>
       )}
 
+      {/* Card body */}
       <div className="p-4">
-        <h2 className={`text-xl font-bold mb-1 ${isFeatured ? 'text-yellow-700' : 'text-indigo-700'}`}>{group.Name}</h2>
+        <h2 className={`text-xl font-bold mb-1 ${isFeatured ? 'text-yellow-700' : 'text-indigo-700'}`}>
+          {group.Name}
+        </h2>
         <p className="text-sm text-gray-600 mb-3">{group.Description}</p>
 
         <div className="flex flex-wrap gap-2 mb-3">
@@ -187,6 +232,7 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
         )}
       </div>
 
+      {/* Edit modal */}
       {isEditing && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-xl w-full max-w-lg shadow-xl p-6 relative max-h-full overflow-y-auto">
@@ -221,7 +267,7 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                 <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                  {allTypes.map((type) => (
+                  {allTypes.map(type => (
                     <button
                       key={type}
                       type="button"
@@ -240,7 +286,7 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Vibes</label>
                 <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                  {allVibes.map((vibe) => (
+                  {allVibes.map(vibe => (
                     <button
                       key={vibe}
                       type="button"
@@ -280,8 +326,5 @@ const GroupCard = ({ group, isAdmin, featuredGroupId }) => {
 };
 
 export default GroupCard;
-
-
-
 
 
