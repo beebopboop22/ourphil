@@ -32,6 +32,8 @@ import GroupProgressBar from './GroupProgressBar';
 import PlatformPromoBillboard from './PlatformPromoBillboard';
 import GroupRecommender from './components/GroupRecommender';
 import EventsGrid from './EventsGrid';
+import SeasonalEventsGrid from './SeasonalEvents'; 
+
 
 
 function App() {
@@ -119,6 +121,8 @@ function App() {
       <div className="min-h-screen flex flex-col bg-white-100 pt-20 relative">
         <Navbar />   
         <HeroLanding />
+        <SeasonalEventsGrid />
+
 
         <PopularGroups />
         <SportsEventsGrid />
