@@ -101,7 +101,7 @@ export default function ProfilePage() {
 
   const sendPasswordReset = async () => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://ourphilly.com/update-password',
+      redirectTo: 'https://www.ourphilly.org/update-password',
     });
     if (error) {
       alert('Error sending reset link: ' + error.message);
