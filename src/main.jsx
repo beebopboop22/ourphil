@@ -15,6 +15,7 @@ import LoginPage from './LoginPage.jsx'
 import SignUpPage from './SignUpPage.jsx'
 import ProfilePage from './ProfilePage.jsx'; 
 import { AuthProvider } from './AuthProvider.jsx'
+import MomentsExplorer from './MomentsExplorer.jsx' 
 
 import './index.css'
 
@@ -37,6 +38,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/moments" element={<MomentsExplorer />} />
+          <Route path="/moments/:id" element={<MomentsExplorer />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
