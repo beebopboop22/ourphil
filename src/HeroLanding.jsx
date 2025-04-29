@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
+import { Link } from 'react-router-dom';
 import {
   getMyEventFavorites,
   addEventFavorite,
@@ -15,9 +16,9 @@ const HeroLanding = () => {
   const [loading, setLoading] = useState(true);
 
   // favorite state
-  const [favMap, setFavMap] = useState({});       // event_id → fav record id
+  const [favMap, setFavMap]       = useState({}); // event_id → fav record id
   const [favCounts, setFavCounts] = useState({}); // event_id → count
-  const [busyFav, setBusyFav] = useState(false);
+  const [busyFav, setBusyFav]     = useState(false);
 
   const parseDate = (datesStr) => {
     if (!datesStr) return null;
@@ -34,14 +35,14 @@ const HeroLanding = () => {
     return nd.toLocaleDateString('en-US',{ weekday:'short' }).toUpperCase();
   };
 
-  // 1) fetch events
+  // 1) fetch events (including slug)
   useEffect(() => {
     (async () => {
       try {
         const today = new Date(); today.setHours(0,0,0,0);
         const { data, error } = await supabase
           .from('events')
-          .select(`id, "E Name", Dates, "End Date", "E Image", "E Link", "E Description"`)
+          .select(`id, slug, "E Name", Dates, "End Date", "E Image", "E Link", "E Description"`)
           .order('Dates', { ascending: true });
         if (error) throw error;
 
@@ -103,7 +104,9 @@ const HeroLanding = () => {
   }, [user, events]);
 
   // 4) toggle heart
-  const toggleFav = async (eventId) => {
+  const toggleFav = async (eventId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!user) return;
     setBusyFav(true);
     if (favMap[eventId]) {
@@ -122,7 +125,7 @@ const HeroLanding = () => {
     <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
       {/* HUGE Background Illustration */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/Our-Philly-Concierge_Illustration-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyLVBoaWxseS1Db25jaWVyZ2VfSWxsdXN0cmF0aW9uLTEucG5nIiwiaWF0IjoxNzQ1NjA2MjQzLCJleHAiOjQ4OTkyMDYyNDN9.kfE5uzjbFCSZUDV2d1fsyXIVCX3QdTiD5DbvVKFniCU"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-2.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0yLnBuZyIsImlhdCI6MTc0NTk1MTY3NiwiZXhwIjozMzI4MTk1MTY3Nn0._vHW37fowO3ttrO9Cvw1cDhQd03r31Tet4RSYKQ48qk"
         alt=""
         className="absolute bottom-1/4 w-1/3 h-full object-contain opacity-100 pointer-events-none"
       />
@@ -159,8 +162,9 @@ const HeroLanding = () => {
                 const count = favCounts[evt.id] || 0;
 
                 return (
-                  <div
+                  <Link
                     key={evt.id}
+                    to={`/events/${evt.slug}`}
                     className={`relative ${widthClass}
                       bg-gray-50 rounded-2xl shadow-md
                       hover:shadow-xl transition-transform hover:scale-105
@@ -175,43 +179,32 @@ const HeroLanding = () => {
                       {tag}
                     </div>
 
-                    <a
-                      href={evt['E Link']}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-grow"
-                    >
-                      {evt['E Image'] && (
-                        <img
-                          src={evt['E Image']}
-                          alt={evt['E Name']}
-                          className={`w-full ${isFeatured ? 'h-56' : 'h-44'} object-cover`}
-                        />
-                      )}
-                      <div className="p-3 space-y-1">
-                        <h3 className="text-xl md:text-2xl font-bold text-indigo-800 line-clamp-2 text-center">
-                          {evt['E Name']}
-                        </h3>
-                        {evt['E Description'] && (
-                          <p className="text-sm md:text-base text-gray-700 line-clamp-3">
-                            {evt['E Description']}
-                          </p>
-                        )}
-                        <p className="text-sm text-gray-500 text-center">
-                          📅 {displayDate}
+                    {evt['E Image'] && (
+                      <img
+                        src={evt['E Image']}
+                        alt={evt['E Name']}
+                        className={`w-full ${isFeatured ? 'h-56' : 'h-44'} object-cover`}
+                      />
+                    )}
+                    <div className="p-3 space-y-1 flex-grow">
+                      <h3 className="text-xl md:text-2xl font-bold text-indigo-800 line-clamp-2 text-center">
+                        {evt['E Name']}
+                      </h3>
+                      {evt['E Description'] && (
+                        <p className="text-sm md:text-base text-gray-700 line-clamp-3">
+                          {evt['E Description']}
                         </p>
-                      </div>
-                    </a>
+                      )}
+                      <p className="text-sm text-gray-500 text-center">
+                        📅 {displayDate}
+                      </p>
+                    </div>
 
                     {/* bottom bar with heart + count */}
                     <div className="bg-gray-100 border-t px-3 py-2 flex items-center justify-center space-x-3">
                       <button
                         type="button"
-                        onClick={e => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          toggleFav(evt.id);
-                        }}
+                        onClick={e => toggleFav(evt.id, e)}
                         disabled={busyFav}
                         className="text-xl"
                       >
@@ -221,7 +214,7 @@ const HeroLanding = () => {
                         {count}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

@@ -16,6 +16,8 @@ import SignUpPage from './SignUpPage.jsx'
 import ProfilePage from './ProfilePage.jsx'; 
 import { AuthProvider } from './AuthProvider.jsx'
 import MomentsExplorer from './MomentsExplorer.jsx' 
+import EventDetailPage from './EventDetailPage.jsx'
+import MonthlyEvents from './MonthlyEvents.jsx'
 
 import './index.css'
 
@@ -40,6 +42,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/moments" element={<MomentsExplorer />} />
           <Route path="/moments/:id" element={<MomentsExplorer />} />
+          <Route path="/events" element={<MonthlyEvents />} />
+          <Route path="/events/:slug" element={<EventDetailPage />} />
+          
         </Routes>
       </BrowserRouter>
     </AuthProvider>
