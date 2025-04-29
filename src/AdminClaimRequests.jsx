@@ -16,28 +16,25 @@ const AdminClaimRequests = () => {
 
   console.log('👤 AUTH CONTEXT USER:', user);
 
-  
+
   useEffect(() => {
-    if (user === undefined) {
-      // auth is still loading, do nothing
-      return;
-    }
+  if (user === undefined) return; // wait until user is loaded
 
-    if (user === null) {
-      // not logged in, redirect
-      navigate('/');
-      return;
-    }
+  if (user === null) {
+    setLoadingAuth(false); // will trigger unauthorized message below
+    return;
+  }
 
-    if (user.email !== 'bill@solar-states.com') {
-      // wrong user, redirect
-      navigate('/');
-      return;
-    }
+  if (user.email !== 'bill@solar-states.com') {
+    setLoadingAuth(false); // same
+    return;
+  }
 
-    // ✅ correct user
-    setLoadingAuth(false);
-  }, [user, navigate]);
+  // ✅ correct user
+  setLoadingAuth(false);
+}, [user]);
+
+
 
   const fetchRequests = async () => {
     setLoadingData(true);
