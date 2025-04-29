@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
-import { supabase } from './supabaseClient';
+// src/ClaimGroupButton.jsx
 
-const ClaimGroupButton = ({ groupId, userId }) => {
+import React, { useState, useContext } from 'react';
+import { supabase } from './supabaseClient';
+import { AuthContext } from './AuthProvider';
+
+const ClaimGroupButton = ({ groupId }) => {
+  const { user } = useContext(AuthContext);
+
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -9,12 +14,15 @@ const ClaimGroupButton = ({ groupId, userId }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!user) return alert('You must be logged in to submit a claim.');
+
     setSubmitting(true);
 
     const { error } = await supabase.from('group_claim_requests').insert([
       {
         group_id: groupId,
-        user_id: userId,
+        user_id: user.id,
+        user_email: user.email,
         message,
         status: 'Pending',
       }
@@ -30,6 +38,8 @@ const ClaimGroupButton = ({ groupId, userId }) => {
     }
   };
 
+  if (!user) return null;
+
   if (submitted) {
     return <div className="text-green-600 mt-4">✅ Claim request submitted! We’ll be in touch soon.</div>;
   }
@@ -39,7 +49,7 @@ const ClaimGroupButton = ({ groupId, userId }) => {
       {!showForm ? (
         <button
           onClick={() => setShowForm(true)}
-          className="bg-indigo-600 text-white font-bold py-2 px-4 rounded hover:bg-indigo-700 transition"
+          className="bg-indigo-100 text-indigo-800 font-bold py-2 px-4 rounded-full hover:bg-indigo-200 transition"
         >
           Claim This Group
         </button>

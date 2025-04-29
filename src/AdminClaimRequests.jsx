@@ -13,41 +13,68 @@ const AdminClaimRequests = () => {
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [requests, setRequests] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
-
-  console.log('👤 AUTH CONTEXT USER:', user);
-
+  const [groups, setGroups] = useState({});
+  const [users, setUsers] = useState({});
 
   useEffect(() => {
-  if (user === undefined) return; // wait until user is loaded
+    if (user === undefined) return;
 
-  if (user === null) {
-    setLoadingAuth(false); // will trigger unauthorized message below
-    return;
-  }
+    if (user === null) {
+      setLoadingAuth(false);
+      return;
+    }
 
-  if (user.email !== 'bill@solar-states.com') {
-    setLoadingAuth(false); // same
-    return;
-  }
+    if (user.email !== 'bill@solar-states.com') {
+      setLoadingAuth(false);
+      return;
+    }
 
-  // ✅ correct user
-  setLoadingAuth(false);
-}, [user]);
-
-
+    setLoadingAuth(false);
+  }, [user]);
 
   const fetchRequests = async () => {
     setLoadingData(true);
-    const { data, error } = await supabase
+
+    // 1. Fetch all requests
+    const { data: reqData, error: reqError } = await supabase
       .from('group_claim_requests')
-      .select('id, group_id, user_id, message, status, created_at')
+      .select('*')
       .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Error loading requests:', error);
-    } else {
-      setRequests(data);
+    if (reqError) {
+      console.error('Error loading requests:', reqError);
+      setLoadingData(false);
+      return;
     }
+
+    setRequests(reqData);
+
+    // 2. Fetch related group names
+    const groupIds = reqData.map(r => r.group_id);
+    const { data: groupData } = await supabase
+      .from('groups')
+      .select('id, Name')
+      .in('id', groupIds);
+
+    const groupMap = {};
+    groupData?.forEach(g => {
+      groupMap[g.id] = g.Name;
+    });
+    setGroups(groupMap);
+
+    // 3. Fetch related user emails
+    const userIds = reqData.map(r => r.user_id);
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id, email')
+      .in('id', userIds);
+
+    const userMap = {};
+    userData?.forEach(u => {
+      userMap[u.id] = u.email;
+    });
+    setUsers(userMap);
+
     setLoadingData(false);
   };
 
@@ -67,7 +94,7 @@ const AdminClaimRequests = () => {
       console.error('Error updating status:', error);
       alert('Failed to update status.');
     } else {
-      fetchRequests(); // refresh after update
+      fetchRequests();
     }
   };
 
@@ -98,8 +125,12 @@ const AdminClaimRequests = () => {
                       <p className="text-sm text-gray-500 mb-2">
                         <strong>Submitted:</strong> {new Date(req.created_at).toLocaleString()}
                       </p>
-                      <p className="text-lg font-semibold break-words">Group ID: {req.group_id}</p>
-                      <p className="text-lg font-semibold break-words">User ID: {req.user_id}</p>
+                      <p className="text-lg font-semibold break-words">
+                        Group: {groups[req.group_id] || req.group_id}
+                      </p>
+                      <p className="text-lg font-semibold break-words">
+                         User: {req.user_email || req.user_id}
+                      </p>
                       <p className="text-gray-600 mt-2">{req.message}</p>
                       <p className="mt-2 text-sm text-gray-500">
                         Status: <strong>{req.status}</strong>
@@ -130,7 +161,6 @@ const AdminClaimRequests = () => {
         )}
       </div>
 
-      <Footer />
     </div>
   );
 };

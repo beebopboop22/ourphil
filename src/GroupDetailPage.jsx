@@ -33,14 +33,12 @@ const GroupDetails = () => {
 
   useEffect(() => {
     const fetchGroup = async () => {
-      const { data: allGroups } = await supabase
-        .from('groups').select('slug').order('id', { ascending: true });
+      const { data: allGroups } = await supabase.from('groups').select('slug').order('id', { ascending: true });
       const idx = allGroups.findIndex(g => g.slug === slug);
       setGroupIndex(idx + 1);
       setTotalGroups(allGroups.length);
 
-      const { data: grp } = await supabase
-        .from('groups').select('*').eq('slug', slug).single();
+      const { data: grp } = await supabase.from('groups').select('*').eq('slug', slug).single();
       setGroup(grp);
 
       if (grp?.Type) {
@@ -58,7 +56,6 @@ const GroupDetails = () => {
 
   useEffect(() => {
     if (!group) return;
-
     supabase
       .from('favorites')
       .select('id', { count: 'exact', head: true })
@@ -92,7 +89,6 @@ const GroupDetails = () => {
     setToggling(false);
   };
 
-  // Fetch group updates
   const fetchUpdates = async () => {
     if (!group) return;
     const { data, error } = await supabase
@@ -108,12 +104,38 @@ const GroupDetails = () => {
     }
   };
 
-  // Check if user is approved for this group
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this update?')) return;
+    const { error } = await supabase.from('group_updates').delete().eq('id', id);
+    if (error) {
+      alert('Failed to delete update.');
+    } else {
+      fetchUpdates();
+    }
+  };
+
+  const handleEdit = async (id, currentContent) => {
+    const newContent = prompt('Edit your update:', currentContent);
+    if (!newContent) return;
+    const { error } = await supabase.from('group_updates').update({ content: newContent }).eq('id', id);
+    if (error) {
+      alert('Failed to update.');
+    } else {
+      fetchUpdates();
+    }
+  };
+
+  // Always fetch updates when group loads
+  useEffect(() => {
+    if (group) fetchUpdates();
+  }, [group]);
+
+  // Only check approval if logged in
   useEffect(() => {
     if (!user || !group) return;
 
     const checkApproval = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('group_claim_requests')
         .select('*')
         .eq('group_id', group.id)
@@ -121,15 +143,10 @@ const GroupDetails = () => {
         .eq('status', 'Approved')
         .single();
 
-      if (data) {
-        setIsApprovedForGroup(true);
-      } else {
-        setIsApprovedForGroup(false);
-      }
+      setIsApprovedForGroup(!!data);
     };
 
     checkApproval();
-    fetchUpdates();
   }, [user, group]);
 
   if (!group) {
@@ -148,7 +165,7 @@ const GroupDetails = () => {
       <Navbar />
       <GroupProgressBar />
 
-      {/* Hero Section */}
+
       <div className="w-full bg-gray-100 border-b border-gray-300 py-10 px-4 mb-16">
         <div className="max-w-screen-xl mx-auto flex flex-col md:flex-row items-center gap-8 relative">
           {group.imag && (
@@ -217,10 +234,12 @@ const GroupDetails = () => {
               </div>
             )}
           </div>
+
         </div>
+
       </div>
 
-      {/* Updates Feed */}
+
       <div className="max-w-screen-xl mx-auto px-4">
         <div className="mt-10">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Updates</h2>
@@ -234,13 +253,28 @@ const GroupDetails = () => {
                   <p className="text-xs text-gray-400 mt-2">
                     {new Date(update.created_at).toLocaleString()}
                   </p>
+                  {user && update.user_id === user.id && (
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => handleEdit(update.id, update.content)}
+                        className="text-sm text-indigo-600 hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(update.id)}
+                        className="text-sm text-red-600 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Related */}
         {relatedGroups.length > 0 && (
           <div className="mt-16">
             <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">
@@ -263,8 +297,6 @@ const GroupDetails = () => {
             )}
           </div>
         )}
-        <MonthlyEvents />
-        <SportsEventsGrid />
       </div>
 
       <Voicemail />

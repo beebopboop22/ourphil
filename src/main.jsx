@@ -20,6 +20,8 @@ import EventDetailPage from './EventDetailPage.jsx'
 import MonthlyEvents from './MonthlyEvents.jsx'
 import AdminClaimRequests from './AdminClaimRequests';
 import UpdatePasswordPage from './UpdatePasswordPage';
+import TestGroupUpdates from './TestGroupUpdates';
+
 
 
 
@@ -50,6 +52,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/events/:slug" element={<EventDetailPage />} />
           <Route path="/admin/claims" element={<AdminClaimRequests />} />
           <Route path="/update-password" element={<UpdatePasswordPage />} />
+          <Route path="/test-updates" element={<TestGroupUpdates />} />
 
           
         </Routes>
