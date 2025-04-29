@@ -18,6 +18,8 @@ import { AuthProvider } from './AuthProvider.jsx'
 import MomentsExplorer from './MomentsExplorer.jsx' 
 import EventDetailPage from './EventDetailPage.jsx'
 import MonthlyEvents from './MonthlyEvents.jsx'
+import AdminClaimRequests from './AdminClaimRequests';
+
 
 import './index.css'
 
@@ -44,6 +46,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/moments/:id" element={<MomentsExplorer />} />
           <Route path="/events" element={<MonthlyEvents />} />
           <Route path="/events/:slug" element={<EventDetailPage />} />
+          <Route path="/admin/claims" element={<AdminClaimRequests />} />
+
           
         </Routes>
       </BrowserRouter>

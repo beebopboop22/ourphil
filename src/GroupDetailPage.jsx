@@ -1,4 +1,3 @@
-// src/GroupDetails.jsx
 import React, { useEffect, useState, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
@@ -11,6 +10,8 @@ import Voicemail from './Voicemail';
 import Footer from './Footer';
 import GroupProgressBar from './GroupProgressBar';
 import { AuthContext } from './AuthProvider';
+import ClaimGroupButton from './ClaimGroupButton';
+import GroupUpdateForm from './GroupUpdateForm';
 import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites';
 
 const GroupDetails = () => {
@@ -27,22 +28,21 @@ const GroupDetails = () => {
   const [myFavId, setMyFavId] = useState(null);
   const [toggling, setToggling] = useState(false);
 
-  // fetch this group + related + index
+  const [updates, setUpdates] = useState([]);
+  const [isApprovedForGroup, setIsApprovedForGroup] = useState(false);
+
   useEffect(() => {
     const fetchGroup = async () => {
-      // compute index
       const { data: allGroups } = await supabase
         .from('groups').select('slug').order('id', { ascending: true });
       const idx = allGroups.findIndex(g => g.slug === slug);
       setGroupIndex(idx + 1);
       setTotalGroups(allGroups.length);
 
-      // fetch group record
       const { data: grp } = await supabase
         .from('groups').select('*').eq('slug', slug).single();
       setGroup(grp);
 
-      // fetch related
       if (grp?.Type) {
         const types = grp.Type.split(',').map(t => t.trim());
         const { data: rel } = await supabase
@@ -56,18 +56,15 @@ const GroupDetails = () => {
     fetchGroup();
   }, [slug]);
 
-  // fetch favorite count + my favorite id
   useEffect(() => {
     if (!group) return;
 
-    // total count
     supabase
       .from('favorites')
       .select('id', { count: 'exact', head: true })
       .eq('group_id', group.id)
       .then(({ count }) => setFavCount(count || 0));
 
-    // my favorite?
     if (user) {
       getMyFavorites().then(rows => {
         const mine = rows.find(r => r.group_id === group.id);
@@ -95,6 +92,46 @@ const GroupDetails = () => {
     setToggling(false);
   };
 
+  // Fetch group updates
+  const fetchUpdates = async () => {
+    if (!group) return;
+    const { data, error } = await supabase
+      .from('group_updates')
+      .select('*')
+      .eq('group_id', group.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading updates:', error);
+    } else {
+      setUpdates(data);
+    }
+  };
+
+  // Check if user is approved for this group
+  useEffect(() => {
+    if (!user || !group) return;
+
+    const checkApproval = async () => {
+      const { data, error } = await supabase
+        .from('group_claim_requests')
+        .select('*')
+        .eq('group_id', group.id)
+        .eq('user_id', user.id)
+        .eq('status', 'Approved')
+        .single();
+
+      if (data) {
+        setIsApprovedForGroup(true);
+      } else {
+        setIsApprovedForGroup(false);
+      }
+    };
+
+    checkApproval();
+    fetchUpdates();
+  }, [user, group]);
+
   if (!group) {
     return <div className="text-center py-20 text-gray-500">Loading Group…</div>;
   }
@@ -106,31 +143,12 @@ const GroupDetails = () => {
       <Helmet>
         <title>{group.Name} – Our Philly</title>
         <link rel="icon" href="/favicon.ico" />
-        <script type="application/ld+json">
-          {JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "Organization",
-            name: group.Name,
-            url: window.location.href,
-            description: group.Description,
-            ...(group.imag ? { logo: group.imag } : {}),
-            sameAs: group.Link ? [group.Link] : undefined,
-            breadcrumb: {
-              "@type": "BreadcrumbList",
-              itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Home", item: "https://ourphilly.com" },
-                { "@type": "ListItem", position: 2, name: "Groups", item: "https://ourphilly.com/groups" },
-                { "@type": "ListItem", position: 3, name: group.Name, item: window.location.href }
-              ]
-            }
-          })}
-        </script>
       </Helmet>
 
       <Navbar />
       <GroupProgressBar />
 
-      {/* Hero with heart count */}
+      {/* Hero Section */}
       <div className="w-full bg-gray-100 border-b border-gray-300 py-10 px-4 mb-16">
         <div className="max-w-screen-xl mx-auto flex flex-col md:flex-row items-center gap-8 relative">
           {group.imag && (
@@ -150,7 +168,6 @@ const GroupDetails = () => {
             )}
             <div className="flex items-center justify-center md:justify-start space-x-4">
               <h1 className="text-4xl font-[Barrio] text-gray-900">{group.Name}</h1>
-              {/* heart + count */}
               <button
                 onClick={toggleFav}
                 disabled={toggling}
@@ -161,6 +178,7 @@ const GroupDetails = () => {
               </button>
             </div>
             <p className="text-gray-600 mt-3">{group.Description}</p>
+
             {types.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {types.map((type, i) => (
@@ -174,6 +192,7 @@ const GroupDetails = () => {
                 ))}
               </div>
             )}
+
             {group.Link && (
               <a
                 href={group.Link}
@@ -184,14 +203,46 @@ const GroupDetails = () => {
                 Visit Group Website
               </a>
             )}
+
+            {user && (
+              <div className="mt-6">
+                <ClaimGroupButton groupId={group.id} userId={user.id} />
+              </div>
+            )}
+
+            {user && isApprovedForGroup && (
+              <div className="mt-10">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">Post an Update</h2>
+                <GroupUpdateForm groupId={group.id} userId={user.id} onPostSuccess={fetchUpdates} />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Related */}
+      {/* Updates Feed */}
       <div className="max-w-screen-xl mx-auto px-4">
+        <div className="mt-10">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Updates</h2>
+          {updates.length === 0 ? (
+            <p className="text-gray-500">No updates yet.</p>
+          ) : (
+            <div className="grid gap-4">
+              {updates.map((update) => (
+                <div key={update.id} className="bg-white border rounded p-4 shadow-sm">
+                  <p className="text-gray-800">{update.content}</p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {new Date(update.created_at).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Related */}
         {relatedGroups.length > 0 && (
-          <div className="mb-16">
+          <div className="mt-16">
             <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">
               More in {types.slice(0, 2).join(', ')}
             </h2>

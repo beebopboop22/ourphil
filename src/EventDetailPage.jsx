@@ -5,6 +5,7 @@ import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import { AuthContext } from './AuthProvider'
+import HeroLanding from './HeroLanding';
 import {
   getMyEventFavorites,
   addEventFavorite,
@@ -239,6 +240,7 @@ export default function EventDetailPage() {
           </p>
         )}
       </main>
+      <HeroLanding />
 
       <Footer />
     </div>
