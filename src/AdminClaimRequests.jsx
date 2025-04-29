@@ -1,3 +1,5 @@
+// /src/AdminClaimRequests.jsx
+
 import React, { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
@@ -12,14 +14,29 @@ const AdminClaimRequests = () => {
   const [requests, setRequests] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  useEffect(() => {
-    if (user === undefined) return; // still loading
+  console.log('👤 AUTH CONTEXT USER:', user);
 
-    if (!user || user.email !== 'bill@solar-states.com') {
-      navigate('/'); // redirect if not authorized
-    } else {
-      setLoadingAuth(false); // authorized
+  
+  useEffect(() => {
+    if (user === undefined) {
+      // auth is still loading, do nothing
+      return;
     }
+
+    if (user === null) {
+      // not logged in, redirect
+      navigate('/');
+      return;
+    }
+
+    if (user.email !== 'bill@solar-states.com') {
+      // wrong user, redirect
+      navigate('/');
+      return;
+    }
+
+    // ✅ correct user
+    setLoadingAuth(false);
   }, [user, navigate]);
 
   const fetchRequests = async () => {
@@ -53,7 +70,7 @@ const AdminClaimRequests = () => {
       console.error('Error updating status:', error);
       alert('Failed to update status.');
     } else {
-      fetchRequests(); // refresh the list after update
+      fetchRequests(); // refresh after update
     }
   };
 
@@ -62,10 +79,10 @@ const AdminClaimRequests = () => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 pt-20">
+    <div className="min-h-screen bg-neutral-50 pt-20 flex flex-col">
       <Navbar />
 
-      <div className="max-w-screen-xl mx-auto px-4 py-10">
+      <div className="flex-grow max-w-screen-xl mx-auto px-4 py-10">
         <h1 className="text-4xl font-[Barrio] text-gray-800 mb-8 text-center">
           Group Claim Requests
         </h1>
@@ -84,10 +101,12 @@ const AdminClaimRequests = () => {
                       <p className="text-sm text-gray-500 mb-2">
                         <strong>Submitted:</strong> {new Date(req.created_at).toLocaleString()}
                       </p>
-                      <p className="text-lg font-semibold">Group ID: {req.group_id}</p>
-                      <p className="text-lg font-semibold">User ID: {req.user_id}</p>
+                      <p className="text-lg font-semibold break-words">Group ID: {req.group_id}</p>
+                      <p className="text-lg font-semibold break-words">User ID: {req.user_id}</p>
                       <p className="text-gray-600 mt-2">{req.message}</p>
-                      <p className="mt-2 text-sm text-gray-500">Status: <strong>{req.status}</strong></p>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Status: <strong>{req.status}</strong>
+                      </p>
                     </div>
 
                     {req.status === 'Pending' && (
@@ -114,6 +133,7 @@ const AdminClaimRequests = () => {
         )}
       </div>
 
+      <Footer />
     </div>
   );
 };

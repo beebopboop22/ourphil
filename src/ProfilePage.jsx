@@ -1,4 +1,3 @@
-// src/ProfilePage.jsx
 import React, { useContext, useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
@@ -15,11 +14,19 @@ export default function ProfilePage() {
   const [favGroups, setFavGroups] = useState([]);
   const [loadingFav, setLoadingFav] = useState(true);
 
-  const [suggestions, setSuggestions] = useState([]);
-  const [loadingSug, setLoadingSug] = useState(false);
-
   const [popular, setPopular] = useState([]);
   const [loadingPop, setLoadingPop] = useState(true);
+
+  const [email, setEmail] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const [status, setStatus] = useState('');
+
+  // Load current email
+  useEffect(() => {
+    if (user) {
+      setEmail(user.email);
+    }
+  }, [user]);
 
   // 1️⃣ Load the user’s favorites
   useEffect(() => {
@@ -48,8 +55,7 @@ export default function ProfilePage() {
       .finally(() => setLoadingFav(false));
   }, [user]);
 
-
-  // 3️⃣ Meanwhile, always fetch “Most Liked Groups” as a fallback
+  // 2️⃣ Fetch “Most Liked Groups”
   useEffect(() => {
     setLoadingPop(true);
     supabase
@@ -57,16 +63,14 @@ export default function ProfilePage() {
       .select('group_id')
       .then(({ data: favs, error }) => {
         if (error) throw error;
-        // tally counts client-side
         const counts = {};
         favs.forEach(f => {
           counts[f.group_id] = (counts[f.group_id] || 0) + 1;
         });
         const topIds = Object.entries(counts)
-          .sort(([,a], [,b]) => b - a)
+          .sort(([, a], [, b]) => b - a)
           .slice(0, 8)
           .map(([id]) => id);
-
         return supabase
           .from('groups')
           .select('*')
@@ -82,6 +86,29 @@ export default function ProfilePage() {
       })
       .finally(() => setLoadingPop(false));
   }, []);
+
+  const updateEmail = async () => {
+    setUpdating(true);
+    setStatus('');
+    const { error } = await supabase.auth.updateUser({ email });
+    if (error) {
+      setStatus(`❌ ${error.message}`);
+    } else {
+      setStatus('✅ Email update requested. Please check your inbox to confirm.');
+    }
+    setUpdating(false);
+  };
+
+  const sendPasswordReset = async () => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://ourphilly.com/update-password',
+    });
+    if (error) {
+      alert('Error sending reset link: ' + error.message);
+    } else {
+      alert('Check your email for the password reset link.');
+    }
+  };
 
   if (!user) {
     return (
@@ -104,7 +131,42 @@ export default function ProfilePage() {
       <GroupProgressBar />
 
       <div className="max-w-screen-xl mx-auto px-4 py-12 space-y-12">
-        {/* Your Favorites */}
+
+        {/* 🔐 My Account */}
+        <section className="bg-white rounded-xl shadow-md p-6">
+          <h2 className="text-3xl font-[Barrio] text-gray-800 mb-4">My Account</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Email address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="w-full border rounded p-2"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={updateEmail}
+                disabled={updating}
+                className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition"
+              >
+                Update Email
+              </button>
+              <button
+                onClick={sendPasswordReset}
+                className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 transition"
+              >
+                Reset Password
+              </button>
+            </div>
+
+            {status && <p className="text-sm mt-2 text-gray-700">{status}</p>}
+          </div>
+        </section>
+
+        {/* ❤️ Your Favorites */}
         <section>
           <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-center">
             Your Favorites
@@ -124,7 +186,7 @@ export default function ProfilePage() {
           )}
         </section>
 
-        {/* Fallback: Most Liked Groups */}
+        {/* 🔥 Most Liked Groups */}
         <section>
           <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-center">
             Most Liked Groups
