@@ -22,6 +22,8 @@ import AdminClaimRequests from './AdminClaimRequests';
 import UpdatePasswordPage from './UpdatePasswordPage';
 import TestGroupUpdates from './TestGroupUpdates';
 import SeasonalEventDetails from './SeasonalEventDetailPage';
+import Bulletin from './Bulletin';
+
 
 
 
@@ -55,6 +57,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/update-password" element={<UpdatePasswordPage />} />
           <Route path="/test-updates" element={<TestGroupUpdates />} />
           <Route path="/seasonal/:slug" element={<SeasonalEventDetails />} />
+          <Route path="/bulletin" element={<Bulletin />} />
 
           
         </Routes>

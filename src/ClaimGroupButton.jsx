@@ -28,6 +28,23 @@ const ClaimGroupButton = ({ groupId }) => {
       }
     ]);
 
+    if (!error) {
+      // 🔔 Send webhook to Zapier
+      await fetch('https://hooks.zapier.com/hooks/catch/367985/2pf0o1k/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          group_id: groupId,
+          user_id: user.id,
+          user_email: user.email,
+          message,
+          timestamp: new Date().toISOString()
+        })
+      });
+    }
+
     setSubmitting(false);
 
     if (error) {
