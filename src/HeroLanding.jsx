@@ -127,7 +127,7 @@ const HeroLanding = () => {
       <img
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-2.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0yLnBuZyIsImlhdCI6MTc0NTk1MTY3NiwiZXhwIjozMzI4MTk1MTY3Nn0._vHW37fowO3ttrO9Cvw1cDhQd03r31Tet4RSYKQ48qk"
         alt=""
-        className="absolute bottom-1/4 w-1/3 h-full object-contain opacity-100 pointer-events-none"
+        className="absolute bottom-1/3 w-1/5 h-full object-contain opacity-100 pointer-events-none"
       />
 
       <div className="relative max-w-screen-xl mx-auto text-center z-10">

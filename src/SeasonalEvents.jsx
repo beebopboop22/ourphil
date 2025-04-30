@@ -130,7 +130,7 @@ const SeasonalEventsGrid = () => {
                   <h3 className="text-center text-lg font-bold text-black mb-1 line-clamp-2">
                     {evt.name}
                   </h3>
-                  <p className="text-center text-sm text-gray-600 mb-2 flex-grow line-clamp-3">
+                  <p className="text-center text-md text-gray-600 mb-2 flex-grow line-clamp-3">
                     {evt.description}
                   </p>
                 </div>

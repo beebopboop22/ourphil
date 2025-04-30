@@ -78,8 +78,11 @@ const SeasonalEventDetailPage = () => {
   if (loading) return <div className="text-center py-20">Loading event...</div>;
   if (!event) return <div className="text-center py-20 text-gray-500">Event not found.</div>;
 
-  const startDate = new Date(event.start_date).toLocaleDateString();
-  const endDate = new Date(event.end_date).toLocaleDateString();
+  const now = new Date();
+  const startDate = new Date(event.start_date);
+  const isOpen = now >= startDate;
+  const tagText = isOpen ? 'Open for Season' : `Opens ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  const tagColor = isOpen ? 'bg-orange-500' : 'bg-yellow-400';
 
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
@@ -90,45 +93,45 @@ const SeasonalEventDetailPage = () => {
 
       <Navbar />
 
-      <div className="max-w-screen-xl mx-auto px-4 py-12">
-        <div className="flex flex-col md:flex-row  gap-6">
-          {event.image_url && (
-            <div className="md:w-1/3 ">
-              <img src={event.image_url} alt={event.name} className="w-full rounded-xl" />
-            </div>
+      <div className="relative w-full h-[600px] md:h-[700px]">
+        <img
+          src={event.image_url}
+          alt={event.name}
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-black/50" />
+
+        {/* Open Status Tag */}
+        <div className={`absolute top-4 left-4 px-3 py-1 text-lg font-bold text-white rounded-full ${tagColor}`}>
+          {tagText}
+        </div>
+
+        <div className="absolute bottom-6 left-6 text-white max-w-2xl">
+          <h1 className="text-5xl font-[Barrio] leading-tight mb-3">{event.name}</h1>
+          <p className="text-xl mb-4 leading-relaxed">{event.description}</p>
+          {event.link && (
+            <a
+              href={event.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-white text-black text-sm px-4 py-2 rounded-full"
+            >
+              Visit Website
+            </a>
           )}
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-4xl font-[Barrio] text-gray-900">{event.name}</h1>
-              <button
-                onClick={toggleFavorite}
-                className="text-xl"
-                title="Toggle Favorite"
-              >
-                {isFav ? '❤️' : '🤍'}
-              </button>
-              <span className="text-xl font-[Barrio]">{favCount}</span>
-            </div>
-            <p className="text-gray-600 mt-2">{event.description}</p>
+        </div>
 
-        
-
-            {event.link && (
-              <a
-                href={event.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block mt-4 bg-indigo-600 text-white text-sm px-4 py-2 rounded-full"
-              >
-                Visit Website
-              </a>
-            )}
-          </div>
+        <div className="absolute bottom-6 right-6 text-white flex items-center gap-2">
+          <button onClick={toggleFavorite} className="text-5xl">
+            {isFav ? '❤️' : '🤍'}
+          </button>
+          <span className="text-5xl font-[Barrio]">{favCount}</span>
         </div>
       </div>
+
       <SeasonalEventsGrid />
 
-      <Footer/>
+      <Footer />
     </div>
   );
 };
