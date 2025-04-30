@@ -1,5 +1,6 @@
 // src/SeasonalEventsGrid.jsx
 import React, { useEffect, useState, useContext } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import {
@@ -21,7 +22,7 @@ const SeasonalEventsGrid = () => {
       const today = new Date().toISOString().slice(0, 10);
       const { data, error } = await supabase
         .from('seasonal_events')
-        .select('id, name, description, start_date, end_date, link, image_url')
+        .select('id, slug, name, description, start_date, end_date, image_url')
         .gte('end_date', today)
         .order('start_date', { ascending: true });
 
@@ -97,7 +98,6 @@ const SeasonalEventsGrid = () => {
           {events.map(evt => {
             const now = new Date();
             const startDate = new Date(evt.start_date);
-            const endDate = new Date(evt.end_date);
             const isOpen = now >= startDate;
 
             const tagText = isOpen
@@ -109,11 +109,9 @@ const SeasonalEventsGrid = () => {
             const count = favCounts[evt.id] || 0;
 
             return (
-              <a
+              <Link
                 key={evt.id}
-                href={evt.link}
-                target="_blank"
-                rel="noopener noreferrer"
+                to={`/seasonal/${evt.slug}`}
                 className="relative w-[260px] flex-shrink-0 bg-white rounded-xl shadow-md overflow-hidden flex flex-col"
               >
                 {evt.image_url && (
@@ -148,7 +146,7 @@ const SeasonalEventsGrid = () => {
                     {count}
                   </span>
                 </div>
-              </a>
+              </Link>
             );
           })}
         </div>
