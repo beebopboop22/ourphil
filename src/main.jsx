@@ -28,6 +28,8 @@ import Bulletin from './Bulletin';
 
 
 
+
+
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
