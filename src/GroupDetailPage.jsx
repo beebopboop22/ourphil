@@ -26,33 +26,31 @@ const GroupDetails = () => {
   const [updates, setUpdates] = useState([]);
   const [isApprovedForGroup, setIsApprovedForGroup] = useState(false);
 
-  // Modal state and claim message state
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimMessage, setClaimMessage] = useState('');
   const [submittingClaim, setSubmittingClaim] = useState(false);
 
+  // Fetch data
   useEffect(() => {
-    async function fetchGroupData() {
-      const { data: grp } = await supabase
-        .from('groups')
-        .select('*')
-        .eq('slug', slug)
-        .single();
+    async function fetchData() {
+      // Group
+      const { data: grp } = await supabase.from('groups').select('*').eq('slug', slug).single();
       setGroup(grp);
 
-      // favorites count and existing favorite
+      // Favorites
       const { count } = await supabase
         .from('favorites')
         .select('id', { count: 'exact', head: true })
         .eq('group_id', grp.id);
       setFavCount(count || 0);
+
       if (user) {
         const rows = await getMyFavorites();
         const mine = rows.find(r => r.group_id === grp.id);
         setMyFavId(mine?.id ?? null);
       }
 
-      // related groups
+      // Related Groups
       if (grp?.Type) {
         const types = grp.Type.split(',').map(t => t.trim());
         const { data: rel } = await supabase
@@ -62,38 +60,31 @@ const GroupDetails = () => {
           .neq('slug', slug);
         setRelatedGroups(rel || []);
       }
-    }
-    fetchGroupData();
-  }, [slug, user]);
 
-  useEffect(() => {
-    if (!group) return;
-    async function loadUpdates() {
-      const { data } = await supabase
+      // Updates
+      const { data: upd } = await supabase
         .from('group_updates')
         .select('*')
-        .eq('group_id', group.id)
+        .eq('group_id', grp.id)
         .order('created_at', { ascending: false });
-      setUpdates(data || []);
-    }
-    loadUpdates();
-  }, [group]);
+      setUpdates(upd || []);
 
-  useEffect(() => {
-    if (!user || !group) return;
-    async function checkApproval() {
-      const { data } = await supabase
-        .from('group_claim_requests')
-        .select('id')
-        .eq('group_id', group.id)
-        .eq('user_id', user.id)
-        .eq('status', 'Approved')
-        .single();
-      setIsApprovedForGroup(!!data);
+      // Claim approval
+      if (user) {
+        const { data } = await supabase
+          .from('group_claim_requests')
+          .select('id')
+          .eq('group_id', grp.id)
+          .eq('user_id', user.id)
+          .eq('status', 'Approved')
+          .single();
+        setIsApprovedForGroup(!!data);
+      }
     }
-    checkApproval();
-  }, [user, group]);
+    fetchData();
+  }, [slug, user]);
 
+  // Toggle favorite
   const toggleFav = async () => {
     if (!user || !group) return;
     setToggling(true);
@@ -109,6 +100,7 @@ const GroupDetails = () => {
     setToggling(false);
   };
 
+  // Submit claim request
   const submitClaim = async () => {
     if (!claimMessage.trim()) return;
     setSubmittingClaim(true);
@@ -117,6 +109,19 @@ const GroupDetails = () => {
       .insert({ group_id: group.id, user_id: user.id, message: claimMessage, status: 'Pending' });
     setSubmittingClaim(false);
     setShowClaimModal(false);
+  };
+
+  // Edit & delete updates
+  const handleEdit = async (id, currentContent) => {
+    const newContent = prompt('Edit your update:', currentContent);
+    if (!newContent) return;
+    await supabase.from('group_updates').update({ content: newContent }).eq('id', id);
+    setUpdates(updates.map(u => u.id === id ? { ...u, content: newContent } : u));
+  };
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure?')) return;
+    await supabase.from('group_updates').delete().eq('id', id);
+    setUpdates(updates.filter(u => u.id !== id));
   };
 
   if (!group) return <div className="text-center py-20 text-gray-500">Loading Group…</div>;
@@ -137,7 +142,7 @@ const GroupDetails = () => {
       <div className="relative">
         <div
           className="h-64 bg-cover bg-center"
-          style={{ backgroundImage: `url("https://images.unsplash.com/photo-1516508636691-2ea98becb2f5?q=80&w=2671&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fA%3D%3D")` }}
+          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1516508636691-2ea98becb2f5?q=80&w=2671&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fA%3D%3D")' }}
         />
         <div className="absolute left-8 bottom-0 transform translate-y-1/2">
           <img
@@ -155,14 +160,11 @@ const GroupDetails = () => {
             <span className="mr-2">{myFavId ? '❤️' : '🤍'}</span>
             <span className="font-semibold text-xl">{favCount}</span>
           </button>
-          {/* Always show Claim Group button */}
           {user && (
             <button
               onClick={() => setShowClaimModal(true)}
               className="px-6 py-4 bg-blue-600 text-white rounded-full shadow text-lg"
-            >
-              Claim Group
-            </button>
+            >Claim Group</button>
           )}
         </div>
       </div>
@@ -171,10 +173,7 @@ const GroupDetails = () => {
       {showClaimModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white rounded-lg p-6 relative max-w-md w-full">
-            <button
-              onClick={() => setShowClaimModal(false)}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl"
-            >&times;</button>
+            <button onClick={() => setShowClaimModal(false)} className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             <h2 className="text-xl font-semibold mb-4">Tell us about your connection to this group:</h2>
             <textarea
               rows={4}
@@ -187,9 +186,7 @@ const GroupDetails = () => {
               onClick={submitClaim}
               disabled={submittingClaim}
               className="w-full bg-blue-600 text-white py-2 rounded"
-            >
-              {submittingClaim ? 'Submitting…' : 'Submit Claim Request'}
-            </button>
+            >{submittingClaim ? 'Submitting…' : 'Submit Claim Request'}</button>
           </div>
         </div>
       )}
@@ -201,24 +198,12 @@ const GroupDetails = () => {
           <p className="text-gray-600 mt-2">{group.Description}</p>
           <div className="flex flex-wrap gap-2 mt-4">
             {types.map((type, i) => (
-              <Link
-                key={i}
-                to={`/groups/type/${type.toLowerCase().replace(/\s+/g, '-')}`}
-                className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full"
-              >
-                {type}
-              </Link>
+              <Link key={i} to={`/groups/type/${type.toLowerCase().replace(/\s+/g, '-')}`} className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full">{type}</Link>
             ))}
           </div>
           {group.Link && (
-            <a
-              href={group.Link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block bg-indigo-600 text-white text-sm px-4 py-2 rounded-full mt-4"
-            >Visit Group Website</a>
+            <a href={group.Link} target="_blank" rel="noopener noreferrer" className="inline-block bg-indigo-600 text-white text-sm px-4 py-2 rounded-full mt-4">Visit Group Website</a>
           )}
-
           {user && isApprovedForGroup && (
             <div className="mt-10">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Post an Update</h2>
@@ -231,47 +216,78 @@ const GroupDetails = () => {
       {/* Updates */}
       <div className="max-w-screen-xl mx-auto px-4 mt-12 space-y-4">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Updates</h2>
-        {updates.map(update => (
-          <div
-            key={update.id}
-            className="bg-white border border-gray-200 hover:bg-gray-50 rounded-lg p-4 shadow-sm transition"
-          >
-            <div className="flex items-start mb-3">
-              <img
-                src={group.imag}
-                alt={group.Name}
-                className="w-10 h-10 rounded-full mr-3 object-cover"
-              />
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-gray-900">{group.Name}</p>
-                  <p className="text-xs text-gray-500">{new Date(update.created_at).toLocaleString()}</p>
-                </div>
-                <p className="text-gray-800 mt-2">{update.content}</p>
-              </div>
-            </div>
-            {user && update.user_id === user.id && (
-              <div className="flex justify-end space-x-4 text-blue-500 text-sm">
-                <button onClick={() => handleEdit(update.id, update.content)} className="hover:underline">Edit</button>
-                <button onClick={() => handleDelete(update.id)} className="hover:underline">Delete</button>
-              </div>
-            )}
+        {updates.length === 0 ? (
+          <div className="text-gray-500">
+            <p>No updates yet.</p>
+            {!user && <Link to="/login" className="text-blue-600 underline">Log in to claim this group</Link>}
           </div>
-        ))}
+        ) : (
+          updates.map(update => (
+            <div key={update.id} className="bg-white border border-gray-200 hover:bg-gray-50 rounded-lg p-4 shadow-sm transition">
+              <div className="flex items-start mb-3">
+                <img src={group.imag} alt={group.Name} className="w-10 h-10 rounded-full mr-3 object-cover" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-900">{group.Name}</p>
+                    <p className="text-xs text-gray-500">{new Date(update.created_at).toLocaleString()}</p>
+                  </div>
+                  <p className="text-gray-800 mt-2">{update.content}</p>
+                </div>
+              </div>
+              {user && update.user_id === user.id && (
+                <div className="flex justify-end space-x-4 text-blue-500 text-sm">
+                  <button onClick={() => handleEdit(update.id, update.content)} className="hover:underline">Edit</button>
+                  <button onClick={() => handleDelete(update.id)} className="hover:underline">Delete</button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
 
       {/* Related Groups */}
-      {relatedGroups.length > visibleCount && (
-        <div className="max-w-screen-xl mx-auto px-4 mt-16">
-          <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">More in {types.slice(0, 2).join(', ')}</h2>
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {relatedGroups.slice(0, visibleCount).map(g => <GroupCard key={g.id} group={g} isAdmin={false} />)}
-          </div>
-          <div className="flex justify-center mt-6">
-            <button onClick={() => setVisibleCount(v => v + 10)} className="px-5 py-2 border rounded-full">See More</button>
-          </div>
-        </div>
-      )}
+      {/* Related Groups */}
+      {/* Related Groups */}
+{relatedGroups.length > 0 && (
+  <div className="max-w-screen-xl mx-auto px-4 mt-16">
+    <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">
+      More in {types.slice(0,2).join(', ')}
+    </h2>
+    <div className="overflow-x-auto">
+      <div className="flex space-x-4 py-4">
+        {relatedGroups.map(g => (
+          <Link
+            key={g.id}
+            to={`/groups/${g.slug}`}
+            className="flex-shrink-0 w-40 h-64 bg-white rounded-lg shadow overflow-hidden flex flex-col"
+          >
+            {/* image */}
+            <img
+              src={g.imag}
+              alt={g.Name}
+              className="w-full h-20 object-cover"
+            />
+
+            {/* centered title + description */}
+            <div className="px-2 py-2 flex-1 flex flex-col items-center text-center">
+              <h3 className="text-sm font-semibold truncate w-full">
+                {g.Name}
+              </h3>
+              <p className="text-xs text-gray-600 mt-1 flex-1 overflow-hidden line-clamp-2 w-full">
+                {g.Description}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
+
+
+
+
+
 
       <Voicemail />
       <Footer />
