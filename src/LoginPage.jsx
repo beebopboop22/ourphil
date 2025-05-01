@@ -89,12 +89,12 @@ export default function LoginPage() {
       <img
         src={heartUrl}
         alt="Heart"
-        className="absolute right-1/2 w-1/2 h-auto opacity-100 transform -translate-x-1/3 pointer-events-none"
+        className="fixed right-1/2 w-1/2 h-auto opacity-100 transform -translate-x-1/3 pointer-events-none"
       />
     
       {/* login form */}
       <div className="relative z-10 mt-500 w-full max-w-lg py-20 px-6 bg-white">
-        <h1 className="text-5xl font-[Barrio] font-black mb-6 text-left">Log In, Give ❤️'s</h1>
+        <h1 className="text-5xl font-[Barrio] font-black mb-6 text-left">Log In</h1>
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Email</label>
@@ -128,50 +128,8 @@ export default function LoginPage() {
         </form>
       </div>
 
-      {/* Top Traditions */}
-      {traditions.length > 0 && (
-        <div className="w-full z-10 max-w-lg mx-auto bg-white border border-gray-200 rounded-lg p-4 shadow-sm mb-6">
-          <h2 className="text-xl font-semibold mb-3">Top Traditions</h2>
-          <ul className="space-y-2">
-            {traditions.map((e,i) => (
-              <li key={e.id} className="flex justify-between">
-                <a
-                  href={e.link}
-                  target="_blank"
-                  rel="noopener"
-                  className="text-indigo-700 hover:underline truncate w-3/4"
-                >
-                  {i+1}. {e.name}
-                </a>
-                <span className="font-[Barrio]">{e.count} ❤️</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+     
 
-      {/* Top Groups */}
-      {groups.length > 0 && (
-        <div className="w-full z-10 max-w-lg mx-auto bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h2 className="text-xl font-semibold mb-3">Top Groups</h2>
-          <ul className="space-y-2">
-            {groups.map((g,i) => (
-              <li key={g.id} className="flex justify-between">
-                <Link
-                  to={`/groups/${g.slug}`}
-                  className="text-indigo-700 hover:underline truncate w-3/4"
-                >
-                  {i+1}. {g.name}
-                </Link>
-                <span className="font-[Barrio]">{g.count} ❤️</span>
-              </li>
-            ))}
-          </ul>
-
-        </div>
-        
-      )}
-              <h1 className="text-5xl mt-12 mb-44 font-[Barrio] font-black mb-6 text-left">and more!</h1>
 
     </div>
   );

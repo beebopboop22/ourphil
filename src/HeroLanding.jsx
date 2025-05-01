@@ -134,8 +134,8 @@ const HeroLanding = () => {
         <h1 className="text-8xl font-[Barrio] font-black mb-1 text-black">
           DIG INTO PHILLY
         </h1>
-        <h2 className="text-4xl font-bold text-gray-700 mb-8">
-          UPCOMING PHILLY TRADITIONS
+        <h2 className="text-3xl font-bold text-gray-700 mb-8">
+          UPCOMING ANNUAL EVENTS & TRADITIONS
         </h2>
 
         {loading ? (

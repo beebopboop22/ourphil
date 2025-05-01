@@ -50,7 +50,9 @@ export default function SignUpPage() {
           alt="Heart"
           className="fixed bottom-0 w-1/2 h-1/2 object-contain -z-10"
         />
-        <h1 className="text-5xl font-[Barrio] font-black mb-6 mt-10 text-left">Sign Up</h1>
+        <h1 className="text-5xl font-[Barrio] font-black mt-10 text-center">Enter the City</h1>
+        <p className="text-xl font-[Barrio] font-black mb-6 text-center">Sign up here, all welcome</p>
+
 <form onSubmit={handleSignUp} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Email</label>

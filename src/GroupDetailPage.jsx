@@ -171,9 +171,9 @@ const GroupDetails = () => {
 
       {/* Host CTA Banner */}
       {!user && (
-        <div className="max-w-screen-xl mx-auto px-4 mt-6">
+        <div className="max-w-screen-xl mx-auto px-4 mt-24 md:mt-6">
           <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-4 rounded">
-            <p className="text-center">
+            <p className="text-center ">
               👋 Hosts: create an account to claim your group and post updates.{' '}
               <Link to="/signup" className="font-semibold underline">Sign up</Link> or{' '}
               <Link to="/login" className="font-semibold underline">Log in</Link> now.
