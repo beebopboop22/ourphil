@@ -142,7 +142,7 @@ const GroupDetails = () => {
       <div className="relative">
         <div
           className="h-64 bg-cover bg-center"
-          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1516508636691-2ea98becb2f5?q=80&w=2671&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fA%3D%3D")' }}
+          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1516508636691-2ea98becb2f5?q=80&w=2671&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfDB8fGVufDB8%3D")' }}
         />
         <div className="absolute left-8 bottom-0 transform translate-y-1/2">
           <img
@@ -169,24 +169,15 @@ const GroupDetails = () => {
         </div>
       </div>
 
-      {/* Claim Modal */}
-      {showClaimModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg p-6 relative max-w-md w-full">
-            <button onClick={() => setShowClaimModal(false)} className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-            <h2 className="text-xl font-semibold mb-4">Tell us about your connection to this group:</h2>
-            <textarea
-              rows={4}
-              value={claimMessage}
-              onChange={e => setClaimMessage(e.target.value)}
-              className="w-full border rounded p-2 mb-4"
-              placeholder="I help organize events for this group..."
-            />
-            <button
-              onClick={submitClaim}
-              disabled={submittingClaim}
-              className="w-full bg-blue-600 text-white py-2 rounded"
-            >{submittingClaim ? 'Submitting…' : 'Submit Claim Request'}</button>
+      {/* Host CTA Banner */}
+      {!user && (
+        <div className="max-w-screen-xl mx-auto px-4 mt-6">
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-4 rounded">
+            <p className="text-center">
+              👋 Hosts: create an account to claim your group and post updates.{' '}
+              <Link to="/signup" className="font-semibold underline">Sign up</Link> or{' '}
+              <Link to="/login" className="font-semibold underline">Log in</Link> now.
+            </p>
           </div>
         </div>
       )}
@@ -198,18 +189,51 @@ const GroupDetails = () => {
           <p className="text-gray-600 mt-2">{group.Description}</p>
           <div className="flex flex-wrap gap-2 mt-4">
             {types.map((type, i) => (
-              <Link key={i} to={`/groups/type/${type.toLowerCase().replace(/\s+/g, '-')}`} className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full">{type}</Link>
+              <Link
+                key={i}
+                to={`/groups/type/${type.toLowerCase().replace(/\s+/g, '-')}`}                className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full"
+              >{type}</Link>
             ))}
           </div>
           {group.Link && (
-            <a href={group.Link} target="_blank" rel="noopener noreferrer" className="inline-block bg-indigo-600 text-white text-sm px-4 py-2 rounded-full mt-4">Visit Group Website</a>
+            <a href={group.Link} target="_blank" rel="noopener noreferrer" className="inline-block bg-indigo-600 text-white text-sm px-4 py-2 rounded-full mt-4">
+              Visit Group Website
+            </a>
           )}
-          {user && isApprovedForGroup && (
-            <div className="mt-10">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Post an Update</h2>
-              <GroupUpdateForm groupId={group.id} userId={user.id} onPostSuccess={() => setUpdates([])} />
+
+          {/* Post an Update Access Gate */}
+          {user ? (
+            isApprovedForGroup ? (
+              <div className="mt-10">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">Post an Update</h2>
+                <GroupUpdateForm
+                  groupId={group.id}
+                  userId={user.id}
+                  onPostSuccess={() => setUpdates([])}
+                />
+              </div>
+            ) : (
+              <div className="mt-10 p-4 bg-gray-100 rounded text-center text-gray-600">
+                <p>
+                  You need to{' '}
+                  <button
+                    onClick={() => setShowClaimModal(true)}
+                    className="underline text-blue-600"
+                  >claim this group</button>{' '}
+                  before you can post updates.
+                </p>
+              </div>
+            )
+          ) : (
+            <div className="mt-10 p-4 bg-gray-100 rounded text-center text-gray-600">
+              <p>
+                Log in to claim this group and post updates.{' '}
+                <Link to="/login" className="underline text-blue-600">Log in</Link> or{' '}
+                <Link to="/signup" className="underline text-blue-600">Sign up</Link>.
+              </p>
             </div>
           )}
+
         </div>
       </div>
 
@@ -246,48 +270,41 @@ const GroupDetails = () => {
       </div>
 
       {/* Related Groups */}
-      {/* Related Groups */}
-      {/* Related Groups */}
-{relatedGroups.length > 0 && (
-  <div className="max-w-screen-xl mx-auto px-4 mt-16">
-    <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">
-      More in {types.slice(0,2).join(', ')}
-    </h2>
-    <div className="overflow-x-auto">
-      <div className="flex space-x-4 py-4">
-        {relatedGroups.map(g => (
-          <Link
-            key={g.id}
-            to={`/groups/${g.slug}`}
-            className="flex-shrink-0 w-40 h-64 bg-white rounded-lg shadow overflow-hidden flex flex-col"
-          >
-            {/* image */}
-            <img
-              src={g.imag}
-              alt={g.Name}
-              className="w-full h-20 object-cover"
-            />
+      {relatedGroups.length > 0 && (
+        <div className="max-w-screen-xl mx-auto px-4 mt-16">
+          <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">
+            More in {types.slice(0,2).join(', ')}
+          </h2>
+          <div className="overflow-x-auto">
+            <div className="flex space-x-4 py-4">
+              {relatedGroups.map(g => (
+                <Link
+                  key={g.id}
+                  to={`/groups/${g.slug}`}
+                  className="flex-shrink-0 w-40 h-64 bg-white rounded-lg shadow overflow-hidden flex flex-col"
+                >
+                  {/* image */}
+                  <img
+                    src={g.imag}
+                    alt={g.Name}
+                    className="w-full h-20 object-cover"
+                  />
 
-            {/* centered title + description */}
-            <div className="px-2 py-2 flex-1 flex flex-col items-center text-center">
-              <h3 className="text-sm font-semibold truncate w-full">
-                {g.Name}
-              </h3>
-              <p className="text-xs text-gray-600 mt-1 flex-1 overflow-hidden line-clamp-2 w-full">
-                {g.Description}
-              </p>
+                  {/* centered title + description */}
+                  <div className="px-2 py-2 flex-1 flex flex-col items-center text-center">
+                    <h3 className="text-sm font-semibold truncate w-full">
+                      {g.Name}
+                    </h3>
+                    <p className="text-xs text-gray-600 mt-1 flex-1 overflow-hidden line-clamp-2 w-full">
+                      {g.Description}
+                    </p>
+                  </div>
+                </Link>
+              ))}
             </div>
-          </Link>
-        ))}
-      </div>
-    </div>
-  </div>
-)}
-
-
-
-
-
+          </div>
+        </div>
+      )}
 
       <Voicemail />
       <Footer />

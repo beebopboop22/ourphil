@@ -25,10 +25,11 @@ export default function EventDetailPage() {
   const [reviews, setReviews] = useState([]);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
-  const [photoFile, setPhotoFile] = useState(null);
+  const [photoFiles, setPhotoFiles] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [modalImage, setModalImage] = useState(null);
 
+  // Load event data
   useEffect(() => {
     supabase
       .from('events')
@@ -41,6 +42,7 @@ export default function EventDetailPage() {
       });
   }, [slug]);
 
+  // Favorites count & status
   useEffect(() => {
     if (!event) return;
     supabase
@@ -59,6 +61,7 @@ export default function EventDetailPage() {
     }
   }, [event, user]);
 
+  // Load and normalize reviews
   const loadReviews = () => {
     supabase
       .from('reviews')
@@ -66,14 +69,34 @@ export default function EventDetailPage() {
       .eq('event_id', event.id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
-        if (error) console.error(error);
-        else setReviews(data);
+        if (error) {
+          console.error(error);
+        } else {
+          // Ensure photo_urls is always an array
+          const normalized = data.map((r) => {
+            let urls = [];
+            if (Array.isArray(r.photo_urls)) {
+              urls = r.photo_urls;
+            } else if (r.photo_urls) {
+              try {
+                urls = JSON.parse(r.photo_urls);
+                if (!Array.isArray(urls)) urls = [];
+              } catch {
+                urls = [];
+              }
+            }
+            return { ...r, photo_urls: urls };
+          });
+          setReviews(normalized);
+        }
       });
   };
+
   useEffect(() => {
     if (event) loadReviews();
   }, [event]);
 
+  // Toggle favorite
   const toggleFav = async () => {
     if (!user || !event) return;
     setToggling(true);
@@ -89,32 +112,29 @@ export default function EventDetailPage() {
     setToggling(false);
   };
 
+  // Submit review with multiple photos
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) return alert('Log in to leave a review.');
     setSubmitting(true);
 
-    let photoUrl = null;
-    if (photoFile) {
-      const safeFileName = photoFile.name.replace(/[^a-z0-9.\-_]/gi, '_').toLowerCase();
-      const filePath = `${event.id}-${Date.now()}-${safeFileName}`;
-
+    const photoUrls = [];
+    for (let file of photoFiles) {
+      const safeName = file.name.replace(/[^a-z0-9.\-_]/gi, '_').toLowerCase();
+      const path = `${event.id}-${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from('event-photos')
-        .upload(filePath, photoFile);
-
+        .upload(path, file);
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        alert('Photo upload failed.');
+        alert('One of the uploads failed.');
         setSubmitting(false);
         return;
       }
-
-      const { data: publicUrlData } = supabase.storage
+      const { data: { publicUrl } } = supabase.storage
         .from('event-photos')
-        .getPublicUrl(filePath);
-
-      photoUrl = publicUrlData.publicUrl;
+        .getPublicUrl(path);
+      photoUrls.push(publicUrl);
     }
 
     const { error } = await supabase.from('reviews').insert({
@@ -122,7 +142,7 @@ export default function EventDetailPage() {
       user_id: user.id,
       rating,
       comment,
-      photo_url: photoUrl,
+      photo_urls: photoUrls,
     });
 
     setSubmitting(false);
@@ -130,16 +150,17 @@ export default function EventDetailPage() {
     else {
       setComment('');
       setRating(5);
-      setPhotoFile(null);
+      setPhotoFiles([]);
       loadReviews();
     }
   };
 
   const alreadyReviewed = user && reviews.some((r) => r.user_id === user.id);
-  const photoReviews = reviews.filter(r => r.photo_url);
+  const photoReviews = reviews.filter((r) => Array.isArray(r.photo_urls) && r.photo_urls.length);
 
-  if (!event)
+  if (!event) {
     return <div className="text-center py-20 text-gray-500">Loading…</div>;
+  }
 
   const formatDate = (raw) =>
     new Date(raw).toLocaleDateString('en-US', {
@@ -159,86 +180,93 @@ export default function EventDetailPage() {
     <div className="min-h-screen bg-neutral-50 pt-20">
       <Navbar />
 
+      {/* Hero Section */}
       <div className="relative w-full h-[600px] md:h-[700px]">
         <img
           src={event['E Image']}
           alt={event['E Name']}
-          className="absolute inset-0 w-full h-full object-cover object-center"
+          className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-black/50" />
-
-        <div className="absolute top-4 left-4 px-5 py-2 text-xl font-bold text-white rounded-full bg-yellow-400">
+        <div className="absolute top-4 left-4 bg-yellow-400 px-5 py-2 text-xl font-bold text-white rounded-full">
           {dateDisplay}
         </div>
-
         <div className="absolute bottom-6 left-6 text-white max-w-2xl">
-          <h1 className="text-5xl font-[Barrio] leading-tight mb-3">{event['E Name']}</h1>
-          <p className="text-xl mb-4 leading-relaxed">{event['E Description']}</p>
+          <h1 className="text-5xl font-[Barrio] mb-3">{event['E Name']}</h1>
+          <p className="text-xl mb-4">{event['E Description']}</p>
           {event['E Link'] && (
             <a
               href={event['E Link']}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block bg-white text-black text-sm px-4 py-2 rounded-full"
+              className="bg-white text-black px-4 py-2 rounded-full text-sm"
             >
               Visit Event Site
             </a>
           )}
         </div>
-
         <div className="absolute bottom-6 right-6 text-white flex items-center gap-2">
-          <button onClick={toggleFav} className="text-5xl">
+          <button onClick={toggleFav} disabled={toggling} className="text-5xl">
             {myFavId ? '❤️' : '🤍'}
           </button>
           <span className="text-5xl font-[Barrio]">{favCount}</span>
         </div>
       </div>
 
+      {/* Photo Gallery */}
       {photoReviews.length > 0 && (
-        <div className="max-w-screen-l mx-auto py-10 px-4">
-          <h2 className="text-2xl font-[Barrio] text-gray-800 mb-4">Your Photos</h2>
+        <div className="max-w-screen-xl mx-auto py-10 px-4">
+          <h2 className="text-2xl font-[Barrio] mb-4 text-gray-800">Your Photos</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {photoReviews.map((r) => (
-              <div
-                key={r.id}
-                className="aspect-square overflow-hidden rounded-lg cursor-pointer"
-                onClick={() => setModalImage(r.photo_url)}
-              >
-                <img
-                  src={r.photo_url}
-                  alt="User photo"
-                  className="w-full h-full object-cover hover:scale-105 transition-transform"
-                />
-              </div>
-            ))}
+            {photoReviews.flatMap((r) =>
+              r.photo_urls.map((url) => (
+                <div
+                  key={url}
+                  className="aspect-square overflow-hidden rounded-lg cursor-pointer"
+                  onClick={() => setModalImage(url)}
+                >
+                  <img
+                    src={url}
+                    alt="User photo"
+                    className="w-full h-full object-cover hover:scale-105 transition"
+                  />
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
 
-      <main className="max-w-screen-xl mx-auto mb-40 py-12 px-4">
-        <h2 className="text-2xl font-[Barrio] mb-4">Reviews</h2>
+      {/* Reviews & Form */}
+      <main className="max-w-screen-xl mx-auto py-12 px-4 mb-40">
+        <h2 className="text-2xl font-[Barrio] mb-6">Reviews</h2>
         <div className="space-y-6">
           {reviews.map((r) => (
             <div key={r.id} className="bg-white shadow-md rounded-xl p-6">
               <div className="flex items-center justify-between mb-3">
                 <span className="font-semibold text-gray-800">
-                  {r.user_id === user?.id ? 'You' : 'Anonymous'}
+                  {r.user_id === user?.id ? 'You' : 'Stranger'}
                 </span>
                 <span className="text-yellow-500 text-xl font-[Barrio]">
                   {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
                 </span>
               </div>
               <p className="text-gray-700 mb-3">{r.comment}</p>
-              {r.photo_url && (
-                <div
-                  className="w-28 h-28 mb-3 cursor-pointer"
-                  onClick={() => setModalImage(r.photo_url)}
-                >
-                  <img
-                    src={r.photo_url}
-                    alt="User submitted"
-                    className="w-full h-full object-cover rounded-lg border"
-                  />
+              {Array.isArray(r.photo_urls) && r.photo_urls.length > 0 && (
+                <div className="flex space-x-2 mb-3">
+                  {r.photo_urls.map((url) => (
+                    <div
+                      key={url}
+                      className="w-20 h-20 rounded-lg overflow-hidden cursor-pointer"
+                      onClick={() => setModalImage(url)}
+                    >
+                      <img
+                        src={url}
+                        alt="Review"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
                 </div>
               )}
               <div className="text-xs text-gray-400">
@@ -246,6 +274,7 @@ export default function EventDetailPage() {
               </div>
             </div>
           ))}
+
           {reviews.length === 0 && (
             <p className="text-sm text-gray-500">No reviews yet.</p>
           )}
@@ -261,6 +290,7 @@ export default function EventDetailPage() {
               onSubmit={handleSubmit}
               className="mt-8 bg-white p-6 rounded-xl shadow-md space-y-6"
             >
+              {/* Rating */}
               <div>
                 <label className="block text-sm font-medium mb-2">Your Rating</label>
                 <div className="flex space-x-2">
@@ -278,34 +308,41 @@ export default function EventDetailPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Comment */}
               <div>
                 <label className="block text-sm font-medium mb-2">Your Review</label>
                 <textarea
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   required
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-300"
                   rows={4}
                   placeholder="Share your experience…"
                 />
               </div>
+
+              {/* Multiple Photo Upload */}
               <div>
-                <label className="block text-sm font-medium mb-2">Upload a Photo (optional)</label>
+                <label className="block text-sm font-medium mb-2">
+                  Upload Photos (optional)
+                </label>
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file && file.type.startsWith('image/')) {
-                      setPhotoFile(file);
-                    } else {
-                      alert('Please upload a valid image file.');
-                      e.target.value = null;
+                    const files = Array.from(e.target.files || []);
+                    const valid = files.filter((f) => f.type.startsWith('image/'));
+                    if (valid.length !== files.length) {
+                      alert('Some files were not images and have been ignored.');
                     }
+                    setPhotoFiles(valid);
                   }}
                   className="text-sm text-gray-600"
                 />
               </div>
+
               <button
                 type="submit"
                 disabled={submitting}
@@ -324,6 +361,7 @@ export default function EventDetailPage() {
           </p>
         )}
 
+        {/* Image Modal */}
         {modalImage && (
           <div
             className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
@@ -331,7 +369,7 @@ export default function EventDetailPage() {
           >
             <img
               src={modalImage}
-              alt="User submitted"
+              alt="Enlarged"
               className="max-w-full max-h-[90vh] rounded-lg border-4 border-white shadow-lg"
               onClick={(e) => e.stopPropagation()}
             />
