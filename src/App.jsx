@@ -33,6 +33,7 @@ import PlatformPromoBillboard from './PlatformPromoBillboard';
 import GroupRecommender from './components/GroupRecommender';
 import EventsGrid from './EventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents'; 
+import Bulletin from './Bulletin';
 
 
 
@@ -121,6 +122,8 @@ function App() {
       <div className="min-h-screen flex flex-col bg-white-100 pt-20 relative">
         <Navbar />   
         <HeroLanding />
+        <Bulletin previewCount={5} />
+
         <SeasonalEventsGrid />
 
 
