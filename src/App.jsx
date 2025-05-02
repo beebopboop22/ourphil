@@ -119,7 +119,7 @@ function App() {
   
      
       
-      <div className="min-h-screen flex flex-col bg-white-100 pt-20 relative">
+      <div className="overflow-x-hidden  min-h-screen flex flex-col bg-white-100 pt-20 relative">
         <Navbar />   
         <HeroLanding />
         <Bulletin previewCount={5} />
