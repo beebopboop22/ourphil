@@ -13,13 +13,12 @@ import { AuthContext } from './AuthProvider';
 import GroupUpdateForm from './GroupUpdateForm';
 import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites';
 
-const GroupDetails = () => {
+export default function GroupDetails() {
   const { slug } = useParams();
   const { user } = useContext(AuthContext);
 
   const [group, setGroup] = useState(null);
   const [relatedGroups, setRelatedGroups] = useState([]);
-  const [visibleCount, setVisibleCount] = useState(10);
   const [favCount, setFavCount] = useState(0);
   const [myFavId, setMyFavId] = useState(null);
   const [toggling, setToggling] = useState(false);
@@ -30,27 +29,27 @@ const GroupDetails = () => {
   const [claimMessage, setClaimMessage] = useState('');
   const [submittingClaim, setSubmittingClaim] = useState(false);
 
-  // Fetch data
   useEffect(() => {
     async function fetchData() {
-      // Group
+      // load group
       const { data: grp } = await supabase.from('groups').select('*').eq('slug', slug).single();
       setGroup(grp);
 
-      // Favorites
+      // favorites count
       const { count } = await supabase
         .from('favorites')
         .select('id', { count: 'exact', head: true })
         .eq('group_id', grp.id);
       setFavCount(count || 0);
 
+      // my favorite id
       if (user) {
         const rows = await getMyFavorites();
         const mine = rows.find(r => r.group_id === grp.id);
         setMyFavId(mine?.id ?? null);
       }
 
-      // Related Groups
+      // related groups
       if (grp?.Type) {
         const types = grp.Type.split(',').map(t => t.trim());
         const { data: rel } = await supabase
@@ -61,7 +60,7 @@ const GroupDetails = () => {
         setRelatedGroups(rel || []);
       }
 
-      // Updates
+      // updates
       const { data: upd } = await supabase
         .from('group_updates')
         .select('*')
@@ -69,7 +68,7 @@ const GroupDetails = () => {
         .order('created_at', { ascending: false });
       setUpdates(upd || []);
 
-      // Claim approval
+      // claim approval
       if (user) {
         const { data } = await supabase
           .from('group_claim_requests')
@@ -84,14 +83,13 @@ const GroupDetails = () => {
     fetchData();
   }, [slug, user]);
 
-  // Toggle favorite
   const toggleFav = async () => {
     if (!user || !group) return;
     setToggling(true);
     if (myFavId) {
       await removeFavorite(myFavId);
-      setFavCount(c => c - 1);
       setMyFavId(null);
+      setFavCount(c => c - 1);
     } else {
       const { data } = await addFavorite(group.id);
       setMyFavId(data[0].id);
@@ -100,7 +98,6 @@ const GroupDetails = () => {
     setToggling(false);
   };
 
-  // Submit claim request
   const submitClaim = async () => {
     if (!claimMessage.trim()) return;
     setSubmittingClaim(true);
@@ -111,13 +108,13 @@ const GroupDetails = () => {
     setShowClaimModal(false);
   };
 
-  // Edit & delete updates
-  const handleEdit = async (id, currentContent) => {
-    const newContent = prompt('Edit your update:', currentContent);
-    if (!newContent) return;
-    await supabase.from('group_updates').update({ content: newContent }).eq('id', id);
-    setUpdates(updates.map(u => u.id === id ? { ...u, content: newContent } : u));
+  const handleEdit = async (id, content) => {
+    const updated = prompt('Edit your update:', content);
+    if (!updated) return;
+    await supabase.from('group_updates').update({ content: updated }).eq('id', id);
+    setUpdates(updates.map(u => u.id === id ? { ...u, content: updated } : u));
   };
+
   const handleDelete = async (id) => {
     if (!confirm('Are you sure?')) return;
     await supabase.from('group_updates').delete().eq('id', id);
@@ -138,7 +135,7 @@ const GroupDetails = () => {
       <Navbar />
       <GroupProgressBar />
 
-      {/* Header */}
+      {/* Header: cover + avatar */}
       <div className="relative">
         <div
           className="h-64 bg-cover bg-center"
@@ -151,76 +148,78 @@ const GroupDetails = () => {
             className="w-48 h-48 rounded-full border-4 border-white object-cover"
           />
         </div>
-        <div className="absolute right-8 bottom-0 transform translate-y-1/2 flex space-x-4">
-          <button
-            onClick={toggleFav}
-            disabled={toggling}
-            className="flex items-center px-6 py-4 bg-white rounded-full shadow text-gray-800 text-2xl"
-          >
-            <span className="mr-2">{myFavId ? '❤️' : '🤍'}</span>
-            <span className="font-semibold text-xl">{favCount}</span>
-          </button>
-          {user && (
-            <button
-              onClick={() => setShowClaimModal(true)}
-              className="px-6 py-4 bg-blue-600 text-white rounded-full shadow text-lg"
-            >Claim Group</button>
-          )}
-        </div>
       </div>
 
-      {/* Host CTA Banner */}
-      {!user && (
-        <div className="max-w-screen-xl mx-auto px-4 mt-24 md:mt-6">
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-4 rounded">
-            <p className="text-center ">
-              👋 Hosts: create an account to claim your group and post updates.{' '}
-              <Link to="/signup" className="font-semibold underline">Sign up</Link> or{' '}
-              <Link to="/login" className="font-semibold underline">Log in</Link> now.
-            </p>
+      {/* Claim Modal */}
+      {showClaimModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={() => setShowClaimModal(false)}>
+          <div className="bg-white rounded-lg p-6 relative max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowClaimModal(false)} className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl">×</button>
+            <h2 className="text-xl font-semibold mb-4">Tell us about your connection to this group</h2>
+            <textarea
+              rows={4}
+              value={claimMessage}
+              onChange={e => setClaimMessage(e.target.value)}
+              className="w-full border rounded p-2 mb-4"
+              placeholder="I help organize events for this group..."
+            />
+            <button
+              onClick={submitClaim}
+              disabled={submittingClaim}
+              className="w-full bg-blue-600 text-white py-2 rounded"
+            >{submittingClaim ? 'Submitting…' : 'Submit Claim Request'}</button>
           </div>
         </div>
       )}
 
-      {/* Group Info */}
+      {/* Group Info with inline heart + claim */}
       <div className="mt-24 px-4">
         <div className="max-w-screen-xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900">{group.Name}</h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-3xl font-bold text-gray-900">{group.Name}</h1>
+            <button onClick={toggleFav} disabled={toggling} className="flex items-center text-3xl focus:outline-none">
+              {myFavId ? '❤️' : '🤍'}
+              <span className="ml-1 text-xl font-semibold">{favCount}</span>
+            </button>
+          </div>
           <p className="text-gray-600 mt-2">{group.Description}</p>
           <div className="flex flex-wrap gap-2 mt-4">
             {types.map((type, i) => (
               <Link
                 key={i}
-                to={`/groups/type/${type.toLowerCase().replace(/\s+/g, '-')}`}                className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full"
+                to={`/groups/type/${type.toLowerCase().replace(/\s+/g, '-')}`}
+                className="bg-indigo-100 text-indigo-700 px-3 py-1 text-xs rounded-full"
               >{type}</Link>
             ))}
           </div>
-          {group.Link && (
-            <a href={group.Link} target="_blank" rel="noopener noreferrer" className="inline-block bg-indigo-600 text-white text-sm px-4 py-2 rounded-full mt-4">
-              Visit Group Website
-            </a>
-          )}
+          <div className="flex items-center space-x-4 mt-6">
+            {group.Link && (
+              <a
+                href={group.Link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block bg-indigo-600 text-white text-sm px-4 py-2 rounded-full"
+              >Visit Group Website</a>
+            )}
+            {user && (
+              <button
+                onClick={() => setShowClaimModal(true)}
+                className="inline-block bg-indigo-600 text-white text-sm px-4 py-2 rounded-full"
+              >Claim Group</button>
+            )}
+          </div>
 
-          {/* Post an Update Access Gate */}
+          {/* Post Update Section */}
           {user ? (
             isApprovedForGroup ? (
               <div className="mt-10">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Post an Update</h2>
-                <GroupUpdateForm
-                  groupId={group.id}
-                  userId={user.id}
-                  onPostSuccess={() => setUpdates([])}
-                />
+                <GroupUpdateForm groupId={group.id} userId={user.id} onPostSuccess={() => setUpdates([])} />
               </div>
             ) : (
               <div className="mt-10 p-4 bg-gray-100 rounded text-center text-gray-600">
                 <p>
-                  You need to{' '}
-                  <button
-                    onClick={() => setShowClaimModal(true)}
-                    className="underline text-blue-600"
-                  >claim this group</button>{' '}
-                  before you can post updates.
+                  You need to{' '}<button onClick={() => setShowClaimModal(true)} className="underline text-blue-600">claim this group</button>{' '}before you can post updates.
                 </p>
               </div>
             )
@@ -228,30 +227,31 @@ const GroupDetails = () => {
             <div className="mt-10 p-4 bg-gray-100 rounded text-center text-gray-600">
               <p>
                 Log in to claim this group and post updates.{' '}
-                <Link to="/login" className="underline text-blue-600">Log in</Link> or{' '}
+                <Link to="/login" className="underline text-blue-600">Log in</Link>{' '}or{' '}
                 <Link to="/signup" className="underline text-blue-600">Sign up</Link>.
               </p>
             </div>
           )}
-
         </div>
       </div>
 
-      {/* Updates */}
+      {/* Recent Updates */}
       <div className="max-w-screen-xl mx-auto px-4 mt-12 space-y-4">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Updates</h2>
         {updates.length === 0 ? (
-          <div className="text-gray-500">
-            <p>No updates yet.</p>
-            {!user && <Link to="/login" className="text-blue-600 underline">Log in to claim this group</Link>}
-          </div>
+          <p className="text-gray-500">
+            No updates yet.
+            {!user && (
+              <Link to="/login" className="text-blue-600 underline ml-2">Log in to claim this group</Link>
+            )}
+          </p>
         ) : (
           updates.map(update => (
-            <div key={update.id} className="bg-white border border-gray-200 hover:bg-gray-50 rounded-lg p-4 shadow-sm transition">
+            <div key={update.id} className="bg-white border border-gray-200 hover:bg-gray-50 rounded-lg p-4 shadow-sm transition mb-4">
               <div className="flex items-start mb-3">
                 <img src={group.imag} alt={group.Name} className="w-10 h-10 rounded-full mr-3 object-cover" />
                 <div className="flex-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex justify-between items-center">
                     <p className="text-sm font-semibold text-gray-900">{group.Name}</p>
                     <p className="text-xs text-gray-500">{new Date(update.created_at).toLocaleString()}</p>
                   </div>
@@ -278,26 +278,11 @@ const GroupDetails = () => {
           <div className="overflow-x-auto">
             <div className="flex space-x-4 py-4">
               {relatedGroups.map(g => (
-                <Link
-                  key={g.id}
-                  to={`/groups/${g.slug}`}
-                  className="flex-shrink-0 w-40 h-64 bg-white rounded-lg shadow overflow-hidden flex flex-col"
-                >
-                  {/* image */}
-                  <img
-                    src={g.imag}
-                    alt={g.Name}
-                    className="w-full h-20 object-cover"
-                  />
-
-                  {/* centered title + description */}
+                <Link key={g.id} to={`/groups/${g.slug}`} className="flex-shrink-0 w-40 h-64 bg-white rounded-lg shadow overflow-hidden flex flex-col">
+                  <img src={g.imag} alt={g.Name} className="w-full h-20 object-cover" />
                   <div className="px-2 py-2 flex-1 flex flex-col items-center text-center">
-                    <h3 className="text-sm font-semibold truncate w-full">
-                      {g.Name}
-                    </h3>
-                    <p className="text-xs text-gray-600 mt-1 flex-1 overflow-hidden line-clamp-2 w-full">
-                      {g.Description}
-                    </p>
+                    <h3 className="text-sm font-semibold truncate w-full">{g.Name}</h3>
+                    <p className="text-xs text-gray-600 mt-1 flex-1 overflow-hidden line-clamp-2 w-full">{g.Description}</p>
                   </div>
                 </Link>
               ))}
@@ -310,6 +295,4 @@ const GroupDetails = () => {
       <Footer />
     </div>
   );
-};
-
-export default GroupDetails;
+}
