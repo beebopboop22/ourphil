@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { supabase } from './supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import Navbar from './Navbar';
+import { Helmet } from 'react-helmet';
+
 
 
 export default function SignUpPage() {
@@ -41,6 +43,16 @@ export default function SignUpPage() {
 
   return (
     <div className="max-w-md mx-auto py-20">
+        <Helmet>
+        <title>Create Account – Our Philly</title>
+        <meta name="description" content="Sign up for Our Philly to heart your favorite events and groups, post updates, and explore everything Philly has to offer." />
+        <meta property="og:title" content="Sign Up – Our Philly" />
+        <meta property="og:description" content="Join Our Philly to discover local events, leave reviews, claim your community group, and more." />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:image" content="https://your-default-image.png" />
+        <link rel="canonical" href="https://ourphilly.com/signup" />
+        <link rel="icon" href="/favicon.ico" />
+      </Helmet>
                   <Navbar />   
 
 

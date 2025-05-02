@@ -47,7 +47,7 @@ const GroupsHeroSearch = ({
     <div className="relative pt-20 text-center bg-white overflow-hidden">
       <div className="relative z-10">
         <h1 className="text-6xl font-[Barrio] text-gray-900 mb-4">
-          Find Your Philly Crew
+          Find Your Peoples
         </h1>
 
         <p className="text-gray-600 max-w-xl mx-auto mb-10 text-lg">

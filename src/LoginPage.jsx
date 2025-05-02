@@ -4,6 +4,8 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet';
+
 
 export default function LoginPage() {
   const { user } = useContext(AuthContext);
@@ -83,6 +85,16 @@ export default function LoginPage() {
 
   return (
     <div className="relative mt-52 flex flex-col items-center justify-center bg-white overflow-hidden">
+      <Helmet>
+        <title>Log In – Our Philly</title>
+        <meta name="description" content="Log in to Our Philly to heart events, post group updates, and discover more of your city’s best community happenings." />
+        <meta property="og:title" content="Log In – Our Philly" />
+        <meta property="og:description" content="Access your Our Philly account to manage favorites, post reviews, and claim your community group." />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:image" content="https://your-default-image.png" />
+        <link rel="canonical" href="https://ourphilly.com/login" />
+        <link rel="icon" href="/favicon.ico" />
+      </Helmet>
       <Navbar />
 
       {/* full-opacity heart */}

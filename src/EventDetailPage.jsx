@@ -7,6 +7,8 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import HeroLanding from './HeroLanding';
+import { Helmet } from 'react-helmet';
+
 import {
   getMyEventFavorites,
   addEventFavorite,
@@ -178,6 +180,12 @@ export default function EventDetailPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
+        <Helmet>
+            <title>{`${event['E Name']} – ${dateDisplay} – Our Philly`}</title>            <meta name="description" content={event['E Description']} />
+            <meta property="og:description" content={event['E Description']} />
+            <meta property="article:published_time" content={event.Dates} />
+            <link rel="icon" href="/favicon.ico" />
+        </Helmet>
       <Navbar />
 
       {/* Hero Section */}

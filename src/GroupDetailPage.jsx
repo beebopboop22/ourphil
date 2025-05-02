@@ -128,9 +128,24 @@ export default function GroupDetails() {
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
       <Helmet>
-        <title>{group.Name} – Our Philly</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Helmet>
+          {/* include tags at end of title */}
+          <title>{`${group.Name} – Our Philly – ${types.join(', ')}`}</title>
+
+          {/* standard meta description */}
+          <meta name="description" content={group.Description} />
+
+          {/* Open Graph */}
+          <meta property="og:title" content={group.Name} />
+          <meta property="og:description" content={group.Description} />
+          <meta property="og:url" content={window.location.href} />
+          {/* you can swap in any group image or a default */}
+          <meta property="og:image" content={group.imag} />
+
+          {/* keywords from your type tags */}
+          <meta name="keywords" content={types.join(', ')} />
+
+          <link rel="icon" href="/favicon.ico" />
+        </Helmet>
 
       <Navbar />
       <GroupProgressBar />

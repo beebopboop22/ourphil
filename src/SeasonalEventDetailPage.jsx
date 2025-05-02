@@ -86,10 +86,52 @@ const SeasonalEventDetailPage = () => {
 
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
-      <Helmet>
-        <title>{event.name} – Our Philly</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Helmet>
+     <Helmet>
+  <title>{`${event.name} – Our Philly – ${tagText}`}</title>
+  <link rel="canonical" href={`https://ourphilly.com/seasonal/${event.slug}`} />
+
+  {/* Basic meta */}
+  <meta name="description"       content={event.description} />
+  <meta name="keywords"          content={`${event.category}, philadelphia, seasonal event`} />
+  <meta property="og:title"      content={event.name} />
+  <meta property="og:description"content={event.description} />
+  <meta property="og:image"      content={event.image_url} />
+  <meta property="og:url"        content={`https://ourphilly.com/seasonal/${event.slug}`} />
+  <meta property="article:published_time" content={event.created_at} />
+</Helmet>
+
+{/* JSON-LD structured data for Google */}
+<script type="application/ld+json">
+{JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Event",
+    "name": event.name,
+    "startDate": event.start_date,
+    "endDate": event.end_date || event.start_date,
+    "description": event.description,
+    "image": [ event.image_url ],
+    "eventStatus": tagText.includes("starts") ? "https://schema.org/EventScheduled" :
+                   tagText.includes("ends")   ? "https://schema.org/EventEnded" :
+                   "https://schema.org/EventAttendanceModeMixed",
+    "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+    "location": {
+      "@type": "Place",
+      "name": "Philadelphia",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Philadelphia",
+        "addressRegion": "PA",
+        "addressCountry": "US"
+      }
+    },
+    "organizer": {
+      "@type": "Organization",
+      "name": "Our Philly",
+      "url": "https://ourphilly.com"
+    }
+})}
+</script>
+
 
       <Navbar />
 
