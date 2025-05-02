@@ -1,7 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-
 import App from './App.jsx'
 import SportsPage from './SportsPage.jsx'
 import ConcertPage from './ConcertPage.jsx'
@@ -23,10 +22,7 @@ import UpdatePasswordPage from './UpdatePasswordPage';
 import TestGroupUpdates from './TestGroupUpdates';
 import SeasonalEventDetails from './SeasonalEventDetailPage';
 import Bulletin from './Bulletin';
-
-
-
-
+import EventsPage from './EventsPage.jsx'
 
 
 
@@ -60,6 +56,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/test-updates" element={<TestGroupUpdates />} />
           <Route path="/seasonal/:slug" element={<SeasonalEventDetails />} />
           <Route path="/bulletin" element={<Bulletin />} />
+          <Route path="/upcoming-events" element={<EventsPage />} />
 
           
         </Routes>

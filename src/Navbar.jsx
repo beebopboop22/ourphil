@@ -3,13 +3,13 @@ import React, { useState, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import SubmitGroupModal from './SubmitGroupModal';
-import { AuthContext } from './AuthProvider';    // ← import your context
-import { supabase } from './supabaseClient';      // ← to sign out
+import { AuthContext } from './AuthProvider';
+import { supabase } from './supabaseClient';
 
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);     // ← get current user
+  const { user } = useContext(AuthContext);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
@@ -20,7 +20,7 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/');      // send them home after logout
+    navigate('/');
   };
 
   return (
@@ -30,7 +30,7 @@ const Navbar = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center">
             <img
-              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/logoo.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvbG9nb28ucG5nIiwiaWF0IjoxNzQ1NzYzMzA5LCJleHAiOjMzMjgxNzYzMzA5fQ.5BrTLfgwYzwT3UnYsqOkaJKLTP4pDVME_T-l7fyllc0"
+              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/logoo.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InN0b3JhZ2UtdXJsLXNpZ25pbmcta2V5Xzk3ODQwNDNhLTIyOTYtNDVmNC04YTUyLTg0OTgwYjEyZjdjNyJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvbG9nb28ucG5nIiwiaWF0IjoxNzQ2MjA3OTcxLCJleHAiOjMzMjgyMjA3OTcxfQ.QCI5vOHOOPg7HXYUK5msQTAxJIT3Y72W0qPP6gITv4E"
               alt="Our Philly Logo"
               className="h-10 w-auto"
             />
@@ -38,44 +38,46 @@ const Navbar = () => {
 
           {/* Desktop Links */}
           <div className="hidden md:flex items-center space-x-6 text-sm font-medium">
+            <Link to="/bulletin" className="text-gray-700 hover:text-gray-900 transition">
+              Bulletin
+            </Link>
+            <Link to="/upcoming-events" className="text-gray-700 hover:text-gray-900 transition">
+              Events
+            </Link>
+            <Link to="/groups" className="text-gray-700 hover:text-gray-900 transition">
+              Groups
+            </Link>
+            <Link to="/voicemail" className="text-gray-700 hover:text-gray-900 transition">
+              Voicemail
+            </Link>
+
+            {user ? (
+              <>
+                <Link to="/profile" className="text-gray-700 hover:text-gray-900 transition">
+                  Profile
+                </Link>
+                <button onClick={handleLogout} className="text-gray-700 hover:text-gray-900 transition">
+                  Log Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="text-gray-700 hover:text-gray-900 transition">
+                  Log In
+                </Link>
+                <Link to="/signup" className="text-indigo-600 hover:text-indigo-800 font-semibold transition">
+                  Sign Up
+                </Link>
+              </>
+            )}
+
+            {/* + Add a Group at the far right */}
             <button
               onClick={handleOpenModal}
               className="bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition"
             >
               + Add a Group
             </button>
-
-            {user ? (
-              <>
-                <Link
-                  to="/profile"
-                  className="text-gray-700 hover:text-gray-900 transition"
-                >
-                  Profile
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="text-gray-700 hover:text-gray-900 transition"
-                >
-                  Log Out
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="text-gray-700 hover:text-gray-900 transition"
-                >
-                  Log In
-                </Link>
-                <Link
-                  to="/signup"
-                  className="text-indigo-600 hover:text-indigo-800 font-semibold transition"
-                >
-                  Sign Up
-                </Link>
-              </>
-            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -96,7 +98,7 @@ const Navbar = () => {
 
             {user ? (
               <>
-                <Link to="/profile" className="block" onClick={()=>setMenuOpen(false)}>
+                <Link to="/profile" className="block" onClick={() => setMenuOpen(false)}>
                   Profile
                 </Link>
                 <button onClick={handleLogout} className="block">
@@ -105,10 +107,10 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <Link to="/login" className="block" onClick={()=>setMenuOpen(false)}>
+                <Link to="/login" className="block" onClick={() => setMenuOpen(false)}>
                   Log In
                 </Link>
-                <Link to="/signup" className="block" onClick={()=>setMenuOpen(false)}>
+                <Link to="/signup" className="block" onClick={() => setMenuOpen(false)}>
                   Sign Up
                 </Link>
               </>
@@ -118,12 +120,9 @@ const Navbar = () => {
       </nav>
 
       {/* Submit-Group Modal */}
-      {showSubmitModal && (
-        <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
-      )}
+      {showSubmitModal && <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />}
     </>
   );
 };
 
 export default Navbar;
-
