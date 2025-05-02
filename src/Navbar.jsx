@@ -89,12 +89,20 @@ const Navbar = () => {
         {/* Mobile Menu */}
         {menuOpen && (
           <div className="md:hidden bg-white shadow-md px-4 pt-4 pb-6 space-y-4 text-sm font-medium">
-            <button
-              onClick={handleOpenModal}
-              className="w-full bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition"
-            >
-              + Add a Group
-            </button>
+            <Link to="/bulletin" className="block" onClick={() => setMenuOpen(false)}>
+              Bulletin
+            </Link>
+            <Link to="/upcoming-events" className="block" onClick={() => setMenuOpen(false)}>
+              Events
+            </Link>
+            <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
+              Groups
+            </Link>
+            <Link to="/voicemail" className="block" onClick={() => setMenuOpen(false)}>
+              Voicemail
+            </Link>
+
+          
 
             {user ? (
               <>
@@ -115,6 +123,13 @@ const Navbar = () => {
                 </Link>
               </>
             )}
+
+<button
+              onClick={handleOpenModal}
+              className="w-full bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition"
+            >
+              + Add a Group
+            </button>
           </div>
         )}
       </nav>
