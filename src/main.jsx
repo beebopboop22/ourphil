@@ -23,6 +23,8 @@ import TestGroupUpdates from './TestGroupUpdates';
 import SeasonalEventDetails from './SeasonalEventDetailPage';
 import Bulletin from './Bulletin';
 import EventsPage from './EventsPage.jsx'
+import Unsubscribe from './Unsubscribe';
+
 
 
 
@@ -57,6 +59,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/seasonal/:slug" element={<SeasonalEventDetails />} />
           <Route path="/bulletin" element={<Bulletin />} />
           <Route path="/upcoming-events" element={<EventsPage />} />
+          <Route path="/unsubscribe" element={<Unsubscribe />} />
+
 
           
         </Routes>

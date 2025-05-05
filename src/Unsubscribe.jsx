@@ -1,0 +1,66 @@
+import React, { useEffect, useState } from 'react'
+import { useLocation, Link } from 'react-router-dom'
+import { supabase } from './supabaseClient'
+import Navbar from './Navbar'
+import Footer from './Footer'
+import { Helmet } from 'react-helmet'
+
+export default function Unsubscribe() {
+  const [status, setStatus] = useState('loading')
+  const { search } = useLocation()
+
+  useEffect(() => {
+    const token = new URLSearchParams(search).get('token')
+    if (!token) return setStatus('error')
+
+    supabase
+      .from('newsletter_subscribers')
+      .delete()
+      .eq('unsub_token', token)
+      .then(({ error }) => {
+        setStatus(error ? 'error' : 'success')
+      })
+  }, [search])
+
+  return (
+    <>
+      <Helmet>
+        <title>Unsubscribe – Our Philly</title>
+        <meta name="description" content="You’ve been unsubscribed from our newsletter." />
+      </Helmet>
+
+      <Navbar />
+
+      <div className="max-w-md mx-auto py-20 relative">
+        {status === 'loading' && (
+          <div className="text-center">
+            <h1 className="text-4xl font-[Barrio] mb-4">Processing…</h1>
+            <p>Please wait while we remove you from our newsletter.</p>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="text-center text-red-600">
+            <h1 className="text-4xl font-[Barrio] mb-4">Oops!</h1>
+            <p>Unable to unsubscribe—invalid or expired link.</p>
+            <Link to="/" className="text-indigo-600 hover:underline mt-4 inline-block">
+              Return Home
+            </Link>
+          </div>
+        )}
+
+        {status === 'success' && (
+          <div className="text-center">
+            <h1 className="text-4xl font-[Barrio] mb-4 text-green-700">Unsubscribed</h1>
+            <p>You’ve been removed from our weekly newsletter.</p>
+            <Link to="/" className="text-indigo-600 hover:underline mt-4 inline-block">
+              Back to Our Philly
+            </Link>
+          </div>
+        )}
+      </div>
+
+      <Footer />
+    </>
+  )
+}
