@@ -1,9 +1,8 @@
 // src/ProfilePage.jsx
-
 import React, { useContext, useEffect, useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
-import { Link } from 'react-router-dom';
 import Navbar from './Navbar';
 import GroupProgressBar from './GroupProgressBar';
 import Footer from './Footer';
@@ -11,6 +10,7 @@ import { getMyFavorites } from './utils/favorites';
 
 export default function ProfilePage() {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const [favRows, setFavRows] = useState([]);
   const [favGroups, setFavGroups] = useState([]);
@@ -23,19 +23,16 @@ export default function ProfilePage() {
   const [updating, setUpdating] = useState(false);
   const [status, setStatus] = useState('');
 
+  const [deleting, setDeleting] = useState(false);
+
   // Load current email
   useEffect(() => {
     if (user) setEmail(user.email);
   }, [user]);
 
-  // 1️⃣ Load the user’s favorites
+  // Load favorites
   useEffect(() => {
-    if (!user) {
-      setFavRows([]);
-      setFavGroups([]);
-      setLoadingFav(false);
-      return;
-    }
+    if (!user) return setLoadingFav(false);
     setLoadingFav(true);
     getMyFavorites()
       .then(async (rows) => {
@@ -55,13 +52,9 @@ export default function ProfilePage() {
       .finally(() => setLoadingFav(false));
   }, [user]);
 
-  // 2️⃣ Load updates for those favorite groups
+  // Load updates
   useEffect(() => {
-    if (favRows.length === 0) {
-      setUpdates([]);
-      setLoadingUpdates(false);
-      return;
-    }
+    if (favRows.length === 0) return setLoadingUpdates(false);
     setLoadingUpdates(true);
     const ids = favRows.map((r) => r.group_id);
     supabase
@@ -94,11 +87,8 @@ export default function ProfilePage() {
     setUpdating(true);
     setStatus('');
     const { error } = await supabase.auth.updateUser({ email });
-    if (error) {
-      setStatus(`❌ ${error.message}`);
-    } else {
-      setStatus('✅ Email update requested. Please check your inbox to confirm.');
-    }
+    if (error) setStatus(`❌ ${error.message}`);
+    else setStatus('✅ Email update requested. Check your inbox to confirm.');
     setUpdating(false);
   };
 
@@ -106,11 +96,21 @@ export default function ProfilePage() {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: 'https://www.ourphilly.org/update-password',
     });
+    if (error) alert('Error sending reset link: ' + error.message);
+    else alert('Check your email for the password reset link.');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to permanently delete your account?')) return;
+    setDeleting(true);
+    const { error } = await supabase.functions.invoke('delete_user_account');
     if (error) {
-      alert('Error sending reset link: ' + error.message);
-    } else {
-      alert('Check your email for the password reset link.');
+      alert('Unable to delete account: ' + error.message);
+      setDeleting(false);
+      return;
     }
+    await supabase.auth.signOut();
+    navigate('/');
   };
 
   if (!user) {
@@ -134,61 +134,55 @@ export default function ProfilePage() {
       <GroupProgressBar />
 
       <div className="max-w-screen-xl mx-auto px-4 py-12 space-y-12">
-
-
-        {/* 🔔 Updates from Your Favorites */}
-<section>
-  <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-left">
-    Updates from Your Favorites
-  </h2>
-  {loadingUpdates ? (
-    <p className="text-center">Loading updates…</p>
-  ) : updates.length === 0 ? (
-    <p className="text-center text-gray-600">
-      No recent updates from your favorited groups.
-    </p>
-  ) : (
-    <div className="space-y-4">
-      {updates.map((u) => (
-        <Link
-          key={u.id}
-          to={`/groups/${u.groups.slug}`}
-          className="block bg-white rounded-xl shadow p-4 hover:bg-gray-50 transition"
-        >
-          {/* header: avatar + name on the left, date on the right */}
-          <div className="flex justify-between items-start">
-            <div className="flex items-center space-x-3">
-              <img
-                src={u.groups.imag}
-                alt={u.groups.Name}
-                className="w-12 h-12 object-cover rounded-full"
-              />
-              <span className="font-semibold text-gray-800">
-                {u.groups.Name}
-              </span>
+        {/* Updates from Favorites */}
+        <section>
+          <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-left">
+            Updates from Your Favorites
+          </h2>
+          {loadingUpdates ? (
+            <p className="text-center">Loading updates…</p>
+          ) : updates.length === 0 ? (
+            <p className="text-center text-gray-600">
+              No recent updates from your favorited groups.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {updates.map((u) => (
+                <Link
+                  key={u.id}
+                  to={`/groups/${u.groups.slug}`}
+                  className="block bg-white rounded-xl shadow p-4 hover:bg-gray-50 transition"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src={u.groups.imag}
+                        alt={u.groups.Name}
+                        className="w-12 h-12 object-cover rounded-full"
+                      />
+                      <span className="font-semibold text-gray-800">
+                        {u.groups.Name}
+                      </span>
+                    </div>
+                    <time
+                      dateTime={u.created_at}
+                      className="text-sm font-medium text-indigo-600"
+                    >
+                      {new Date(u.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </time>
+                  </div>
+                  <p className="mt-2 text-gray-700">{u.content}</p>
+                </Link>
+              ))}
             </div>
-            <time
-              dateTime={u.created_at}
-              className="text-sm font-medium text-indigo-600"
-            >
-              {new Date(u.created_at).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </time>
-          </div>
+          )}
+        </section>
 
-          {/* the update content */}
-          <p className="mt-2 text-gray-700">{u.content}</p>
-        </Link>
-      ))}
-    </div>
-  )}
-</section>
-
-
-        {/* ❤️ Your Favorites (tiny, scrollable grid) */}
+        {/* Your Favorites */}
         <section>
           <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-center">
             Your Favorites
@@ -223,14 +217,14 @@ export default function ProfilePage() {
           )}
         </section>
 
-    
-
-        {/* 🔐 My Account (moved to bottom) */}
+        {/* My Account */}
         <section className="bg-white rounded-xl shadow-md p-6">
           <h2 className="text-3xl font-[Barrio] text-gray-800 mb-4">My Account</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Email address</label>
+              <label className="block text-sm text-gray-600 mb-1">
+                Email address
+              </label>
               <input
                 type="email"
                 value={email}
@@ -252,11 +246,17 @@ export default function ProfilePage() {
               >
                 Reset Password
               </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+              >
+                {deleting ? 'Deleting…' : 'Delete My Account'}
+              </button>
             </div>
             {status && <p className="text-sm mt-2 text-gray-700">{status}</p>}
           </div>
         </section>
-
       </div>
 
       <Footer />

@@ -214,40 +214,46 @@ serve(async (req) => {
   <div class="footer">
     <p>&copy; ${new Date().getFullYear()} Our Philly. All rights reserved.</p>
     <a href="https://www.ourphilly.org/unsubscribe?token={{unsub_token}}" class="btn-red">
-  Unsubscribe
-</a>
-
+      Unsubscribe
+    </a>
     <img src="${LOGO_URL}" class="footer-logo" alt="Our Philly Logo"/>
   </div>
 </body></html>
 `;
 
-if (isPreview) {
-  const html = Mustache.render(template, {
-    events,
-    seasonal,
-    groups,
-    sports,
-    concerts,
-    unsub_token: sampleToken,
-    anon_key: SUPABASE_ANON_KEY    // ← add this
-  });
-  console.log("PREVIEW HTML:", html.slice(0,300));  // debug‑log the first 300 chars
-  return new Response(html, {
-    status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-}
+  // ── preview: fetch sampleToken ─────────────────────────────────────────
+  const { data: sample } = await supabase
+    .from("newsletter_subscribers")
+    .select("unsub_token")
+    .limit(1);
+  const sampleToken = sample?.[0]?.unsub_token ?? "";
 
+  if (isPreview) {
+    const html = Mustache.render(template, {
+      events, seasonal, groups, sports, concerts,
+      unsub_token: sampleToken
+    });
+    return new Response(html, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
 
-  // actual send: render per subscriber
+  // ── real send: render per subscriber ────────────────────────────────────
   const { data: subs } = await supabase
     .from("newsletter_subscribers")
     .select("email, unsub_token");
+
   for (const { email, unsub_token } of subs ?? []) {
-    const html = Mustache.render(template, { ...baseContext, unsub_token });
-    await supabase.functions.invoke("send-email", { body:{ to: email, subject:`Dig Into Philly: ${new Date().toLocaleDateString()}`, html } });
+    const html = Mustache.render(template, { events, seasonal, groups, sports, concerts, unsub_token });
+    await supabase.functions.invoke("send-email", {
+      body: {
+        to:      email,
+        subject: `Dig Into Philly: ${new Date().toLocaleDateString()}`,
+        html,
+      },
+    });
   }
 
-  return new Response("📰 Sent!", { status:200 });
+  return new Response("📰 Sent!", { status: 200 });
 });
