@@ -1,4 +1,3 @@
-// src/RecentActivity.jsx
 import React, { useEffect, useState, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from './supabaseClient';
@@ -24,6 +23,7 @@ export default function RecentActivity() {
         .select(`
           id,
           created_at,
+          user_id,
           events (
             slug,
             name:"E Name"
@@ -60,34 +60,39 @@ export default function RecentActivity() {
   const r = items[idx];
   const name = r.events?.name || 'an event';
   const slug = r.events?.slug || '';
-  const who = r.user_id === user?.id ? 'You' : 'A total stranger';
+  // Only show "You" if there is a logged-in user AND they match the review's user_id
+  const who = user && r.user_id === user.id ? 'You' : 'A total stranger';
 
   return (
-    <section className="relative w-full mx-auto my-12 p-4 bg-white rounded-lg shadow overflow-hidden">
-     
+    <section className="relative w-full mx-auto my-12 p-4 bg-gray-100 rounded-lg shadow overflow-hidden">
       
 
-      {/* Text + animation must be above mascots */}
-      <div className="relative z-10 h-12 flex items-center justify-center overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={r.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.6 }}
-            className="text-lg text-center"
-          >
-            {who} just reviewed{' '}
-            <Link
-              to={`/events/${slug}`}
-              className="font-semibold text-indigo-600 hover:underline"
-            >
-              {name}
-            </Link>
-          </motion.div>
-        </AnimatePresence>
-      </div>
+<div className="relative z-10 h-12 flex items-center justify-center overflow-hidden space-x-2">
+  <img
+    src={MASCOT_URL}
+    alt="Mascot"
+    className="w-8 h-8 flex-shrink-0"
+  />
+  <AnimatePresence mode="wait">
+    <motion.div
+      key={r.id}
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.6 }}
+      className="text-lg"
+    >
+      {who} just reviewed{' '}
+      <Link
+        to={`/events/${slug}`}
+        className="font-semibold text-indigo-600 hover:underline"
+      >
+        {name}
+      </Link>
+    </motion.div>
+  </AnimatePresence>
+</div>
+
     </section>
   );
 }
