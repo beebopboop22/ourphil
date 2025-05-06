@@ -64,17 +64,8 @@ export default function RecentActivity() {
 
   return (
     <section className="relative w-full mx-auto my-12 p-4 bg-white rounded-lg shadow overflow-hidden">
-      {/* Mascots */}
-      <img
-        src={MASCOT_URL}
-        alt="Mascot"
-        className="absolute left-0 bottom-0 w-24 opacity-80 pointer-events-none z-0"
-      />
-      <img
-        src={MASCOT_URL}
-        alt="Mascot"
-        className="absolute right-0 top-0 w-20 opacity-60 pointer-events-none transform rotate-180 z-0"
-      />
+     
+      
 
       {/* Text + animation must be above mascots */}
       <div className="relative z-10 h-12 flex items-center justify-center overflow-hidden">

@@ -206,7 +206,6 @@ export default function Bulletin({ previewCount = Infinity }) {
         <h1 className="text-5xl mt-20 font-[Barrio] font-bold text-center mb-8">
           Community Bulletin
         </h1>
-                <RecentActivity />
         
         <div>
           {display.map((evt, idx) => {
