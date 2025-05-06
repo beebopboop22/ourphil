@@ -35,6 +35,8 @@ import EventsGrid from './EventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents'; 
 import Bulletin from './Bulletin';
 import NewsletterBar from './NewsletterBar';
+import RecentActivity from './RecentActivity';
+
 
 
 
@@ -123,7 +125,11 @@ function App() {
       
       <div className="overflow-x-hidden  min-h-screen flex flex-col bg-white-100 pt-20 relative">
         <Navbar />   
+
         <HeroLanding />
+        <RecentActivity />
+
+
         <Bulletin previewCount={5} />
 
         <SeasonalEventsGrid />

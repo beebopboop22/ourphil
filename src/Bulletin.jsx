@@ -4,6 +4,8 @@ import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import RecentActivity from './RecentActivity';
+
 
 import {
   getMyEventFavorites,
@@ -204,6 +206,8 @@ export default function Bulletin({ previewCount = Infinity }) {
         <h1 className="text-5xl mt-20 font-[Barrio] font-bold text-center mb-8">
           Community Bulletin
         </h1>
+                <RecentActivity />
+        
         <div>
           {display.map((evt, idx) => {
             const sd = evt.start;
