@@ -1,84 +1,71 @@
-import React from 'react';
+// src/GroupsPage.jsx
+import React, { useEffect, useState, useMemo } from 'react';
 import { Helmet } from 'react-helmet';
 import { supabase } from './supabaseClient';
+import { Link } from 'react-router-dom';
 import Navbar from './Navbar';
 import GroupsHeroSearch from './GroupsHeroSearch';
 import GroupsList from './GroupsList';
-import FilteredGroupSection from './FilteredGroupSection';
 import GroupProgressBar from './GroupProgressBar';
 import Footer from './Footer';
 
-const GroupsPage = () => {
-  const [groups, setGroups] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const [selectedType, setSelectedType] = React.useState([]);
+export default function GroupsPage() {
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState([]);
 
-  React.useEffect(() => {
-    const fetchGroups = async () => {
+  // Fetch all groups
+  useEffect(() => {
+    async function fetchGroups() {
       const { data, error } = await supabase.from('groups').select('*');
-      if (error) {
-        console.error('Error fetching groups:', error);
-      } else {
-        setGroups(data);
-      }
+      if (error) console.error('Error fetching groups:', error);
+      else setGroups(data);
       setLoading(false);
-    };
+    }
     fetchGroups();
   }, []);
 
-  const filteredGroups = groups.filter((group) => {
-    const name = group.Name?.toLowerCase() || '';
-    const types = group.Type?.split(',').map((t) => t.trim()) || [];
-    return (
-      name.includes(searchTerm.toLowerCase()) &&
-      (selectedType.length === 0 || selectedType.some((t) => types.includes(t)))
-    );
-  });
+  // Filtered groups based on search + selectedType
+  const filteredGroups = useMemo(() =>
+    groups.filter(group => {
+      const name = group.Name?.toLowerCase() || '';
+      const types = group.Type?.split(',').map(t => t.trim()) || [];
+      return (
+        name.includes(searchTerm.toLowerCase()) &&
+        (selectedType.length === 0 || selectedType.some(t => types.includes(t)))
+      );
+    }),
+  [groups, searchTerm, selectedType]);
 
-  // build JSON-LD for SEO
-  const listSchema = {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    itemListElement: groups.map((group, idx) => ({
-      "@type": "ListItem",
-      position: idx + 1,
-      url: `https://ourphilly.com/groups/${group.slug}`,
-      name: group.Name
-    }))
-  };
+  // Derive all unique types for category list
+  const allTypes = useMemo(() => {
+    const set = new Set();
+    groups.forEach(g => {
+      (g.Type?.split(',').map(t => t.trim()) || []).forEach(t => set.add(t));
+    });
+    return Array.from(set).sort();
+  }, [groups]);
+
+  // Slugify helper
+  const slugify = text =>
+    text.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
 
   return (
     <>
       <Helmet>
         <title>Philly Groups – Neighborhood Crews & Clubs | Our Philly</title>
-        <link rel="icon" href="/favicon.ico" />
         <meta name="description" content="From sports leagues to social crews, explore Philly's most active local groups and communities." />
-        <meta name="keywords" content="Philadelphia groups, Philly clubs, Philly social groups, Philly community, Philly rec sports" />
         <link rel="canonical" href="https://ourphilly.com/groups" />
-        <meta property="og:title" content="Philly Groups – Our Philly" />
-        <meta property="og:description" content="Discover Philly's coolest local groups, sports leagues, and social crews." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ourphilly.com/groups" />
-        <meta property="og:image" content="https://your-image-url.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Philly Groups – Our Philly" />
-        <meta name="twitter:description" content="Explore Philly's most active groups and crews." />
-        <meta name="twitter:image" content="https://your-image-url.png" />
-
-        {/* JSON-LD structured data for list of groups */}
-        <script type="application/ld+json">
-          {JSON.stringify(listSchema, null, 2)}
-        </script>
       </Helmet>
 
       <div className="min-h-screen bg-white-50 pt-20">
         <Navbar />
-        <div className="w-full">
-          <GroupProgressBar />
-        </div>
+        <GroupProgressBar />
 
-        <div className="max-w-screen-xl mx-auto px-4">
+        <div className="max-w-screen-full mx-auto px-4">
           {loading ? (
             <div className="text-center py-20 text-gray-500">Loading Groups...</div>
           ) : (
@@ -93,26 +80,27 @@ const GroupsPage = () => {
 
               <GroupsList groups={filteredGroups} isAdmin={false} />
 
-              <FilteredGroupSection
-                tag="Arts"
-                title="Creative & Arts Groups"
-                seeMoreLink="/groups/type/arts"
-              />
-
-              <FilteredGroupSection
-                tag="Sports Fans"
-                title="Groups for Philly Sports Fans"
-                seeMoreLink="/groups/type/sports-fans"
-              />
+              {/* Category text grid */}
+              <section className="mt-12 mb-12">
+                <h2 className="text-2xl font-[Barrio] text-center font-bold mb-4">Browse by Category</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {allTypes.map(type => (
+                    <Link
+                      key={type}
+                      to={`/groups/type/${slugify(type)}`}
+                      className="block px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-center text-indigo-600 font-medium transition"
+                    >
+                      {type}
+                    </Link>
+                  ))}
+                </div>
+              </section>
             </>
           )}
-
         </div>
       </div>
-      <Footer />
 
+      <Footer />
     </>
   );
-};
-
-export default GroupsPage;
+}

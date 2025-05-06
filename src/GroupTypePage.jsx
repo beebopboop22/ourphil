@@ -11,28 +11,52 @@ import Footer from './Footer';
 const unslugify = (slug) =>
   slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-const GroupTypePage = () => {
+export default function GroupTypePage() {
   const { tagSlug } = useParams();
-  const [groups, setGroups] = useState([]);
+  const [groups, setGroups] = useState([]);            // filtered groups
+  const [allTypes, setAllTypes] = useState([]);        // all available types
   const [loading, setLoading] = useState(true);
   const tag = unslugify(tagSlug);
 
+  // Fetch filtered groups for this tag
   useEffect(() => {
-    const fetchGroups = async () => {
+    async function fetchFiltered() {
       const { data, error } = await supabase.from('groups').select('*');
       if (error) {
         console.error('Error fetching groups:', error);
       } else {
-        const filtered = data.filter((group) =>
-          group.Type?.toLowerCase().includes(tag.toLowerCase())
+        const filtered = data.filter(group =>
+          (group.Type || '').toLowerCase().includes(tag.toLowerCase())
         );
         setGroups(filtered);
       }
       setLoading(false);
-    };
-
-    fetchGroups();
+    }
+    fetchFiltered();
   }, [tag]);
+
+  // Fetch all group types for category grid
+  useEffect(() => {
+    async function fetchTypes() {
+      const { data, error } = await supabase.from('groups').select('Type');
+      if (error) {
+        console.error('Error fetching types:', error);
+      } else {
+        const typesSet = new Set();
+        data.forEach(g => {
+          (g.Type?.split(',').map(t => t.trim()) || []).forEach(t => typesSet.add(t));
+        });
+        setAllTypes(Array.from(typesSet).sort());
+      }
+    }
+    fetchTypes();
+  }, []);
+
+  // Slugify helper
+  const slugify = (text = '') =>
+    text.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
 
   const pageTitle = `${tag} Groups – Our Philly`;
   const pageDesc = `Explore Philadelphia’s best ${tag.toLowerCase()} groups—connect, heart, and plug into your community.`;
@@ -44,31 +68,21 @@ const GroupTypePage = () => {
       <Helmet>
         <title>{pageTitle}</title>
         <link rel="icon" href="/favicon.ico" />
-
-        {/* Primary Meta Tags */}
         <meta name="description" content={pageDesc} />
         <meta name="keywords" content={`${tag}, ${tag} groups, Philly community`} />
-
-        {/* Open Graph / Facebook */}
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDesc} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={pageUrl} />
         <meta property="og:image" content={ogImage} />
-
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={pageDesc} />
         <meta name="twitter:image" content={ogImage} />
-
-        {/* Canonical */}
         <link rel="canonical" href={pageUrl} />
       </Helmet>
 
       <Navbar />
-
-      {/* Progress bar sits directly below the fixed nav */}
       <div className="pt-20 bg-white mb-10">
         <GroupProgressBar />
       </div>
@@ -79,7 +93,6 @@ const GroupTypePage = () => {
             {tag.toUpperCase()} GROUPS IN PHILLY
           </h1>
 
-          {/* Browse All Groups link */}
           <div className="text-center mb-8">
             <Link
               to="/groups"
@@ -98,12 +111,28 @@ const GroupTypePage = () => {
           ) : (
             <GroupsList groups={groups} isAdmin={false} />
           )}
+
+          {/* Category grid of ALL types */}
+          <section className="mt-12 mb-12">
+            <h2 className="text-2xl font-[Barrio] text-center font-bold mb-4">
+              Find Other Groups in Philly
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {allTypes.map(type => (
+                <Link
+                  key={type}
+                  to={`/groups/type/${slugify(type)}`}
+                  className="block px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-center text-indigo-600 font-medium transition"
+                >
+                  {type}
+                </Link>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
 
       <Footer />
     </>
   );
-};
-
-export default GroupTypePage;
+}

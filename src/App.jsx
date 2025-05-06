@@ -34,6 +34,8 @@ import GroupRecommender from './components/GroupRecommender';
 import EventsGrid from './EventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents'; 
 import Bulletin from './Bulletin';
+import NewsletterBar from './NewsletterBar';
+
 
 
 
@@ -134,6 +136,7 @@ function App() {
         <Voicemail />
         <BokEventsGrid />
         <SouthStreetEventsGrid />
+
 
         <Footer />
       </div>

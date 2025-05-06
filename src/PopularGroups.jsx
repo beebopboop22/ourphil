@@ -90,12 +90,9 @@ const PopularGroups = ({ isAdmin }) => {
       />
 
       <div className="relative max-w-screen-xl mx-auto z-10 text-center">
-        <h2 className="text-5xl font-[Barrio] text-gray-800 mb-2">
+      <h2 className="text-8xl font-[Barrio] text-[#bf3d35] mb-4">
           GROUPS GROUPS GROUPS
         </h2>
-        <p className="text-lg text-gray-600 mb-6">
-          We're trying to index 1,000 active groups – add yours
-        </p>
 
         <GroupProgressBar />
 
