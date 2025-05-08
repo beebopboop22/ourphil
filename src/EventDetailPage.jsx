@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import GroupsList from './GroupsList';
 import { AuthContext } from './AuthProvider';
 import HeroLanding from './HeroLanding';
 import { Helmet } from 'react-helmet';
@@ -44,6 +45,10 @@ export default function EventDetailPage() {
   // ─── Lightbox modal for photos ──────────────────────────────────────────
   const [modalImage, setModalImage]     = useState(null);
 
+  // Groups
+const [suggestedGroups, setSuggestedGroups] = useState([]);
+const [loadingSuggested, setLoadingSuggested] = useState(true);
+
   // ─── 1) Load event data by slug ────────────────────────────────────────
   useEffect(() => {
     supabase
@@ -56,6 +61,56 @@ export default function EventDetailPage() {
         else setEvent(data);
       });
   }, [slug]);
+
+   // ─── 1B) Fetch “groups you might like” with fallback ─────────────────
+   useEffect(() => {
+    if (!event?.Type) {
+      setSuggestedGroups([]);
+      setLoadingSuggested(false);
+      return;
+    }
+
+    const tags = event.Type.split(',').map(t => t.trim()).filter(Boolean);
+    if (tags.length === 0) {
+      setSuggestedGroups([]);
+      setLoadingSuggested(false);
+      return;
+    }
+
+    // build OR filter WITHOUT encodeURIComponent
+    const orFilter = tags
+      .map(t => `Type.ilike.%${t}%`)
+      .join(',');
+
+    console.log('🔍 fetching suggested groups with .or(', orFilter, ')');
+    setLoadingSuggested(true);
+
+    supabase
+      .from('groups')
+      .select('id, Name, slug, imag, Type')
+      .or(orFilter)
+      .limit(10)
+      .then(async ({ data, error }) => {
+        if (error) {
+          console.error('Error fetching suggested groups:', error);
+          setSuggestedGroups([]);
+        } else if (data?.length > 0) {
+          setSuggestedGroups(data);
+        } else {
+          // fallback: top‑voted popular groups
+          const { data: popular, error: popErr } = await supabase
+            .from('groups')
+            .select('id, Name, slug, imag')
+            .order('Votes', { ascending: false })
+            .limit(4);
+          if (popErr) console.error('Error fetching popular groups fallback:', popErr);
+          setSuggestedGroups(popular || []);
+        }
+      })
+      .finally(() => setLoadingSuggested(false));
+  }, [event]);
+
+
 
   // ─── 2) Load favorite count & whether *I* have favorited ───────────────
   useEffect(() => {
@@ -509,7 +564,23 @@ export default function EventDetailPage() {
         )}
       </main>
       
+      {/* ── Groups You Might Like ────────────────────────────────────────────── */}
+            <section className="w-full bg-neutral-100 py-8">
+                <div className="max-w-screen-xl mx-auto ">
+                    <h2 className="text-4xl text-center font-[Barrio]">Groups You Might Like</h2>
+                    {loadingSuggested ? (
+                    <p>Loading suggestions…</p>
+                    ) : suggestedGroups.length > 0 ? (
+                    // reuse your GroupsList for consistent styling
+                    <GroupsList groups={suggestedGroups} isAdmin={false} />
+                    ) : (
+                    <p className="text-gray-600">No related groups found.</p>
+                    )}
+                </div>
+            </section>
 
+
+     
       <HeroLanding />
       <Footer />
     </div>

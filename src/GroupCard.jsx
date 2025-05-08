@@ -137,7 +137,7 @@ export default function GroupCard({ group, isAdmin, featuredGroupId }) {
       onDragOver={isAdmin ? e => e.preventDefault() : undefined}
     >
       {/* Full-bleed image area */}
-      <div className="relative w-full h-full bg-gray-200">
+      <div className="relative w-full h-full bg-gray-100">
         <img
           src={imageUrl || 'https://via.placeholder.com/224x384'}
           alt={group.Name}
@@ -166,7 +166,7 @@ export default function GroupCard({ group, isAdmin, featuredGroupId }) {
         </button>
 
         {/* Group name larger */}
-        <h3 className="absolute text-center bottom-10 right-4 text-4xl font-bold text-white z-20 leading-tight">
+        <h3 className="absolute text-center bottom-10 right-4 text-2xl font-bold text-white z-20 leading-tight">
           {group.Name}
         </h3>
       </div>

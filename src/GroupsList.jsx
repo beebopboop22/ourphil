@@ -50,14 +50,14 @@ const GroupsList = ({ groups, isAdmin }) => {
       className="flex-none w-56 h-96 mx-2 cursor-pointer border-2 border-dashed border-indigo-400
                  rounded-2xl p-6 text-center text-indigo-600 hover:bg-indigo-50 hover:border-indigo-600 transition"
     >
-      <div className="text-4xl mb-2">＋</div>
+      <div className="text-3xl mb-2">＋</div>
       <div className="font-semibold">Add a Group</div>
       <div className="text-sm text-gray-500 mt-1">Know a crew that should be listed?</div>
     </div>
   );
 
   return (
-    <div className="relative py-20 px-4 bg-white">
+    <div className="relative py-20 px-4">
       {/* Background Heart */}
       <img
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-2.png"
