@@ -13,7 +13,7 @@ const Footer = () => {
         <img
           src={heartUrl}
           alt="Heart"
-          className="absolute bottom-0 right-0 w-full h-auto opacity-100"
+          className="absolute bottom-0 right-0 w-3/4 h-auto opacity-100"
         />
       </div>
 

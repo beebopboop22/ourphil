@@ -7,6 +7,7 @@ import Navbar from './Navbar';
 import GroupProgressBar from './GroupProgressBar';
 import Footer from './Footer';
 import { getMyFavorites } from './utils/favorites';
+import MyPhotos from './MyPhotos';
 
 export default function ProfilePage() {
   const { user } = useContext(AuthContext);
@@ -131,13 +132,19 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-neutral-50">
       <Navbar />
-      <GroupProgressBar />
+
+       {/* ── My Photo Diary (masonry grid) ─────────────────────────────── */}
+       <section className="max-w-full bg-white mx-auto px-4 mt-32 py-12">
+            
+             <MyPhotos />
+       </section>
+
 
       <div className="max-w-screen-xl mx-auto px-4 py-12 space-y-12">
         {/* Updates from Favorites */}
         <section>
-          <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-left">
-            Updates from Your Favorites
+          <h2 className="text-2xl text-center font-[Barrio] text-gray-800 mb-4 text-left">
+            Updates from Your Favorite Groups
           </h2>
           {loadingUpdates ? (
             <p className="text-center">Loading updates…</p>
@@ -184,8 +191,8 @@ export default function ProfilePage() {
 
         {/* Your Favorites */}
         <section>
-          <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-center">
-            Your Favorites
+          <h2 className="text-2xl font-[Barrio] text-gray-800 mb-4 text-center">
+            Favorite Groups
           </h2>
           {loadingFav ? (
             <p className="text-center">Loading favorites…</p>
@@ -217,8 +224,11 @@ export default function ProfilePage() {
           )}
         </section>
 
-        {/* My Account */}
-        <section className="bg-white rounded-xl shadow-md p-6">
+        
+
+        
+       {/* My Account */}
+       <section className="bg-white rounded-xl shadow-md p-6">
           <h2 className="text-3xl font-[Barrio] text-gray-800 mb-4">My Account</h2>
           <div className="space-y-4">
             <div>
@@ -257,6 +267,7 @@ export default function ProfilePage() {
             {status && <p className="text-sm mt-2 text-gray-700">{status}</p>}
           </div>
         </section>
+
       </div>
 
       <Footer />
