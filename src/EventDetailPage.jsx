@@ -92,7 +92,7 @@ useEffect(() => {
           .select('id, Name, slug, imag, Type, Area')
           .eq('Area', area)
           .not('id', 'in', `(${exclude})`)
-          .limit(4 - suggestions.length);
+          .limit(20 - suggestions.length);
         if (areaErr) console.error('byArea error', areaErr);
         suggestions = suggestions.concat(byArea || []);
       }
