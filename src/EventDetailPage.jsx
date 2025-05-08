@@ -62,53 +62,59 @@ const [loadingSuggested, setLoadingSuggested] = useState(true);
       });
   }, [slug]);
 
-   // ─── 1B) Fetch “groups you might like” with fallback ─────────────────
-   useEffect(() => {
-    if (!event?.Type) {
-      setSuggestedGroups([]);
-      setLoadingSuggested(false);
-      return;
-    }
-
-    const tags = event.Type.split(',').map(t => t.trim()).filter(Boolean);
-    if (tags.length === 0) {
-      setSuggestedGroups([]);
-      setLoadingSuggested(false);
-      return;
-    }
-
-    // build OR filter WITHOUT encodeURIComponent
-    const orFilter = tags
-      .map(t => `Type.ilike.%${t}%`)
-      .join(',');
-
-    console.log('🔍 fetching suggested groups with .or(', orFilter, ')');
+   // ─── 1B) Fetch “groups you might like” with tag then Area fallback ──────
+useEffect(() => {
+    if (!event) return;
     setLoadingSuggested(true);
-
-    supabase
-      .from('groups')
-      .select('id, Name, slug, imag, Type')
-      .or(orFilter)
-      .limit(10)
-      .then(async ({ data, error }) => {
-        if (error) {
-          console.error('Error fetching suggested groups:', error);
-          setSuggestedGroups([]);
-        } else if (data?.length > 0) {
-          setSuggestedGroups(data);
-        } else {
-          // fallback: top‑voted popular groups
-          const { data: popular, error: popErr } = await supabase
-            .from('groups')
-            .select('id, Name, slug, imag')
-            .order('Votes', { ascending: false })
-            .limit(4);
-          if (popErr) console.error('Error fetching popular groups fallback:', popErr);
-          setSuggestedGroups(popular || []);
-        }
-      })
-      .finally(() => setLoadingSuggested(false));
+  
+    (async () => {
+      const tags = event.Type?.split(',').map(t => t.trim()).filter(Boolean) || [];
+      const area = event.Area?.trim();
+      let suggestions = [];
+  
+      // 1️⃣ Try matching on tags
+      if (tags.length) {
+        const orFilter = tags.map(t => `Type.ilike.%${t}%`).join(',');
+        const { data: byTag, error: tagErr } = await supabase
+          .from('groups')
+          .select('id, Name, slug, imag, Type, Area')
+          .or(orFilter)
+          .limit(10);
+        if (tagErr) console.error('byTag error', tagErr);
+        suggestions = byTag || [];
+      }
+  
+      // 2️⃣ If fewer than 4, fill from same Area
+      if (area && suggestions.length < 4) {
+        const exclude = suggestions.map(g => g.id).join(',');
+        const { data: byArea, error: areaErr } = await supabase
+          .from('groups')
+          .select('id, Name, slug, imag, Type, Area')
+          .eq('Area', area)
+          .not('id', 'in', `(${exclude})`)
+          .limit(4 - suggestions.length);
+        if (areaErr) console.error('byArea error', areaErr);
+        suggestions = suggestions.concat(byArea || []);
+      }
+  
+      // 3️⃣ Final fallback: top‑voted groups
+      if (suggestions.length < 4) {
+        const exclude = suggestions.map(g => g.id).join(',');
+        const { data: popular, error: popErr } = await supabase
+          .from('groups')
+          .select('id, Name, slug, imag, Type, Area')
+          .order('Votes', { ascending: false })
+          .not('id', 'in', `(${exclude})`)
+          .limit(4 - suggestions.length);
+        if (popErr) console.error('popular error', popErr);
+        suggestions = suggestions.concat(popular || []);
+      }
+  
+      setSuggestedGroups(suggestions);
+      setLoadingSuggested(false);
+    })();
   }, [event]);
+  
 
 
 
