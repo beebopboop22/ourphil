@@ -124,24 +124,43 @@ function App() {
      
       
       <div className="overflow-x-hidden  min-h-screen flex flex-col bg-white-100 pt-20 relative">
-        <Navbar />   
+        <Navbar /> 
 
+          
+<div className="relative flex flex-col md:flex-row items-center justify-center mt-12 mb-1">
+  {/* we need a positioning context for the line + mascot */}
+  <div className="relative inline-block">
+    {/* your existing heading, but bump it above the line with z-index */}
+    <h1 className="relative z-10 text-5xl mt-12 sm:text-6xl md:text-8xl font-[Barrio] font-black text-black text-center">
+      DIG INTO PHILLY
+    </h1>
+    
+
+    {/* decorative line + mascot, behind the h1 */}
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      {/* the horizontal rule */}
+      <span className="absolute w-full h-px bg-white opacity-20"></span>
+      {/* the mascot, pinned to the right end of that rule */}
+      <img
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
+        alt="Our Philly Mascot"
+        className="absolute right-0 w-24 h-auto -translate-y-1/3"
+      />
+    </div>
+  </div>
+</div>
+
+        
+        
         <HeroLanding />
         <RecentActivity />
-
-
-        <Bulletin previewCount={5} />
-
         <SeasonalEventsGrid />
-
-
         <PopularGroups />
-        <SportsEventsGrid />
-        <ConcertEventsGrid />
+       
         <LibraryCardBanner />
         <Voicemail />
-        <BokEventsGrid />
-        <SouthStreetEventsGrid />
+        <SportsEventsGrid />
+        <ConcertEventsGrid />
 
 
         <Footer />

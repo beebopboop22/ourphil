@@ -1,6 +1,6 @@
+// src/Unsubscribe.jsx
 import React, { useEffect, useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import { Helmet } from 'react-helmet'
@@ -11,14 +11,22 @@ export default function Unsubscribe() {
 
   useEffect(() => {
     const token = new URLSearchParams(search).get('token')
-    if (!token) return setStatus('error')
+    if (!token) {
+      setStatus('error')
+      return
+    }
 
-    supabase
-      .from('newsletter_subscribers')
-      .delete()
-      .eq('unsub_token', token)
-      .then(({ error }) => {
-        setStatus(error ? 'error' : 'success')
+    // call our Edge Function which runs with service‑role key
+    fetch(
+      `${import.meta.env.VITE_SUPABASE_FUNCTIONS_URL}/unsubscribe?token=${token}`,
+      { method: 'POST' }
+    )
+      .then(res => {
+        if (res.ok) setStatus('success')
+        else setStatus('error')
+      })
+      .catch(() => {
+        setStatus('error')
       })
   }, [search])
 
@@ -31,7 +39,7 @@ export default function Unsubscribe() {
 
       <Navbar />
 
-      <div className="max-w-md mx-auto py-20 relative">
+      <div className="max-w-md mx-auto py-20">
         {status === 'loading' && (
           <div className="text-center">
             <h1 className="text-4xl font-[Barrio] mb-4">Processing…</h1>

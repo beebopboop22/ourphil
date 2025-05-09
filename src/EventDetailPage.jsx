@@ -568,12 +568,15 @@ useEffect(() => {
             />
           </div>
         )}
+
+        
       </main>
       
       {/* ── Groups You Might Like ────────────────────────────────────────────── */}
-            <section className="w-full bg-neutral-100 py-8">
-                <div className="max-w-screen-xl mx-auto ">
-                    <h2 className="text-4xl text-center font-[Barrio]">Groups You Might Like</h2>
+      <section className="w-full bg-neutral-100 pt-12 pb-12">
+      <h2 className="text-4xl text-center font-[Barrio]">Groups You Might Like</h2>
+
+                <div className="flex space-x-4 flex-nowrap overflow-x-auto overflow-y-hidden">
                     {loadingSuggested ? (
                     <p>Loading suggestions…</p>
                     ) : suggestedGroups.length > 0 ? (
@@ -584,11 +587,14 @@ useEffect(() => {
                     )}
                 </div>
             </section>
+      
 
 
      
       <HeroLanding />
       <Footer />
+
     </div>
+    
   );
 }

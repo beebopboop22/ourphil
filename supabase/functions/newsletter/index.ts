@@ -5,7 +5,6 @@ import Mustache from "https://esm.sh/mustache";
 
 const SUPABASE_URL              = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SUPABASE_ANON_KEY         = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SEATGEEK_CLIENT_ID        = Deno.env.get("SEATGEEK_CLIENT_ID")!;
 const SEATGEEK_CLIENT_SECRET    = Deno.env.get("SEATGEEK_CLIENT_SECRET")!;
 const SITE_URL                  = Deno.env.get("SITE_URL") ?? "https://www.ourphilly.org";
@@ -87,7 +86,7 @@ async function fetchSeatGeekConcerts(perPage = 4) {
 
   const res = await fetch(url.toString());
   const json = await res.json();
-  return (json.events||[]).map((e:any)=>({
+  return (json.events||[]).map((e: any) => ({
     image: e.performers?.[0]?.image||null,
     name:  e.title,
     date:  new Date(e.datetime_local).toLocaleDateString("en-US",{month:"short",day:"numeric"}),
@@ -111,8 +110,8 @@ async function fetchPhillySports(perPage = 20) {
     all.push(...(json.events||[]));
   }
   const unique = Array.from(new Map(all.map(e=>[e.id,e])).values());
-  unique.sort((a,b)=>new Date(a.datetime_local).getTime()-new Date(b.datetime_local).getTime());
-  return unique.slice(0,3).map((e:any)=>({
+  unique.sort((a,b)=>new Date(a.datetime_local).getTime() - new Date(b.datetime_local).getTime());
+  return unique.slice(0,3).map((e: any) => ({
     image: e.performers?.[0]?.image||null,
     name:  e.short_title,
     date:  new Date(e.datetime_local).toLocaleDateString("en-US",{month:"short",day:"numeric"}),
@@ -120,9 +119,75 @@ async function fetchPhillySports(perPage = 20) {
   }));
 }
 
+// helper to chunk an array into rows of N
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+}
+
+// our new table‐based email layout
+const template = `
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+</head>
+<body style="margin:0;padding:20px;background-color:#f4f4f4;font-family:Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#fff;border-radius:8px;overflow:hidden;">
+        <tr><td align="center" style="background:#BF3D35;padding:30px;">
+          <img src="${LOGO_URL}" width="120" alt="Our Philly" style="display:block;border:0;outline:none;text-decoration:none;"/>
+          <h1 style="color:#fff;font-size:36px;margin:10px 0;font-family:Arial,sans-serif;">Dig Into Philly</h1>
+        </td></tr>
+        {{#sections}}
+        <tr><td style="padding:20px;">
+          <h2 style="background:#28313E;color:#fff;padding:10px;border-radius:4px;text-align:center;margin:0 0 15px;font-size:18px;">{{title}}</h2>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            {{#rows}}
+            <tr>
+              {{#.}}
+              <td width="25%" valign="top" align="center" style="padding:10px;">
+                {{#image}}<img src="{{image}}" alt="{{name}}" width="120" style="display:block;border:0;width:100%;max-width:120px;height:auto;"/>{{/image}}
+                {{#date}}<div style="font-size:12px;color:#777;margin:8px 0;">{{date}}</div>{{/date}}
+                <a href="{{link}}" style="color:#28313E;text-decoration:none;font-weight:bold;font-size:14px;">{{name}}</a>
+              </td>
+              {{/.}}
+            </tr>
+            {{/rows}}
+          </table>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:15px;">
+            <tr><td align="center">
+              <a href="{{cta.url}}" style="display:inline-block;padding:10px 20px;background:#BF3D35;color:#fff;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">{{cta.text}}</a>
+            </td></tr>
+          </table>
+        </td></tr>
+        {{/sections}}
+        <tr><td align="center" style="padding:20px;">
+          <h3 style="color:#28313E;font-size:18px;margin:0 0 10px;">Philly’s Anonymous Voicemail</h3>
+          <a href="${SITE_URL}/voicemail" style="display:inline-block;padding:10px 20px;background:#BF3D35;color:#fff;text-decoration:none;border-radius:4px;font-size:14px;">Leave a Voicemail</a>
+        </td></tr>
+      </table>
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin-top:20px;">
+        <tr><td align="center" style="background:#28313E;color:#fff;padding:20px;border-radius:8px;font-size:12px;">
+          &copy; ${new Date().getFullYear()} Our Philly. All rights reserved.<br/>
+          <a href="${SITE_URL}/unsubscribe?token={{unsub_token}}" class="btn-red">
+  Unsubscribe</a>
+          <img src="${LOGO_URL}" width="100" alt="Our Philly Logo" style="display:block;margin:10px auto 0;opacity:.8;border:0;"/>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+`;
+
 serve(async (req) => {
   const url       = new URL(req.url);
-  const isPreview = url.searchParams.get("preview")==="true";
+  const isPreview = url.searchParams.get("preview") === "true";
 
   // load all data in parallel
   const [events, seasonal, groups, sports, concerts] = await Promise.all([
@@ -133,95 +198,36 @@ serve(async (req) => {
     fetchSeatGeekConcerts(4),
   ]);
 
-  // Mustache template
-  const template = `
-<html><head><meta charset="utf-8"/>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Barrio&display=swap');
-    body,h1,h2,h3,p,a{font-family:'Barrio',cursive,Arial,sans-serif;}
-    body{background:#f4f4f4;margin:0;padding:20px;}
-    .container{max-width:800px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;}
-    .header{text-align:center;background:#BF3D35;padding:30px;border-radius:8px;}
-    .logo{width:120px;} .header h1{font-size:36px;color:#fff;margin:10px 0;}
-    .section{margin:30px 0;} .section h2{background:#28313E;color:#fff;padding:10px;border-radius:4px;text-align:center;}
-    ul.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;padding:0;list-style:none;}
-    ul.grid li{background:#fafafa;border:1px solid #ddd;border-radius:8px;text-align:center;}
-    ul.grid img{width:100%;display:block;} .date{color:#777;margin:10px 0;font-size:.9em;}
-    a.title{display:block;padding:0 10px 10px;color:#28313E;text-decoration:none;font-weight:bold;}
-    .btn-red{display:block;width:100%;padding:10px;text-align:center;background:#BF3D35;color:#fff;text-decoration:none;border-radius:4px;font-weight:bold;}
-    .voicemail{text-align:center;margin:30px 0;} .voicemail h3{color:#28313E;}
-    .voicemail a{background:#BF3D35;color:#fff;padding:10px;text-decoration:none;border-radius:4px;}
-    .footer{position:relative;background:#28313E;color:#fff;padding:20px;border-radius:8px;}
-    .footer p{margin:0;} .footer-logo{position:absolute;bottom:10px;right:10px;width:100px;opacity:.8;}
-  </style>
-</head><body>
-  <div class="container">
-    <div class="header">
-      <img src="${LOGO_URL}" class="logo" alt="Our Philly"/>
-      <h1>Dig Into Philly</h1>
-    </div>
+  // chunk into rows of 4
+  const sections = [
+    {
+      title: 'UPCOMING TRADITIONS',
+      rows: chunk(events, 4),
+      cta: { url: `${SITE_URL}/upcoming-events`, text: 'More Events →' }
+    },
+    {
+      title: 'SEASONAL STUFF',
+      rows: chunk(seasonal, 4),
+      cta: { url: `${SITE_URL}/upcoming-events`, text: 'See All Seasonal →' }
+    },
+    {
+      title: 'GAMES THIS WEEK',
+      rows: chunk(sports, 4),
+      cta: { url: `${SITE_URL}/groups/type/sports-fans`, text: 'More Sports Fans →' }
+    },
+    {
+      title: 'CONCERTS THIS WEEK',
+      rows: chunk(concerts, 4),
+      cta: { url: `${SITE_URL}/upcoming-events`, text: 'More Concerts →' }
+    },
+    {
+      title: 'POPULAR GROUPS',
+      rows: chunk(groups, 4),
+      cta: { url: `${SITE_URL}/groups`, text: 'Browse All Groups →' }
+    },
+  ];
 
-    <div class="section"><h2>UPCOMING TRADITIONS</h2>
-      <ul class="grid">{{#events}}<li>
-        {{#image}}<img src="{{image}}" alt="{{name}}"/>{{/image}}
-        <div class="date">{{date}}</div>
-        <a href="{{link}}" class="title">{{name}}</a>
-      </li>{{/events}}</ul>
-      <a href="${SITE_URL}/upcoming-events" class="btn-red">More Events →</a>
-    </div>
-
-    <div class="section"><h2>SEASONAL STUFF</h2>
-      <ul class="grid">{{#seasonal}}<li>
-        {{#image}}<img src="{{image}}" alt="{{name}}"/>{{/image}}
-        <div class="date">{{date}}</div>
-        <a href="${SITE_URL}/seasonal/{{slug}}" class="title">{{name}}</a>
-      </li>{{/seasonal}}</ul>
-      <a href="${SITE_URL}/upcoming-events" class="btn-red">See All Seasonal →</a>
-    </div>
-
-    <div class="section"><h2>GAMES THIS WEEK</h2>
-      <ul class="grid">{{#sports}}<li>
-        {{#image}}<img src="{{image}}" alt="{{name}}"/>{{/image}}
-        <div class="date">{{date}}</div>
-        <a href="{{link}}" class="title">{{name}}</a>
-      </li>{{/sports}}</ul>
-      <a href="${SITE_URL}/groups/type/sports-fans" class="btn-red">More Sports Fans →</a>
-    </div>
-
-    <div class="section"><h2>CONCERTS THIS WEEK</h2>
-      <ul class="grid">{{#concerts}}<li>
-        {{#image}}<img src="{{image}}" alt="{{name}}"/>{{/image}}
-        <div class="date">{{date}}</div>
-        <a href="{{link}}" class="title">{{name}}</a>
-      </li>{{/concerts}}</ul>
-      <a href="${SITE_URL}/upcoming-events" class="btn-red">More Concerts →</a>
-    </div>
-
-    <div class="section"><h2>POPULAR GROUPS</h2>
-      <ul class="grid">{{#groups}}<li>
-        {{#image}}<img src="{{image}}" alt="{{name}}"/>{{/image}}
-        <a href="{{link}}" class="title">{{name}}</a>
-      </li>{{/groups}}</ul>
-      <a href="${SITE_URL}/groups" class="btn-red">Browse All Groups →</a>
-    </div>
-
-    <div class="voicemail">
-      <h3>Philly’s Anonymous Voicemail</h3>
-      <a href="${SITE_URL}/voicemail">Leave a Voicemail Now</a>
-    </div>
-  </div>
-
-  <div class="footer">
-    <p>&copy; ${new Date().getFullYear()} Our Philly. All rights reserved.</p>
-    <a href="https://www.ourphilly.org/unsubscribe?token={{unsub_token}}" class="btn-red">
-      Unsubscribe
-    </a>
-    <img src="${LOGO_URL}" class="footer-logo" alt="Our Philly Logo"/>
-  </div>
-</body></html>
-`;
-
-  // ── preview: fetch sampleToken ─────────────────────────────────────────
+  // get one sample token
   const { data: sample } = await supabase
     .from("newsletter_subscribers")
     .select("unsub_token")
@@ -229,29 +235,21 @@ serve(async (req) => {
   const sampleToken = sample?.[0]?.unsub_token ?? "";
 
   if (isPreview) {
-    const html = Mustache.render(template, {
-      events, seasonal, groups, sports, concerts,
-      unsub_token: sampleToken
-    });
+    const html = Mustache.render(template, { sections, unsub_token: sampleToken });
     return new Response(html, {
       status: 200,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 
-  // ── real send: render per subscriber ────────────────────────────────────
+  // send to each subscriber
   const { data: subs } = await supabase
     .from("newsletter_subscribers")
     .select("email, unsub_token");
-
   for (const { email, unsub_token } of subs ?? []) {
-    const html = Mustache.render(template, { events, seasonal, groups, sports, concerts, unsub_token });
+    const html = Mustache.render(template, { sections, unsub_token });
     await supabase.functions.invoke("send-email", {
-      body: {
-        to:      email,
-        subject: `Dig Into Philly: ${new Date().toLocaleDateString()}`,
-        html,
-      },
+      body: { to: email, subject: `Dig Into Philly: ${new Date().toLocaleDateString()}`, html }
     });
   }
 

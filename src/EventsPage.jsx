@@ -4,10 +4,12 @@ import { Helmet } from 'react-helmet';
 import Navbar from './Navbar';
 import HeroLanding from './HeroLanding';
 import EventsGrid from './EventsGrid';
+import BokEventsGrid from './BokEventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents';
 import SportsEventsGrid from './SportsEventsGrid';
 import ConcertEventsGrid from './ConcertEventsGrid';
 import Footer from './Footer';
+import SouthStreetEventsGrid from './SouthStreetEventsGrid';
 
 export default function EventsPage() {
   return (
@@ -34,12 +36,20 @@ export default function EventsPage() {
         <meta name="twitter:card" content="summary_large_image" />
       </Helmet>
 
-      <div className="min-h-screen flex flex-col pt-20 bg-gray-100 overflow-x-hidden">
+      <div className="min-h-screen flex flex-col pt-20  overflow-x-hidden">
+       
         <Navbar />
+
+        <h1 className="text-5xl mt-12 bg-white sm:text-6xl md:text-8xl font-[Barrio] font-black text-black text-center">
+            TO DO THIS WEEK
+          </h1>
+
         <HeroLanding />
           <SeasonalEventsGrid />
           <SportsEventsGrid />
           <ConcertEventsGrid />
+          <BokEventsGrid />
+          <SouthStreetEventsGrid />
         <Footer />
       </div>
     </>

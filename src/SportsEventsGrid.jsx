@@ -60,7 +60,7 @@ const SportsEventsGrid = () => {
   };
 
   return (
-    <div className="w-full max-w-screen-xl mx-auto mb-16 px-4">
+    <div className="w-full max-w-screen-xl mx-auto mb-16 mt-12 px-4">
       <h2 className="text-black text-4xl font-[Barrio] mb-2 text-left">SPORTS</h2>
       <p className="text-gray-600 text-sm mb-6 text-left">
         Catch the Phillies, Sixers, Eagles, Flyers & Union in action

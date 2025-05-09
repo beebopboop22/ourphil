@@ -22,7 +22,7 @@ const SeasonalEventsGrid = () => {
       const today = new Date().toISOString().slice(0, 10);
       const { data, error } = await supabase
         .from('seasonal_events')
-        .select('id, slug, name, description, start_date, end_date, image_url')
+        .select('id, slug, name, start_date, end_date, image_url')
         .gte('end_date', today)
         .order('start_date', { ascending: true });
 
@@ -90,11 +90,14 @@ const SeasonalEventsGrid = () => {
 
   return (
     <section className="w-full max-w-screen-xl mx-auto py-12 px-4">
-      <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-center">
+      <h2 className="text-4xl font-[Barrio] text-gray-800 mb-4 text-left">
         OPEN FOR THE SEASON
       </h2>
+      <p className=" text-left mb-4 text-gray-600">
+          Beer gardens, parks and other stuff here for the season.
+        </p>
       <div className="overflow-x-auto scrollbar-hide">
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           {events.map(evt => {
             const now = new Date();
             const startDate = new Date(evt.start_date);
@@ -103,7 +106,7 @@ const SeasonalEventsGrid = () => {
             const tagText = isOpen
               ? 'Open'
               : `Opens ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-            const tagColor = isOpen ? 'bg-orange-500' : 'bg-yellow-400';
+            const tagColor = isOpen ? 'bg-green-500' : 'bg-yellow-500';
 
             const isFav = Boolean(favMap[evt.id]);
             const count = favCounts[evt.id] || 0;
@@ -112,40 +115,52 @@ const SeasonalEventsGrid = () => {
               <Link
                 key={evt.id}
                 to={`/seasonal/${evt.slug}`}
-                className="relative w-[260px] flex-shrink-0 bg-white rounded-xl shadow-md overflow-hidden flex flex-col"
+                className="relative w-[260px] h-[360px] flex-shrink-0 rounded-2xl shadow-lg overflow-hidden"
               >
+                {/* Full-cover image */}
                 {evt.image_url && (
-                  <div className="relative">
-                    <img
-                      src={evt.image_url}
-                      alt={evt.name}
-                      className="w-full h-32 object-cover"
-                    />
-                    <div className={`absolute top-2 left-2 px-2 py-1 text-xs font-bold text-white rounded-full ${tagColor}`}>
-                      {tagText}
-                    </div>
-                  </div>
+                  <img
+                    src={evt.image_url}
+                    alt={evt.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
                 )}
-                <div className="p-3 flex-grow flex flex-col">
-                  <h3 className="text-center text-lg font-bold text-black mb-1 line-clamp-2">
-                    {evt.name}
-                  </h3>
-                  <p className="text-center text-md text-gray-600 mb-2 flex-grow line-clamp-3">
-                    {evt.description}
-                  </p>
+
+                {/* Dark overlay */}
+                <div className="absolute inset-0 bg-black/30" />
+
+                {/* “Open” tag */}
+                <div
+                  className={`absolute top-3 left-3 px-2 py-1 text-xs font-bold text-white rounded-full ${tagColor}`}
+                >
+                  {tagText}
                 </div>
-                <div className="bg-gray-100 border-t px-3 py-2 flex items-center justify-center space-x-2">
+
+                {/* Heart + count aligned */}
+                <div className="absolute top-3 right-3 flex items-center space-x-1 z-20">
                   <button
-                    onClick={e => { e.preventDefault(); e.stopPropagation(); toggleFav(evt.id); }}
+                    onClick={e => { 
+                      e.preventDefault(); 
+                      e.stopPropagation(); 
+                      toggleFav(evt.id);
+                    }}
                     disabled={busyFavAction}
-                    className="text-xl"
+                    className="text-2xl text-white"
+                    aria-label={isFav ? 'Remove favorite' : 'Add favorite'}
                   >
                     {isFav ? '❤️' : '🤍'}
                   </button>
-                  <span className="font-[Barrio] text-base text-gray-800">
-                    {count}
-                  </span>
+                  {count > 0 && (
+                    <span className="text-sm font-semibold text-white">
+                      {count}
+                    </span>
+                  )}
                 </div>
+
+                {/* Event name */}
+                <h3 className="absolute bottom-4 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight drop-shadow">
+                  {evt.name}
+                </h3>
               </Link>
             );
           })}

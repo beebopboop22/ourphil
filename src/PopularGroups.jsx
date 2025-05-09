@@ -90,9 +90,13 @@ const PopularGroups = ({ isAdmin }) => {
       />
 
       <div className="relative max-w-screen-xl mx-auto z-10 text-center">
-      <h2 className="text-8xl font-[Barrio] text-[#bf3d35] mb-4">
-          GROUPS GROUPS GROUPS
+      <h2 className="text-4xl text-left font-[Barrio]">
+          Featured GROUPS
         </h2>
+
+        <p className=" text-left mb-4 text-gray-600">
+          We're rounding up every group, club, and community in the City.
+        </p>
 
         <GroupProgressBar />
 

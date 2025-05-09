@@ -64,7 +64,7 @@ export default function RecentActivity() {
   const who = user && r.user_id === user.id ? 'You' : 'A total stranger';
 
   return (
-    <section className="relative w-full mx-auto my-12 p-4 bg-gray-100 rounded-lg shadow overflow-hidden">
+    <section className="relative w-full mx-auto p-4 bg-gray-100 rounded-lg shadow overflow-hidden">
       
 
 <div className="relative z-10 h-12 flex items-center justify-center overflow-hidden space-x-2">

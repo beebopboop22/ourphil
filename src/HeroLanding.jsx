@@ -9,211 +9,189 @@ import {
   removeEventFavorite,
 } from './utils/eventFavorites';
 
-const HeroLanding = () => {
+export default function HeroLanding() {
   const { user } = useContext(AuthContext);
-
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [favMap, setFavMap] = useState({});
+  const [favCounts, setFavCounts] = useState({});
+  const [busyFav, setBusyFav] = useState(false);
 
-  // favorite state
-  const [favMap, setFavMap]       = useState({}); // event_id → fav record id
-  const [favCounts, setFavCounts] = useState({}); // event_id → count
-  const [busyFav, setBusyFav]     = useState(false);
-
+  // parse "MM/DD/YYYY …" into a Date
   const parseDate = (datesStr) => {
     if (!datesStr) return null;
     const [first] = datesStr.split(/through|–|-/);
-    return new Date(first.trim());
+    const [m, d, y] = first.trim().split('/');
+    return new Date(+y, +m - 1, +d);
   };
 
-  const getDisplayDay = (d) => {
-    const today = new Date(); today.setHours(0,0,0,0);
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
-    const nd = new Date(d); nd.setHours(0,0,0,0);
-    if (nd.getTime() === today.getTime()) return 'TODAY';
-    if (nd.getTime() === tomorrow.getTime()) return 'TOMORROW';
-    return nd.toLocaleDateString('en-US',{ weekday:'short' }).toUpperCase();
+  // returns { text, color, pulse } for the top bubble or bottom pill
+  const getBubble = (start, isActive) => {
+    if (isActive) {
+      return { text: 'ON NOW', color: 'bg-green-500', pulse: true };
+    }
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const diff = Math.floor((start - today) / (1000 * 60 * 60 * 24));
+    const dayName = start
+      .toLocaleDateString('en-US', { weekday: 'short' })
+      .toUpperCase();
+    const prefix = diff < 7 ? 'This ' : 'Next ';
+    return { text: `${prefix}${dayName}`, color: 'bg-yellow-500', pulse: false };
   };
 
-  // 1) fetch events (including slug)
+  // load events
   useEffect(() => {
     (async () => {
-      try {
-        const today = new Date(); today.setHours(0,0,0,0);
-        const { data, error } = await supabase
-          .from('events')
-          .select(`id, slug, "E Name", Dates, "End Date", "E Image", "E Link", "E Description"`)
-          .order('Dates', { ascending: true });
-        if (error) throw error;
-
-        const enhanced = data
-          .map(e => {
-            const start = parseDate(e.Dates);
-            const end   = parseDate(e['End Date']) || start;
-            return {
-              ...e,
-              start,
-              end,
-              isActive: start <= today && today <= end,
-            };
-          })
-          .filter(e => e.end >= today)
-          .sort((a,b) => {
-            if (a.isActive && !b.isActive) return -1;
-            if (!a.isActive && b.isActive) return 1;
-            return a.start - b.start;
-          })
-          .slice(0, 15);
-
-        setEvents(enhanced);
-      } catch (err) {
-        console.error('Error fetching events:', err);
-      } finally {
-        setLoading(false);
-      }
+      const today = new Date(); today.setHours(0,0,0,0);
+      const { data, error } = await supabase
+        .from('events')
+        .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
+        .order('Dates', { ascending: true });
+      if (error) { console.error(error); setLoading(false); return; }
+      const enhanced = data
+        .map(e => {
+          const start = parseDate(e.Dates);
+          const end = e['End Date'] ? parseDate(e['End Date']) : start;
+          return { ...e, start, end, isActive: start <= today && today <= end };
+        })
+        .filter(e => e.end >= today)
+        .sort((a,b) => a.isActive === b.isActive
+          ? a.start - b.start
+          : (a.isActive ? -1 : 1))
+        .slice(0,15);
+      setEvents(enhanced);
+      setLoading(false);
     })();
   }, []);
 
-  // 2) load counts
+  // load favorite counts
   useEffect(() => {
     if (!events.length) return;
     (async () => {
       const ids = events.map(e => e.id);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('event_favorites')
         .select('event_id')
         .in('event_id', ids);
-      if (!error) {
-        const counts = {};
-        data.forEach(r => counts[r.event_id] = (counts[r.event_id]||0) + 1);
-        setFavCounts(counts);
-      }
+      const counts = {};
+      data.forEach(r => counts[r.event_id] = (counts[r.event_id]||0) + 1);
+      setFavCounts(counts);
     })();
   }, [events]);
 
-  // 3) load user favorites
+  // load user favorites
   useEffect(() => {
     if (!user) { setFavMap({}); return; }
     getMyEventFavorites()
       .then(rows => {
-        const m = {};
-        rows.forEach(r => m[r.event_id] = r.id);
-        setFavMap(m);
+        const map = {};
+        rows.forEach(r => map[r.event_id] = r.id);
+        setFavMap(map);
       })
       .catch(console.error);
   }, [user, events]);
 
-  // 4) toggle heart
-  const toggleFav = async (eventId, e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  // toggle heart
+  const toggleFav = async (id, e) => {
+    e.preventDefault(); e.stopPropagation();
     if (!user) return;
     setBusyFav(true);
-    if (favMap[eventId]) {
-      await removeEventFavorite(favMap[eventId]);
-      setFavMap(m => { const c={...m}; delete c[eventId]; return c; });
-      setFavCounts(c => ({ ...c, [eventId]: (c[eventId]||1) - 1 }));
+    if (favMap[id]) {
+      await removeEventFavorite(favMap[id]);
+      setFavMap(m => { const c = {...m}; delete c[id]; return c; });
+      setFavCounts(c => ({ ...c, [id]: (c[id]||1) - 1 }));
     } else {
-      const newFav = await addEventFavorite(eventId);
-      setFavMap(m => ({ ...m, [eventId]: newFav.id }));
-      setFavCounts(c => ({ ...c, [eventId]: (c[eventId]||0) + 1 }));
+      const { id: newId } = await addEventFavorite(id);
+      setFavMap(m => ({ ...m, [id]: newId }));
+      setFavCounts(c => ({ ...c, [id]: (c[id]||0) + 1 }));
     }
     setBusyFav(false);
   };
 
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
-      {/* HUGE Background Illustration */}
+      {/* Huge background illustration */}
       <img
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-2.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0yLnBuZyIsImlhdCI6MTc0NTk1MTY3NiwiZXhwIjozMzI4MTk1MTY3Nn0._vHW37fowO3ttrO9Cvw1cDhQd03r31Tet4RSYKQ48qk"
         alt=""
-        className="absolute bottom-1/3 w-1/5 h-full object-contain opacity-100 pointer-events-none"
+        className="absolute top-0 w-1/4 h-full object-contain pointer-events-none"
       />
 
-      <div className="relative max-w-screen-xl mx-auto text-center z-10">
-        <h1 className="text-8xl font-[Barrio] font-black mb-1 text-black">
-          DIG INTO PHILLY
-        </h1>
-        <h2 className="text-3xl font-bold text-gray-700 mb-8">
-          UPCOMING ANNUAL EVENTS & TRADITIONS
+      <div className="relative max-w-screen-xl mx-auto z-20">
+        <h2 className="text-4xl text-left font-[Barrio] font-bold text-gray-700">
+           TRADITIONS & ANNUAL EVENTS
         </h2>
 
+        <p className=" text-left mb-4 text-gray-600">
+          Popular stuff happening this week and next
+        </p>
+      
+
         {loading ? (
-          <p className="text-center">Loading events…</p>
-        ) : events.length === 0 ? (
-          <p className="text-center">No upcoming traditions found.</p>
+          <p className="text-center">Loading…</p>
+        ) : !events.length ? (
+          <p className="text-center">No upcoming traditions.</p>
         ) : (
           <div className="overflow-x-auto scrollbar-hide">
             <div className="flex gap-4 pb-4">
-              {events.map((evt, idx) => {
-                const tag = getDisplayDay(evt.start);
-                const isFeatured = idx % 4 === 0;
-                const widthClass = isFeatured
-                  ? 'min-w-[380px] max-w-[380px]'
-                  : 'min-w-[260px] max-w-[260px]';
-
-                const startStr = evt.start.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
-                const endStr   = evt.end.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
-                const displayDate = evt.end > evt.start
-                  ? `${startStr} – ${endStr}`
-                  : startStr;
-
-                const isFav = Boolean(favMap[evt.id]);
+              {events.map(evt => {
+                const { text, color, pulse } = getBubble(evt.start, evt.isActive);
                 const count = favCounts[evt.id] || 0;
+                const isFav = Boolean(favMap[evt.id]);
 
                 return (
                   <Link
                     key={evt.id}
                     to={`/events/${evt.slug}`}
-                    className={`relative ${widthClass}
-                      bg-gray-50 rounded-2xl shadow-md
-                      hover:shadow-xl transition-transform hover:scale-105
-                      flex flex-col overflow-hidden`}
+                    className="relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg"
                   >
-                    {evt.isActive && (
-                      <div className="absolute top-2 left-2 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full animate-pulse">
-                        🟢 Active
-                      </div>
-                    )}
-                    <div className="absolute top-2 right-2 bg-black text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                      {tag}
-                    </div>
+                    {/* cover image */}
+                    <img
+                      src={evt['E Image']}
+                      alt={evt['E Name']}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                    {/* dark gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
 
-                    {evt['E Image'] && (
-                      <img
-                        src={evt['E Image']}
-                        alt={evt['E Name']}
-                        className={`w-full ${isFeatured ? 'h-56' : 'h-44'} object-cover`}
-                      />
-                    )}
-                    <div className="p-3 space-y-1 flex-grow">
-                      <h3 className="text-xl md:text-2xl font-bold text-indigo-800 line-clamp-2 text-center">
-                        {evt['E Name']}
-                      </h3>
-                      {evt['E Description'] && (
-                        <p className="text-sm md:text-base text-gray-700 line-clamp-3">
-                          {evt['E Description']}
-                        </p>
-                      )}
-                      <p className="text-sm text-gray-500 text-center">
-                        📅 {displayDate}
-                      </p>
-                    </div>
-
-                    {/* bottom bar with heart + count */}
-                    <div className="bg-gray-100 border-t px-3 py-2 flex items-center justify-center space-x-3">
-                      <button
-                        type="button"
-                        onClick={e => toggleFav(evt.id, e)}
-                        disabled={busyFav}
-                        className="text-xl"
+                    {/* day bubble for upcoming */}
+                    {text !== 'ON NOW' && (
+                      <span
+                        className={`${color} absolute top-3 left-3 text-white text-xs font-bold px-2 py-1 rounded-full z-20`}
                       >
-                        {isFav ? '❤️' : '🤍'}
-                      </button>
-                      <span className="font-[Barrio] text-lg text-gray-800">
+                        {text}
+                      </span>
+                    )}
+
+                    {/* heart */}
+                    <button
+                      onClick={e => toggleFav(evt.id, e)}
+                      disabled={busyFav}
+                      className="absolute top-3 right-3 text-2xl text-white z-20"
+                      aria-label={isFav ? 'Remove favorite' : 'Add favorite'}
+                    >
+                      {isFav ? '❤️' : '🤍'}
+                    </button>
+                    {count > 0 && (
+                      <span className="absolute top-10 right-3 text-sm font-semibold text-white z-20">
                         {count}
                       </span>
-                    </div>
+                    )}
+
+                    {/* name */}
+                    <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
+                      {evt['E Name']}
+                    </h3>
+
+                    {/* ON NOW pill under name */}
+                    {text === 'ON NOW' && (
+                      <span
+                        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-base font-bold px-4 py-1 rounded-full animate-pulse z-20"
+                      >
+                        ON NOW
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -223,6 +201,4 @@ const HeroLanding = () => {
       </div>
     </section>
   );
-};
-
-export default HeroLanding;
+}

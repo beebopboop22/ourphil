@@ -57,7 +57,7 @@ const GroupsList = ({ groups, isAdmin }) => {
   );
 
   return (
-    <div className="relative py-20 px-4">
+    <div className="relative px-4">
       {/* Background Heart */}
       <img
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-2.png"
