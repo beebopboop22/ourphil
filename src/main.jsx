@@ -24,6 +24,7 @@ import SeasonalEventDetails from './SeasonalEventDetailPage';
 import Bulletin from './Bulletin';
 import EventsPage from './EventsPage.jsx'
 import Unsubscribe from './Unsubscribe';
+import PrivacyPage from './PrivacyPage.jsx'
 
 
 
@@ -60,6 +61,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/bulletin" element={<Bulletin />} />
           <Route path="/upcoming-events" element={<EventsPage />} />
           <Route path="/unsubscribe" element={<Unsubscribe />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+
 
 
           
