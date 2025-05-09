@@ -371,7 +371,7 @@ useEffect(() => {
       )}
 
       {/* ── Reviews Section ────────────────────────────────────────────────── */}
-      <main className="max-w-screen-xl mx-auto py-12 px-4 mb-40">
+      <main className="max-w-screen-xl mx-auto py-12 px-4 mb-30">
         <h2 className="text-2xl font-[Barrio] mb-6">Reviews</h2>
 
         {/* list existing */}

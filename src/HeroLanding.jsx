@@ -120,11 +120,11 @@ export default function HeroLanding() {
 
       <div className="relative max-w-screen-xl mx-auto z-20">
         <h2 className="text-4xl text-left font-[Barrio] font-bold text-gray-700">
-           TRADITIONS & ANNUAL EVENTS
+           THIS WEEK & SOON
         </h2>
 
         <p className=" text-left mb-4 text-gray-600">
-          Popular stuff happening this week and next
+          POPULAR TRADITIONS & ANNUAL EVENTS
         </p>
       
 
