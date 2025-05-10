@@ -16,18 +16,25 @@ const PopularGroups = ({ isAdmin }) => {
   const [loadingFavAction, setLoadingFavAction] = useState(false);
   const [showSubmitModal, setShowSubmitModal]   = useState(false);
 
-  // 1) Load 5 most recent groups
+  // 1) Load up to 20 featured groups
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
         .from('groups')
         .select('id, Name, Type, imag, slug, Description')
-        .order('id', { ascending: true });
-      if (error) { console.error(error); return; }
-      const total = data.length;
-      setGroups(data.slice(-5).map((g,i) => ({
+        .eq('status', 'featured')
+        .order('id', { ascending: true })
+        .limit(20);
+
+      if (error) {
+        console.error('Error loading featured groups:', error);
+        return;
+      }
+
+      // add a 1-based badge number
+      setGroups(data.map((g, i) => ({
         ...g,
-        groupNumber: total - 5 + i + 1
+        groupNumber: i + 1,
       })));
     })();
   }, []);
@@ -41,36 +48,64 @@ const PopularGroups = ({ isAdmin }) => {
         .from('favorites')
         .select('group_id')
         .in('group_id', ids);
-      if (error) { console.error(error); return; }
+
+      if (error) {
+        console.error('Error loading favorite counts:', error);
+        return;
+      }
+
       const counts = {};
-      data.forEach(r => counts[r.group_id] = (counts[r.group_id]||0) + 1);
+      data.forEach(r => {
+        counts[r.group_id] = (counts[r.group_id] || 0) + 1;
+      });
       setFavCounts(counts);
     })();
   }, [groups]);
 
   // 3) Load this user’s favorites
   useEffect(() => {
-    if (!user) { setFavMap({}); return; }
-    getMyFavorites().then(rows => {
-      const m = {};
-      rows.forEach(r => m[r.group_id] = r.id);
-      setFavMap(m);
-    }).catch(console.error);
+    if (!user) {
+      setFavMap({});
+      return;
+    }
+    getMyFavorites()
+      .then(rows => {
+        const m = {};
+        rows.forEach(r => {
+          m[r.group_id] = r.id;
+        });
+        setFavMap(m);
+      })
+      .catch(console.error);
   }, [user]);
 
   // 4) Toggle heart
   const toggleFav = async (groupId) => {
     if (!user) return;
     setLoadingFavAction(true);
+
     if (favMap[groupId]) {
       await removeFavorite(favMap[groupId]);
-      setFavMap(m => { const c = {...m}; delete c[groupId]; return c; });
-      setFavCounts(c => ({ ...c, [groupId]: (c[groupId]||1) - 1 }));
+      setFavMap(prev => {
+        const copy = { ...prev };
+        delete copy[groupId];
+        return copy;
+      });
+      setFavCounts(prev => ({
+        ...prev,
+        [groupId]: (prev[groupId] || 1) - 1,
+      }));
     } else {
-      const { data } = await addFavorite(groupId);
-      setFavMap(m => ({ ...m, [groupId]: data[0].id }));
-      setFavCounts(c => ({ ...c, [groupId]: (c[groupId]||0) + 1 }));
+      const { data, error } = await addFavorite(groupId);
+      if (!error && data?.[0]?.id) {
+        setFavMap(prev => ({ ...prev, [groupId]: data[0].id }));
+        setFavCounts(prev => ({
+          ...prev,
+          [groupId]: (prev[groupId] || 0) + 1,
+        }));
+      }
     }
+
     setLoadingFavAction(false);
   };
 
@@ -78,24 +113,24 @@ const PopularGroups = ({ isAdmin }) => {
     <div className="relative py-16 px-4 mb-8 bg-neutral-50">
       {/* staple-heart above */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NTc2MzMzNywiZXhwIjozMzI4MTc2MzMzN30.4VNWfGXA0HU2ogQEo2N2G8MMS-kwWLJ25lb0UcdLyEw"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=…"
         alt="Heart Staple"
         className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 z-10 pointer-events-none"
       />
       {/* faint bg heart */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xIGNvcHktbWluLnBuZyIsImlhdCI6MTc0NTc2MzMzNywiZXhwIjozMzI4MTc2MzMzN30.4VNWfGXA0HU2ogQEo2N2G8MMS-kwWLJ25lb0UcdLyEw"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=…"
         alt="Philly Heart"
         className="absolute opacity-20 rotate-12 w-[400px] bottom-[-100px] pointer-events-none z-0"
       />
 
       <div className="relative max-w-screen-xl mx-auto z-10 text-center">
-      <h2 className="text-4xl text-left font-[Barrio]">
+        <h2 className="text-4xl text-left font-[Barrio]">
           Featured GROUPS
         </h2>
 
-        <p className=" text-left mb-4 text-gray-600">
-          We're rounding up every group, club, and community in the City.
+        <p className="text-left mb-4 text-gray-600">
+          We're shining a spotlight on our top 20 community groups.
         </p>
 
         <GroupProgressBar />
@@ -108,7 +143,7 @@ const PopularGroups = ({ isAdmin }) => {
             return (
               <div
                 key={group.id}
-                className="flex-shrink-0 w-[280px] flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden shadow hover:shadow-md transition h-[350px]"
+                className="flex-shrink-0 w-[280px] h-[350px] flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden shadow hover:shadow-md transition"
               >
                 <Link
                   to={`/groups/${group.slug}`}
