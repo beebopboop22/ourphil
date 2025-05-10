@@ -113,7 +113,7 @@ const PopularGroups = ({ isAdmin }) => {
     <div className="relative py-16 px-4 mb-8 bg-neutral-50">
       {/* staple-heart above */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=…"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-1.png"
         alt="Heart Staple"
         className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 z-10 pointer-events-none"
       />

@@ -615,20 +615,25 @@ useEffect(() => {
       </main>
       
       {/* ── Groups You Might Like ────────────────────────────────────────────── */}
-      <section className="w-full bg-neutral-100 pt-12 pb-12">
-      <h2 className="text-4xl text-center font-[Barrio]">Groups You Might Like</h2>
+<section className="w-full bg-neutral-100 pt-12 pb-12">
+  <h2 className="text-4xl text-center font-[Barrio] mb-6">
+    Groups You Might Like
+  </h2>
 
-                <div className="flex space-x-4 flex-nowrap overflow-x-auto overflow-y-hidden">
-                    {loadingSuggested ? (
-                    <p>Loading suggestions…</p>
-                    ) : suggestedGroups.length > 0 ? (
-                    // reuse your GroupsList for consistent styling
-                    <GroupsList groups={suggestedGroups} isAdmin={false} />
-                    ) : (
-                    <p className="text-gray-600">No related groups found.</p>
-                    )}
-                </div>
-            </section>
+  {/* full-bleed wrapper */}
+  <div className="relative w-screen left-1/2 right-1/2 mx-[-50vw] overflow-x-auto overflow-y-hidden">
+    <div className="flex space-x-4 flex-nowrap px-4">
+      {loadingSuggested ? (
+        <p className="text-center w-full">Loading suggestions…</p>
+      ) : suggestedGroups.length > 0 ? (
+        <GroupsList groups={suggestedGroups} isAdmin={false} />
+      ) : (
+        <p className="text-gray-600">No related groups found.</p>
+      )}
+    </div>
+  </div>
+</section>
+
       
 
 
