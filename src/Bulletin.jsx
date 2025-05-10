@@ -117,7 +117,6 @@ export default function Bulletin({ previewCount = Infinity }) {
         const specials = [
           { fn: () => nextNthWeekday(0,1,today0), text: 'Pay-what-you-wish at PMA tomorrow!', desc: 'First Sunday, 5–8:45pm', slug: 'https://philamuseum.org' },
           { fn: () => nextNthWeekday(0,1,today0), text: 'Barnes Foundation free tomorrow!', desc: 'First Sunday, 10–4pm', slug: 'https://barnesfoundation.org' },
-          { fn: () => nextNthWeekday(0,2,today0), text: 'Free at Eastern State tomorrow!', desc: '2nd Sunday free', slug: 'https://easternstate.org' },
           { fn: () => nextNthWeekday(6,2,today0), text: 'Second Saturday volunteer tomorrow!', desc: 'Park restoration 2nd Sat', slug: 'https://loveyourpark.org/volunteer/secondsaturdays' }
         ];
         specials.forEach(({ fn, text, desc, slug }) => {

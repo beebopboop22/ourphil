@@ -342,6 +342,48 @@ useEffect(() => {
 
       <RecentActivity />
 
+     {/* ── Sleek Details Section ──────────────────────────────────────────── */}
+<section className="max-w-screen-md mx-auto px-4 py-6">
+  <div className="prose prose-gray">
+    {/* Overline */}
+    <p className="text-xs font-semibold uppercase text-indigo-600 mb-2">
+      Event Details
+    </p>
+    <dl className="space-y-6">
+      {event.time && (
+        <div>
+          <dt className="flex items-center text-sm font-medium text-gray-700">
+            <svg
+              className="w-4 h-4 mr-1 text-indigo-600"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 2v4h3a1 1 0 110 2H9V4a1 1 0 112 0z" />
+            </svg>
+            Time
+          </dt>
+          <dd className="mt-1 text-base text-gray-600">
+            {event.time}
+          </dd>
+        </div>
+      )}
+
+      {event.longDescription && (
+        <div>
+          <dt className="text-sm font-medium text-gray-700">
+            Summary
+          </dt>
+          <dd className="mt-1 text-base text-gray-700 leading-relaxed">
+            {event.longDescription}
+          </dd>
+        </div>
+      )}
+    </dl>
+  </div>
+</section>
+
+
+
 
       {/* ── Photo Gallery (flat array of all user‐uploaded pics) ───────────── */}
       {photoReviews.length > 0 && (
