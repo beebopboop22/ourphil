@@ -31,13 +31,33 @@ export default function HeroLanding() {
     if (isActive) {
       return { text: 'ON NOW', color: 'bg-green-500', pulse: true };
     }
-    const today = new Date(); today.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0,0,0,0);
     const diff = Math.floor((start - today) / (1000 * 60 * 60 * 24));
     const dayName = start
       .toLocaleDateString('en-US', { weekday: 'short' })
       .toUpperCase();
     const prefix = diff < 7 ? 'This ' : 'Next ';
     return { text: `${prefix}${dayName}`, color: '', pulse: false };
+  };
+
+  // determine if a date is THIS weekend (Fri-Sun of this week)
+  const isThisWeekend = (date) => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const dayOfWeek = today.getDay(); // 0=Sun,1=Mon...6=Sat
+    // calculate this week's Friday
+    const daysToFri = (5 - dayOfWeek + 7) % 7;
+    const fri = new Date(today);
+    fri.setDate(today.getDate() + daysToFri);
+    // this week's Sunday
+    const daysToSun = (0 - dayOfWeek + 7) % 7;
+    const sun = new Date(today);
+    sun.setDate(today.getDate() + daysToSun);
+    // normalize
+    fri.setHours(0,0,0,0);
+    sun.setHours(23,59,59,999);
+    return date >= fri && date <= sun;
   };
 
   // load events
@@ -144,8 +164,7 @@ export default function HeroLanding() {
                 const { text, color, pulse } = getBubble(evt.start, evt.isActive);
                 const count = favCounts[evt.id] || 0;
                 const isFav = Boolean(favMap[evt.id]);
-                const day = evt.start.getDay();
-                const isWeekendPick = day === 5 || day === 6 || day === 0;
+                const showWeekendBadge = isThisWeekend(evt.start) && [5,6,0].includes(evt.start.getDay());
 
                 return (
                   <Link
@@ -162,8 +181,8 @@ export default function HeroLanding() {
                     {/* gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
 
-                    {/* Weekend Pick badge */}
-                    {isWeekendPick && (
+                    {/* Weekend Pick badge only if this weekend */}
+                    {showWeekendBadge && (
                       <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full z-20">
                         Weekend Pick
                       </span>
