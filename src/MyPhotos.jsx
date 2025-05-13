@@ -3,12 +3,12 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
-import { Link } from 'react-router-dom';
 
 export default function MyPhotos() {
   const { user } = useContext(AuthContext);
   const [photos, setPhotos] = useState([]);
   const [modalImage, setModalImage] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(4);  // how many photos to show initially
 
   useEffect(() => {
     if (!user) return;
@@ -28,7 +28,7 @@ export default function MyPhotos() {
       const all = [];
       reviews.forEach(r => {
         if (r.photo_url) {
-          all.push({ url: r.photo_url, event_id: r.event_id, date: r.created_at });
+          all.push({ url: r.photo_url, date: r.created_at });
         }
         let arr = [];
         try {
@@ -39,7 +39,7 @@ export default function MyPhotos() {
           arr = [];
         }
         arr.forEach(url => {
-          all.push({ url, event_id: r.event_id, date: r.created_at });
+          all.push({ url, date: r.created_at });
         });
       });
 
@@ -57,13 +57,16 @@ export default function MyPhotos() {
     );
   }
 
+  // only show up to visibleCount photos
+  const visiblePhotos = photos.slice(0, visibleCount);
+
   return (
     <section className="max-w-screen-xl mx-auto px-4 py-8">
       <h2 className="text-3xl font-[Barrio] mb-6 text-center">My Photos</h2>
 
       {/* grid of fixed square thumbnails */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {photos.map((p, i) => (
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        {visiblePhotos.map((p, i) => (
           <div
             key={i}
             className="w-full aspect-square overflow-hidden rounded-lg cursor-pointer relative"
@@ -77,6 +80,18 @@ export default function MyPhotos() {
           </div>
         ))}
       </div>
+
+      {/* 'See more' button if more photos exist */}
+      {photos.length > visibleCount && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setVisibleCount(count => count + 4)}
+            className="text-indigo-600 hover:underline"
+          >
+            See more photos
+          </button>
+        </div>
+      )}
 
       {/* modal lightbox */}
       {modalImage && (
