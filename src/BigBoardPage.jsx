@@ -147,9 +147,11 @@ export default function BigBoardPage() {
       <main className="flex-grow bg-gray-50 pt-20 mt-20 pb-20">
         <div className="w-full px-4">
           {/* title */}
-          <h1 className="font-[Barrio] text-6xl text-center mb-8">
+          <h1 className="font-[Barrio] text-6xl text-center">
             THE BIG BOARD
           </h1>
+
+          <h3 className="text-center text-gray-700 mb-8"> Like one big cafe bulletin board </h3>
 
           {/* area filter tabs */}
           <div className="flex flex-wrap justify-center gap-2 mb-6">

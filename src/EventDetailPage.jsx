@@ -86,7 +86,7 @@ useEffect(() => {
           .from('groups')
           .select('id, Name, slug, imag, Type, Area')
           .or(orFilter)
-          .limit(10);
+          .limit(50);
         if (tagErr) console.error('byTag error', tagErr);
         suggestions = byTag || [];
       }

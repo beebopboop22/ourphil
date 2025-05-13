@@ -26,7 +26,7 @@ const Footer = () => {
               className="h-20 w-auto"
             />
           <p className="text-sm text-gray-400 mb-4">
-            Making community more accessible in the city we love.
+            Making community more accessible in the city.
           </p>
 
           <p className="text-xs text-gray-500">&copy; {year} Our Philly. All rights reserved.</p>

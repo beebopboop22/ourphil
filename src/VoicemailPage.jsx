@@ -27,8 +27,8 @@ const VoicemailPage = () => {
 
   return (
     <section className="w-full min-h-screen bg-blue-900 text-white flex items-center justify-center px-6 py-20">
+     <Navbar />
       <div className="max-w-xl w-full text-center">
-        <Navbar />
       <p className="text-4xl font-extrabold tracking-wide">
            <a href="tel:2153233324" className="hover:underline">(215) 323-3324</a>
         </p>

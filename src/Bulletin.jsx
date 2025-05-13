@@ -195,15 +195,16 @@ export default function Bulletin({ previewCount = Infinity }) {
 
   return (
     <div className="relative ">
-      <div className="max-w-screen-md mx-auto py-12 px-4 relative z-10">
-      <Navbar /> 
+    <Navbar /> 
+
+      <div className="max-w-screen-md mx-auto py-12 px-4 relative z-10 mt-20">
       <img
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/Our-Philly-Concierge_Illustration-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyLVBoaWxseS1Db25jaWVyZ2VfSWxsdXN0cmF0aW9uLTEucG5nIiwiaWF0IjoxNzQ2MTk3NTgwLCJleHAiOjMzMjgyMTk3NTgwfQ.ScBcw-sMe7K4lhtkPA_ZFl_C5XA9s93W4aTP64yj7YQ"
         alt="Our Philly Mascot"
         className="absolute -z-10 w-1/5 top-0 right-0 object-cover pointer-events-none"
 />
         <h1 className="text-5xl mt-20 font-[Barrio] font-bold text-center mb-8">
-          Community Bulletin
+          Upcoming Traditions
         </h1>
         
         <div>
