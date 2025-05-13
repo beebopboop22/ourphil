@@ -119,7 +119,7 @@ const PopularGroups = ({ isAdmin }) => {
       />
       {/* faint bg heart */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1%20copy-min.png?token=…"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-1.png"
         alt="Philly Heart"
         className="absolute opacity-20 rotate-12 w-[400px] bottom-[-100px] pointer-events-none z-0"
       />

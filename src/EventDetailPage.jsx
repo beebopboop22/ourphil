@@ -9,6 +9,8 @@ import { AuthContext } from './AuthProvider';
 import HeroLanding from './HeroLanding';
 import { Helmet } from 'react-helmet';
 import RecentActivity from './RecentActivity';
+import OutletsList from './OutletsList';
+
 
 
 import {
@@ -48,6 +50,11 @@ export default function EventDetailPage() {
   // Groups
 const [suggestedGroups, setSuggestedGroups] = useState([]);
 const [loadingSuggested, setLoadingSuggested] = useState(true);
+
+ // ─── Outlets You Might Like ────────────────────────────────────────────
+ const [suggestedOutlets, setSuggestedOutlets] = useState([]);  // ← new
+ const [loadingOutlets, setLoadingOutlets]     = useState(true); // ← new
+
 
   // ─── 1) Load event data by slug ────────────────────────────────────────
   useEffect(() => {
@@ -113,6 +120,22 @@ useEffect(() => {
       setSuggestedGroups(suggestions);
       setLoadingSuggested(false);
     })();
+  }, [event]);
+
+   // ─── 1C) Fetch “outlets you might like” ───────────────────────────────
+   useEffect(() => {
+    if (!event) return;
+    setLoadingOutlets(true);
+    supabase
+      .from('news_outlets')
+      .select('*')
+      .eq('area', event.Area)   // match the same Area
+      .limit(10)
+      .then(({ data, error }) => {
+        if (error) console.error('Outlets load error:', error);
+        setSuggestedOutlets(data || []);
+      })
+      .finally(() => setLoadingOutlets(false));
   }, [event]);
   
 
@@ -633,6 +656,21 @@ useEffect(() => {
     </div>
   </div>
 </section>
+
+ {/* ── Outlets You Might Like ──────────────────────────────────────────── */}
+ {suggestedOutlets.length > 0 && (
+        <section className="w-full bg-neutral-100 pt-12 pb-12">
+          <div className="relative w-screen left-1/2 right-1/2 mx-[-50vw] overflow-x-auto overflow-y-hidden">
+            <div className="flex space-x-4 flex-nowrap px-4">
+              {loadingOutlets ? (
+                <p className="text-center w-full">Loading…</p>
+              ) : (
+                <OutletsList outlets={suggestedOutlets} isAdmin={false} />
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       
 

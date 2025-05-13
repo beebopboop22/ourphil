@@ -154,15 +154,14 @@ function App() {
         
         <HeroLanding />
         <RecentActivity />
-        <SeasonalEventsGrid />
         <PopularGroups />
-       
-        <LibraryCardBanner />
-        <Voicemail />
         <SportsEventsGrid />
         <ConcertEventsGrid />
+        <SeasonalEventsGrid />
 
 
+        <LibraryCardBanner />
+        <Voicemail />
         <Footer />
       </div>
     </>

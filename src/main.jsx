@@ -25,6 +25,8 @@ import Bulletin from './Bulletin';
 import EventsPage from './EventsPage.jsx'
 import Unsubscribe from './Unsubscribe';
 import PrivacyPage from './PrivacyPage.jsx'
+import OutletDetailPage from './OutletDetailPage';
+import BigBoardPage from './BigBoardPage.jsx';
 
 
 
@@ -62,7 +64,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/upcoming-events" element={<EventsPage />} />
           <Route path="/unsubscribe" element={<Unsubscribe />} />
           <Route path="/privacy" element={<PrivacyPage />} />
-
+          <Route path="/outlets/:slug" element={<OutletDetailPage />} />
+          <Route path="/board" element={<BigBoardPage />} />
 
 
           
