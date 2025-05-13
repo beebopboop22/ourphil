@@ -1,4 +1,5 @@
 // src/HeroLanding.jsx
+
 import React, { useEffect, useState, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
@@ -25,19 +26,18 @@ export default function HeroLanding() {
     return new Date(+y, +m - 1, +d);
   };
 
-  // returns { text, color, pulse } for the top bubble or bottom pill
+  // returns { text, color, pulse } for the bubble under the name
   const getBubble = (start, isActive) => {
     if (isActive) {
       return { text: 'ON NOW', color: 'bg-green-500', pulse: true };
     }
-    const today = new Date();
-    today.setHours(0,0,0,0);
+    const today = new Date(); today.setHours(0,0,0,0);
     const diff = Math.floor((start - today) / (1000 * 60 * 60 * 24));
     const dayName = start
       .toLocaleDateString('en-US', { weekday: 'short' })
       .toUpperCase();
     const prefix = diff < 7 ? 'This ' : 'Next ';
-    return { text: `${prefix}${dayName}`, color: 'bg-yellow-500', pulse: false };
+    return { text: `${prefix}${dayName}`, color: '', pulse: false };
   };
 
   // load events
@@ -48,7 +48,11 @@ export default function HeroLanding() {
         .from('events')
         .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
         .order('Dates', { ascending: true });
-      if (error) { console.error(error); setLoading(false); return; }
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
       const enhanced = data
         .map(e => {
           const start = parseDate(e.Dates);
@@ -82,7 +86,10 @@ export default function HeroLanding() {
 
   // load user favorites
   useEffect(() => {
-    if (!user) { setFavMap({}); return; }
+    if (!user) {
+      setFavMap({});
+      return;
+    }
     getMyEventFavorites()
       .then(rows => {
         const map = {};
@@ -111,22 +118,20 @@ export default function HeroLanding() {
 
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
-      {/* Huge background illustration */}
+      {/* Background graphic */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-2.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0yLnBuZyIsImlhdCI6MTc0NTk1MTY3NiwiZXhwIjozMzI4MTk1MTY3Nn0._vHW37fowO3ttrO9Cvw1cDhQd03r31Tet4RSYKQ48qk"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-1%20copy-min.png"
         alt=""
         className="absolute top-0 w-1/4 h-full object-contain pointer-events-none"
       />
 
       <div className="relative max-w-screen-xl mx-auto z-20">
-        <h2 className="text-4xl text-left font-[Barrio] font-bold text-gray-700">
-           THIS WEEK & SOON
+        <h2 className="text-4xl font-[Barrio] font-bold text-gray-700 mb-2">
+          THIS WEEK & SOON
         </h2>
-
-        <p className=" text-left mb-4 text-gray-600">
+        <p className="text-gray-600 mb-6">
           POPULAR TRADITIONS & ANNUAL EVENTS
         </p>
-      
 
         {loading ? (
           <p className="text-center">Loading…</p>
@@ -139,6 +144,8 @@ export default function HeroLanding() {
                 const { text, color, pulse } = getBubble(evt.start, evt.isActive);
                 const count = favCounts[evt.id] || 0;
                 const isFav = Boolean(favMap[evt.id]);
+                const day = evt.start.getDay();
+                const isWeekendPick = day === 5 || day === 6 || day === 0;
 
                 return (
                   <Link
@@ -152,19 +159,17 @@ export default function HeroLanding() {
                       alt={evt['E Name']}
                       className="absolute inset-0 w-full h-full object-cover"
                     />
-                    {/* dark gradient */}
+                    {/* gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
 
-                    {/* day bubble for upcoming */}
-                    {text !== 'ON NOW' && (
-                      <span
-                        className={`${color} absolute top-3 left-3 text-white text-xs font-bold px-2 py-1 rounded-full z-20`}
-                      >
-                        {text}
+                    {/* Weekend Pick badge */}
+                    {isWeekendPick && (
+                      <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full z-20">
+                        Weekend Pick
                       </span>
                     )}
 
-                    {/* heart */}
+                    {/* favorite heart */}
                     <button
                       onClick={e => toggleFav(evt.id, e)}
                       disabled={busyFav}
@@ -179,17 +184,29 @@ export default function HeroLanding() {
                       </span>
                     )}
 
-                    {/* name */}
+                    {/* event name */}
                     <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
                       {evt['E Name']}
                     </h3>
 
-                    {/* ON NOW pill under name */}
-                    {text === 'ON NOW' && (
+                    {/* bubble under name */}
+                    {evt.isActive ? (
                       <span
-                        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-base font-bold px-4 py-1 rounded-full animate-pulse z-20"
+                        className={`
+                          absolute bottom-6 left-1/2 transform -translate-x-1/2
+                          bg-green-500 text-white text-base font-bold px-4 py-1 rounded-full animate-pulse z-20
+                        `}
                       >
                         ON NOW
+                      </span>
+                    ) : (
+                      <span
+                        className={`
+                          absolute bottom-6 left-1/2 transform -translate-x-1/2
+                          bg-[#ba3d36] text-white text-base font-bold px-4 py-1 rounded-full z-20
+                        `}
+                      >
+                        {text}
                       </span>
                     )}
                   </Link>
