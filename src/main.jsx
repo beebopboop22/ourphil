@@ -27,6 +27,13 @@ import Unsubscribe from './Unsubscribe';
 import PrivacyPage from './PrivacyPage.jsx'
 import OutletDetailPage from './OutletDetailPage';
 import BigBoardPage from './BigBoardPage.jsx';
+import AdminUsers from './AdminUsers';
+import AdminReviews from './AdminReviews';
+import AdminGroupUpdates from './AdminGroupUpdates.jsx';
+import AdminDashboard from './AdminDashboard.jsx';
+import AdminActivity from './AdminActivity.jsx';
+
+
 
 
 
@@ -66,6 +73,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/outlets/:slug" element={<OutletDetailPage />} />
           <Route path="/board" element={<BigBoardPage />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/reviews" element={<AdminReviews />} />
+          <Route path="/admin/updates" element={<AdminGroupUpdates />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/activity" element={<AdminActivity />} />
+
+
+
+
+
 
 
           
