@@ -129,15 +129,47 @@ function App() {
           
 <div className="relative flex flex-col md:flex-row items-center justify-center mt-12 mb-1">
   {/* we need a positioning context for the line + mascot */}
-  <div className="relative inline-block">
+  <div className="relative inline-block text-center">
     {/* your existing heading, but bump it above the line with z-index */}
-    <h1 className="relative z-10 text-5xl mt-12 sm:text-6xl md:text-8xl font-[Barrio] font-black text-black text-center">
-      DIG INTO PHILLY
-    </h1>
+    <h1 className="text-5xl sm:text-6xl md:text-8xl font-[Barrio] font-black text-black">
+            DIG INTO PHILLY
+          </h1>
+
+          <div className="mt-4 border-b border-gray-200 pb-4">
+            <nav className="inline-flex items-center text-sm uppercase font-bold text-indigo-600">
+              {/* Big Board */}
+              <Link to="/board" className="flex items-center space-x-1 hover:underline">
+                <span role="img" aria-label="bulletin board">📌</span>
+                <span>Big Board</span>
+                <span className="bg-yellow-400 text-white text-[10px] font-bold px-1 rounded">NEW</span>
+              </Link>
+
+              <span className="mx-2 text-gray-400">•</span>
+
+              {/* Events */}
+              <Link to="/upcoming-events" className="hover:underline">
+                Events
+              </Link>
+
+              <span className="mx-2 text-gray-400">•</span>
+
+              {/* Groups */}
+              <Link to="/groups" className="hover:underline">
+                Groups
+              </Link>
+
+              <span className="mx-2 text-gray-400">•</span>
+
+              {/* Voicemail */}
+              <Link to="/voicemail" className="hover:underline">
+                Voicemail
+              </Link>
+            </nav>
+          </div>
     
 
     {/* decorative line + mascot, behind the h1 */}
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
       {/* the horizontal rule */}
       <span className="absolute w-full h-px bg-white opacity-20"></span>
       {/* the mascot, pinned to the right end of that rule */}
@@ -154,10 +186,12 @@ function App() {
         
         <HeroLanding />
         <RecentActivity />
-        <PopularGroups />
         <SportsEventsGrid />
         <ConcertEventsGrid />
+        <PopularGroups />
+
         <SeasonalEventsGrid />
+
 
 
         <LibraryCardBanner />

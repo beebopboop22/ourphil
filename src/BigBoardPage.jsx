@@ -1,5 +1,4 @@
 // src/BigBoardPage.jsx
-
 import React, { useState, useEffect, useContext, useMemo } from 'react'
 import imageCompression from 'browser-image-compression'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -10,8 +9,6 @@ import Footer from './Footer'
 
 export default function BigBoardPage() {
   const { user } = useContext(AuthContext)
-
-  // ─── State ────────────────────────────────────────────────────────────────
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -32,7 +29,6 @@ export default function BigBoardPage() {
     'River Wards'
   ]
 
-  // ─── Fetch posts on mount ─────────────────────────────────────────────────
   useEffect(() => { fetchPosts() }, [])
 
   async function fetchPosts() {
@@ -46,10 +42,8 @@ export default function BigBoardPage() {
     setLoadingPosts(false)
   }
 
-  // ─── Permission: logged-in users can post ────────────────────────────────
   const canPost = !!user
 
-  // ─── Turn storage key or full URL into public URL ────────────────────────
   function resolveImageUrl(val) {
     let key = val
     if (val.startsWith('http')) {
@@ -61,7 +55,6 @@ export default function BigBoardPage() {
     return data.publicUrl
   }
 
-  // ─── File & upload handlers ───────────────────────────────────────────────
   function handleFileChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -73,38 +66,19 @@ export default function BigBoardPage() {
     if (!selectedFile || !user) return
     setUploading(true)
     try {
-      // 1) compress
       const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true }
       const compressed = await imageCompression(selectedFile, options)
-
-      // 2) sanitize filename & key
-      const cleanName = compressed.name
-        .replace(/[^a-z0-9.\-_]/gi, '_')
-        .toLowerCase()
+      const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi, '_').toLowerCase()
       const key = `${user.id}-${Date.now()}-${cleanName}`
-
-      // 3) upload to storage
-      const { error: upErr } = await supabase
-        .storage
-        .from('big-board')
-        .upload(key, compressed)
+      const { error: upErr } = await supabase.storage.from('big-board').upload(key, compressed)
       if (upErr) throw upErr
 
-      // 4) prepare payload—join selectedAreas into CSV, or '' for none
-      const areaCsv = selectedAreas.length
-        ? selectedAreas.join(',')
-        : ''
-
+      const areaCsv = selectedAreas.join(',') || ''
       const { error: insErr } = await supabase
         .from('big_board_posts')
-        .insert({
-          user_id:   user.id,
-          image_url: key,
-          Area:      areaCsv
-        })
+        .insert({ user_id: user.id, image_url: key, Area: areaCsv })
       if (insErr) throw insErr
 
-      // 5) refresh & reset
       await fetchPosts()
       setShowUploadModal(false)
       setSelectedFile(null)
@@ -117,7 +91,6 @@ export default function BigBoardPage() {
     setUploading(false)
   }
 
-  // ─── Delete handler ───────────────────────────────────────────────────────
   async function handleDelete(post) {
     if (!user || post.user_id !== user.id) return
     if (!window.confirm('Delete this post?')) return
@@ -127,33 +100,24 @@ export default function BigBoardPage() {
     setLightboxIndex(null)
   }
 
-  // ─── Filter posts by selected view ────────────────────────────────────────
   const displayedPosts = useMemo(() => {
     if (selectedView === 'All') return posts
     return posts.filter(p => {
-      // split CSV into array
-      const arr = p.Area
-        ? p.Area.split(',').map(a => a.trim()).filter(Boolean)
-        : []
+      const arr = p.Area?.split(',').map(a => a.trim()) || []
       return arr.includes(selectedView)
     })
   }, [posts, selectedView])
 
-  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
       <main className="flex-grow bg-gray-50 pt-20 mt-20 pb-20">
-        <div className="w-full px-4">
-          {/* title */}
-          <h1 className="font-[Barrio] text-6xl text-center">
-            THE BIG BOARD
-          </h1>
+        <div className="w-full px-0 sm:px-4">
+          <h1 className="font-[Barrio] text-6xl text-center">THE BIG BOARD</h1>
+          <h3 className="text-center text-gray-700 mb-8">Like one big café bulletin board</h3>
 
-          <h3 className="text-center text-gray-700 mb-8"> Like one big cafe bulletin board </h3>
-
-          {/* area filter tabs */}
+          {/* filters + new post button */}
           <div className="flex flex-wrap justify-center gap-2 mb-6">
             {['All', ...areasList].map(area => (
               <button
@@ -170,7 +134,6 @@ export default function BigBoardPage() {
             ))}
           </div>
 
-          {/* upload control */}
           <div className="flex justify-center mb-6">
             {canPost ? (
               <button
@@ -184,26 +147,24 @@ export default function BigBoardPage() {
             )}
           </div>
 
-          {/* full-width, variable-size image grid */}
+          {/* grid: 1 col on mobile, auto‐fill on desktop */}
           {loadingPosts ? (
             <p className="text-center">Loading…</p>
           ) : (
-            <div className="flex flex-wrap gap-4 justify-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {displayedPosts.map((post, i) => {
                 const url = resolveImageUrl(post.image_url)
-                const size = 180 + ((i % 5) * 16) // 180,196,212,228,244
                 return (
                   <motion.div
                     key={post.id}
-                    style={{ width: size, height: size }}
-                    className="relative overflow-hidden shadow-lg rounded-lg cursor-pointer"
+                    className="relative overflow-hidden shadow-lg rounded-lg cursor-pointer w-full h-72 sm:h-auto sm:aspect-square"
                     whileHover={{ scale: 1.03 }}
                     onClick={() => setLightboxIndex(i)}
                   >
                     <img
                       src={url}
                       alt=""
-                      className="w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
                     {post.user_id === user?.id && (
                       <button

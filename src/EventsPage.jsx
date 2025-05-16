@@ -45,11 +45,11 @@ export default function EventsPage() {
           </h1>
 
         <HeroLanding />
-          <SeasonalEventsGrid />
           <SportsEventsGrid />
           <ConcertEventsGrid />
           <BokEventsGrid />
           <SouthStreetEventsGrid />
+          <SeasonalEventsGrid />
         <Footer />
       </div>
     </>

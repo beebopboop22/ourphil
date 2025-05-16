@@ -1,5 +1,4 @@
 // src/HeroLanding.jsx
-
 import React, { useEffect, useState, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
@@ -18,7 +17,7 @@ export default function HeroLanding() {
   const [favCounts, setFavCounts] = useState({});
   const [busyFav, setBusyFav] = useState(false);
 
-  // parse "MM/DD/YYYY …" into a Date
+  // parse "MM/DD/YYYY …" into JS Date
   const parseDate = (datesStr) => {
     if (!datesStr) return null;
     const [first] = datesStr.split(/through|–|-/);
@@ -26,37 +25,37 @@ export default function HeroLanding() {
     return new Date(+y, +m - 1, +d);
   };
 
-  // returns { text, color, pulse } for the bubble under the name
+  // choose bubble text & style
   const getBubble = (start, isActive) => {
-    if (isActive) {
-      return { text: 'ON NOW', color: 'bg-green-500', pulse: true };
-    }
     const today = new Date();
     today.setHours(0,0,0,0);
+    if (isActive) {
+      return { text: 'Today', color: 'bg-green-500', pulse: false };
+    }
     const diff = Math.floor((start - today) / (1000 * 60 * 60 * 24));
-    const dayName = start
-      .toLocaleDateString('en-US', { weekday: 'short' })
-      .toUpperCase();
-    const prefix = diff < 7 ? 'This ' : 'Next ';
-    return { text: `${prefix}${dayName}`, color: '', pulse: false };
+    if (diff === 1) {
+      return { text: 'Tomorrow!', color: 'bg-blue-500', pulse: false };
+    }
+    const weekday = start.toLocaleDateString('en-US', { weekday: 'long' });
+    if (diff > 1 && diff < 7) {
+      return { text: `This ${weekday}!`, color: 'bg-[#ba3d36]', pulse: false };
+    }
+    if (diff >= 7 && diff < 14) {
+      return { text: `Next ${weekday}!`, color: 'bg-[#ba3d36]', pulse: false };
+    }
+    // fallback
+    return { text: weekday, color: 'bg-[#ba3d36]', pulse: false };
   };
 
-  // determine if a date is THIS weekend (Fri-Sun of this week)
+  // is date Fri–Sun this week?
   const isThisWeekend = (date) => {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const dayOfWeek = today.getDay(); // 0=Sun,1=Mon...6=Sat
-    // calculate this week's Friday
-    const daysToFri = (5 - dayOfWeek + 7) % 7;
-    const fri = new Date(today);
-    fri.setDate(today.getDate() + daysToFri);
-    // this week's Sunday
-    const daysToSun = (0 - dayOfWeek + 7) % 7;
-    const sun = new Date(today);
-    sun.setDate(today.getDate() + daysToSun);
-    // normalize
-    fri.setHours(0,0,0,0);
-    sun.setHours(23,59,59,999);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const dow = today.getDay();
+    const daysToFri = (5 - dow + 7) % 7;
+    const fri = new Date(today); fri.setDate(today.getDate() + daysToFri);
+    const daysToSun = (0 - dow + 7) % 7;
+    const sun = new Date(today); sun.setDate(today.getDate() + daysToSun);
+    fri.setHours(0,0,0,0); sun.setHours(23,59,59,999);
     return date >= fri && date <= sun;
   };
 
@@ -69,7 +68,7 @@ export default function HeroLanding() {
         .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
         .order('Dates', { ascending: true });
       if (error) {
-        console.error(error);
+        console.error('Error loading events:', error);
         setLoading(false);
         return;
       }
@@ -77,13 +76,20 @@ export default function HeroLanding() {
         .map(e => {
           const start = parseDate(e.Dates);
           const end = e['End Date'] ? parseDate(e['End Date']) : start;
-          return { ...e, start, end, isActive: start <= today && today <= end };
+          return { 
+            ...e,
+            start,
+            end,
+            isActive: start <= today && today <= end
+          };
         })
         .filter(e => e.end >= today)
-        .sort((a,b) => a.isActive === b.isActive
-          ? a.start - b.start
-          : (a.isActive ? -1 : 1))
-        .slice(0,15);
+        .sort((a,b) =>
+          a.isActive === b.isActive
+            ? a.start - b.start
+            : a.isActive ? -1 : 1
+        )
+        .slice(0, 15);
       setEvents(enhanced);
       setLoading(false);
     })();
@@ -99,12 +105,14 @@ export default function HeroLanding() {
         .select('event_id')
         .in('event_id', ids);
       const counts = {};
-      data.forEach(r => counts[r.event_id] = (counts[r.event_id]||0) + 1);
+      data.forEach(r => {
+        counts[r.event_id] = (counts[r.event_id] || 0) + 1;
+      });
       setFavCounts(counts);
     })();
   }, [events]);
 
-  // load user favorites
+  // load my favorites
   useEffect(() => {
     if (!user) {
       setFavMap({});
@@ -113,7 +121,7 @@ export default function HeroLanding() {
     getMyEventFavorites()
       .then(rows => {
         const map = {};
-        rows.forEach(r => map[r.event_id] = r.id);
+        rows.forEach(r => { map[r.event_id] = r.id });
         setFavMap(map);
       })
       .catch(console.error);
@@ -126,7 +134,7 @@ export default function HeroLanding() {
     setBusyFav(true);
     if (favMap[id]) {
       await removeEventFavorite(favMap[id]);
-      setFavMap(m => { const c = {...m}; delete c[id]; return c; });
+      setFavMap(m => { const c = { ...m }; delete c[id]; return c; });
       setFavCounts(c => ({ ...c, [id]: (c[id]||1) - 1 }));
     } else {
       const { id: newId } = await addEventFavorite(id);
@@ -138,7 +146,7 @@ export default function HeroLanding() {
 
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
-      {/* Background graphic */}
+      {/* background graphic */}
       <img
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-1%20copy-min.png"
         alt=""
@@ -147,10 +155,15 @@ export default function HeroLanding() {
 
       <div className="relative max-w-screen-xl mx-auto z-20">
         <h2 className="text-4xl font-[Barrio] font-bold text-gray-700 mb-2">
-          THIS WEEK & SOON
+          Can&apos;t-Miss Events
         </h2>
         <p className="text-gray-600 mb-6">
-          POPULAR TRADITIONS & ANNUAL EVENTS
+          <Link
+            to="/upcoming-events"
+            className="underline hover:text-indigo-600 transition"
+          >
+            Concerts, sports, classes — more events
+          </Link>
         </p>
 
         {loading ? (
@@ -164,7 +177,8 @@ export default function HeroLanding() {
                 const { text, color, pulse } = getBubble(evt.start, evt.isActive);
                 const count = favCounts[evt.id] || 0;
                 const isFav = Boolean(favMap[evt.id]);
-                const showWeekendBadge = isThisWeekend(evt.start) && [5,6,0].includes(evt.start.getDay());
+                const showWeekendBadge =
+                  isThisWeekend(evt.start) && [5, 6, 0].includes(evt.start.getDay());
 
                 return (
                   <Link
@@ -181,7 +195,7 @@ export default function HeroLanding() {
                     {/* gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
 
-                    {/* Weekend Pick badge only if this weekend */}
+                    {/* Weekend Pick badge back at top-left */}
                     {showWeekendBadge && (
                       <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full z-20">
                         Weekend Pick
@@ -208,26 +222,16 @@ export default function HeroLanding() {
                       {evt['E Name']}
                     </h3>
 
-                    {/* bubble under name */}
-                    {evt.isActive ? (
-                      <span
-                        className={`
-                          absolute bottom-6 left-1/2 transform -translate-x-1/2
-                          bg-green-500 text-white text-base font-bold px-4 py-1 rounded-full animate-pulse z-20
-                        `}
+                    <span
+                      className={`
+                      absolute bottom-6 left-1/2 transform -translate-x-1/2
+                      ${color} text-white text-base font-bold px-6 py-1 rounded-full
+                      whitespace-nowrap min-w-[6rem]
+                      ${pulse ? 'animate-pulse' : ''} z-20
+                      `}
                       >
-                        ON NOW
+                      {text}
                       </span>
-                    ) : (
-                      <span
-                        className={`
-                          absolute bottom-6 left-1/2 transform -translate-x-1/2
-                          bg-[#ba3d36] text-white text-base font-bold px-4 py-1 rounded-full z-20
-                        `}
-                      >
-                        {text}
-                      </span>
-                    )}
                   </Link>
                 );
               })}

@@ -1,3 +1,4 @@
+// src/SportsEventsGrid.jsx
 import React, { useEffect, useState } from 'react';
 
 const teamSlugs = [
@@ -8,15 +9,14 @@ const teamSlugs = [
   'philadelphia-union',
 ];
 
-const SportsEventsGrid = () => {
+export default function SportsEventsGrid() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    (async () => {
       try {
         let allEvents = [];
-
         for (const slug of teamSlugs) {
           const res = await fetch(
             `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
@@ -24,39 +24,36 @@ const SportsEventsGrid = () => {
           const data = await res.json();
           allEvents.push(...(data.events || []));
         }
-
         allEvents.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
-
         setEvents(allEvents);
-      } catch (error) {
-        console.error('Error fetching events:', error);
+      } catch (err) {
+        console.error('Error fetching events:', err);
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchEvents();
+    })();
   }, []);
 
-  // Utility function to get the display label for the event day
-  const getDisplayDay = (eventDate) => {
+  // Utility: diff in days (floor)
+  const dayDiff = (eventDate) => {
     const today = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(today.getDate() + 1);
+    today.setHours(0,0,0,0);
+    const diffMs = eventDate - today;
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  };
 
-    // Normalize the times by comparing year, month, and date only.
-    const isSameDay = (d1, d2) =>
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate();
+  // Display label
+  const getDisplayDay = (eventDate) => {
+    const diff = dayDiff(eventDate);
+    if (diff === 0) return 'TODAY';
+    if (diff === 1) return 'TOMORROW';
 
-    if (isSameDay(eventDate, today)) {
-      return 'TODAY';
-    } else if (isSameDay(eventDate, tomorrow)) {
-      return 'TOMORROW';
-    } else {
-      return eventDate.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-    }
+    const weekday = eventDate
+      .toLocaleDateString('en-US', { weekday: 'long' })
+      .toUpperCase();
+
+    const prefix = diff > 1 && diff < 7 ? 'THIS' : 'NEXT';
+    return `${prefix} ${weekday}`; // non-breaking space
   };
 
   return (
@@ -67,50 +64,65 @@ const SportsEventsGrid = () => {
       </p>
 
       {loading ? (
-        <p>Loading events...</p>
+        <p>Loading events…</p>
       ) : (
         <div className="overflow-x-auto scrollbar-hide">
           <div className="flex gap-6 pb-4">
-            {events.map((event) => {
-              const eventDate = new Date(event.datetime_local);
+            {events.map(evt => {
+              const eventDate  = new Date(evt.datetime_local);
+              const diff       = dayDiff(eventDate);
               const displayDay = getDisplayDay(eventDate);
+
+              // badge color logic
+              const bgColor =
+                diff === 0 ? 'bg-green-500' :
+                diff === 1 ? 'bg-blue-500' :
+                'bg-gray-500';
 
               return (
                 <a
-                  key={event.id}
-                  href={event.url}
+                  key={evt.id}
+                  href={evt.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="relative min-w-[360px] max-w-[360px] bg-white rounded-2xl shadow-lg hover:shadow-xl transition-transform hover:scale-105 overflow-hidden flex flex-col"
                 >
                   <div className="relative">
                     <img
-                      src={event.performers?.[0]?.image || 'https://via.placeholder.com/400'}
-                      alt={event.short_title}
+                      src={evt.performers?.[0]?.image || 'https://via.placeholder.com/400'}
+                      alt={evt.short_title}
                       className="w-full h-56 object-cover"
                     />
-                    <div className="absolute top-2 left-2 bg-black text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md">
+
+                    {/* Day badge */}
+                    <div
+                      className={`
+                        absolute top-2 left-2 text-white text-sm font-bold
+                        px-3 py-0.5 rounded-full whitespace-nowrap shadow-md z-10
+                        ${bgColor}
+                      `}
+                    >
                       {displayDay}
                     </div>
                   </div>
 
                   <div className="p-5 flex flex-col justify-between flex-grow">
                     <h3 className="text-lg font-bold text-indigo-800 mb-2 line-clamp-2">
-                      {event.short_title}
+                      {evt.short_title}
                     </h3>
                     <p className="text-sm text-gray-500">
                       📅 {eventDate.toLocaleDateString('en-US', {
                         month: 'short',
-                        day: 'numeric',
+                        day:   'numeric',
                       })}
                     </p>
-                    {event.stats?.lowest_price && (
+                    {evt.stats?.lowest_price && (
                       <p className="text-sm text-yellow-600 font-semibold mt-2">
-                        🎟️ From ${event.stats.lowest_price}
+                        🎟️ From ${evt.stats.lowest_price}
                       </p>
                     )}
                     <p className="text-sm text-gray-500 mt-1">
-                      📍 {event.venue?.name}, {event.venue?.city}
+                      📍 {evt.venue?.name}, {evt.venue?.city}
                     </p>
                   </div>
                 </a>
@@ -121,8 +133,4 @@ const SportsEventsGrid = () => {
       )}
     </div>
   );
-};
-
-export default SportsEventsGrid;
-
-
+}
