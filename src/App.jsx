@@ -157,13 +157,7 @@ function App() {
               <Link to="/groups" className="hover:underline">
                 Groups
               </Link>
-
-              <span className="mx-2 text-gray-400">•</span>
-
-              {/* Voicemail */}
-              <Link to="/voicemail" className="hover:underline">
-                Voicemail
-              </Link>
+          
             </nav>
           </div>
     

@@ -155,7 +155,7 @@ export default function HeroLanding() {
 
       <div className="relative max-w-screen-xl mx-auto z-20">
         <h2 className="text-4xl font-[Barrio] font-bold text-gray-700 mb-2">
-          Can&apos;t-Miss Events
+          Featured Events
         </h2>
         <p className="text-gray-600 mb-6">
           <Link
@@ -218,9 +218,9 @@ export default function HeroLanding() {
                     )}
 
                     {/* event name */}
-                    <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
+                    <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-[Barrio] font-bold z-20 leading-tight">
                       {evt['E Name']}
-                    </h3>
+                     </h3>
 
                     <span
                       className={`
