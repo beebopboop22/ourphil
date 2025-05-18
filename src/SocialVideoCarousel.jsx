@@ -1,15 +1,26 @@
 // src/SocialVideoCarousel.jsx
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from './supabaseClient'
-import { Link } from 'react-router-dom'
 import Navbar from './Navbar'
+import { Link } from 'react-router-dom'
+
+const teamSlugs = [
+  'philadelphia-phillies',
+  'philadelphia-76ers',
+  'philadelphia-eagles',
+  'philadelphia-flyers',
+  'philadelphia-union',
+]
 
 export default function SocialVideoCarousel() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
-  const [current, setCurrent] = useState(0)
+  const [sportsSummary, setSportsSummary] = useState('')
+  const [loadingSports, setLoadingSports] = useState(true)
+  const containerRef = useRef(null)
+  const [currentIndex, setCurrentIndex] = useState(0)
 
-  // parse "MM/DD/YYYY …" into JS Date
+  // ─── Helpers ──────────────────────────────────────────────────────────────
   const parseDate = (datesStr) => {
     if (!datesStr) return null
     const [first] = datesStr.split(/through|–|-/)
@@ -17,18 +28,27 @@ export default function SocialVideoCarousel() {
     return new Date(+y, +m - 1, +d)
   }
 
-  // choose bubble text & style
   const getBubble = (start, isActive) => {
     const today = new Date(); today.setHours(0,0,0,0)
-    if (isActive) return { text: 'Today', color: 'bg-green-500' }
+    if (isActive)   return { text: 'Today',     color: 'bg-green-500', pulse: false }
     const diff = Math.floor((start - today)/(1000*60*60*24))
-    if (diff === 1) return { text: 'Tomorrow!', color: 'bg-blue-500' }
-    const weekday = start.toLocaleDateString('en-US',{ weekday:'long' })
-    if (diff>1 && diff<7) return { text:`This ${weekday}!`, color:'bg-[#ba3d36]' }
-    if (diff>=7 && diff<14) return { text:`Next ${weekday}!`, color:'bg-[#ba3d36]' }
-    return { text: weekday, color:'bg-[#ba3d36]' }
+    if (diff === 1) return { text: 'Tomorrow!', color: 'bg-blue-500',  pulse: false }
+    const wd = start.toLocaleDateString('en-US',{ weekday:'long' })
+    if (diff>1 && diff<7)   return { text:`This ${wd}!`, color:'bg-[#ba3d36]', pulse:false }
+    if (diff>=7 && diff<14) return { text:`Next ${wd}!`, color:'bg-[#ba3d36]', pulse:false }
+    return { text:wd, color:'bg-[#ba3d36]', pulse:false }
   }
 
+  const isThisWeekend = (date) => {
+    const t = new Date(); t.setHours(0,0,0,0)
+    const d = t.getDay()
+    const fri = new Date(t); fri.setDate(t.getDate()+((5-d+7)%7))
+    const sun = new Date(t); sun.setDate(t.getDate()+((0-d+7)%7))
+    fri.setHours(0,0,0,0); sun.setHours(23,59,59,999)
+    return date>=fri && date<=sun
+  }
+
+  // ─── Load & Prep Events ───────────────────────────────────────────────────
   useEffect(() => {
     ;(async () => {
       const today = new Date(); today.setHours(0,0,0,0)
@@ -44,78 +64,142 @@ export default function SocialVideoCarousel() {
       const enhanced = data
         .map(e => {
           const start = parseDate(e.Dates)
-          const end = e['End Date'] ? parseDate(e['End Date']) : start
+          const end   = e['End Date'] ? parseDate(e['End Date']) : start
           return { ...e, start, end, isActive: start<=today && today<=end }
         })
         .filter(e => e.end >= today)
-        .sort((a,b)=> a.isActive===b.isActive 
-          ? a.start-b.start 
-          : a.isActive ? -1 : 1
+        .sort((a,b) =>
+          a.isActive === b.isActive
+            ? a.start - b.start
+            : a.isActive ? -1 : 1
         )
-        .slice(0,15)
+        .slice(0,12)
       setEvents(enhanced)
       setLoading(false)
     })()
   }, [])
 
+  // ─── Load Sports Summary ──────────────────────────────────────────────────
+  useEffect(() => {
+    ;(async () => {
+      try {
+        let all = []
+        for (const slug of teamSlugs) {
+          const res = await fetch(
+            `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+          )
+          const json = await res.json()
+          all.push(...(json.events||[]))
+        }
+        const today = new Date(); today.setHours(0,0,0,0)
+        const gamesToday = all
+          .filter(e => {
+            const d = new Date(e.datetime_local)
+            d.setHours(0,0,0,0)
+            return d.getTime()===today.getTime()
+          })
+          .map(e => {
+            const perf = e.performers[0]?.name || ''
+            const team = perf.replace(/^Philadelphia\s+/,'')
+            const hour = new Date(e.datetime_local)
+              .toLocaleTimeString('en-US',{ hour:'numeric',hour12:true })
+            return `${team} home at ${hour}`
+          })
+        setSportsSummary(gamesToday.join(', '))
+      } catch (err) {
+        console.error(err)
+      }
+      setLoadingSports(false)
+    })()
+  }, [])
+
+  // ─── Auto-scroll every 2s ─────────────────────────────────────────────────
   useEffect(() => {
     if (!events.length) return
     const iv = setInterval(() => {
-      setCurrent(i => (i + 1) % events.length)
-    }, 1500)
+      setCurrentIndex(i => (i+1)%events.length)
+    }, 1750)
     return () => clearInterval(iv)
   }, [events])
 
-  if (loading) return <div className="flex items-center justify-center h-screen">Loading…</div>
-  if (!events.length) return <div className="flex items-center justify-center h-screen">No upcoming events.</div>
+  // ─── Scroll on index change ────────────────────────────────────────────────
+  useEffect(() => {
+    const el = containerRef.current
+    if (el) {
+      const w = el.clientWidth
+      el.scrollTo({ left: currentIndex*w, behavior:'smooth' })
+    }
+  }, [currentIndex])
 
-  const evt = events[current]
-  const bubble = getBubble(evt.start, evt.isActive)
-
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-50">
+    <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      {/* push below navbar (assumes Navbar height ~5rem) */}
-      <div className="pt-20 flex-grow flex items-center justify-center p-4">
-        <Link
-          to={`/events/${evt.slug}`}
-          className="relative w-full max-w-sm h-[70vh] rounded-2xl overflow-hidden shadow-lg"
-        >
-          <img
-            src={evt['E Image']}
-            alt={evt['E Name']}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+      {/* ── Sports Bar ── */}
+      {!loadingSports && sportsSummary && (
+        <div className="bg-[#bf3d35] text-white text-sm py-2 px-4 text-center z-10 mt-20">
+          today: {sportsSummary}
+        </div>
+      )}
 
-          <span
-            className={`
-              ${bubble.color}
-              absolute top-10 left-1/2 transform -translate-x-1/2 text-white text-base font-bold
-              px-4 py-1 rounded-full z-20 text-3xl
-            `}
-          >
-            {bubble.text}
-          </span>
+      {/* 112px = nav + bottom bar */}
+      <div className=" h-[calc(90vh-112px)] overflow-hidden">
+        {loading ? (
+          <p className="text-center py-20">Loading…</p>
+        ) : (
+          <div ref={containerRef} className="flex w-full h-full overflow-hidden">
+            {events.map(evt => {
+              const { text, color, pulse } = getBubble(evt.start,evt.isActive)
+              const weekend = isThisWeekend(evt.start)
+              return (
+                <Link
+                  key={evt.id}
+                  to={`/events/${evt.slug}`}
+                  className="relative w-full flex-shrink-0"
+                >
+                  {/* cover */}
+                  <img
+                    src={evt['E Image']}
+                    alt={evt['E Name']}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
 
-          <p className="absolute text-5xl bottom-16 left-4 right-4 text-center text-white text-3xl font-[Barrio] font-bold z-20 leading-tight">
-            {evt['E Name']}
-          </p>
+                  {/* weekend badge */}
+                  {weekend && (
+                    <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full z-20">
+                      Weekend Pick
+                    </span>
+                  )}
 
-          <p className="absolute bottom-6 left-4 text-white text-sm z-20">
-            {new Date(evt.Dates.split(/through|–|-/)[0].trim()).toLocaleDateString('en-US',{
-              month:'long',day:'numeric'
+                  {/* title */}
+                  <h3 className="absolute bottom-24 left-4 right-4 text-center text-white text-5xl font-[Barrio] font-bold z-20 leading-tight">
+                    {evt['E Name']}
+                  </h3>
+
+                  {/* bubble */}
+                  <span
+                    className={`
+                      absolute bottom-12 left-1/2 transform -translate-x-1/2
+                      ${color} text-white text-lg font-bold
+                      px-4 py-1 rounded-full whitespace-nowrap
+                      ${pulse?'animate-pulse':''}
+                      z-20
+                    `}
+                  >
+                    {text}
+                  </span>
+                </Link>
+              )
             })}
-          </p>
-        </Link>
+          </div>
+        )}
       </div>
 
-      {/* bottom bar */}
-      <div className="w-full bg-[#28313e]">
-        <p className="text-center py-3 text-white font-[Barrio] text-3xl">
-          Dig Into Philly
-        </p>
+      {/* ── Bottom Bar ── */}
+      <div className="bg-[#28313e] pb-10 text-white py-3 text-center font-[Barrio] text-lg">
+        Dig Into Philly
       </div>
     </div>
   )
