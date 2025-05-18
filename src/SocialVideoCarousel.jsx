@@ -144,7 +144,7 @@ export default function SocialVideoCarousel() {
       )}
 
       {/* 112px = nav + bottom bar */}
-      <div className=" h-[calc(90vh-112px)] overflow-hidden">
+      <div className=" h-[calc(80vh-112px)] overflow-hidden">
         {loading ? (
           <p className="text-center py-20">Loading…</p>
         ) : (
@@ -198,7 +198,7 @@ export default function SocialVideoCarousel() {
       </div>
 
       {/* ── Bottom Bar ── */}
-      <div className="bg-[#28313e] pb-10 text-white py-3 text-center font-[Barrio] text-lg">
+      <div className="bg-[#28313e] text-white py-3 text-center font-[Barrio] text-lg">
         Dig Into Philly
       </div>
     </div>
