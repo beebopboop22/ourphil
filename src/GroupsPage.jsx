@@ -8,6 +8,7 @@ import GroupsHeroSearch from './GroupsHeroSearch';
 import GroupsList from './GroupsList';
 import GroupProgressBar from './GroupProgressBar';
 import Footer from './Footer';
+import GroupsPageHero from './GroupsPageHero';
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState([]);
@@ -63,6 +64,7 @@ export default function GroupsPage() {
 
       <div className="min-h-screen bg-white-50 pt-20">
         <Navbar />
+        <GroupsPageHero />
         <GroupProgressBar />
 
         <div className="max-w-screen-full mx-auto px-4">
