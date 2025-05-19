@@ -27,7 +27,6 @@ export default function SocialVideoCarousel() {
     const [m, d, y] = first.trim().split('/')
     return new Date(+y, +m - 1, +d)
   }
-
   const getBubble = (start, isActive) => {
     const today = new Date(); today.setHours(0,0,0,0)
     if (isActive)   return { text: 'Today',     color: 'bg-green-500', pulse: false }
@@ -38,7 +37,6 @@ export default function SocialVideoCarousel() {
     if (diff>=7 && diff<14) return { text:`Next ${wd}!`, color:'bg-[#ba3d36]', pulse:false }
     return { text:wd, color:'bg-[#ba3d36]', pulse:false }
   }
-
   const isThisWeekend = (date) => {
     const t = new Date(); t.setHours(0,0,0,0)
     const d = t.getDay()
@@ -99,11 +97,14 @@ export default function SocialVideoCarousel() {
             return d.getTime()===today.getTime()
           })
           .map(e => {
-            const perf = e.performers[0]?.name || ''
-            const team = perf.replace(/^Philadelphia\s+/,'')
+            // find Philly performer vs opponent
+            const local = e.performers.find(p => p.name.startsWith('Philadelphia '))
+            const opp   = e.performers.find(p => p !== local)
+            const team     = local?.name.replace(/^Philadelphia\s+/, '')  || ''
+            const opponent = opp?.name.replace(/^Philadelphia\s+/, '')  || ''
             const hour = new Date(e.datetime_local)
-              .toLocaleTimeString('en-US',{ hour:'numeric',hour12:true })
-            return `${team} home at ${hour}`
+              .toLocaleTimeString('en-US',{ hour:'numeric',minute:'numeric',hour12:true })
+            return `${team} at ${opponent} at ${hour}`
           })
         setSportsSummary(gamesToday.join(', '))
       } catch (err) {
@@ -113,7 +114,7 @@ export default function SocialVideoCarousel() {
     })()
   }, [])
 
-  // ─── Auto-scroll every 2s ─────────────────────────────────────────────────
+  // ─── Auto‐scroll every 1.75s ───────────────────────────────────────────────
   useEffect(() => {
     if (!events.length) return
     const iv = setInterval(() => {
@@ -131,7 +132,6 @@ export default function SocialVideoCarousel() {
     }
   }, [currentIndex])
 
-  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -139,12 +139,12 @@ export default function SocialVideoCarousel() {
       {/* ── Sports Bar ── */}
       {!loadingSports && sportsSummary && (
         <div className="bg-[#bf3d35] text-white text-sm py-2 px-4 text-center z-10 mt-20">
-          today: {sportsSummary}
-        </div>
+        <span className="font-[Barrio] font-bold">TONIGHT</span> {sportsSummary}
+      </div>
       )}
 
-      {/* 112px = nav + bottom bar */}
-      <div className=" h-[calc(80vh-112px)] overflow-hidden">
+      {/* ── Carousel ── */}
+      <div className="h-[calc(80vh-112px)] overflow-hidden">
         {loading ? (
           <p className="text-center py-20">Loading…</p>
         ) : (
@@ -197,9 +197,16 @@ export default function SocialVideoCarousel() {
         )}
       </div>
 
-      {/* ── Bottom Bar ── */}
-      <div className="bg-[#28313e] text-white py-3 text-center font-[Barrio] text-lg">
-        Dig Into Philly
+      {/* ── Bottom Bar + Heart ── */}
+      <div className="relative">
+        <div className="bg-[#28313e] text-white py-3 text-center font-[Barrio] text-2xl">
+          Dig Into Philly
+        </div>
+        <img
+          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-2.png"
+          alt="heart"
+          className="absolute bottom-0 right-3/4 w-1/3 translate-y-[55%]"
+        />
       </div>
     </div>
   )
