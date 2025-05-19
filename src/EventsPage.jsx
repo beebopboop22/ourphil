@@ -2,6 +2,7 @@
 import React from 'react';
 import { Helmet } from 'react-helmet';
 import Navbar from './Navbar';
+import SocialVideoCarousel from './SocialVideoCarousel';  // ← our scrolling bar + red sports bar
 import HeroLanding from './HeroLanding';
 import EventsGrid from './EventsGrid';
 import BokEventsGrid from './BokEventsGrid';
@@ -10,6 +11,7 @@ import SportsEventsGrid from './SportsEventsGrid';
 import ConcertEventsGrid from './ConcertEventsGrid';
 import Footer from './Footer';
 import SouthStreetEventsGrid from './SouthStreetEventsGrid';
+import EventsPageHero from './EventsPageHero';
 
 export default function EventsPage() {
   return (
@@ -36,20 +38,23 @@ export default function EventsPage() {
         <meta name="twitter:card" content="summary_large_image" />
       </Helmet>
 
-      <div className="min-h-screen flex flex-col pt-20  overflow-x-hidden">
-       
+      <div className="min-h-screen flex flex-col pt-20 overflow-x-hidden">
         <Navbar />
+         {/* full-width hero carousel + sports bar */}
+       <EventsPageHero />
+
+     
 
         <h1 className="text-5xl mt-12 bg-white sm:text-6xl md:text-8xl font-[Barrio] font-black text-black text-center">
-            TO DO THIS WEEK
-          </h1>
+          COMING UP
+        </h1>
 
         <HeroLanding />
-          <SportsEventsGrid />
-          <ConcertEventsGrid />
-          <BokEventsGrid />
-          <SouthStreetEventsGrid />
-          <SeasonalEventsGrid />
+        <SportsEventsGrid />
+        <ConcertEventsGrid />
+        <BokEventsGrid />
+        <SouthStreetEventsGrid />
+        <SeasonalEventsGrid />
         <Footer />
       </div>
     </>
