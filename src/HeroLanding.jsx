@@ -59,7 +59,7 @@ export default function HeroLanding() {
       const enhanced = data
         .map(e => {
           const start = parseDate(e.Dates);
-          const end = e['End Date'] ? parseDate(e['End Date']) : start;
+          const end   = e['End Date'] ? parseDate(e['End Date']) : start;
           return {
             ...e,
             start,
@@ -132,8 +132,9 @@ export default function HeroLanding() {
       />
 
       <div className="relative max-w-screen-xl mx-auto z-20">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-4xl font-[Barrio] font-bold text-gray-700">
+        {/* inline header + button */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl sm:text-4xl font-[Barrio] font-bold text-gray-700">
             Featured Events
           </h2>
           <Link

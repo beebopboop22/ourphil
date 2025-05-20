@@ -76,7 +76,7 @@ export default function BigBoardEventsGrid() {
     <div className="w-full max-w-screen-xl mx-auto mb-12 px-4 mt-12">
       {/* header with title + button */}
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-black text-4xl font-[Barrio]">
+        <h2 className="text-black sm:text-4xl text-2xl font-[Barrio]">
           FROM THE BIG BOARD
         </h2>
         <Link

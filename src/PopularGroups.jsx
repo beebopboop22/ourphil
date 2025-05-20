@@ -121,14 +121,14 @@ export default function PopularGroups({ isAdmin }) {
       <div className="relative max-w-screen-xl mx-auto z-10">
         {/* Header row with button */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-4xl font-[Barrio] text-left">
+          <h2 className="text-3xl font-[Barrio] text-left">
             Featured GROUPS
           </h2>
           <Link
             to="/groups"
-            className="bg-indigo-600 text-white font-bold text-lg px-4 py-2 rounded-full shadow hover:bg-indigo-700 transition"
+            className="bg-indigo-600 text-white font-bold text-sm px-4 py-2 rounded-full shadow hover:bg-indigo-700 transition"
           >
-            🔍 Explore All Groups
+            Explore Groups
           </Link>
         </div>
 
