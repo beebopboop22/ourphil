@@ -36,6 +36,8 @@ import SeasonalEventsGrid from './SeasonalEvents';
 import Bulletin from './Bulletin';
 import NewsletterBar from './NewsletterBar';
 import RecentActivity from './RecentActivity';
+import BigBoardEventsGrid from './BigBoardEventsGrid';
+
 
 
 
@@ -179,6 +181,7 @@ function App() {
         
         
         <HeroLanding />
+        <BigBoardEventsGrid />
         <RecentActivity />
         <SportsEventsGrid />
         <ConcertEventsGrid />

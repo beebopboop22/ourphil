@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react'
 import imageCompression from 'browser-image-compression'
 import { motion, AnimatePresence } from 'framer-motion'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import { supabase } from './supabaseClient'
 import { AuthContext } from './AuthProvider'
 import Navbar from './Navbar'
@@ -9,50 +11,89 @@ import Footer from './Footer'
 
 export default function BigBoardPage() {
   const { user } = useContext(AuthContext)
+
+  // ── State ────────────────────────────────────────────────────────────────
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
-  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [modalStep, setModalStep] = useState(1)
   const [selectedFile, setSelectedFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
+  const [selectedAreas, setSelectedAreas] = useState([])
+  const [title, setTitle] = useState('')
+  const [startDate, setStartDate] = useState(null)
+  const [endDate, setEndDate] = useState(null)
+  const [eventSlug, setEventSlug] = useState('')
   const [uploading, setUploading] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(null)
-  const [selectedAreas, setSelectedAreas] = useState([])
   const [selectedView, setSelectedView] = useState('All')
 
   const areasList = [
-    'South',
-    'North',
-    'West',
-    'Center City',
-    'Northeast',
-    'Northwest',
-    'River Wards'
+    'South','North','West','Center City',
+    'Northeast','Northwest','River Wards'
   ]
 
-  useEffect(() => { fetchPosts() }, [])
+  // ── Fetch posts ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchPosts()
+  }, [])
 
   async function fetchPosts() {
     setLoadingPosts(true)
     const { data, error } = await supabase
       .from('big_board_posts')
-      .select('id, image_url, user_id, created_at, Area')
+      .select(`
+        id,
+        image_url,
+        user_id,
+        created_at,
+        Area,
+        event_id,
+         big_board_events!big_board_events_post_id_fkey(
+          id, title, start_date, end_date, slug
+        )
+      `)
       .order('created_at', { ascending: false })
+
     if (error) console.error('fetchPosts error:', error)
     else setPosts(data)
+
     setLoadingPosts(false)
   }
 
-  const canPost = !!user
-
+  // ── Helpers ─────────────────────────────────────────────────────────────────
   function resolveImageUrl(val) {
     let key = val
     if (val.startsWith('http')) {
       const m = val.match(/\/public\/big-board\/(.+)$/)
       if (m) key = m[1]
-      else return val.replace(/([^:]\/)\/+/g, '$1')
+      else return val
     }
-    const { data } = supabase.storage.from('big-board').getPublicUrl(key)
-    return data.publicUrl
+    return supabase
+      .storage
+      .from('big-board')
+      .getPublicUrl(key)
+      .data.publicUrl
+  }
+
+  function slugify(text) {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g,'-')
+      .replace(/(^-|-$)/g,'')
+  }
+
+  function resetModal() {
+    setShowModal(false)
+    setModalStep(1)
+    setSelectedFile(null)
+    setPreviewUrl('')
+    setSelectedAreas([])
+    setTitle('')
+    setStartDate(null)
+    setEndDate(null)
+    setEventSlug('')
+    setUploading(false)
   }
 
   function handleFileChange(e) {
@@ -62,69 +103,114 @@ export default function BigBoardPage() {
     setPreviewUrl(URL.createObjectURL(file))
   }
 
-  async function handleUpload() {
-    if (!selectedFile || !user) return
+  // ── Step 2: post only ───────────────────────────────────────────────────────
+  async function uploadPostOnly() {
     setUploading(true)
     try {
-      const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true }
+      const options = { maxSizeMB:0.5, maxWidthOrHeight:1024, useWebWorker:true }
       const compressed = await imageCompression(selectedFile, options)
-      const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi, '_').toLowerCase()
+      const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi,'_').toLowerCase()
       const key = `${user.id}-${Date.now()}-${cleanName}`
-      const { error: upErr } = await supabase.storage.from('big-board').upload(key, compressed)
-      if (upErr) throw upErr
+      await supabase.storage.from('big-board').upload(key, compressed)
 
-      const areaCsv = selectedAreas.join(',') || ''
-      const { error: insErr } = await supabase
+      await supabase
         .from('big_board_posts')
-        .insert({ user_id: user.id, image_url: key, Area: areaCsv })
-      if (insErr) throw insErr
+        .insert({
+          user_id:   user.id,
+          image_url: key,
+          Area:      selectedAreas.join(',') || ''
+        })
 
       await fetchPosts()
-      setShowUploadModal(false)
-      setSelectedFile(null)
-      setPreviewUrl('')
-      setSelectedAreas([])
+      resetModal()
     } catch (err) {
-      console.error('Upload error:', err)
+      console.error(err)
       alert(err.message)
+      setUploading(false)
     }
-    setUploading(false)
   }
 
-  async function handleDelete(post) {
-    if (!user || post.user_id !== user.id) return
-    if (!window.confirm('Delete this post?')) return
-    await supabase.from('big_board_posts').delete().eq('id', post.id)
-    await supabase.storage.from('big-board').remove([post.image_url])
-    setPosts(ps => ps.filter(p => p.id !== post.id))
-    setLightboxIndex(null)
+  // ── Step 3: post + event ────────────────────────────────────────────────────
+  async function uploadWithEvent() {
+    setUploading(true)
+    try {
+      // 1) compress & upload image
+      const options = { maxSizeMB:0.5, maxWidthOrHeight:1024, useWebWorker:true }
+      const compressed = await imageCompression(selectedFile, options)
+      const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi,'_').toLowerCase()
+      const key = `${user.id}-${Date.now()}-${cleanName}`
+      await supabase.storage.from('big-board').upload(key, compressed)
+
+      // 2) insert post & grab its id
+      let { data: postData } = await supabase
+        .from('big_board_posts')
+        .insert({
+          user_id:   user.id,
+          image_url: key,
+          Area:      selectedAreas.join(',') || ''
+        })
+        .select('id')
+      const postId = postData[0].id
+
+      // 3) insert event
+      const slug = `${slugify(title)}-${Date.now()}`
+      let { data: evData } = await supabase
+        .from('big_board_events')
+        .insert({
+          post_id:    postId,
+          title,
+          start_date: startDate.toISOString().split('T')[0],
+          end_date:   endDate.toISOString().split('T')[0],
+          slug
+        })
+        .select('id')
+      const evId = evData[0].id
+
+      // 4) link post → event
+      await supabase
+        .from('big_board_posts')
+        .update({ event_id: evId })
+        .eq('id', postId)
+
+      setEventSlug(slug)
+      await fetchPosts()
+      setModalStep(4)
+    } catch (err) {
+      console.error(err)
+      alert(err.message)
+      setUploading(false)
+    }
   }
 
+  // ── Filtered posts ─────────────────────────────────────────────────────────
   const displayedPosts = useMemo(() => {
     if (selectedView === 'All') return posts
     return posts.filter(p => {
-      const arr = p.Area?.split(',').map(a => a.trim()) || []
+      const arr = p.Area?.split(',').map(a=>a.trim()) || []
       return arr.includes(selectedView)
     })
   }, [posts, selectedView])
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
       <main className="flex-grow bg-gray-50 pt-20 mt-20 pb-20">
-        <div className="w-full px-0 sm:px-4">
+        <div className="max-w-6xl mx-auto px-4">
           <h1 className="font-[Barrio] text-6xl text-center">THE BIG BOARD</h1>
-          <h3 className="text-center text-gray-700 mb-8">Like one big café bulletin board</h3>
+          <h3 className="text-center text-gray-700 mb-8">
+            Like one big café bulletin board
+          </h3>
 
-          {/* filters + new post button */}
+          {/* area filters */}
           <div className="flex flex-wrap justify-center gap-2 mb-6">
-            {['All', ...areasList].map(area => (
+            {['All', ...areasList].map(area=>(
               <button
                 key={area}
-                onClick={() => setSelectedView(area)}
+                onClick={()=>setSelectedView(area)}
                 className={`px-4 py-2 rounded ${
-                  selectedView === area
+                  selectedView===area
                     ? 'bg-indigo-600 text-white'
                     : 'bg-white text-gray-700 shadow'
                 }`}
@@ -134,45 +220,74 @@ export default function BigBoardPage() {
             ))}
           </div>
 
+          {/* add post btn */}
           <div className="flex justify-center mb-6">
-            {canPost ? (
+            {user ? (
               <button
-                onClick={() => setShowUploadModal(true)}
+                onClick={()=>setShowModal(true)}
                 className="bg-indigo-600 text-white px-6 py-3 rounded shadow hover:bg-indigo-700"
               >
-                New Post
+                Add a post
               </button>
             ) : (
               <p className="text-gray-600">Log in to post</p>
             )}
           </div>
 
-          {/* grid: 1 col on mobile, auto‐fill on desktop */}
+          {/* grid */}
           {loadingPosts ? (
             <p className="text-center">Loading…</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {displayedPosts.map((post, i) => {
+              {displayedPosts.map((post,i)=>{
                 const url = resolveImageUrl(post.image_url)
+                // pick off the nested event if present
+                const ev = post.big_board_events?.[0]
+
                 return (
                   <motion.div
                     key={post.id}
-                    className="relative overflow-hidden shadow-lg rounded-lg cursor-pointer w-full h-72 sm:h-auto sm:aspect-square"
-                    whileHover={{ scale: 1.03 }}
-                    onClick={() => setLightboxIndex(i)}
+                    className="relative overflow-hidden shadow-lg rounded-lg cursor-pointer w-full h-72 sm:aspect-square"
+                    whileHover={{ scale:1.03 }}
+                    onClick={()=>setLightboxIndex(i)}
                   >
+                    {/* calendar + View Event */}
+                    {ev?.slug && (
+                      <>
+                        <div className="absolute top-2 left-2 text-2xl z-20">
+                          📅
+                        </div>
+                        <a
+                          href={`https://ourphilly.org/big-board/${ev.slug}`}
+                          className="absolute bottom-2 left-2
+                                     bg-white bg-opacity-80 text-indigo-600
+                                     text-sm px-2 py-1 rounded z-20"
+                        >
+                          View Event
+                        </a>
+                      </>
+                    )}
+
+                    {/* the flyer image */}
                     <img
                       src={url}
                       alt=""
                       className="absolute inset-0 w-full h-full object-cover"
                     />
-                    {post.user_id === user?.id && (
+
+                    {/* delete button */}
+                    {post.user_id===user?.id && (
                       <button
-                        onClick={e => {
+                        onClick={e=>{
                           e.stopPropagation()
-                          handleDelete(post)
+                          if(!confirm('Delete this post?')) return
+                          supabase
+                            .from('big_board_posts').delete().eq('id',post.id)
+                            .then(()=>supabase.storage.from('big-board').remove([post.image_url]))
+                            .then(fetchPosts)
+                            .catch(console.error)
                         }}
-                        className="absolute top-1 right-1 bg-white/80 p-1 rounded-full hover:bg-red-100"
+                        className="absolute top-1 right-1 bg-white/80 p-1 rounded-full hover:bg-red-100 z-20"
                       >
                         🗑️
                       </button>
@@ -185,127 +300,167 @@ export default function BigBoardPage() {
         </div>
       </main>
 
-      {/* upload modal */}
+      {/* ── Multi-step Modal ─────────────────────────────────────────────── */}
       <AnimatePresence>
-        {showUploadModal && (
+        {showModal && (
           <motion.div
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
           >
             <motion.div
-              className="bg-white rounded-lg p-6 w-full max-w-md"
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
+              className="bg-white rounded-lg p-6 w-full max-w-md relative"
+              initial={{scale:0.8}} animate={{scale:1}} exit={{scale:0.8}}
             >
-              {/* modal title */}
-              <h2 className="font-[Barrio] text-2xl text-center mb-4">
-                New Board Post
-              </h2>
+              {/* close */}
+              <button
+                onClick={resetModal}
+                className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
 
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="mb-4 w-full"
-              />
-
-              {/* area multiselect */}
-              <div className="mb-4">
-                <label className="block mb-1 font-medium">
-                  Area(s) <span className="text-sm text-gray-500">(optional; defaults to All)</span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {areasList.map(area => (
-                    <label key={area} className="flex items-center space-x-1">
-                      <input
-                        type="checkbox"
-                        value={area}
-                        checked={selectedAreas.includes(area)}
-                        onChange={e => {
-                          const val = e.target.value
-                          setSelectedAreas(curr =>
-                            curr.includes(val)
-                              ? curr.filter(a => a !== val)
-                              : [...curr, val]
-                          )
-                        }}
-                        className="rounded border-gray-300"
-                      />
-                      <span>{area}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {previewUrl && (
-                <img
-                  src={previewUrl}
-                  alt="preview"
-                  className="mb-4 w-full h-48 object-cover rounded"
-                />
+              {/* Step 1 */}
+              {modalStep===1 && (
+                <>
+                  <h2 className="text-xl font-bold mb-4">Add a post</h2>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="mb-4 w-full"
+                  />
+                  {previewUrl && (
+                    <img
+                      src={previewUrl}
+                      alt="preview"
+                      className="mb-4 w-full h-40 object-cover rounded"
+                    />
+                  )}
+                  <button
+                    onClick={()=>setModalStep(2)}
+                    disabled={!selectedFile}
+                    className="w-full bg-indigo-600 text-white py-2 rounded disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </>
               )}
 
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  disabled={uploading}
-                  className="px-4 py-2 rounded border"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpload}
-                  disabled={!selectedFile || uploading}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                >
-                  {uploading ? 'Uploading…' : 'Upload'}
-                </button>
-              </div>
+              {/* Step 2 */}
+              {modalStep===2 && (
+                <>
+                  <h2 className="text-xl font-bold mb-4">Create an event?</h2>
+                  {previewUrl && (
+                    <img src={previewUrl} className="mb-4 w-full h-40 object-cover rounded" />
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={uploadPostOnly}
+                      disabled={uploading}
+                      className="flex-1 bg-gray-200 py-2 rounded hover:bg-gray-300 disabled:opacity-50"
+                    >
+                      No, post now
+                    </button>
+                    <button
+                      onClick={()=>setModalStep(3)}
+                      className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700"
+                    >
+                      Yes, create event
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Step 3 */}
+              {modalStep===3 && (
+                <>
+                  <h2 className="text-xl font-bold mb-4">Event details</h2>
+                  {previewUrl && (
+                    <img src={previewUrl} className="mb-4 w-full h-40 object-cover rounded" />
+                  )}
+                  <input
+                    type="text"
+                    placeholder="Event Title"
+                    value={title}
+                    onChange={e=>setTitle(e.target.value)}
+                    className="w-full border p-2 rounded mb-4"
+                  />
+                  <div className="flex gap-2 mb-4">
+                    <DatePicker
+                      selected={startDate}
+                      onChange={setStartDate}
+                      placeholderText="Start Date"
+                      className="w-1/2 border p-2 rounded"
+                    />
+                    <DatePicker
+                      selected={endDate}
+                      onChange={setEndDate}
+                      placeholderText="End Date"
+                      className="w-1/2 border p-2 rounded"
+                    />
+                  </div>
+                  <button
+                    onClick={uploadWithEvent}
+                    disabled={uploading||!title||!startDate||!endDate}
+                    className="w-full bg-indigo-600 text-white py-2 rounded disabled:opacity-50"
+                  >
+                    Finish
+                  </button>
+                </>
+              )}
+
+              {/* Step 4 */}
+              {modalStep===4 && (
+                <>
+                  <h2 className="text-xl font-bold mb-4">Your event is live!</h2>
+                  <input
+                    readOnly
+                    value={`https://ourphilly.org/big-board/${eventSlug}`}
+                    className="w-full border p-2 rounded mb-4"
+                    onClick={e=>e.target.select()}
+                  />
+                  <button
+                    onClick={resetModal}
+                    className="w-full bg-indigo-600 text-white py-2 rounded"
+                  >
+                    Close
+                  </button>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* lightbox with prev/next */}
+      {/* ── Lightbox ───────────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {lightboxIndex != null && (
           <motion.div
             className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setLightboxIndex(null)}
+            initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            onClick={()=>setLightboxIndex(null)}
           >
             <button
-              onClick={e => {
+              onClick={e=>{
                 e.stopPropagation()
-                setLightboxIndex((lightboxIndex + displayedPosts.length - 1) % displayedPosts.length)
+                setLightboxIndex((lightboxIndex + posts.length - 1) % posts.length)
               }}
               className="absolute left-4 text-white text-3xl"
-            >
-              ‹
-            </button>
+            >‹</button>
             <motion.img
-              src={resolveImageUrl(displayedPosts[lightboxIndex].image_url)}
+              src={resolveImageUrl(posts[lightboxIndex].image_url)}
               alt=""
               className="max-w-full max-h-full rounded-lg"
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              onClick={e => e.stopPropagation()}
+              initial={{scale:0.8}} animate={{scale:1}} exit={{scale:0.8}}
+              onClick={e=>e.stopPropagation()}
             />
             <button
-              onClick={e => {
+              onClick={e=>{
                 e.stopPropagation()
-                setLightboxIndex((lightboxIndex + 1) % displayedPosts.length)
+                setLightboxIndex((lightboxIndex + 1) % posts.length)
               }}
               className="absolute right-4 text-white text-3xl"
-            >
-              ›
-            </button>
+            >›</button>
           </motion.div>
         )}
       </AnimatePresence>
