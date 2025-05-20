@@ -13,20 +13,20 @@ export default function BigBoardPage() {
   const { user } = useContext(AuthContext)
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [posts, setPosts] = useState([])
+  const [posts, setPosts]               = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
-  const [showModal, setShowModal] = useState(false)
-  const [modalStep, setModalStep] = useState(1)
+  const [showModal, setShowModal]       = useState(false)
+  const [modalStep, setModalStep]       = useState(1)
   const [selectedFile, setSelectedFile] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState('')
+  const [previewUrl, setPreviewUrl]     = useState('')
   const [selectedAreas, setSelectedAreas] = useState([])
-  const [title, setTitle] = useState('')
-  const [startDate, setStartDate] = useState(null)
-  const [endDate, setEndDate] = useState(null)
-  const [eventSlug, setEventSlug] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const [title, setTitle]               = useState('')
+  const [startDate, setStartDate]       = useState(null)
+  const [endDate, setEndDate]           = useState(null)
+  const [eventSlug, setEventSlug]       = useState('')
+  const [uploading, setUploading]       = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(null)
-  const [selectedView, setSelectedView] = useState('All')
+  const [selectedView, setSelectedView]   = useState('All')
 
   const areasList = [
     'South','North','West','Center City',
@@ -49,7 +49,7 @@ export default function BigBoardPage() {
         created_at,
         Area,
         event_id,
-         big_board_events!big_board_events_post_id_fkey(
+        big_board_events!big_board_events_post_id_fkey(
           id, title, start_date, end_date, slug
         )
       `)
@@ -196,26 +196,30 @@ export default function BigBoardPage() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-grow bg-gray-50 pt-20 mt-20 pb-20">
+      <main className="flex-grow bg-[#bf3d35] text-white pt-20 mt-20 pb-20">
         <div className="max-w-6xl mx-auto px-4">
-          <h1 className="font-[Barrio] text-6xl text-center">THE BIG BOARD</h1>
-          
+        <div className="max-w-6xl mx-auto px-4 mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center">
+  {/* heading block */}
+  <div className="text-center sm:text-left">
+    <h1 className="font-[Barrio] text-6xl">THE BIG BOARD</h1>
+    <h3 className="mt-2 text-lg">
+      Community-submitted fliers & events
+    </h3>
+  </div>
 
-          
-
-          {/* add post btn */}
-          <div className="flex justify-center mb-6">
-            {user ? (
-              <button
-                onClick={()=>setShowModal(true)}
-                className="bg-indigo-600 text-white px-6 py-3 rounded shadow hover:bg-indigo-700"
-              >
-                Add a post
-              </button>
-            ) : (
-              <p className="text-gray-600">Log in to post</p>
-            )}
-          </div>
+  {/* button aligned right */}
+  {user && (
+    <button
+      onClick={() => setShowModal(true)}
+      className="mt-4 sm:mt-0 bg-indigo-600 text-white px-6 py-3 rounded shadow hover:bg-indigo-700"
+    >
+      Add a post
+    </button>
+  )}
+  {!user && (
+    <p className="mt-4 sm:mt-0 text-gray-200">Log in to post</p>
+  )}
+</div>
 
           {/* grid */}
           {loadingPosts ? (
@@ -224,9 +228,7 @@ export default function BigBoardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {displayedPosts.map((post,i)=>{
                 const url = resolveImageUrl(post.image_url)
-                // pick off the nested event if present
-                const ev = post.big_board_events?.[0]
-
+                const ev  = post.big_board_events?.[0]
                 return (
                   <motion.div
                     key={post.id}
@@ -242,16 +244,14 @@ export default function BigBoardPage() {
                         </div>
                         <a
                           href={`https://ourphilly.org/big-board/${ev.slug}`}
-                          className="absolute bottom-2 left-2
-                                     bg-white bg-opacity-80 text-indigo-600
-                                     text-sm px-2 py-1 rounded z-20"
+                          className="absolute bottom-2 left-2 bg-white bg-opacity-80 text-indigo-600 text-sm px-2 py-1 rounded z-20"
                         >
                           View Event
                         </a>
                       </>
                     )}
 
-                    {/* the flyer image */}
+                    {/* flyer image */}
                     <img
                       src={url}
                       alt=""
@@ -283,7 +283,7 @@ export default function BigBoardPage() {
         </div>
       </main>
 
-      {/* ── Multi-step Modal ─────────────────────────────────────────────── */}
+      {/* ── Multi-step Modal ─────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showModal && (
           <motion.div

@@ -7,7 +7,7 @@ import GroupProgressBar from './GroupProgressBar';
 import { AuthContext } from './AuthProvider';
 import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites';
 
-const PopularGroups = ({ isAdmin }) => {
+export default function PopularGroups({ isAdmin }) {
   const { user } = useContext(AuthContext);
 
   const [groups, setGroups]         = useState([]);
@@ -31,15 +31,11 @@ const PopularGroups = ({ isAdmin }) => {
         return;
       }
 
-      // add a 1-based badge number
-      setGroups(data.map((g, i) => ({
-        ...g,
-        groupNumber: i + 1,
-      })));
+      setGroups(data.map((g, i) => ({ ...g, groupNumber: i + 1 })));
     })();
   }, []);
 
-  // 2) Load total favorite counts
+  // 2) Load favorite counts
   useEffect(() => {
     if (!groups.length) return;
     (async () => {
@@ -71,9 +67,7 @@ const PopularGroups = ({ isAdmin }) => {
     getMyFavorites()
       .then(rows => {
         const m = {};
-        rows.forEach(r => {
-          m[r.group_id] = r.id;
-        });
+        rows.forEach(r => { m[r.group_id] = r.id; });
         setFavMap(m);
       })
       .catch(console.error);
@@ -113,25 +107,30 @@ const PopularGroups = ({ isAdmin }) => {
     <div className="relative py-16 px-4 mb-8 bg-neutral-50">
       {/* staple-heart above */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-1.png"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
         alt="Heart Staple"
         className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 z-10 pointer-events-none"
       />
       {/* faint bg heart */}
       <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-1.png"
+        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
         alt="Philly Heart"
         className="absolute opacity-20 rotate-12 w-[400px] bottom-[-100px] pointer-events-none z-0"
       />
 
-      <div className="relative max-w-screen-xl mx-auto z-10 text-center">
-        <h2 className="text-4xl text-left font-[Barrio]">
-          Featured GROUPS
-        </h2>
-
-        <p className="text-left mb-4 text-gray-600">
-          We're shining a spotlight on our top 20 community groups.
-        </p>
+      <div className="relative max-w-screen-xl mx-auto z-10">
+        {/* Header row with button */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-4xl font-[Barrio] text-left">
+            Featured GROUPS
+          </h2>
+          <Link
+            to="/groups"
+            className="bg-indigo-600 text-white font-bold text-lg px-4 py-2 rounded-full shadow hover:bg-indigo-700 transition"
+          >
+            🔍 Explore All Groups
+          </Link>
+        </div>
 
         <GroupProgressBar />
 
@@ -193,21 +192,10 @@ const PopularGroups = ({ isAdmin }) => {
           })}
         </div>
 
-        <div className="flex justify-center mt-10">
-          <Link
-            to="/groups"
-            className="inline-block bg-indigo-600 text-white font-bold text-lg px-8 py-3 rounded-full shadow hover:bg-indigo-700 hover:scale-105 transition-all duration-200"
-          >
-            🔍 Explore All Groups
-          </Link>
-        </div>
-
         {showSubmitModal && (
           <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
         )}
       </div>
     </div>
   );
-};
-
-export default PopularGroups;
+}

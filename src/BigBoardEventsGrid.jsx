@@ -12,8 +12,7 @@ export default function BigBoardEventsGrid() {
   // ── Helpers ────────────────────────────────────────────────────────────────
   const dayDiff = (dateStr) => {
     const today = new Date(); today.setHours(0,0,0,0)
-    const d     = new Date(dateStr)
-    d.setHours(0,0,0,0)
+    const d     = new Date(dateStr); d.setHours(0,0,0,0)
     return Math.floor((d - today) / (1000*60*60*24))
   }
 
@@ -21,7 +20,6 @@ export default function BigBoardEventsGrid() {
     const diff = dayDiff(dateStr)
     if (diff === 0) return 'TODAY'
     if (diff === 1) return 'TOMORROW'
-
     if (diff > 1 && diff < 7) {
       const weekday = new Date(dateStr)
         .toLocaleDateString('en-US',{ weekday:'long' })
@@ -34,7 +32,6 @@ export default function BigBoardEventsGrid() {
         .toUpperCase()
       return `NEXT ${weekday}`
     }
-
     // fallback: show month/day
     return new Date(dateStr)
       .toLocaleDateString('en-US',{ month:'short', day:'numeric' })
@@ -76,15 +73,19 @@ export default function BigBoardEventsGrid() {
   }, [])
 
   return (
-    <div className="w-full max-w-screen-xl mx-auto mb-12 px-4">
-      <h2 className="text-black text-4xl font-[Barrio] mb-2 text-left">
-        <Link to="/board" className="hover:underline">
-          SUBMISSIONS FROM THE BIG BOARD
+    <div className="w-full max-w-screen-xl mx-auto mb-12 px-4 mt-12">
+      {/* header with title + button */}
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-black text-4xl font-[Barrio]">
+          FROM THE BIG BOARD
+        </h2>
+        <Link
+          to="/board"
+          className="bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded hover:bg-indigo-700 transition"
+        >
+          Post to Big Board
         </Link>
-      </h2>
-      <p className="text-gray-600 text-sm mb-4 text-left">
-        Community-posted fliers live here — add yours to the Big Board!
-      </p>
+      </div>
 
       {loading ? (
         <p>Loading submissions…</p>
