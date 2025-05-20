@@ -199,26 +199,9 @@ export default function BigBoardPage() {
       <main className="flex-grow bg-gray-50 pt-20 mt-20 pb-20">
         <div className="max-w-6xl mx-auto px-4">
           <h1 className="font-[Barrio] text-6xl text-center">THE BIG BOARD</h1>
-          <h3 className="text-center text-gray-700 mb-8">
-            Like one big café bulletin board
-          </h3>
+          
 
-          {/* area filters */}
-          <div className="flex flex-wrap justify-center gap-2 mb-6">
-            {['All', ...areasList].map(area=>(
-              <button
-                key={area}
-                onClick={()=>setSelectedView(area)}
-                className={`px-4 py-2 rounded ${
-                  selectedView===area
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-gray-700 shadow'
-                }`}
-              >
-                {area}
-              </button>
-            ))}
-          </div>
+          
 
           {/* add post btn */}
           <div className="flex justify-center mb-6">

@@ -88,7 +88,7 @@ export default function BigBoardEventPage() {
           </div>
 
           {/* flyer container */}
-          <div className="relative w-full h-[80vh] sm:h-[60vh] md:h-[50vh] overflow-hidden rounded-lg shadow-lg z-10">
+          <div className="relative w-full h-full  overflow-hidden rounded-lg shadow-lg z-10">
             <img
               src={event.imageUrl}
               alt={event.title}
