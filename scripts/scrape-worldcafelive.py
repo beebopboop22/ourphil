@@ -8,7 +8,8 @@ from datetime import datetime
 # ── Load environment variables ─────────────────────────────────────────────────
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Prefer the service_role key to bypass RLS; fallback to anon key
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 
 # ── Initialize Supabase client ────────────────────────────────────────────────
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -36,29 +37,31 @@ def scrape_events():
 
     events = []
     for wrapper in soup.select("div.eventWrapper.rhpSingleEvent"):
+        # Title & link
         a = wrapper.select_one("a.url")
         title = a["title"].strip()
         link  = a["href"].strip()
 
-        img = wrapper.select_one("div.rhp-events-event-image img")
-        image = img["src"] if img else None
+        # Image URL
+        img_tag = wrapper.select_one("div.rhp-events-event-image img")
+        image   = img_tag["src"] if img_tag else None
 
+        # Date parsing
         date_div = wrapper.find("div", id="eventDate")
         date_str = date_div.text.strip() if date_div else None
         start_date = None
         if date_str:
             try:
-                start_date = (
-                    datetime.strptime(date_str, "%a, %B %d, %Y")
-                    .date()
-                    .isoformat()
-                )
+                start_date = datetime.strptime(date_str, "%a, %B %d, %Y") \
+                                   .date().isoformat()
             except ValueError:
                 pass
 
+        # Price → brief description
         cost_span = wrapper.select_one("div.eventCost span")
         price_txt = cost_span.text.strip() if cost_span else None
 
+        # Venue name
         venue_link = wrapper.select_one("div.eventsVenueDiv a.noVenueLink")
         venue_name = venue_link.text.strip() if venue_link else None
 
@@ -78,7 +81,7 @@ def upsert_data(events):
     for ev in events:
         print(f"⏳ Processing: {ev['title']}")
 
-        # Upsert venue, get its id
+        # 1) Upsert venue, get its id
         venue_id = None
         if ev["venue_name"]:
             v = supabase.table("venues") \
@@ -91,7 +94,7 @@ def upsert_data(events):
             if v.data:
                 venue_id = v.data[0]["id"]
 
-        # Build event record (omit 'time' since no such column)
+        # 2) Build event record
         record = {
             "name":        ev["title"],
             "link":        ev["link"],
@@ -103,12 +106,14 @@ def upsert_data(events):
             "slug":        ev["link"].rstrip("/").split("/")[-1],
         }
 
+        # 3) Upsert into all_events on link conflict
         supabase.table("all_events") \
                 .upsert(record, on_conflict=["link"]) \
                 .execute()
 
         print(f"✅ Upserted: {ev['title']}")
 
+# ── Main execution ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     events = scrape_events()
     print(f"🔎 Found {len(events)} events")
