@@ -48,8 +48,7 @@ export default function GroupsHeroSearch({
   return (
     <div className="relative pt-20 text-center bg-white">
       {/* Page title and description */}
-      <h1 className="text-6xl font-[Barrio] text-gray-900 mb-4">        We're rounding up every group in Philly.
-      </h1>
+      
       
 
       {/* Search input */}
