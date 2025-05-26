@@ -8,6 +8,7 @@ import { supabase } from './supabaseClient'
 import { AuthContext } from './AuthProvider'
 import Navbar from './Navbar'
 import Footer from './Footer'
+import CityHolidayAlert from './CityHolidayAlert'
 
 export default function BigBoardPage() {
   const { user } = useContext(AuthContext)
@@ -28,12 +29,16 @@ export default function BigBoardPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [selectedView, setSelectedView]   = useState('All')
 
+  // Bulletin board & paper assets
+  const boardBg = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/bulletin-board-2.jpeg'
+  const paperBg = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/loose-leaf-paper.jpg'
+  const pinUrl  = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/push-pin-green.png'
+
   const areasList = [
     'South','North','West','Center City',
     'Northeast','Northwest','River Wards'
   ]
 
-  // ── Fetch posts ─────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchPosts()
   }, [])
@@ -57,11 +62,9 @@ export default function BigBoardPage() {
 
     if (error) console.error('fetchPosts error:', error)
     else setPosts(data)
-
     setLoadingPosts(false)
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
   function resolveImageUrl(val) {
     let key = val
     if (val.startsWith('http')) {
@@ -103,7 +106,6 @@ export default function BigBoardPage() {
     setPreviewUrl(URL.createObjectURL(file))
   }
 
-  // ── Step 2: post only ───────────────────────────────────────────────────────
   async function uploadPostOnly() {
     setUploading(true)
     try {
@@ -112,15 +114,9 @@ export default function BigBoardPage() {
       const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi,'_').toLowerCase()
       const key = `${user.id}-${Date.now()}-${cleanName}`
       await supabase.storage.from('big-board').upload(key, compressed)
-
       await supabase
         .from('big_board_posts')
-        .insert({
-          user_id:   user.id,
-          image_url: key,
-          Area:      selectedAreas.join(',') || ''
-        })
-
+        .insert({ user_id:user.id, image_url:key, Area:selectedAreas.join(',')||'' })
       await fetchPosts()
       resetModal()
     } catch (err) {
@@ -130,48 +126,25 @@ export default function BigBoardPage() {
     }
   }
 
-  // ── Step 3: post + event ────────────────────────────────────────────────────
   async function uploadWithEvent() {
     setUploading(true)
     try {
-      // 1) compress & upload image
       const options = { maxSizeMB:0.5, maxWidthOrHeight:1024, useWebWorker:true }
       const compressed = await imageCompression(selectedFile, options)
       const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi,'_').toLowerCase()
       const key = `${user.id}-${Date.now()}-${cleanName}`
       await supabase.storage.from('big-board').upload(key, compressed)
-
-      // 2) insert post & grab its id
-      let { data: postData } = await supabase
+      const { data: postData } = await supabase
         .from('big_board_posts')
-        .insert({
-          user_id:   user.id,
-          image_url: key,
-          Area:      selectedAreas.join(',') || ''
-        })
+        .insert({ user_id:user.id, image_url:key, Area:selectedAreas.join(',')||'' })
         .select('id')
       const postId = postData[0].id
-
-      // 3) insert event
       const slug = `${slugify(title)}-${Date.now()}`
-      let { data: evData } = await supabase
+      const { data: evData } = await supabase
         .from('big_board_events')
-        .insert({
-          post_id:    postId,
-          title,
-          start_date: startDate.toISOString().split('T')[0],
-          end_date:   endDate.toISOString().split('T')[0],
-          slug
-        })
+        .insert({ post_id:postId, title, start_date:startDate.toISOString().split('T')[0], end_date:endDate.toISOString().split('T')[0], slug })
         .select('id')
-      const evId = evData[0].id
-
-      // 4) link post → event
-      await supabase
-        .from('big_board_posts')
-        .update({ event_id: evId })
-        .eq('id', postId)
-
+      await supabase.from('big_board_posts').update({ event_id:evData[0].id }).eq('id',postId)
       setEventSlug(slug)
       await fetchPosts()
       setModalStep(4)
@@ -182,98 +155,88 @@ export default function BigBoardPage() {
     }
   }
 
-  // ── Filtered posts ─────────────────────────────────────────────────────────
   const displayedPosts = useMemo(() => {
     if (selectedView === 'All') return posts
-    return posts.filter(p => {
-      const arr = p.Area?.split(',').map(a=>a.trim()) || []
-      return arr.includes(selectedView)
-    })
+    return posts.filter(p => p.Area?.split(',').map(a=>a.trim()).includes(selectedView))
   }, [posts, selectedView])
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-grow bg-[#bf3d35] text-white pt-20 mt-20 pb-20">
-        <div className="max-w-6xl mx-auto px-4">
-        <div className="max-w-6xl mx-auto px-4 mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center">
-  {/* heading block */}
-  <div className="text-center sm:text-left">
-    <h1 className="font-[Barrio] text-6xl">THE BIG BOARD</h1>
-    <h3 className="mt-2 text-lg">
-      Community-submitted fliers & events
-    </h3>
-  </div>
+      <main
+        className="flex-grow text-white pt-20 mt-20 pb-20 relative"
+        style={{
+          backgroundImage: `url('${boardBg}')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
+        <div className="max-w-6xl mx-auto px-4 mb-8">
+          {/* Pinned title */}
+          <div className="relative mb-8 flex flex-col items-center">
+            <div
+              className="w-full max-w-md py-6 px-8"
+              style={{
+                backgroundImage: `url('${paperBg}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+            >
+              <h1 className="font-[Barrio] text-6xl text-center text-[#28313e]">THE BIG BOARD</h1>
+              <h3 className="mt-2 text-lg text-[#28313e] text-center">Community-submitted fliers & events</h3>
+            </div>
+            <img
+              src={pinUrl}
+              alt="Pinned"
+              className="absolute -top-4 left-1/2 w-16 h-12 transform -translate-x-1/2 rotate-6 z-20 pointer-events-none"
+            />
+            {user ? (
+              <button
+                onClick={() => setShowModal(true)}
+                className="mt-4 bg-indigo-600 text-white px-6 py-3 rounded shadow hover:bg-indigo-700 transition"
+              >Add a post</button>
+            ) : (
+              <p className="mt-4 text-gray-200">Log in to post</p>
+            )}
+          </div>
 
-  {/* button aligned right */}
-  {user && (
-    <button
-      onClick={() => setShowModal(true)}
-      className="mt-4 sm:mt-0 bg-indigo-600 text-white px-6 py-3 rounded shadow hover:bg-indigo-700"
-    >
-      Add a post
-    </button>
-  )}
-  {!user && (
-    <p className="mt-4 sm:mt-0 text-gray-200">Log in to post</p>
-  )}
-</div>
-
-          {/* grid */}
           {loadingPosts ? (
             <p className="text-center">Loading…</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {displayedPosts.map((post,i)=>{
+              {displayedPosts.map((post,i) => {
                 const url = resolveImageUrl(post.image_url)
                 const ev  = post.big_board_events?.[0]
                 return (
                   <motion.div
                     key={post.id}
-                    className="relative overflow-hidden shadow-lg rounded-lg cursor-pointer w-full h-72 sm:aspect-square"
+                    className="relative overflow-visible shadow-lg rounded-lg cursor-pointer w-full h-72 sm:aspect-square"
                     whileHover={{ scale:1.03 }}
-                    onClick={()=>setLightboxIndex(i)}
+                    onClick={() => setLightboxIndex(i)}
                   >
-                    {/* calendar + View Event */}
+                    {/* Pin on each post */}
+                    <img
+                      src={pinUrl}
+                      alt="Pinned"
+                      className="absolute -top-4 left-1/2 w-16 h-12 transform -translate-x-1/2 rotate-6 z-20 pointer-events-none"
+                    />
+
                     {ev?.slug && (
                       <>
-                        <div className="absolute top-2 left-2 text-2xl z-20">
-                          📅
-                        </div>
+                        <div className="absolute top-2 left-2 text-2xl z-20">📅</div>
                         <a
                           href={`https://ourphilly.org/big-board/${ev.slug}`}
                           className="absolute bottom-2 left-2 bg-white bg-opacity-80 text-indigo-600 text-sm px-2 py-1 rounded z-20"
-                        >
-                          View Event
-                        </a>
+                        >View Event</a>
                       </>
                     )}
-
-                    {/* flyer image */}
-                    <img
-                      src={url}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-
-                    {/* delete button */}
+                    <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />
                     {post.user_id===user?.id && (
                       <button
-                        onClick={e=>{
-                          e.stopPropagation()
-                          if(!confirm('Delete this post?')) return
-                          supabase
-                            .from('big_board_posts').delete().eq('id',post.id)
-                            .then(()=>supabase.storage.from('big-board').remove([post.image_url]))
-                            .then(fetchPosts)
-                            .catch(console.error)
-                        }}
+                        onClick={e => { e.stopPropagation(); if (!confirm('Delete this post?')) return; supabase.from('big_board_posts').delete().eq('id',post.id).then(() => supabase.storage.from('big-board').remove([post.image_url])).then(fetchPosts).catch(console.error) }}
                         className="absolute top-1 right-1 bg-white/80 p-1 rounded-full hover:bg-red-100 z-20"
-                      >
-                        🗑️
-                      </button>
+                      >🗑️</button>
                     )}
                   </motion.div>
                 )

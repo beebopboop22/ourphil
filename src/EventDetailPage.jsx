@@ -326,42 +326,56 @@ useEffect(() => {
 
       <Navbar />
 
-      {/* ── Hero / Banner ────────────────────────────────────────────────── */}
-      <div className="relative w-full h-[600px] md:h-[700px]">
-        <img
-          src={event['E Image']}
-          alt={event['E Name']}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black/50" />
-        <div className="absolute top-4 left-4 bg-yellow-400 px-5 py-2 text-xl font-bold text-white rounded-full">
-          {dateDisplay}
-        </div>
+      {/* ── Hero: image only, shorter ────────────────────────────────────────── */}
+<div className="relative w-full h-80 bg-[#28313e] flex items-center justify-center overflow-hidden">
+  {event['E Image'] ? (
+    <img
+      src={event['E Image']}
+      alt={event['E Name']}
+      className="absolute inset-0 w-full h-full object-cover opacity-80"
+    />
+  ) : (
+    <div className="absolute inset-0 bg-[#28313e]" />
+  )}
+</div>
 
-        {/* Title/Subtitle */}
-        <div className="absolute bottom-6 left-6 text-white max-w-2xl">
-          <h1 className="text-5xl font-[Barrio] mb-3">{event['E Name']}</h1>
-          <p className="text-xl mb-4">{event['E Description']}</p>
-          {event['E Link'] && (
-            <a
-              href={event['E Link']}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-white text-black px-4 py-2 rounded-full text-sm"
-            >
-              Visit Event Site
-            </a>
-          )}
-        </div>
+{/* ── Info Box “pops” up under the hero ───────────────────────────────── */}
+<div className="relative z-10 w-full max-w-3xl mx-auto -mt-16 mb-8">
+  <div className="bg-white rounded-2xl shadow-xl px-8 py-6 flex flex-col items-center border border-gray-100 relative">
+    <h1 className="text-4xl font-[Barrio] font-bold mb-1 text-[#28313e] text-center">
+      {event['E Name']}
+    </h1>
+    {event['E Description'] && (
+      <p className="text-gray-500 text-sm mb-2 text-center max-w-2xl">
+        {event['E Description']}
+      </p>
+    )}
+    <div className="text-xl mb-1 text-gray-800 text-center">
+      {dateDisplay}
+    </div>
 
-        {/* Favorite heart + count */}
-        <div className="absolute bottom-6 right-6 text-white flex items-center gap-2">
-          <button onClick={toggleFav} disabled={toggling} className="text-5xl">
-            {myFavId ? '❤️' : '🤍'}
-          </button>
-          <span className="text-5xl font-[Barrio]">{favCount}</span>
-        </div>
-      </div>
+    {/* “Dangling” CTA button */}
+    {event['E Link'] && (
+      <a
+        href={event['E Link']}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute left-1/2 transform -translate-x-1/2 translate-y-4
+                   bg-[#bf3d35] text-white font-bold px-8 py-3
+                   rounded-full shadow-lg text-lg border-4 border-white
+                   hover:bg-[#a92d23] transition-all"
+        style={{
+          bottom: -30,
+          zIndex: 20,
+          minWidth: 200,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Let's Go Then!
+      </a>
+    )}
+  </div>
+</div>
 
       <RecentActivity />
 

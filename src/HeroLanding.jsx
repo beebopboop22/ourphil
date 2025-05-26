@@ -135,10 +135,10 @@ export default function HeroLanding() {
         {/* inline header + button */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl sm:text-4xl font-[Barrio] font-bold text-gray-700">
-            Featured Events
+            Upcoming Traditions
           </h2>
           <Link
-            to="/upcoming-events"
+            to="/things"
             className="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700"
           >
             More Events

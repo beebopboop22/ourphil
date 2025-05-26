@@ -37,7 +37,8 @@ import Bulletin from './Bulletin';
 import NewsletterBar from './NewsletterBar';
 import RecentActivity from './RecentActivity';
 import BigBoardEventsGrid from './BigBoardEventsGrid';
-
+import CityHolidayAlert from './CityHolidayAlert';
+import MoreEventsBanner from './MoreEventsBanner';
 
 
 
@@ -127,6 +128,8 @@ function App() {
       
       <div className="overflow-x-hidden  min-h-screen flex flex-col bg-white-100 pt-20 relative">
         <Navbar /> 
+        <CityHolidayAlert />
+
 
           
 <div className="relative flex flex-col md:flex-row items-center justify-center mt-12 mb-1">
@@ -181,16 +184,10 @@ function App() {
         
         
         <HeroLanding />
-        <BigBoardEventsGrid />
         <RecentActivity />
-        <SportsEventsGrid />
-        <ConcertEventsGrid />
+        <BigBoardEventsGrid />
+        <MoreEventsBanner />
         <PopularGroups />
-
-        <SeasonalEventsGrid />
-
-
-
         <LibraryCardBanner />
         <Voicemail />
         <Footer />

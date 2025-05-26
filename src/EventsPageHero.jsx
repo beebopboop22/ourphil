@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import { Link } from 'react-router-dom'
 
-// only Philly teams
+// Only Philly teams
 const teamSlugs = [
   'philadelphia-phillies',
   'philadelphia-76ers',
@@ -10,6 +10,9 @@ const teamSlugs = [
   'philadelphia-flyers',
   'philadelphia-union',
 ]
+
+// You may want to import Barrio and Pacifico in your global CSS/head:
+// @import url('https://fonts.googleapis.com/css2?family=Barrio&family=Pacifico&display=swap');
 
 export default function EventsPageHero() {
   const [events, setEvents] = useState([])
@@ -19,7 +22,7 @@ export default function EventsPageHero() {
   const containerRef = useRef(null)
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  // ─── Helpers ──────────────────────────────────────────────
   const parseDate = (datesStr) => {
     if (!datesStr) return null
     const [first] = datesStr.split(/through|–|-/)
@@ -30,10 +33,10 @@ export default function EventsPageHero() {
     const today = new Date(); today.setHours(0,0,0,0)
     if (isActive)   return { text: 'Today',     color: 'bg-green-500', pulse: false }
     const diff = Math.floor((start - today)/(1000*60*60*24))
-    if (diff === 1) return { text: 'Tomorrow!', color: 'bg-blue-500',  pulse: false }
+    if (diff === 1) return { text: 'Tomorrow', color: 'bg-blue-600',  pulse: false }
     const wd = start.toLocaleDateString('en-US',{ weekday:'long' })
-    if (diff>1 && diff<7)   return { text:`This ${wd}!`,  color:'bg-[#ba3d36]', pulse:false }
-    if (diff>=7 && diff<14) return { text:`Next ${wd}!`,  color:'bg-[#ba3d36]', pulse:false }
+    if (diff>1 && diff<7)   return { text:`This ${wd}`,  color:'bg-[#ba3d36]', pulse:false }
+    if (diff>=7 && diff<14) return { text:`Next ${wd}`,  color:'bg-[#ba3d36]', pulse:false }
     return { text:wd, color:'bg-[#ba3d36]', pulse:false }
   }
   const isThisWeekend = (date) => {
@@ -45,13 +48,13 @@ export default function EventsPageHero() {
     return date>=fri && date<=sun
   }
 
-  // ─── Load & Prep Events ───────────────────────────────────────────────────
+  // ─── Load & Prep Events ───────────────────────────────
   useEffect(() => {
     ;(async () => {
       const today = new Date(); today.setHours(0,0,0,0)
       const { data, error } = await supabase
         .from('events')
-        .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
+        .select(`id, slug, "E Name", "E Description", Dates, "End Date", "E Image"`)
         .order('Dates',{ ascending:true })
       if (error) {
         console.error(error)
@@ -76,7 +79,7 @@ export default function EventsPageHero() {
     })()
   }, [])
 
-  // ─── Load Sports Summary ──────────────────────────────────────────────────
+  // ─── Load Sports Summary ───────────────────────────────
   useEffect(() => {
     ;(async () => {
       try {
@@ -112,16 +115,16 @@ export default function EventsPageHero() {
     })()
   }, [])
 
-  // ─── Auto‐scroll every 1.75s ───────────────────────────────────────────────
+  // ─── Auto‐scroll every 4.5s ───────────────────────────
   useEffect(() => {
     if (!events.length) return
     const iv = setInterval(() => {
       setCurrentIndex(i => (i+1)%events.length)
-    }, 1750)
+    }, 4500) // Slow down
     return () => clearInterval(iv)
   }, [events])
 
-  // ─── Scroll on index change ────────────────────────────────────────────────
+  // ─── Scroll on index change ────────────────────────────
   useEffect(() => {
     const el = containerRef.current
     if (el) {
@@ -132,7 +135,12 @@ export default function EventsPageHero() {
 
   return (
     <>
+
+    
       {/* ── Sports Bar ── */}
+        <div className="bg-[#28313e] text-white py-3 text-center font-[Barrio] text-2xl">
+          Dig Into Philly
+        </div>
       {!loadingSports && sportsSummary && (
         <div className="bg-[#bf3d35] text-white text-sm py-2 px-4 text-center z-10">
           <span className="font-[Barrio] font-bold">TONIGHT</span> {sportsSummary}
@@ -140,45 +148,60 @@ export default function EventsPageHero() {
       )}
 
       {/* ── Carousel ── */}
-      <div className="h-[calc(80vh-112px)] overflow-hidden">
+      <div className="h-[calc(40vh+80px)] min-h-[340px] overflow-hidden relative">
         {loading ? (
           <p className="text-center py-20">Loading…</p>
         ) : (
           <div ref={containerRef} className="flex w-full h-full overflow-hidden">
-            {events.map(evt => {
-              const { text, color, pulse } = getBubble(evt.start,evt.isActive)
+            {events.map((evt, i) => {
+              const { text, color } = getBubble(evt.start,evt.isActive)
               const weekend = isThisWeekend(evt.start)
               return (
                 <Link
                   key={evt.id}
                   to={`/events/${evt.slug}`}
-                  className="relative w-full flex-shrink-0"
+                  className="relative w-full flex-shrink-0 h-full block"
+                  style={{ minWidth: '100%' }}
                 >
+                  {/* BG image + overlay */}
                   <img
                     src={evt['E Image']}
                     alt={evt['E Name']}
-                    className="absolute inset-0 w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-cover z-0"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                  {weekend && (
-                    <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full z-20">
-                      Weekend Pick
-                    </span>
-                  )}
-                  <h3 className="absolute bottom-24 left-4 right-4 text-center text-white text-5xl font-[Barrio] font-bold z-20 leading-tight">
-                    {evt['E Name']}
-                  </h3>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent z-10" />
+                  
+                  {/* Bubble: just above the event name, larger */}
                   <span
                     className={`
-                      absolute bottom-12 left-1/2 transform -translate-x-1/2
-                      ${color} text-white text-lg font-bold
-                      px-4 py-1 rounded-full whitespace-nowrap
-                      ${pulse?'animate-pulse':''}
-                      z-20
+                      absolute left-8 md:left-12 top-5 md:top-5
+                      ${color} text-white text-xl md:text-2xl font-bold shadow-lg
+                      px-6 py-2 rounded-full whitespace-nowrap
+                      border-4 border-white border-opacity-30
+                      z-30
                     `}
+                    style={{
+                      filter: 'drop-shadow(0 2px 10px rgba(0,0,0,0.16))',
+                      letterSpacing: '.03em',
+                      fontFamily: 'Barrio, sans-serif',
+                    }}
                   >
                     {text}
                   </span>
+                  
+                  {/* Title and description */}
+                  <div className="absolute bottom-8 left-8 md:left-12 right-8 md:right-auto z-30 flex flex-col items-start max-w-xl">
+                    <h3 className="font-[Barrio] text-2xl md:text-4xl text-white drop-shadow font-bold mb-1 leading-tight">
+                      {evt['E Name']}
+                    </h3>
+                    {evt['E Description'] && (
+                      <div className="text-white text-base md:text-lg font-normal leading-tight opacity-90 max-w-[90vw] md:max-w-lg" style={{ textShadow: '0 1px 6px rgba(0,0,0,.4)' }}>
+                        {evt['E Description']}
+                      </div>
+                    )}
+                  </div>
+
+                  
                 </Link>
               )
             })}
@@ -186,17 +209,7 @@ export default function EventsPageHero() {
         )}
       </div>
 
-      {/* ── Bottom Bar + Heart ── */}
-      <div className="relative">
-        <div className="bg-[#28313e] text-white py-3 text-center font-[Barrio] text-2xl">
-          Dig Into Philly
-        </div>
-        <img
-          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-2.png"
-          alt="heart"
-          className="absolute bottom-0 left-0 w-1/6 translate-y-[55%]"
-        />
-      </div>
+      
     </>
   )
 }

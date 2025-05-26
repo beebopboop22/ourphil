@@ -35,6 +35,10 @@ import AdminActivity from './AdminActivity.jsx';
 import SocialVideoCarousel from './SocialVideoCarousel.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
+import MainEvents from './MainEvents.jsx';
+import VenuePage from './VenuePage';
+import MainEventsDetail from './MainEventsDetail.jsx';
+
 
 
 
@@ -85,7 +89,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/social-video" element={<SocialVideoCarousel />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
-
+          <Route path="/things" element={<MainEvents />} />
+          <Route path="/things/:view" element={<MainEvents />} />
+          <Route path="/:venue" element={<VenuePage />} />
+          <Route path="/:venue/:slug" element={<MainEventsDetail />} />
 
 
 

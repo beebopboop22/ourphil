@@ -56,63 +56,26 @@ export default function Navbar() {
                 <span className="italic text-xs ml-1 text-indigo-600">NEW!</span>
               </li>
 
-              {/* Find Events dropdown */}
-              <li className="relative group">
-                <Link
-                  to="/upcoming-events"
-                  className={`flex items-center space-x-1 ${linkClass('/upcoming-events')}`}
-                >
-                  <span>Find Events</span>
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
-                </Link>
-                <ul className="pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all absolute top-full w-36 bg-white rounded-md shadow-lg py-2">
-                  <li>
-                    <Link
-                      to="/upcoming-events"
-                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-                    >
-                      Events
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/bulletin"
-                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-                    >
-                      Traditions
-                    </Link>
-                  </li>
-                </ul>
-              </li>
+              {/* Find Events link */}
+              <li>
+              <Link
+                to="/things"
+                className={`flex items-center space-x-1 ${linkClass('/things')}`}
+              >
+                <span>Find Events</span>
+              </Link>
+            </li>
 
               {/* Find Community dropdown */}
-              <li className="relative group">
-                <Link
-                  to="/groups"
-                  className={`flex items-center space-x-1 ${linkClass('/groups')}`}
-                >
-                  <span>Find Community</span>
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
-                </Link>
-                <ul className="pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all absolute top-full w-36 bg-white rounded-md shadow-lg py-2">
-                  <li>
-                    <Link
-                      to="/groups"
-                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-                    >
-                      Groups
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/voicemail"
-                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-                    >
-                      Voicemail
-                    </Link>
-                  </li>
-                </ul>
-              </li>
+              <li>
+              <Link
+                to="/groups"
+                className={`flex items-center space-x-1 ${linkClass('/groups')}`}
+              >
+                <span>Find Community</span>
+              </Link>
+            </li>
+              
             </ul>
 
             {/* Auth */}

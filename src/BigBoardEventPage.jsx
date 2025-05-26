@@ -7,9 +7,15 @@ import Footer from './Footer'
 
 export default function BigBoardEventPage() {
   const { slug } = useParams()
-  const [event, setEvent]   = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
+  const [event, setEvent]       = useState(null)
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState(null)
+
+  // ── Helper: parse "YYYY-MM-DD" as a local Date at midnight ──────────────
+  function parseLocalYMD(str) {
+    const [y, m, d] = str.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
 
   useEffect(() => {
     fetchEvent()
@@ -18,34 +24,40 @@ export default function BigBoardEventPage() {
   async function fetchEvent() {
     setLoading(true)
     setError(null)
-    // 1) fetch event
+
+    // 1) fetch event metadata
     const { data: ev, error: evErr } = await supabase
       .from('big_board_events')
       .select('id, post_id, title, start_date, end_date, created_at, slug')
       .eq('slug', slug)
       .single()
+
     if (evErr) {
       console.error(evErr)
       setError('Could not load event.')
       setLoading(false)
       return
     }
-    // 2) fetch flyer
+
+    // 2) fetch flyer post
     const { data: post, error: postErr } = await supabase
       .from('big_board_posts')
       .select('image_url')
       .eq('id', ev.post_id)
       .single()
+
     if (postErr) {
       console.error(postErr)
       setError('Could not load flyer.')
       setLoading(false)
       return
     }
-    // 3) resolve URL
+
+    // 3) resolve storage URL
     const { data: { publicUrl } } = supabase
       .storage.from('big-board')
       .getPublicUrl(post.image_url)
+
     setEvent({ ...ev, imageUrl: publicUrl })
     setLoading(false)
   }
@@ -54,11 +66,14 @@ export default function BigBoardEventPage() {
   if (error)   return <div className="py-20 text-center text-red-600">{error}</div>
   if (!event)  return <div className="py-20 text-center">Event not found.</div>
 
-  const start = new Date(event.start_date).toLocaleDateString('en-US',{
-    month:'short', day:'numeric', year:'numeric'
+  // use parseLocalYMD so dates render in local zone correctly
+  const startDate = parseLocalYMD(event.start_date)
+  const endDate   = parseLocalYMD(event.end_date)
+  const start = startDate.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric'
   })
-  const end   = new Date(event.end_date).toLocaleDateString('en-US',{
-    month:'short', day:'numeric', year:'numeric'
+  const end   = endDate.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric'
   })
 
   return (
@@ -88,7 +103,7 @@ export default function BigBoardEventPage() {
           </div>
 
           {/* flyer container */}
-          <div className="relative w-full h-full  overflow-hidden rounded-lg shadow-lg z-10">
+          <div className="relative w-full h-full overflow-hidden rounded-lg shadow-lg z-10">
             <img
               src={event.imageUrl}
               alt={event.title}

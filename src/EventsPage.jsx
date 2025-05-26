@@ -43,12 +43,6 @@ export default function EventsPage() {
          {/* full-width hero carousel + sports bar */}
        <EventsPageHero />
 
-     
-
-        <h1 className="text-5xl mt-12 bg-white sm:text-6xl md:text-8xl font-[Barrio] font-black text-black text-center">
-          COMING UP
-        </h1>
-
         <HeroLanding />
         <SportsEventsGrid />
         <ConcertEventsGrid />
