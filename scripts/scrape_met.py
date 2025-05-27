@@ -3,7 +3,7 @@
 scripts/scrape_met.py
 
 Fetches upcoming shows from The Met Philly and upserts them into your Supabase tables,
-in the same style as scrape_livingarts.py.
+avoiding duplicate‐slug errors by upserting on slug.
 """
 
 import os
@@ -15,13 +15,12 @@ from dotenv import load_dotenv
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs, unquote
 
-# ── Load environment variables ─────────────────────────────────────────────────
+# ── Setup ──────────────────────────────────────────────────────────────────────
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ── Request headers ────────────────────────────────────────────────────────────
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -33,16 +32,11 @@ HEADERS = {
 }
 
 def slugify(text: str) -> str:
-    slug = text.lower()
-    slug = re.sub(r'&', ' and ', slug)
+    slug = text.lower().replace('&', ' and ')
     slug = re.sub(r'[^a-z0-9]+', '-', slug)
     return slug.strip('-')
 
 def extract_image_url(proxy_path: str) -> str:
-    """
-    Next.js gives us /_next/image?url=<encoded>&w=...&q=...
-    This pulls out the `url` param and decodes it.
-    """
     if proxy_path.startswith("/_next/image"):
         parsed = urlparse(proxy_path)
         qs = parse_qs(parsed.query)
@@ -50,6 +44,7 @@ def extract_image_url(proxy_path: str) -> str:
         return unquote(real) if real else proxy_path
     return proxy_path
 
+# ── Scrape The Met Philly ──────────────────────────────────────────────────────
 def scrape_shows():
     URL = "https://www.themetphilly.com/shows"
     res = requests.get(URL, headers=HEADERS)
@@ -64,12 +59,9 @@ def scrape_shows():
             continue
 
         title = title_tag.get_text(strip=True)
+        buy   = grp.find("a", string=re.compile(r"Buy Tickets", re.I))
+        link  = buy["href"] if buy else None
 
-        # the external "Buy Tickets" link
-        buy = grp.find("a", string=re.compile(r"Buy Tickets", re.I))
-        link = buy["href"] if buy else None
-
-        # date like "Fri May 30, 2025"
         date_p = grp.find("p", string=re.compile(r'^\w{3} \w{3} \d{1,2}, \d{4}$'))
         if date_p:
             try:
@@ -80,7 +72,6 @@ def scrape_shows():
         else:
             start_date = None
 
-        # image
         img = grp.select_one("div.css-1d5l6os img")
         raw = img["src"] if img and img.has_attr("src") else None
         image = extract_image_url(raw) if raw else None
@@ -96,19 +87,31 @@ def scrape_shows():
 
     return shows
 
+# ── Upsert Helpers ─────────────────────────────────────────────────────────────
+def get_or_upsert_venue(name: str) -> int:
+    """
+    Upsert a venue row on slug so we never insert the same slug twice.
+    Returns the venue.id.
+    """
+    slug = slugify(name)
+    resp = supabase.table("venues") \
+                   .upsert(
+                       {"name": name, "slug": slug},
+                       on_conflict=["slug"],
+                       returning="representation"
+                   ) \
+                   .execute()
+    # resp.data is a list with the inserted or updated row
+    return resp.data[0]["id"]
+
 def upsert_data(shows):
     for show in shows:
         print(f"⏳ Processing: {show['title']}")
 
-        # upsert the venue
-        v = supabase.table("venues") \
-                    .upsert({"name": show["venue_name"]},
-                            on_conflict=["name"],
-                            returning="representation") \
-                    .execute()
-        venue_id = v.data[0]["id"] if v.data else None
+        # Ensure venue exists (or is updated) by slug
+        venue_id = get_or_upsert_venue(show["venue_name"])
 
-        # build slug from the external link or title
+        # Build a slug for the show itself
         raw_slug = show["link"].rstrip("/").split("/")[-1] if show["link"] else ""
         final_slug = raw_slug if raw_slug and not raw_slug.isdigit() else slugify(show["title"])
 
@@ -123,13 +126,13 @@ def upsert_data(shows):
             "slug":        final_slug,
         }
 
-        # upsert into the same all_events table
         supabase.table("all_events") \
                 .upsert(record, on_conflict=["link"]) \
                 .execute()
 
         print(f"✅ Upserted: {show['title']}")
 
+# ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     shows = scrape_shows()
     print(f"🔎 Found {len(shows)} shows")
