@@ -209,7 +209,7 @@ const [groupEvents, setGroupEvents] = useState([]);
     else if (option === 'tomorrow') navigate('/tomorrow');
     else if (option === 'weekend') navigate('/weekend');
     else if (option === 'custom' && dateVal)
-      navigate(`/things/${dateVal}`);
+      navigate(`/${dateVal}`);
   };
 
   // Fetch all_events, big_board_events, and events (traditions)
@@ -568,25 +568,28 @@ return (
         <RecentActivity />
 
 {/* ─── Pills + Date Picker + Event Count ─── */}
-<div className="container mx-auto px-4 mt-8">
-  <div className="flex flex-wrap items-center gap-2">
-    {['today','tomorrow','weekend'].map(opt => (
+<div className="container mx-auto px-4 mt-12">
+  <div className="flex flex-wrap justify-center items-center gap-4">
+    {['today', 'tomorrow', 'weekend'].map(opt => (
       <button
         key={opt}
         onClick={() => { setSelectedOption(opt); goTo(opt); }}
         className={`
-          text-sm       /* smaller text */
-          px-3 py-1     /* tighter padding */
-          rounded-full border font-semibold transition
+          text-base                /* larger, more legible font */
+          px-5 py-2                /* bigger pill padding */
+          rounded-full border-2    /* thicker border and fully rounded */
+          font-semibold 
+          shadow-lg                /* subtle drop shadow for "pop" */
+          transform transition-transform duration-200
           ${
-            selectedOption===opt
-              ? 'bg-[#28313e] text-white border-[#28313e]'
-              : 'bg-white text-[#28313e] border-[#28313e] hover:bg-[#28313e] hover:text-white'
+            selectedOption === opt
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
           }
         `}
       >
-        {opt==='today' ? 'Today'
-          : opt==='tomorrow' ? 'Tomorrow'
+        {opt === 'today' ? 'Today'
+          : opt === 'tomorrow' ? 'Tomorrow'
           : 'This Weekend'}
       </button>
     ))}
@@ -596,26 +599,29 @@ return (
       <DatePicker
         selected={new Date(customDate)}
         onChange={date => {
-          const iso = date.toISOString().slice(0,10);
+          const iso = date.toISOString().slice(0, 10);
           setCustomDate(iso);
           setSelectedOption('custom');
           goTo('custom', iso);
         }}
         dateFormat="yyyy-MM-dd"
         placeholderText="Pick a date"
-        className="
+        className={`
           w-full sm:w-auto
-          text-sm p-2 border rounded-lg
+          text-base px-4 py-2     /* match pill height */
+          border-2 border-indigo-600 rounded-full
+          shadow-lg
           focus:outline-none focus:ring-2 focus:ring-indigo-500
-          transition
-        "
+          transition duration-200
+        `}
         wrapperClassName="w-full sm:w-auto"
-        calendarClassName="bg-white shadow-lg rounded-lg p-2 text-sm"
+        calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
         popperClassName="z-50"
       />
     </div>
   </div>
 </div>
+
 
 
 
