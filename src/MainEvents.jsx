@@ -813,7 +813,6 @@ return (
 
 
         <BigBoardEventsGrid />
-        <HeroLanding />
         <PopularGroups />
         {/* ─── Floating “+” (always on top) ───────────────────────────── */}
       <FloatingAddButton onClick={() => setShowFlyerModal(true)} />

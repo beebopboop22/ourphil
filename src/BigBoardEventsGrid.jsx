@@ -132,8 +132,11 @@ export default function BigBoardEventsGrid() {
                 POST IT TO THE BIG BOARD
               </h2>
               <p className="text-[#28313e] sm:text-xl text-2xl leading-snug text-center">
-                Snap a shot of event flyers
+              Post event flyers to drop them on our calendar
+
               </p>
+
+              
             </div>
             {/* Pin on paper */}
             <img
@@ -224,10 +227,7 @@ export default function BigBoardEventsGrid() {
       </div>
 
       {/* PostFlyerModal opens when showModal=true */}
-      <PostFlyerModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-      />
+      <PostFlyerModal isOpen={showModal} onClose={() => setShowModal(false)} />
     </div>
   );
 }

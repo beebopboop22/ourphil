@@ -1,5 +1,6 @@
 // src/PostFlyerModal.jsx
 import React, { useState, useContext, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import imageCompression from 'browser-image-compression';
 import { motion, AnimatePresence } from 'framer-motion';
 import DatePicker from 'react-datepicker';
@@ -156,6 +157,13 @@ export default function PostFlyerModal({ isOpen, onClose }) {
               ✕
             </button>
 
+            {/* Notification Bar */}
+            <div className="bg-blue-100 text-blue-800 text-sm font-semibold text-center px-4 py-2 rounded mb-4">
+              Post event flyers here to add them to the calendar.{' '}
+              Group organizers: <Link to="/groups" className="underline">claim your group page</Link>{' '}
+              to post direct to your calendar and your group page.
+            </div>
+
             {/*** If confirmationUrl exists, show the elegant confirmation card ***/}
             {confirmationUrl ? (
               <div className="flex flex-col items-center">
@@ -219,7 +227,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                 {/* Image Picker */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Upload Image <span className="font-normal text-xs">(required)</span>
+                    Upload Flyer <span className="font-normal text-xs">(required)</span>
                   </label>
                   <input
                     type="file"
@@ -252,7 +260,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                 </div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description <span className="font-normal text-xs">(optional)</span>
+                    Why should we go? <span className="font-normal text-xs">(optional)</span>
                   </label>
                   <textarea
                     rows={3}

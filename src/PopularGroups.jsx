@@ -128,8 +128,15 @@ export default function PopularGroups({ isAdmin }) {
             to="/groups"
             className="bg-indigo-600 text-white font-bold text-sm px-4 py-2 rounded-full shadow hover:bg-indigo-700 transition"
           >
-            Explore Groups
+            All Groups
           </Link>
+        </div>
+
+        {/* Notice for group organizers */}
+        <div className="bg-indigo-50 border-l-4 border-indigo-600 text-indigo-800 p-4 mb-6 rounded-lg shadow-sm">
+          <span className="font-semibold">
+            Organizers: claim your group on Our Philly to post to the calendar.
+          </span>
         </div>
 
         <GroupProgressBar />
