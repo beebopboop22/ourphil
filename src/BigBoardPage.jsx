@@ -37,9 +37,13 @@ export default function BigBoardPage() {
     fetchPosts()
   }, [])
 
-  // ── Fetch posts + events ─────────────────────────────────────────────────
   async function fetchPosts() {
     setLoadingPosts(true)
+  
+    // 1) Compute “today” in YYYY-MM-DD form
+    const todayISO = new Date().toISOString().split('T')[0]
+  
+    // 2) Fetch all big_board_posts + their joined big_board_events
     const { data, error } = await supabase
       .from('big_board_posts')
       .select(`
@@ -54,11 +58,27 @@ export default function BigBoardPage() {
         )
       `)
       .order('created_at', { ascending: false })
-
-    if (error) console.error('fetchPosts error:', error)
-    else setPosts(data)
+  
+    if (error) {
+      console.error('fetchPosts error:', error)
+      setPosts([])
+      setLoadingPosts(false)
+      return
+    }
+  
+    // 3) Filter out any post whose associated event start_date < todayISO
+    const filtered = data.filter(post => {
+      const ev = post.big_board_events?.[0]
+      // if there’s no linked event, keep the post
+      if (!ev) return true
+      // otherwise compare start_date strings (both “YYYY-MM-DD”)
+      return ev.start_date >= todayISO
+    })
+  
+    setPosts(filtered)
     setLoadingPosts(false)
   }
+  
 
   // ── Utility: resolve public URL for stored images ─────────────────────────
   function resolveImageUrl(val) {
@@ -196,7 +216,7 @@ export default function BigBoardPage() {
           THE BIG BOARD
         </h1>
         <h3 className="mt-2 text-lg text-[#28313e] text-center">
-          Community-submitted fliers & events
+          Community-submitted flyers & events
         </h3>
       </div>
       <img
@@ -207,9 +227,9 @@ export default function BigBoardPage() {
       {user ? (
         <button
           onClick={() => setShowModal(true)}
-          className="mt-4 bg-indigo-600 text-white px-6 py-3 rounded shadow hover:bg-indigo-700 transition"
+          className="mt-4 bg-indigo-600 text-white px-6 py-3 text-center rounded shadow hover:bg-indigo-700 transition"
         >
-          Add a post
+          Post an event flyer
         </button>
       ) : (
         <p className="mt-4 text-gray-200">Log in to post</p>
@@ -303,7 +323,7 @@ export default function BigBoardPage() {
               {/* Step 1 */}
               {modalStep===1 && (
                 <>
-                  <h2 className="text-xl font-bold mb-4">Add a post</h2>
+                  <h2 className="text-xl text-center font-bold mb-4">Post an event flyer!</h2>
                   <input
                     type="file"
                     accept="image/*"

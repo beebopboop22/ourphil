@@ -54,7 +54,7 @@ export default function Navbar() {
                 to="/"
                 className={`flex items-center space-x-1 ${linkClass('/groups')}`}
               >
-                <span>Home</span>
+                <span>Events</span>
               </Link>
             </li>
               {/* Find Community dropdown */}
@@ -66,13 +66,7 @@ export default function Navbar() {
                 <span>Groups</span>
               </Link>
             </li>
-              {/* Big Board with NEW! */}
-              <li className="flex items-center">
-                <Link to="/board" className={linkClass('/board')}>
-                  Post to Big Board
-                </Link>
-                <span className="italic text-xs ml-1 text-indigo-600">NEW!</span>
-              </li>
+              
               
               
             </ul>
@@ -123,14 +117,12 @@ export default function Navbar() {
         {/* Mobile slide-out */}
         {menuOpen && (
           <div className="md:hidden bg-white shadow-lg px-4 py-6 space-y-4 text-base font-medium">
-            <Link to="/board" className="block" onClick={() => setMenuOpen(false)}>
-              Big Board
-            </Link>
+            
             <Link to="/" className="block" onClick={() => setMenuOpen(false)}>
-              Find Events
+               Events
             </Link>
             <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
-              Find Groups
+               Groups
             </Link>
             {user ? (
               <>

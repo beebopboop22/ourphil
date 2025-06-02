@@ -33,7 +33,7 @@ export default function MoreEventsBanner({ maxItems = 10 }) {
 
   return (
     <Link
-      to="/things"
+      to="/"
       className="block w-full bg-white"
     >
       <div className="flex items-center w-full h-12">

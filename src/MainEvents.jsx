@@ -17,6 +17,8 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css'
 import SportsEventsGrid from './SportsEventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents';
+import FloatingAddButton from './FloatingAddButton'
+import PostFlyerModal from './PostFlyerModal'
 
 
 // ── Helpers ───────────────────────────────
@@ -140,6 +142,9 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
 export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
+
+
+  const [showFlyerModal, setShowFlyerModal] = useState(false);
 
   
 
@@ -799,7 +804,7 @@ return (
   <aside className="md:w-1/3 w-full space-y-8">
     <SportsTonightSidebar />
     <div className="bg-white p-4 rounded-lg shadow">
-      <UpcomingSidebarBulletin previewCount={10} />
+    <UpcomingSidebarBulletin previewCount={10} />
     </div>
   </aside>
 </main>
@@ -810,6 +815,14 @@ return (
         <BigBoardEventsGrid />
         <HeroLanding />
         <PopularGroups />
+        {/* ─── Floating “+” (always on top) ───────────────────────────── */}
+      <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
+
+{/* ─── PostFlyerModal: opens when showFlyerModal=true ────────── */}
+<PostFlyerModal
+  isOpen={showFlyerModal}
+  onClose={() => setShowFlyerModal(false)}
+/>
         <Footer />
       </div>
     </div>

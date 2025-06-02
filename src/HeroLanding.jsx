@@ -137,12 +137,7 @@ export default function HeroLanding() {
           <h2 className="text-2xl sm:text-4xl font-[Barrio] font-bold text-gray-700">
             Upcoming Traditions
           </h2>
-          <Link
-            to="/things"
-            className="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700"
-          >
-            More Events
-          </Link>
+         
         </div>
 
         {loading ? (
