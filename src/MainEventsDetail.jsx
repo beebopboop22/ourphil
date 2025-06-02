@@ -9,6 +9,7 @@ import RecentActivity from './RecentActivity';
 import CityHolidayAlert from './CityHolidayAlert';
 import { Helmet } from 'react-helmet';
 import MoreEventsBanner from './MoreEventsBanner';
+import PopularGroups from './PopularGroups';
 
 
 // Sidebar "Upcoming Traditions"
@@ -332,62 +333,79 @@ return (
         </div>
   
         {/* Main content: left then sidebar (sidebar stacks beneath on mobile) */}
-        <main className="flex flex-col md:flex-row gap-8 container mx-auto px-4 py-8 flex-grow">
-          {/* Left: Related events */}
-          <div className="md:w-2/3 w-full">
-            {/* Related events at this venue */}
-            {relatedEvents.length > 0 && (
-              <div className="mt-8">
-                <h3 className="font-[Barrio] text-2xl mb-4 text-[#28313e]">
-                  More at {venueData?.name}
-                </h3>
-                <div className="grid grid-cols-1 gap-6">
-                  {relatedEvents.map((evt) => (
-                    <Link
-                      key={evt.id}
-                      to={
-                        evt.slug && evt.venues?.slug
-                          ? `/${evt.venues.slug}/${evt.slug}`
-                          : '#'
-                      }
-                      className="relative rounded-2xl overflow-hidden shadow-lg group min-h-[160px] flex items-end transition-transform hover:scale-[1.03]"
-                      style={{
-                        backgroundImage: evt.image
-                          ? `url('${evt.image}')`
-                          : 'linear-gradient(90deg, #28313e 60%, #bf3d35 100%)',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        minHeight: '160px',
-                      }}
-                    >
-                      {/* Overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/50 to-black/20 z-0 transition-opacity group-hover:opacity-80" />
-                      <div className="relative z-10 w-full flex flex-col px-8 py-5">
-                        <h4 className="font-[Barrio] text-2xl text-white drop-shadow font-bold mb-1 leading-snug">
-                          {evt.name}
-                        </h4>
-                        <div className="uppercase text-gray-200 text-xs tracking-wide italic font-semibold">
-                          {evt.venues?.name || venueData?.name || ''}
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+<main className="flex flex-col md:flex-row gap-8 container mx-auto px-4 py-8 flex-grow">
+  {/* Left: Related events */}
+  <div className="md:w-2/3 w-full">
+    {/* Related events at this venue */}
+    {relatedEvents.filter(evt => {
+      // only keep events whose start_date is today or later
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const evtDate = new Date(evt.start_date);
+      evtDate.setHours(0, 0, 0, 0);
+      return evtDate >= today;
+    }).length > 0 && (
+      <div className="mt-8">
+        <h3 className="font-[Barrio] text-2xl mb-4 text-[#28313e]">
+          More at {venueData?.name}
+        </h3>
+        <div className="grid grid-cols-1 gap-6">
+          {relatedEvents
+            .filter(evt => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const evtDate = new Date(evt.start_date);
+              evtDate.setHours(0, 0, 0, 0);
+              return evtDate >= today;
+            })
+            .map((evt) => (
+              <Link
+                key={evt.id}
+                to={
+                  evt.slug && evt.venues?.slug
+                    ? `/${evt.venues.slug}/${evt.slug}`
+                    : '#'
+                }
+                className="relative rounded-2xl overflow-hidden shadow-lg group min-h-[160px] flex items-end transition-transform hover:scale-[1.03]"
+                style={{
+                  backgroundImage: evt.image
+                    ? `url('${evt.image}')`
+                    : 'linear-gradient(90deg, #28313e 60%, #bf3d35 100%)',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  minHeight: '160px',
+                }}
+              >
+                {/* Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/50 to-black/20 z-0 transition-opacity group-hover:opacity-80" />
+                <div className="relative z-10 w-full flex flex-col px-8 py-5">
+                  <h4 className="font-[Barrio] text-2xl text-white drop-shadow font-bold mb-1 leading-snug">
+                    {evt.name}
+                  </h4>
+                  <div className="uppercase text-gray-200 text-xs tracking-wide italic font-semibold">
+                    {evt.venues?.name || venueData?.name || ''}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-          {/* Right: Sidebar */}
-          <aside className="md:w-1/3 w-full space-y-8">
-            {/* 1. Sports tonight */}
-            <SportsTonightSidebar />
-            {/* 2. Upcoming Traditions */}
-            <div className="bg-white p-4 rounded-lg shadow">
-              <UpcomingSidebarBulletin previewCount={10} />
-            </div>
-          
-          </aside>
-        </main>
+              </Link>
+            ))}
+        </div>
+      </div>
+    )}
+  </div>
+
+  {/* Right: Sidebar */}
+  <aside className="md:w-1/3 w-full space-y-8">
+    {/* 1. Sports tonight */}
+    <SportsTonightSidebar />
+    {/* 2. Upcoming Traditions */}
+    <div className="bg-white p-4 rounded-lg shadow">
+      <UpcomingSidebarBulletin previewCount={10} />
+    </div>
+  </aside>
+</main>
+
         <BigBoardEventsGrid />
+        <PopularGroups />
         <Footer />
       </div>
       </>
