@@ -48,33 +48,32 @@ export default function Navbar() {
           <div className="hidden md:flex items-center space-x-8 text-base">
             {/* Primary grouped nav */}
             <ul className="flex items-center space-x-6 font-medium">
-              {/* Big Board with NEW! */}
-              <li className="flex items-center">
-                <Link to="/board" className={linkClass('/board')}>
-                  Big Board
-                </Link>
-                <span className="italic text-xs ml-1 text-indigo-600">NEW!</span>
-              </li>
-
-              {/* Find Events link */}
+              {/* Find Community dropdown */}
               <li>
               <Link
-                to="/things"
-                className={`flex items-center space-x-1 ${linkClass('/things')}`}
+                to="/"
+                className={`flex items-center space-x-1 ${linkClass('/groups')}`}
               >
-                <span>Find Events</span>
+                <span>Home</span>
               </Link>
             </li>
-
               {/* Find Community dropdown */}
               <li>
               <Link
                 to="/groups"
                 className={`flex items-center space-x-1 ${linkClass('/groups')}`}
               >
-                <span>Find Community</span>
+                <span>Groups</span>
               </Link>
             </li>
+              {/* Big Board with NEW! */}
+              <li className="flex items-center">
+                <Link to="/board" className={linkClass('/board')}>
+                  Post to Big Board
+                </Link>
+                <span className="italic text-xs ml-1 text-indigo-600">NEW!</span>
+              </li>
+              
               
             </ul>
 
@@ -127,19 +126,12 @@ export default function Navbar() {
             <Link to="/board" className="block" onClick={() => setMenuOpen(false)}>
               Big Board
             </Link>
-            <Link to="/upcoming-events" className="block" onClick={() => setMenuOpen(false)}>
+            <Link to="/" className="block" onClick={() => setMenuOpen(false)}>
               Find Events
             </Link>
-            <Link to="/bulletin" className="block" onClick={() => setMenuOpen(false)}>
-              Traditions
-            </Link>
             <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
-              Find Community
+              Find Groups
             </Link>
-            <Link to="/voicemail" className="block" onClick={() => setMenuOpen(false)}>
-              Voicemail
-            </Link>
-
             {user ? (
               <>
                 <Link to="/profile" className="block" onClick={() => setMenuOpen(false)}>

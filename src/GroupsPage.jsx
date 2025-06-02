@@ -1,22 +1,34 @@
-// src/GroupsPage.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { Helmet } from 'react-helmet';
 import { supabase } from './supabaseClient';
 import { Link } from 'react-router-dom';
 import Navbar from './Navbar';
 import GroupsHeroSearch from './GroupsHeroSearch';
-import GroupsList from './GroupsList';
 import GroupProgressBar from './GroupProgressBar';
+import SubmitGroupModal from './SubmitGroupModal';
 import Footer from './Footer';
-import GroupsPageHero from './GroupsPageHero';
 
+/**
+ * GroupsPage
+ * ----------
+ * Displays a paginated 5×5 grid of group cards with search.
+ * Includes an "Add Your Group" tile that opens the SubmitGroupModal.
+ */
 export default function GroupsPage() {
+  // Fetched groups
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState([]);
 
-  // Fetch all groups
+  // Search term
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+
+  // Modal state for adding groups
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+  // Fetch groups on mount
   useEffect(() => {
     async function fetchGroups() {
       const { data, error } = await supabase.from('groups').select('*');
@@ -27,82 +39,105 @@ export default function GroupsPage() {
     fetchGroups();
   }, []);
 
-  // Filtered groups based on search + selectedType
-  const filteredGroups = useMemo(() =>
-    groups.filter(group => {
-      const name = group.Name?.toLowerCase() || '';
-      const types = group.Type?.split(',').map(t => t.trim()) || [];
-      return (
-        name.includes(searchTerm.toLowerCase()) &&
-        (selectedType.length === 0 || selectedType.some(t => types.includes(t)))
-      );
-    }),
-  [groups, searchTerm, selectedType]);
+  // Filter by search term
+  const filtered = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return groups.filter(g => (g.Name || '').toLowerCase().includes(term));
+  }, [groups, searchTerm]);
 
-  // Derive all unique types for category list
-  const allTypes = useMemo(() => {
-    const set = new Set();
-    groups.forEach(g => {
-      (g.Type?.split(',').map(t => t.trim()) || []).forEach(t => set.add(t));
-    });
-    return Array.from(set).sort();
-  }, [groups]);
+  // Determine groups to display
+  const itemsPerPage = 25;
+  const displayedGroups = filtered.slice(0, page * itemsPerPage);
 
-  // Slugify helper
-  const slugify = text =>
-    text.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
+  // Handler for See More
+  const handleSeeMore = () => setPage(prev => prev + 1);
 
   return (
     <>
       <Helmet>
         <title>Philly Groups – Neighborhood Crews & Clubs | Our Philly</title>
-        <meta name="description" content="From sports leagues to social crews, explore Philly's most active local groups and communities." />
+        <meta
+          name="description"
+          content="From sports leagues to social crews, explore Philly's most active local groups and communities."
+        />
         <link rel="canonical" href="https://ourphilly.com/groups" />
       </Helmet>
 
-      <div className="min-h-screen bg-white-50 pt-20">
+      <div className="min-h-screen bg-neutral-50 pt-20">
         <Navbar />
-        <GroupsPageHero />
         <GroupProgressBar />
 
-        <div className="max-w-screen-full mx-auto px-4">
+        {/* Search */}
+        <div className="max-w-screen-xl mx-auto px-4 mb-6">
+          <GroupsHeroSearch
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+          />
+        </div>
+
+        <div className="max-w-screen-xl mx-auto px-4 mb-20">
           {loading ? (
             <div className="text-center py-20 text-gray-500">Loading Groups...</div>
           ) : (
             <>
-              <GroupsHeroSearch
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                selectedType={selectedType}
-                setSelectedType={setSelectedType}
-                allGroups={groups}
-              />
+              {/* Grid 5×5 with Add Group tile */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {/* Add Your Group tile */}
+                <button
+                  onClick={() => setShowSubmitModal(true)}
+                  className="flex flex-col items-center bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
+                >
+                  <div className="h-32 bg-white-100 flex items-center justify-center">
+                    <span className="text-4xl text-green-600">➕</span>
+                  </div>
+                  <div className="py-2 text-center text-sm font-medium text-gray-900">
+                    Add Your Group
+                  </div>
+                </button>
 
-              <GroupsList groups={filteredGroups} isAdmin={false} />
+                {/* Existing group cards */}
+                {displayedGroups.map(group => (
+                  <Link
+                    key={group.id}
+                    to={`/groups/${group.slug}`}
+                    className="block bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
+                  >
+                    <div className="h-32 bg-gray-100">
+                      <img
+                        src={group.imag}
+                        alt={group.Name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="py-2 text-center text-sm font-medium text-gray-900">
+                      {group.Name}
+                    </div>
+                  </Link>
+                ))}
+              </div>
 
-              {/* Category text grid */}
-              <section className="mt-12 mb-12">
-                <h2 className="text-2xl font-[Barrio] text-center font-bold mb-4">Browse by Category</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {allTypes.map(type => (
-                    <Link
-                      key={type}
-                      to={`/groups/type/${slugify(type)}`}
-                      className="block px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-center text-indigo-600 font-medium transition"
-                    >
-                      {type}
-                    </Link>
-                  ))}
+              {/* See More */}
+              {displayedGroups.length < filtered.length && (
+                <div className="flex justify-center mt-8">
+                  <button
+                    onClick={handleSeeMore}
+                    className="bg-indigo-600 text-white px-6 py-2 rounded-full hover:bg-indigo-700 transition"
+                  >
+                    See More
+                  </button>
                 </div>
-              </section>
+              )}
             </>
           )}
         </div>
-      </div>
 
-      <Footer />
+        {/* Submit Group Modal */}
+        {showSubmitModal && (
+          <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
+        )}
+
+        <Footer />
+      </div>
     </>
   );
 }

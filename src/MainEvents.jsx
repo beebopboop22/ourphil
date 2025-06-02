@@ -169,10 +169,12 @@ export default function MainEvents() {
   const [bigBoardEvents, setBigBoardEvents] = useState([]);
   const [traditionEvents, setTraditionEvents] = useState([]);   // NEW
   const [loading, setLoading] = useState(true);
+  // Community‐submitted group events
+const [groupEvents, setGroupEvents] = useState([]);
 
   // Pagination state
   const [page, setPage] = useState(1);
-  const EVENTS_PER_PAGE = 6;
+  const EVENTS_PER_PAGE = 9;
 
   // "filterDay" for single days
   const getDay = () => {
@@ -203,9 +205,9 @@ export default function MainEvents() {
 
   // Navigation for pills/date changes
   const goTo = (option, dateVal) => {
-    if (option === 'today') navigate('/things/today');
-    else if (option === 'tomorrow') navigate('/things/tomorrow');
-    else if (option === 'weekend') navigate('/things/weekend');
+    if (option === 'today') navigate('/today');
+    else if (option === 'tomorrow') navigate('/tomorrow');
+    else if (option === 'weekend') navigate('/weekend');
     else if (option === 'custom' && dateVal)
       navigate(`/things/${dateVal}`);
   };
@@ -259,9 +261,18 @@ export default function MainEvents() {
       `)
       .order('Dates', { ascending: true });  // ensure Dates is quoted
 
+      const fetchGroupEvents = supabase
+      .from('group_events')
+      .select(`
+        *,
+        groups(Name, imag, slug)
+      `)
+      .order('start_date', { ascending: true });
 
-    Promise.all([fetchAllEvents, fetchBigBoard, fetchTraditions])
-      .then(([allEventsRes, bigBoardRes, tradRes]) => {
+
+    Promise.all([fetchAllEvents, fetchBigBoard, fetchTraditions, fetchGroupEvents])
+    .then(([allEventsRes, bigBoardRes, tradRes, geRes]) => {
+
         
         // ----- ALL_EVENTS FILTERING -----
         const allData = allEventsRes.data || [];
@@ -386,6 +397,23 @@ const tradFiltered = tradData
 
 setTraditionEvents(tradFiltered);
 
+// ── Community Group Events ────────────────────────────────────────
+const geData = (geRes.data || []).map(ev => ({
+  id: ev.id,
+  title: ev.title,
+  description: ev.description,
+  imageUrl: ev.groups?.imag || '',          // fall back to group image
+  start_date: ev.start_date,
+  end_date: ev.end_date,
+  href: `/groups/${ev.groups.slug}/events/${ev.id}`,
+  isBigBoard: false,
+  isTradition: false,
+  isGroupEvent: true,                                       // tag it for styling
+  groupName: ev.groups?.[0]?.Name,                          // to display “by [Group]”
+}));
+setGroupEvents(geData);
+
+
         setLoading(false);
       })
       .catch(err => {
@@ -395,12 +423,13 @@ setTraditionEvents(tradFiltered);
   }, [selectedOption, customDate, params.view]);
 
   // Pagination
-  const totalCount = events.length + bigBoardEvents.length + traditionEvents.length;
+  const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length;;
   const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
   // Big Board first, then Traditions, then All Events
 const allPagedEvents = [
     ...bigBoardEvents,
     ...traditionEvents,
+    ...groupEvents, 
     ...events
   ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
 
@@ -607,13 +636,17 @@ return (
           const raw   = evt.name || evt.title || '';
           const title = raw.length > 40 ? raw.slice(0,50) + '…' : raw;
           const venue = evt.venues?.name || '';
-          const href  = evt.isTradition
+          // pick the correct link for each source:
+          const href = evt.isGroupEvent
+          ? evt.href
+          : evt.isTradition
             ? `/events/${evt.slug}`
-            : evt.title
+            : evt.isBigBoard
               ? `/big-board/${evt.slug}`
               : evt.venues?.slug && evt.slug
                 ? `/${evt.venues.slug}/${evt.slug}`
                 : '#';
+
           const isTrad = Boolean(evt.isTradition);
 
           // compute today, start and end objs
@@ -684,6 +717,12 @@ return (
             />
           </>
         )}
+
+{evt.isGroupEvent && (
+  <div className="absolute inset-x-0 bottom-0 bg-blue-600 text-white text-xs uppercase text-center py-1">
+    Approved Group
+  </div>
+)}
 
         {/* TRADITION STRIPE */}
         {isTradition && (
@@ -764,8 +803,7 @@ return (
 
         <BigBoardEventsGrid />
         <HeroLanding />
-        <SeasonalEventsGrid />
-        <SportsEventsGrid />
+        <PopularGroups />
         <Footer />
       </div>
     </div>

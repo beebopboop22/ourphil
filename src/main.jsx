@@ -38,6 +38,7 @@ import BigBoardCarousel from './BigBoardCarousel.jsx';
 import MainEvents from './MainEvents.jsx';
 import VenuePage from './VenuePage';
 import MainEventsDetail from './MainEventsDetail.jsx';
+import GroupEventDetailPage from './GroupEventDetailPage.jsx';
 
 
 
@@ -54,7 +55,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<App />} />
+          <Route path="/" element={<MainEvents />} />
+          <Route path="/:view" element={<MainEvents />} />
+          <Route path="/old" element={<App />} />
           <Route path="/sports" element={<SportsPage />} />
           <Route path="/trivia" element={<TriviaNights />} />
           <Route path="/voicemail" element={<VoicemailPage />} />
@@ -89,11 +92,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/social-video" element={<SocialVideoCarousel />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
-          <Route path="/things" element={<MainEvents />} />
-          <Route path="/things/:view" element={<MainEvents />} />
           <Route path="/:venue" element={<VenuePage />} />
           <Route path="/:venue/:slug" element={<MainEventsDetail />} />
-
+          <Route path="/groups/:slug/events/:eventId" element={<GroupEventDetailPage />} />
 
 
 

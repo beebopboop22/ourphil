@@ -116,6 +116,9 @@ export default function BigBoardEventsGrid() {
               <h2 className="text-[#28313e] sm:text-4xl text-2xl font-[Barrio] leading-snug text-center">
                 POST IT TO THE BIG BOARD
               </h2>
+              <p className="text-[#28313e] sm:text-xl text-2xl leading-snug text-center">
+                Snap a shot of event fliers 
+              </p>
             </div>
             {/* Pin on paper */}
             <img

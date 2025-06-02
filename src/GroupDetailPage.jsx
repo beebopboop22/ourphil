@@ -10,15 +10,16 @@ import Voicemail from './Voicemail';
 import Footer from './Footer';
 import GroupProgressBar from './GroupProgressBar';
 import { AuthContext } from './AuthProvider';
-import GroupUpdateForm from './GroupUpdateForm';
-import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites';
-import OutletsList from './OutletsList';      
+import GroupEventForm from './GroupEventForm'; // Form component for adding events
 
+import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites';
+import OutletsList from './OutletsList';
 
 export default function GroupDetails() {
   const { slug } = useParams();
   const { user } = useContext(AuthContext);
 
+  // ── Local state ─────────────────────────────────────────────────────────
   const [group, setGroup] = useState(null);
   const [relatedGroups, setRelatedGroups] = useState([]);
   const [suggestedOutlets, setSuggestedOutlets] = useState([]);
@@ -26,34 +27,36 @@ export default function GroupDetails() {
   const [favCount, setFavCount] = useState(0);
   const [myFavId, setMyFavId] = useState(null);
   const [toggling, setToggling] = useState(false);
-  const [updates, setUpdates] = useState([]);
   const [isApprovedForGroup, setIsApprovedForGroup] = useState(false);
-
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimMessage, setClaimMessage] = useState('');
+  // at the top of the component, alongside claimMessage state:
+  const [claimEmail, setClaimEmail] = useState(user?.email || '');
   const [submittingClaim, setSubmittingClaim] = useState(false);
+  const [events, setEvents] = useState([]); // New: holds group-specific events
 
+  // ── Fetch group, favorites, related groups, approval & events ────────────
   useEffect(() => {
     async function fetchData() {
-      // load group
+      // Load the group by its slug
       const { data: grp } = await supabase.from('groups').select('*').eq('slug', slug).single();
       setGroup(grp);
 
-      // favorites count
+      // Fetch total favorites count for this group
       const { count } = await supabase
         .from('favorites')
         .select('id', { count: 'exact', head: true })
         .eq('group_id', grp.id);
       setFavCount(count || 0);
 
-      // my favorite id
+      // If logged in, get the user's favorite record for this group
       if (user) {
         const rows = await getMyFavorites();
         const mine = rows.find(r => r.group_id === grp.id);
         setMyFavId(mine?.id ?? null);
       }
 
-      // related groups
+      // Find related groups by the first type tag
       if (grp?.Type) {
         const types = grp.Type.split(',').map(t => t.trim());
         const { data: rel } = await supabase
@@ -64,15 +67,7 @@ export default function GroupDetails() {
         setRelatedGroups(rel || []);
       }
 
-      // updates
-      const { data: upd } = await supabase
-        .from('group_updates')
-        .select('*')
-        .eq('group_id', grp.id)
-        .order('created_at', { ascending: false });
-      setUpdates(upd || []);
-
-      // claim approval
+      // Check if user is approved to post events
       if (user) {
         const { data } = await supabase
           .from('group_claim_requests')
@@ -83,32 +78,36 @@ export default function GroupDetails() {
           .single();
         setIsApprovedForGroup(!!data);
       }
+
+      // Fetch all events for this group, ordered by start_date
+      const { data: evts } = await supabase
+        .from('group_events')
+        .select('*')
+        .eq('group_id', grp.id)
+        .order('start_date', { ascending: true });
+      setEvents(evts || []);
     }
     fetchData();
   }, [slug, user]);
 
-  // … after you fetch `group` …
-useEffect(() => {
-  if (!group) return;
-  setLoadingOutlets(true);
+  // ── Fetch news outlets based on group area ───────────────────────────────
+  useEffect(() => {
+    if (!group) return;
+    setLoadingOutlets(true);
 
-  supabase
-    .from('news_outlets')
-    .select('*')
-    .eq('area', group.Area)      // ← must match the real column name
-    .limit(10)
-    .then(({ data, error }) => {
-      if (error) {
-        console.error('fetching outlets:', error);
-        return;
-      }
-      setSuggestedOutlets(data);
-    })
-    .finally(() => setLoadingOutlets(false));
-}, [group]);
+    supabase
+      .from('news_outlets')
+      .select('*')
+      .eq('area', group.Area)
+      .limit(10)
+      .then(({ data, error }) => {
+        if (error) console.error('fetching outlets:', error);
+        else setSuggestedOutlets(data);
+      })
+      .finally(() => setLoadingOutlets(false));
+  }, [group]);
 
-
-
+  // ── Favorite toggle handler ─────────────────────────────────────────────
   const toggleFav = async () => {
     if (!user || !group) return;
     setToggling(true);
@@ -124,6 +123,7 @@ useEffect(() => {
     setToggling(false);
   };
 
+  // ── Claim group handler ────────────────────────────────────────────────
   const submitClaim = async () => {
     if (!claimMessage.trim()) return;
     setSubmittingClaim(true);
@@ -134,53 +134,33 @@ useEffect(() => {
     setShowClaimModal(false);
   };
 
-  const handleEdit = async (id, content) => {
-    const updated = prompt('Edit your update:', content);
-    if (!updated) return;
-    await supabase.from('group_updates').update({ content: updated }).eq('id', id);
-    setUpdates(updates.map(u => u.id === id ? { ...u, content: updated } : u));
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure?')) return;
-    await supabase.from('group_updates').delete().eq('id', id);
-    setUpdates(updates.filter(u => u.id !== id));
-  };
-
+  // ── Loading state ──────────────────────────────────────────────────────
   if (!group) return <div className="text-center py-20 text-gray-500">Loading Group…</div>;
 
   const types = group.Type?.split(',').map(t => t.trim()) || [];
 
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
+      {/* ── SEO & Meta Tags ─────────────────────────────────────────────── */}
       <Helmet>
-          {/* include tags at end of title */}
-          <title>{`${group.Name} – Our Philly – ${types.join(', ')}`}</title>
-
-          {/* standard meta description */}
-          <meta name="description" content={group.Description} />
-
-          {/* Open Graph */}
-          <meta property="og:title" content={group.Name} />
-          <meta property="og:description" content={group.Description} />
-          <meta property="og:url" content={window.location.href} />
-          {/* you can swap in any group image or a default */}
-          <meta property="og:image" content={group.imag} />
-
-          {/* keywords from your type tags */}
-          <meta name="keywords" content={types.join(', ')} />
-
-          <link rel="icon" href="/favicon.ico" />
-        </Helmet>
+        <title>{`${group.Name} – Our Philly – ${types.join(', ')}`}</title>
+        <meta name="description" content={group.Description} />
+        <meta property="og:title" content={group.Name} />
+        <meta property="og:description" content={group.Description} />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:image" content={group.imag} />
+        <meta name="keywords" content={types.join(', ')} />
+        <link rel="icon" href="/favicon.ico" />
+      </Helmet>
 
       <Navbar />
       <GroupProgressBar />
 
-      {/* Header: cover + avatar */}
+      {/* ── Header: Cover Banner & Avatar ───────────────────────────────── */}
       <div className="relative">
         <div
           className="h-64 bg-cover bg-center"
-          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1516508636691-2ea98becb2f5?q=80&w=2671&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfDB8fGVufDB8%3D")' }}
+          style={{ backgroundImage: `url("https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//pine-street-51011_1280.jpg")` }}
         />
         <div className="absolute left-8 bottom-0 transform translate-y-1/2">
           <img
@@ -191,29 +171,74 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Claim Modal */}
-      {showClaimModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={() => setShowClaimModal(false)}>
-          <div className="bg-white rounded-lg p-6 relative max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowClaimModal(false)} className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl">×</button>
-            <h2 className="text-xl font-semibold mb-4">Tell us about your connection to this group</h2>
-            <textarea
-              rows={4}
-              value={claimMessage}
-              onChange={e => setClaimMessage(e.target.value)}
-              className="w-full border rounded p-2 mb-4"
-              placeholder="I help organize events for this group..."
-            />
-            <button
-              onClick={submitClaim}
-              disabled={submittingClaim}
-              className="w-full bg-blue-600 text-white py-2 rounded"
-            >{submittingClaim ? 'Submitting…' : 'Submit Claim Request'}</button>
-          </div>
-        </div>
-      )}
+      {/* ── Claim Modal ───────────────────────────────────────────────────── */}
+{showClaimModal && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+    onClick={() => setShowClaimModal(false)}
+  >
+    <div
+      className="bg-white rounded-lg p-6 relative max-w-md w-full"
+      onClick={e => e.stopPropagation()}
+    >
+      <button
+        onClick={() => setShowClaimModal(false)}
+        className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl"
+      >
+        ×
+      </button>
+      <h2 className="text-xl font-semibold mb-4">Tell us about your connection to this group</h2>
 
-      {/* Group Info with inline heart + claim */}
+      {/* NEW: email input */}
+      <label className="block text-sm font-bold mb-1">Your Email</label>
+      <input
+        type="email"
+        value={claimEmail}
+        onChange={e => setClaimEmail(e.target.value)}
+        required
+        className="w-full border rounded px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        placeholder="you@example.com"
+      />
+
+      <label className="block text-sm font-bold mb-1">Why you can claim this group</label>
+      <textarea
+        rows={4}
+        value={claimMessage}
+        onChange={e => setClaimMessage(e.target.value)}
+        className="w-full border rounded p-2 mb-4"
+        placeholder="I help organize events for this group..."
+        required
+      />
+
+      <p className="text-xs text-gray-500 mb-4">
+        We may message you on Instagram or at your official group email to confirm ownership.
+      </p>
+
+      <button
+        onClick={async () => {
+          setSubmittingClaim(true);
+          await supabase
+            .from('group_claim_requests')
+            .insert({
+              group_id: group.id,
+              user_id: user.id,
+              user_email: claimEmail,      // ← include email here
+              message: claimMessage,
+              status: 'Pending',
+            });
+          setSubmittingClaim(false);
+          setShowClaimModal(false);
+        }}
+        disabled={submittingClaim}
+        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+      >
+        {submittingClaim ? 'Submitting…' : 'Submit Claim Request'}
+      </button>
+    </div>
+  </div>
+)}
+
+      {/* ── Group Info & Actions ─────────────────────────────────────────── */}
       <div className="mt-24 px-4">
         <div className="max-w-screen-xl mx-auto">
           <div className="flex items-center space-x-3">
@@ -250,25 +275,41 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Post Update Section */}
+          {/* ── Add Event Form or Prompt ─────────────────────────────────── */}
           {user ? (
             isApprovedForGroup ? (
               <div className="mt-10">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Post an Update</h2>
-                <GroupUpdateForm groupId={group.id} userId={user.id} onPostSuccess={() => setUpdates([])} />
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">Add New Event</h2>
+                <GroupEventForm
+                  groupId={group.id}
+                  userId={user.id}
+                  onSuccess={() => {
+                    // Refresh events list after successful insert
+                    supabase
+                      .from('group_events')
+                      .select('*')
+                      .eq('group_id', group.id)
+                      .order('start_date', { ascending: true })
+                      .then(({ data }) => setEvents(data || []));
+                  }}
+                />
               </div>
             ) : (
               <div className="mt-10 p-4 bg-gray-100 rounded text-center text-gray-600">
                 <p>
-                  You need to{' '}<button onClick={() => setShowClaimModal(true)} className="underline text-blue-600">claim this group</button>{' '}before you can post updates.
+                  You need to{' '}
+                  <button onClick={() => setShowClaimModal(true)} className="underline text-blue-600">
+                    claim this group
+                  </button>{' '}
+                  before you can post events.
                 </p>
               </div>
             )
           ) : (
             <div className="mt-10 p-4 bg-gray-100 rounded text-center text-gray-600">
               <p>
-                Log in to claim this group and post updates.{' '}
-                <Link to="/login" className="underline text-blue-600">Log in</Link>{' '}or{' '}
+                Log in to claim this group and post events.{' '}
+                <Link to="/login" className="underline text-blue-600">Log in</Link> or{' '}
                 <Link to="/signup" className="underline text-blue-600">Sign up</Link>.
               </p>
             </div>
@@ -276,41 +317,56 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Recent Updates */}
-      <div className="max-w-screen-xl mx-auto px-4 mt-12 space-y-4">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Updates</h2>
-        {updates.length === 0 ? (
-          <p className="text-gray-500">
-            No updates yet.
-            {!user && (
-              <Link to="/login" className="text-blue-600 underline ml-2">Log in to claim this group</Link>
-            )}
-          </p>
-        ) : (
-          updates.map(update => (
-            <div key={update.id} className="bg-white border border-gray-200 hover:bg-gray-50 rounded-lg p-4 shadow-sm transition mb-4">
-              <div className="flex items-start mb-3">
-                <img src={group.imag} alt={group.Name} className="w-10 h-10 rounded-full mr-3 object-cover" />
-                <div className="flex-1">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm font-semibold text-gray-900">{group.Name}</p>
-                    <p className="text-xs text-gray-500">{new Date(update.created_at).toLocaleString()}</p>
-                  </div>
-                  <p className="text-gray-800 mt-2">{update.content}</p>
-                </div>
-              </div>
-              {user && update.user_id === user.id && (
-                <div className="flex justify-end space-x-4 text-blue-500 text-sm">
-                  <button onClick={() => handleEdit(update.id, update.content)} className="hover:underline">Edit</button>
-                  <button onClick={() => handleDelete(update.id)} className="hover:underline">Delete</button>
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+      {/* ── Events Grid ──────────────────────────────────────────────────── */}
+      <section className="mt-12 max-w-screen-xl mx-auto px-4">
+        <h2 className="text-2xl font-bold mb-6">Upcoming Events</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {events.map(evt => {
+            const start = new Date(evt.start_date);
+            const end   = evt.end_date ? new Date(evt.end_date) : null;
+            const today = new Date();
+            const isOngoing = start <= today && (!end || end > today);
+            const eventLink = `/groups/${group.slug}/events/${evt.id}`;
 
-      {/* Related Groups */}
+            return (
+              <Link
+                key={evt.id}
+                to={eventLink}
+                className="relative block bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
+              >
+                {/* Date badge */}
+                <div className="absolute top-2 left-2 bg-indigo-600 text-white p-2 rounded">
+                  <div className="text-lg font-bold">{start.getDate()}</div>
+                  <div className="uppercase text-xs">{start.toLocaleString('en-US', { month: 'short' })}</div>
+                </div>
+
+                {/* Event image */}
+                <div className="h-40 bg-gray-100">
+                  <img
+                    src={evt.image || group.imag}
+                    alt={evt.title || evt.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+
+                {/* Event details */}
+                <div className="p-4">
+                  <h3 className="font-semibold text-lg truncate">{evt.title || evt.name}</h3>
+                  <p className="text-sm mt-1 line-clamp-3">{evt.description}</p>
+                  {isOngoing && (
+                    <span className="inline-block mt-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">
+                      Ends in{' '}
+                      {Math.ceil(((end || start) - today) / (1000 * 60 * 60 * 24))} days
+                    </span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Related Groups Strip ────────────────────────────────────────── */}
       {relatedGroups.length > 0 && (
         <div className="max-w-screen-xl mx-auto px-4 mt-16">
           <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">
@@ -323,7 +379,9 @@ useEffect(() => {
                   <img src={g.imag} alt={g.Name} className="w-full h-20 object-cover" />
                   <div className="px-2 py-2 flex-1 flex flex-col items-center text-center">
                     <h3 className="text-sm font-semibold truncate w-full">{g.Name}</h3>
-                    <p className="text-xs text-gray-600 mt-1 flex-1 overflow-hidden line-clamp-2 w-full">{g.Description}</p>
+                    <p className="text-xs text-gray-600 mt-1 flex-1 overflow-hidden line-clamp-2 w-full">
+                      {g.Description}
+                    </p>
                   </div>
                 </Link>
               ))}
@@ -332,8 +390,8 @@ useEffect(() => {
         </div>
       )}
 
-            {/* ── Outlets You Might Like ────────────────────────────────────────── */}
-            {suggestedOutlets.length > 0 && (
+      {/* ── Outlets You Might Like ───────────────────────────────────────── */}
+      {suggestedOutlets.length > 0 && (
         <section className="w-full bg-neutral-100 pt-12 pb-12">
           <div className="relative w-screen left-1/2 right-1/2 mx-[-50vw] overflow-x-auto overflow-y-hidden">
             <div className="flex space-x-4 flex-nowrap px-4">
@@ -346,7 +404,6 @@ useEffect(() => {
           </div>
         </section>
       )}
-
 
       <Voicemail />
       <Footer />

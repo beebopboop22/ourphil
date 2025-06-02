@@ -8,6 +8,7 @@ import SportsTonightSidebar from './SportsTonightSidebar';
 import RecentActivity from './RecentActivity';
 import CityHolidayAlert from './CityHolidayAlert';
 import { Helmet } from 'react-helmet';
+import MoreEventsBanner from './MoreEventsBanner';
 
 
 // Sidebar "Upcoming Traditions"
@@ -246,7 +247,10 @@ return (
       <div className="flex flex-col min-h-screen">
         <Navbar />
 
+
         <div className="pt-20">
+        <MoreEventsBanner />
+
   <CityHolidayAlert />
 </div>
         {/* Hero: image only, shorter */}
