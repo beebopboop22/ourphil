@@ -2,6 +2,8 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
+import TriviaCard from './TriviaCard'
+import { useTriviaReviewStats } from './utils/useTriviaReviewStats'
 
 const daysOfWeek = [
   'Sunday',
@@ -16,8 +18,12 @@ const daysOfWeek = [
 export default function TriviaNights() {
   const [triviaList, setTriviaList] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedDay, setSelectedDay] = useState(daysOfWeek[new Date().getDay()])
+  const [selectedDay, setSelectedDay] = useState(
+    daysOfWeek[new Date().getDay()]
+  )
   const [selectedNeighborhood, setSelectedNeighborhood] = useState('All')
+  const [reviewOpenId, setReviewOpenId] = useState(null)
+  const [statsRefreshKey, setStatsRefreshKey] = useState(0)
 
   useEffect(() => {
     const fetchTrivia = async () => {
@@ -41,7 +47,11 @@ export default function TriviaNights() {
   }, [selectedDay])
 
   const neighborhoods = useMemo(() => {
-    const uniq = Array.from(new Set(triviaList.map((t) => t.Neighborhood || '').filter(Boolean)))
+    const uniq = Array.from(
+      new Set(
+        triviaList.map((t) => t.Neighborhood || '').filter(Boolean)
+      )
+    )
     return ['All', ...uniq.sort()]
   }, [triviaList])
 
@@ -55,12 +65,12 @@ export default function TriviaNights() {
       <Navbar />
 
       <div className="max-w-4xl mx-auto py-8 px-4 pt-24">
-        {/* Title */}
+        {/* — Title */}
         <h1 className="text-2xl font-bold text-indigo-600 text-center mb-4">
-           Trivia Nights on {selectedDay}
+          Trivia Nights on {selectedDay}
         </h1>
 
-        {/* Day Pills */}
+        {/* — Day Pills */}
         <div className="flex overflow-x-auto space-x-2 justify-center mb-4">
           {daysOfWeek.map((day) => (
             <button
@@ -77,7 +87,7 @@ export default function TriviaNights() {
           ))}
         </div>
 
-        {/* Neighborhood Filter */}
+        {/* — Neighborhood Filter */}
         {neighborhoods.length > 1 && (
           <div className="flex justify-center mb-4">
             <select
@@ -94,35 +104,30 @@ export default function TriviaNights() {
           </div>
         )}
 
-        {/* Loading / No Results */}
+        {/* — Loading / No Results */}
         {loading ? (
-          <p className="text-gray-500 text-center py-8">Loading trivia nights…</p>
+          <p className="text-gray-500 text-center py-8">
+            Loading trivia nights…
+          </p>
         ) : filteredList.length === 0 ? (
           <p className="text-gray-600 text-center py-8">
             No trivia nights listed for {selectedDay}
             {selectedNeighborhood !== 'All' && ` in ${selectedNeighborhood}`}.
           </p>
         ) : (
-          /* Trivia Grid */
+          /* — Trivia Grid */
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filteredList.map((item) => (
-              <div
+              <TriviaCard
                 key={item.id}
-                className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-transform hover:scale-[1.02]"
-              >
-                <a
-                  href={item.link || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block"
-                >
-                  <h2 className="text-lg font-semibold text-indigo-800 mb-1">
-                    {item.Bar}
-                  </h2>
-                  <p className="text-gray-700 mb-1">⏰ {item.Time}</p>
-                  <p className="text-gray-700">📍 {item.Neighborhood}</p>
-                </a>
-              </div>
+                item={item}
+                reviewOpenId={reviewOpenId}
+                setReviewOpenId={setReviewOpenId}
+                statsRefreshKey={statsRefreshKey}
+                onReviewSuccess={() =>
+                  setStatsRefreshKey((k) => k + 1)
+                }
+              />
             ))}
           </div>
         )}

@@ -11,7 +11,11 @@ import { AuthContext } from './AuthProvider';
 export default function PostFlyerModal({ isOpen, onClose }) {
   const { user } = useContext(AuthContext);
 
-  // ── Local state ─────────────────────────────────
+  // ── Step state ─────────────────────────────────────────────────────────────
+  const [step, setStep] = useState(1);
+  const totalSteps = 3;
+
+  // ── Form state ──────────────────────────────────────────────────────────────
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -24,22 +28,22 @@ export default function PostFlyerModal({ isOpen, onClose }) {
   // Holds the final event URL once created
   const [confirmationUrl, setConfirmationUrl] = useState('');
 
-  // Prevent background from scrolling when modal is open
+  // Prevent background scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
-      // reset all fields when closed
       resetForm();
       setConfirmationUrl('');
+      setStep(1);
     }
     return () => {
       document.body.style.overflow = '';
     };
   }, [isOpen]);
 
-  // ── Helpers ───────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -56,6 +60,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     setStartDate(null);
     setEndDate(null);
     setUploading(false);
+    setStep(1);
   }
 
   async function handleSubmit() {
@@ -64,7 +69,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
       return;
     }
     if (!selectedFile || !title || !startDate) {
-      alert('Please provide at least an image, a title, and a start date.');
+      alert('Please provide an image, title, and start date.');
       return;
     }
 
@@ -101,9 +106,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
           description: description || null,
           link: link || null,
           start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate
-            ? endDate.toISOString().split('T')[0]
-            : startDate.toISOString().split('T')[0],
+          end_date: endDate ? endDate.toISOString().split('T')[0] : startDate.toISOString().split('T')[0],
           slug,
         });
       if (eventError) throw eventError;
@@ -118,12 +121,32 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     }
   }
 
-  // Copy the confirmation URL to clipboard
   function copyToClipboard() {
     navigator.clipboard.writeText(confirmationUrl);
   }
 
-  // ── Render ─────────────────────────────────────────
+  function canProceed() {
+    if (step === 1) return Boolean(selectedFile);
+    if (step === 2) return Boolean(title.trim());
+    if (step === 3) return Boolean(startDate);
+    return false;
+  }
+
+  function handleNext() {
+    if (step < totalSteps) {
+      setStep(step + 1);
+    } else {
+      handleSubmit();
+    }
+  }
+
+  function handleBack() {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <AnimatePresence>
       {isOpen && (
@@ -137,11 +160,11 @@ export default function PostFlyerModal({ isOpen, onClose }) {
             className="
               bg-white
               rounded-lg
-              mx-4            /* small horizontal padding on mobile */
+              mx-4            /* small padding on mobile */
               max-w-lg
               w-full
               max-h-[90vh]    /* cap height to 90% of viewport */
-              overflow-y-auto /* scrollable if content is tall */
+              overflow-y-auto /* scroll if content is tall */
               relative
               p-6
             "
@@ -149,13 +172,16 @@ export default function PostFlyerModal({ isOpen, onClose }) {
             animate={{ scale: 1 }}
             exit={{ scale: 0.8 }}
           >
-            {/* Close button (always visible) */}
+            {/* Close button */}
             <button
               onClick={onClose}
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 z-10"
             >
               ✕
             </button>
+
+            {/* Heading */}
+            <h2 className="text-xl font-bold mb-2 text-center">Post an Event Flyer</h2>
 
             {/* Notification Bar */}
             <div className="bg-blue-100 text-blue-800 text-sm font-semibold text-center px-4 py-2 rounded mb-4">
@@ -164,12 +190,12 @@ export default function PostFlyerModal({ isOpen, onClose }) {
               to post direct to your calendar and your group page.
             </div>
 
-            {/*** If confirmationUrl exists, show the elegant confirmation card ***/}
+            {/*** If confirmationUrl exists, show confirmation view ***/}
             {confirmationUrl ? (
               <div className="flex flex-col items-center">
-                <h2 className="text-2xl font-bold mb-4 text-center">
+                <h3 className="text-2xl font-bold mb-4 text-center">
                   Your event is live!
-                </h2>
+                </h3>
                 <p className="text-center mb-4">
                   Here’s the link to your event page:
                 </p>
@@ -178,148 +204,163 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                     type="text"
                     readOnly
                     value={confirmationUrl}
-                    className="
-                      flex-1
-                      border
-                      rounded-l-lg
-                      px-3 py-2
-                      text-sm
-                      truncate
-                    "
-                    onFocus={e => e.target.select()}
+                    className="flex-1 border rounded-l-lg px-3 py-2 text-sm truncate"
+                    onFocus={(e) => e.target.select()}
                   />
                   <button
                     onClick={copyToClipboard}
-                    className="
-                      bg-indigo-600
-                      text-white
-                      px-4 py-2
-                      rounded-r-lg
-                      hover:bg-indigo-700
-                      transition
-                    "
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700 transition"
                   >
                     Copy
                   </button>
                 </div>
                 <button
                   onClick={onClose}
-                  className="
-                    mt-2
-                    bg-gray-200
-                    text-gray-800
-                    px-6 py-2
-                    rounded-lg
-                    hover:bg-gray-300
-                    transition
-                  "
+                  className="mt-2 bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 transition"
                 >
                   Done
                 </button>
               </div>
             ) : (
-              /*** Otherwise, render the standard “upload flyer” form ***/
+              /*** Multi-step form ***/
               <div>
-                <h2 className="text-xl font-bold mb-4 text-center">
-                  Post an Event Flyer
-                </h2>
-
-                {/* Image Picker */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Upload Flyer <span className="font-normal text-xs">(required)</span>
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="w-full"
-                    disabled={uploading}
-                  />
-                </div>
-                {previewUrl && (
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="mb-4 w-full h-48 object-cover rounded"
-                  />
+                {/* Step 1: Upload Flyer */}
+                {step === 1 && (
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Upload Flyer <span className="font-normal text-xs">(required)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="w-full"
+                      disabled={uploading}
+                    />
+                    {previewUrl && (
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="mt-4 w-full h-48 object-cover rounded"
+                      />
+                    )}
+                  </div>
                 )}
 
-                {/* Title, Description, Link */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Title <span className="font-normal text-xs">(required)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                    className="w-full border p-2 rounded"
-                    disabled={uploading}
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Why should we go? <span className="font-normal text-xs">(optional)</span>
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    className="w-full border p-2 rounded"
-                    disabled={uploading}
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Link <span className="font-normal text-xs">(optional)</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={link}
-                    onChange={e => setLink(e.target.value)}
-                    placeholder="https://example.com"
-                    className="w-full border p-2 rounded"
-                    disabled={uploading}
-                  />
-                </div>
+                {/* Step 2: Title & Description */}
+                {step === 2 && (
+                  <div className="mb-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Title <span className="font-normal text-xs">(required)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="w-full border p-2 rounded"
+                        disabled={uploading}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Why should we go? <span className="font-normal text-xs">(optional)</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="w-full border p-2 rounded"
+                        disabled={uploading}
+                      />
+                    </div>
+                  </div>
+                )}
 
-                {/* Start/End Dates */}
-                <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Start Date <span className="font-normal text-xs">(required)</span>
-                    </label>
-                    <DatePicker
-                      selected={startDate}
-                      onChange={date => setStartDate(date)}
-                      placeholderText="Pick a start date"
-                      className="w-full border p-2 rounded"
-                      disabled={uploading}
+                {/* Step 3: Link & Dates */}
+                {step === 3 && (
+                  <div className="mb-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Link <span className="font-normal text-xs">(optional)</span>
+                      </label>
+                      <input
+                        type="url"
+                        value={link}
+                        onChange={(e) => setLink(e.target.value)}
+                        placeholder="https://example.com"
+                        className="w-full border p-2 rounded"
+                        disabled={uploading}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Start Date <span className="font-normal text-xs">(required)</span>
+                        </label>
+                        <DatePicker
+                          selected={startDate}
+                          onChange={(date) => setStartDate(date)}
+                          placeholderText="Pick a start date"
+                          className="w-full border p-2 rounded"
+                          disabled={uploading}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          End Date <span className="font-normal text-xs">(optional)</span>
+                        </label>
+                        <DatePicker
+                          selected={endDate}
+                          onChange={(date) => setEndDate(date)}
+                          placeholderText="Pick an end date"
+                          className="w-full border p-2 rounded"
+                          disabled={uploading}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Progress Bar & Label */}
+                <div className="mb-6">
+                  <div className="flex justify-between text-xs font-semibold mb-1">
+                    <span>Step {step} of {totalSteps}</span>
+                    <span>{Math.round((step / totalSteps) * 100)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 h-2 rounded">
+                    <div
+                      className="h-2 bg-indigo-600 rounded"
+                      style={{ width: `${(step / totalSteps) * 100}%` }}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      End Date <span className="font-normal text-xs">(optional)</span>
-                    </label>
-                    <DatePicker
-                      selected={endDate}
-                      onChange={date => setEndDate(date)}
-                      placeholderText="Pick an end date"
-                      className="w-full border p-2 rounded"
-                      disabled={uploading}
-                    />
-                  </div>
                 </div>
 
-                {/* Submit Button */}
-                <button
-                  onClick={handleSubmit}
-                  disabled={uploading || !selectedFile || !title || !startDate}
-                  className="w-full bg-indigo-600 text-white py-2 rounded disabled:opacity-50"
-                >
-                  {uploading ? 'Posting…' : 'Post Event'}
-                </button>
+                {/* Navigation Buttons */}
+                <div className="flex justify-between">
+                  <button
+                    onClick={handleBack}
+                    disabled={step === 1}
+                    className={`px-4 py-2 rounded ${
+                      step === 1
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+                    } transition`}
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    disabled={!canProceed() || uploading}
+                    className={`px-4 py-2 rounded text-white ${
+                      canProceed()
+                        ? 'bg-indigo-600 hover:bg-indigo-700'
+                        : 'bg-indigo-300 cursor-not-allowed'
+                    } transition`}
+                  >
+                    {step < totalSteps ? 'Next' : uploading ? 'Posting…' : 'Post Event'}
+                  </button>
+                </div>
               </div>
             )}
           </motion.div>

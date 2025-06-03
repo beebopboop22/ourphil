@@ -39,6 +39,8 @@ import MainEvents from './MainEvents.jsx';
 import VenuePage from './VenuePage';
 import MainEventsDetail from './MainEventsDetail.jsx';
 import GroupEventDetailPage from './GroupEventDetailPage.jsx';
+import ScrollToTop from './ScrollToTop'
+
 
 
 
@@ -54,6 +56,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     {/* Wrap entire app with AuthProvider to supply session & user */}
     <AuthProvider>
       <BrowserRouter>
+      <ScrollToTop />
         <Routes>
           <Route path="/" element={<MainEvents />} />
           <Route path="/:view" element={<MainEvents />} />

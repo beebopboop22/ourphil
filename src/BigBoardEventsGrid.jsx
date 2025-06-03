@@ -97,7 +97,7 @@ export default function BigBoardEventsGrid() {
 
   return (
     <div
-      className="w-full py-12 relative"
+      className="w-full py-12 relative overflow-x-hidden"
       style={{
         backgroundImage: `url('${boardBg}')`,
         backgroundSize: 'cover',

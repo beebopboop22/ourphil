@@ -557,6 +557,8 @@ return (
     <>
     <Helmet>
   <title>{pageTitle} | Our Philly - Dig Into Philly</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
   <meta name="description" content={metaDescription} />
 </Helmet>
     
