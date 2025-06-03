@@ -186,8 +186,6 @@ export default function PostFlyerModal({ isOpen, onClose }) {
             {/* Notification Bar */}
             <div className="bg-blue-100 text-blue-800 text-sm font-semibold text-center px-4 py-2 rounded mb-4">
               Post event flyers here to add them to the calendar.{' '}
-              Group organizers: <Link to="/groups" className="underline">claim your group page</Link>{' '}
-              to post direct to your calendar and your group page.
             </div>
 
             {/*** If confirmationUrl exists, show confirmation view ***/}
