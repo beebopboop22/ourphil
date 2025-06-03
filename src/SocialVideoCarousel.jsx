@@ -243,7 +243,7 @@ export default function SocialVideoCarousel() {
        <img
           src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-2.png"
           alt="heart"
-          className="absolute bottom-48 left-0 w-50 h-40 z-30 pointer-events-none select-none"
+          className="absolute bottom-24 left-0 w-50 h-40 z-30 pointer-events-none select-none"
         />
     </div>
   )
