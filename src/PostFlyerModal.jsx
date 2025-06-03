@@ -1,10 +1,9 @@
 // src/PostFlyerModal.jsx
 import React, { useState, useContext, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import imageCompression from 'browser-image-compression';
 import { motion, AnimatePresence } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import imageCompression from 'browser-image-compression';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 
@@ -74,6 +73,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     }
 
     setUploading(true);
+
     try {
       // 1) Compress & upload image to Supabase Storage
       const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
@@ -82,7 +82,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
       const key = `${user.id}-${Date.now()}-${cleanName}`;
       await supabase.storage.from('big-board').upload(key, compressed);
 
-      // 2) Insert into big_board_posts
+      // 2) Insert into big_board_posts (leave event_id null for now)
       const { data: postData, error: postError } = await supabase
         .from('big_board_posts')
         .insert({ user_id: user.id, image_url: key })
@@ -92,13 +92,14 @@ export default function PostFlyerModal({ isOpen, onClose }) {
       const postId = postData.id;
 
       // 3) Generate a slug from title + timestamp
-      const slug = `${title
+      const slugBase = title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')}-${Date.now()}`;
+        .replace(/(^-|-$)/g, '');
+      const slug = `${slugBase}-${Date.now()}`;
 
-      // 4) Insert into big_board_events (with description + link)
-      const { error: eventError } = await supabase
+      // 4) Insert into big_board_events (with description + link), linking via post_id
+      const { data: eventData, error: eventError } = await supabase
         .from('big_board_events')
         .insert({
           post_id: postId,
@@ -106,12 +107,24 @@ export default function PostFlyerModal({ isOpen, onClose }) {
           description: description || null,
           link: link || null,
           start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate ? endDate.toISOString().split('T')[0] : startDate.toISOString().split('T')[0],
+          end_date: endDate
+            ? endDate.toISOString().split('T')[0]
+            : startDate.toISOString().split('T')[0],
           slug,
-        });
+        })
+        .select('id')
+        .single();
       if (eventError) throw eventError;
+      const eventId = eventData.id;
 
-      // 5) Build the confirmation URL and show the confirmation view
+      // 5) Update the post row so that big_board_posts.event_id = the new event's id
+      const { error: updateError } = await supabase
+        .from('big_board_posts')
+        .update({ event_id: eventId })
+        .eq('id', postId);
+      if (updateError) throw updateError;
+
+      // 6) Build the confirmation URL and show the confirmation view
       const fullUrl = `https://ourphilly.org/big-board/${slug}`;
       setConfirmationUrl(fullUrl);
     } catch (err) {
@@ -262,7 +275,8 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Why should we go? <span className="font-normal text-xs">(optional)</span>
+                        Why should we go?{' '}
+                        <span className="font-normal text-xs">(optional)</span>
                       </label>
                       <textarea
                         rows={3}
@@ -323,7 +337,9 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                 {/* Progress Bar & Label */}
                 <div className="mb-6">
                   <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>Step {step} of {totalSteps}</span>
+                    <span>
+                      Step {step} of {totalSteps}
+                    </span>
                     <span>{Math.round((step / totalSteps) * 100)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 h-2 rounded">
@@ -356,7 +372,11 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                         : 'bg-indigo-300 cursor-not-allowed'
                     } transition`}
                   >
-                    {step < totalSteps ? 'Next' : uploading ? 'Posting…' : 'Post Event'}
+                    {step < totalSteps
+                      ? 'Next'
+                      : uploading
+                      ? 'Posting…'
+                      : 'Post Event'}
                   </button>
                 </div>
               </div>
