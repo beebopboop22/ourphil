@@ -5,6 +5,7 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
+import { Helmet } from 'react-helmet';
 
 /**
  * BigBoardEventPage
@@ -178,178 +179,191 @@ export default function BigBoardEventPage() {
       })
     : null;
 
+  // Build SEO title and meta description
+  const pageTitle = end
+    ? `${event.title} - ${start} — ${end} - Our Philly`
+    : `${event.title} - ${start} - Our Philly`;
+  const metaDescription = event.description || '';
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100">
-      <Navbar />
+    <>
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={metaDescription} />
+      </Helmet>
 
-      <main className="flex-grow pt-20 pb-12 px-4">
-        <div className="max-w-lg mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
-          {/* Flyer Image (8.5×11) */}
-          <div className="w-full bg-gray-200">
-            <img
-              src={event.imageUrl}
-              alt={event.title}
-              className="w-full h-auto object-contain"
-            />
-          </div>
+      <div className="flex flex-col min-h-screen bg-gray-100">
+        <Navbar />
 
-          <div className="p-6 space-y-6">
-            {/* Edit/Delete buttons for owner */}
-            {event.owner_id === user?.id && !isEditing && (
-              <div className="flex justify-end space-x-2">
-                <button
-                  onClick={startEditing}
-                  className="bg-indigo-600 text-white px-4 py-1 rounded hover:bg-indigo-700"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="bg-red-600 text-white px-4 py-1 rounded hover:bg-red-700"
-                >
-                  Delete
-                </button>
-              </div>
-            )}
+        <main className="flex-grow pt-20 pb-12 px-4">
+          <div className="max-w-lg mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
+            {/* Flyer Image (8.5×11) */}
+            <div className="w-full bg-gray-200">
+              <img
+                src={event.imageUrl}
+                alt={event.title}
+                className="w-full h-auto object-contain"
+              />
+            </div>
 
-            {isEditing ? (
-              /* Edit Form */
-              <form onSubmit={handleSave} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-1">Title</label>
-                  <input
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    required
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-1">
-                    Description (optional)
-                  </label>
-                  <textarea
-                    name="description"
-                    rows={3}
-                    value={formData.description}
-                    onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-1">Link (optional)</label>
-                  <input
-                    type="url"
-                    name="link"
-                    value={formData.link}
-                    onChange={handleChange}
-                    placeholder="https://example.com"
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    name="start_date"
-                    value={formData.start_date}
-                    onChange={handleChange}
-                    required
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-1">
-                    End Date (optional)
-                  </label>
-                  <input
-                    type="date"
-                    name="end_date"
-                    value={formData.end_date || ''}
-                    onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
+            <div className="p-6 space-y-6">
+              {/* Edit/Delete buttons for owner */}
+              {event.owner_id === user?.id && !isEditing && (
                 <div className="flex justify-end space-x-2">
                   <button
-                    type="button"
-                    onClick={() => setIsEditing(false)}
-                    className="px-4 py-2 rounded border"
+                    onClick={startEditing}
+                    className="bg-indigo-600 text-white px-4 py-1 rounded hover:bg-indigo-700"
                   >
-                    Cancel
+                    Edit
                   </button>
                   <button
-                    type="submit"
-                    disabled={saving}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                    onClick={handleDelete}
+                    className="bg-red-600 text-white px-4 py-1 rounded hover:bg-red-700"
                   >
-                    {saving ? 'Saving...' : 'Save'}
+                    Delete
                   </button>
                 </div>
-              </form>
-            ) : (
-              /* Display Mode */
-              <>
-                {/* Title & Dates */}
-                <h1 className="text-2xl font-bold text-gray-800">{event.title}</h1>
-                <p className="text-gray-600">
-                  {end ? `${start} — ${end}` : start}
-                </p>
-                <p className="text-sm text-gray-500">
-                  Posted on {new Date(event.created_at).toLocaleDateString()}
-                </p>
+              )}
 
-                {/* Description */}
-                {event.description && (
-                  <div className="mt-4">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-1">
-                      Description
-                    </h2>
-                    <p className="text-gray-700 leading-relaxed">
-                      {event.description}
-                    </p>
+              {isEditing ? (
+                /* Edit Form */
+                <form onSubmit={handleSave} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Title</label>
+                    <input
+                      name="title"
+                      value={formData.title}
+                      onChange={handleChange}
+                      required
+                      className="w-full border rounded px-3 py-2"
+                    />
                   </div>
-                )}
 
-                {/* Link */}
-                {event.link && (
-                  <div className="mt-4">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-1">
-                      More Info
-                    </h2>
-                    <a
-                      href={event.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:underline break-all"
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">
+                      Description (optional)
+                    </label>
+                    <textarea
+                      name="description"
+                      rows={3}
+                      value={formData.description}
+                      onChange={handleChange}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Link (optional)</label>
+                    <input
+                      type="url"
+                      name="link"
+                      value={formData.link}
+                      onChange={handleChange}
+                      placeholder="https://example.com"
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      name="start_date"
+                      value={formData.start_date}
+                      onChange={handleChange}
+                      required
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">
+                      End Date (optional)
+                    </label>
+                    <input
+                      type="date"
+                      name="end_date"
+                      value={formData.end_date || ''}
+                      onChange={handleChange}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="px-4 py-2 rounded border"
                     >
-                      {event.link}
-                    </a>
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                    >
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
                   </div>
-                )}
+                </form>
+              ) : (
+                /* Display Mode */
+                <>
+                  {/* Title & Dates */}
+                  <h1 className="text-2xl font-bold text-gray-800">{event.title}</h1>
+                  <p className="text-gray-600">
+                    {end ? `${start} — ${end}` : start}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Posted on {new Date(event.created_at).toLocaleDateString()}
+                  </p>
 
-                {/* Back Link */}
-                <div className="mt-6">
-                  <Link
-                    to="/"
-                    className="text-indigo-600 hover:underline font-semibold"
-                  >
-                    ← Back to More Events
-                  </Link>
-                </div>
-              </>
-            )}
+                  {/* Description */}
+                  {event.description && (
+                    <div className="mt-4">
+                      <h2 className="text-lg font-semibold text-gray-800 mb-1">
+                        Description
+                      </h2>
+                      <p className="text-gray-700 leading-relaxed">
+                        {event.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Link */}
+                  {event.link && (
+                    <div className="mt-4">
+                      <h2 className="text-lg font-semibold text-gray-800 mb-1">
+                        More Info
+                      </h2>
+                      <a
+                        href={event.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:underline break-all"
+                      >
+                        {event.link}
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Back Link */}
+                  <div className="mt-6">
+                    <Link
+                      to="/"
+                      className="text-indigo-600 hover:underline font-semibold"
+                    >
+                      ← Back to More Events
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
 
-      <Footer />
-    </div>
+        <Footer />
+      </div>
+    </>
   );
 }

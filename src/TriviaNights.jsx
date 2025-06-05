@@ -3,7 +3,6 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import TriviaCard from './TriviaCard'
-import { useTriviaReviewStats } from './utils/useTriviaReviewStats'
 
 const daysOfWeek = [
   'Sunday',
@@ -61,39 +60,40 @@ export default function TriviaNights() {
   }, [triviaList, selectedNeighborhood])
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-900 text-green-300 font-mono">
       <Navbar />
 
-      <div className="max-w-4xl mx-auto py-8 px-4 pt-24">
-        {/* — Title */}
-        <h1 className="text-2xl font-bold text-indigo-600 text-center mb-4">
-          Trivia Nights on {selectedDay}
+      {/* Cockpit Dashboard Header */}
+      <div className="relative max-w-4xl mx-auto py-8 px-4 pt-24">
+        <div className="absolute inset-0 bg-gradient-to-b from-gray-800 via-gray-900 to-black opacity-80 pointer-events-none z-0" />
+        <h1 className="relative z-10 text-3xl font-bold text-center mb-6 tracking-widest">
+          🚀 TRIVIA CONTROL PANEL 🚀
         </h1>
 
-        {/* — Day Pills */}
-        <div className="flex overflow-x-auto space-x-2 justify-center mb-4">
+        {/* Day Selector as Control Switches */}
+        <div className="relative z-10 flex overflow-x-auto space-x-2 justify-center mb-6">
           {daysOfWeek.map((day) => (
             <button
               key={day}
               onClick={() => setSelectedDay(day)}
-              className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
                 selectedDay === day
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'
+                  ? 'bg-green-300 text-black border-green-300'
+                  : 'bg-gray-800 text-green-300 border-green-300 hover:bg-green-300 hover:text-black'
               }`}
             >
-              {day}
+              {day.slice(0, 3).toUpperCase()}
             </button>
           ))}
         </div>
 
-        {/* — Neighborhood Filter */}
+        {/* Neighborhood Dropdown as System Monitor */}
         {neighborhoods.length > 1 && (
-          <div className="flex justify-center mb-4">
+          <div className="relative z-10 flex justify-center mb-6">
             <select
               value={selectedNeighborhood}
               onChange={(e) => setSelectedNeighborhood(e.target.value)}
-              className="text-sm font-medium text-indigo-600 border border-indigo-600 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="text-xs font-medium text-green-300 bg-gray-800 border border-green-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               {neighborhoods.map((n) => (
                 <option key={n} value={n}>
@@ -104,30 +104,34 @@ export default function TriviaNights() {
           </div>
         )}
 
-        {/* — Loading / No Results */}
+        {/* Loading / No Results */}
         {loading ? (
-          <p className="text-gray-500 text-center py-8">
-            Loading trivia nights…
+          <p className="relative z-10 text-green-500 text-center py-8">
+            Initializing sensors...
           </p>
         ) : filteredList.length === 0 ? (
-          <p className="text-gray-600 text-center py-8">
-            No trivia nights listed for {selectedDay}
+          <p className="relative z-10 text-red-500 text-center py-8">
+            No trivia stations online for {selectedDay}
             {selectedNeighborhood !== 'All' && ` in ${selectedNeighborhood}`}.
           </p>
         ) : (
-          /* — Trivia Grid */
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          /* Trivia Grid as Cockpit Panels */
+          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {filteredList.map((item) => (
-              <TriviaCard
+              <div
                 key={item.id}
-                item={item}
-                reviewOpenId={reviewOpenId}
-                setReviewOpenId={setReviewOpenId}
-                statsRefreshKey={statsRefreshKey}
-                onReviewSuccess={() =>
-                  setStatsRefreshKey((k) => k + 1)
-                }
-              />
+                className="max-w-xs mx-auto transform hover:scale-105 transition-transform"
+              >
+                <TriviaCard
+                  item={item}
+                  reviewOpenId={reviewOpenId}
+                  setReviewOpenId={setReviewOpenId}
+                  statsRefreshKey={statsRefreshKey}
+                  onReviewSuccess={() =>
+                    setStatsRefreshKey((k) => k + 1)
+                  }
+                />
+              </div>
             ))}
           </div>
         )}

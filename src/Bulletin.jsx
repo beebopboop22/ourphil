@@ -6,7 +6,6 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import RecentActivity from './RecentActivity';
 
-
 import {
   getMyEventFavorites,
   addEventFavorite,
@@ -52,7 +51,8 @@ export default function Bulletin({ previewCount = Infinity }) {
 
   useEffect(() => {
     (async () => {
-      const today0 = new Date(); today0.setHours(0,0,0,0);
+      const today0 = new Date();
+      today0.setHours(0, 0, 0, 0);
       const tomorrow0 = new Date(today0);
       tomorrow0.setDate(tomorrow0.getDate() + 1);
 
@@ -68,8 +68,10 @@ export default function Bulletin({ previewCount = Infinity }) {
           .map((e) => {
             const start = parseDate(e.Dates);
             const end = parseDate(e['End Date']) || start;
-            const sd = new Date(start); sd.setHours(0,0,0,0);
-            const ed = new Date(end);   ed.setHours(0,0,0,0);
+            const sd = new Date(start);
+            sd.setHours(0, 0, 0, 0);
+            const ed = new Date(end);
+            ed.setHours(0, 0, 0, 0);
             const single = !e['End Date'] || e['End Date'].trim() === e.Dates.trim();
             let updateText;
 
@@ -115,15 +117,30 @@ export default function Bulletin({ previewCount = Infinity }) {
         }
         // Museums & volunteer reminders day-before
         const specials = [
-          { fn: () => nextNthWeekday(0,1,today0), text: 'Pay-what-you-wish at PMA tomorrow!', desc: 'First Sunday, 5–8:45pm', slug: 'https://philamuseum.org' },
-          { fn: () => nextNthWeekday(0,1,today0), text: 'Barnes Foundation free tomorrow!', desc: 'First Sunday, 10–4pm', slug: 'https://barnesfoundation.org' },
-          { fn: () => nextNthWeekday(6,2,today0), text: 'Second Saturday volunteer tomorrow!', desc: 'Park restoration 2nd Sat', slug: 'https://loveyourpark.org/volunteer/secondsaturdays' }
+          {
+            fn: () => nextNthWeekday(0, 1, today0),
+            text: 'Pay-what-you-wish at PMA tomorrow!',
+            desc: 'First Sunday, 5–8:45pm',
+            slug: 'https://philamuseum.org',
+          },
+          {
+            fn: () => nextNthWeekday(0, 1, today0),
+            text: 'Barnes Foundation free tomorrow!',
+            desc: 'First Sunday, 10–4pm',
+            slug: 'https://barnesfoundation.org',
+          },
+          {
+            fn: () => nextNthWeekday(6, 2, today0),
+            text: 'Second Saturday volunteer tomorrow!',
+            desc: 'Park restoration 2nd Sat',
+            slug: 'https://loveyourpark.org/volunteer/secondsaturdays',
+          },
         ];
         specials.forEach(({ fn, text, desc, slug }) => {
           const d = fn();
-          if (subtractDays(d,1).getTime() === today0.getTime()) {
+          if (subtractDays(d, 1).getTime() === today0.getTime()) {
             fixed.push({
-              id: `fixed-${text.slice(0,5)}`,
+              id: `fixed-${text.slice(0, 5)}`,
               start: today0,
               end: today0,
               updateText: text,
@@ -147,25 +164,30 @@ export default function Bulletin({ previewCount = Infinity }) {
   useEffect(() => {
     if (!events.length) return;
     (async () => {
-      const ids = events.filter(e => !String(e.id).startsWith('fixed')).map(e => e.id);
+      const ids = events
+        .filter((e) => !String(e.id).startsWith('fixed'))
+        .map((e) => e.id);
       if (!ids.length) return;
       const { data } = await supabase
         .from('event_favorites')
         .select('event_id')
         .in('event_id', ids);
       const counts = {};
-      data.forEach(r => counts[r.event_id] = (counts[r.event_id] || 0) + 1);
+      data.forEach((r) => (counts[r.event_id] = (counts[r.event_id] || 0) + 1));
       setFavCounts(counts);
     })();
   }, [events]);
 
   // Load user favorites
   useEffect(() => {
-    if (!user) { setFavMap({}); return; }
+    if (!user) {
+      setFavMap({});
+      return;
+    }
     getMyEventFavorites()
-      .then(rows => {
+      .then((rows) => {
         const m = {};
-        rows.forEach(r => m[r.event_id] = r.id);
+        rows.forEach((r) => (m[r.event_id] = r.id));
         setFavMap(m);
       })
       .catch(console.error);
@@ -190,23 +212,66 @@ export default function Bulletin({ previewCount = Infinity }) {
   if (loading) return <div className="text-center py-12">Loading bulletin…</div>;
 
   const today0 = new Date();
-  today0.setHours(0,0,0,0);
+  today0.setHours(0, 0, 0, 0);
   const display = events.slice(0, previewCount);
 
   return (
-    <div className="relative ">
-    <Navbar /> 
+    <>
+      {/* Print-specific CSS scoped to this component */}
+      <style>
+        {`
+          @media print {
+            /* Hide site chrome */
+            #bulletin-print-wrapper .no-print,
+            #bulletin-print-wrapper nav,
+            #bulletin-print-wrapper footer,
+            #bulletin-print-wrapper .favorite-button {
+              display: none !important;
+            }
 
-      <div className="max-w-screen-md mx-auto py-12 px-4 relative z-10 mt-20">
-      <img
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/Our-Philly-Concierge_Illustration-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyLVBoaWxseS1Db25jaWVyZ2VfSWxsdXN0cmF0aW9uLTEucG5nIiwiaWF0IjoxNzQ2MTk3NTgwLCJleHAiOjMzMjgyMTk3NTgwfQ.ScBcw-sMe7K4lhtkPA_ZFl_C5XA9s93W4aTP64yj7YQ"
-        alt="Our Philly Mascot"
-        className="absolute -z-10 w-1/5 top-0 right-0 object-cover pointer-events-none"
-/>
+            /* Expand print wrapper full-width */
+            #bulletin-print-wrapper {
+              width: 100%;
+              max-width: 100%;
+              margin: 0;
+              padding: 0;
+            }
+
+            /* Remove padding/margins that push content off-page */
+            #bulletin-print-wrapper .px-4,
+            #bulletin-print-wrapper .mx-auto {
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+
+            /* Prevent item breaks across pages */
+            #bulletin-print-wrapper .bulletin-item {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+
+            /* Slightly smaller font so content fits on one sheet */
+            #bulletin-print-wrapper {
+              font-size: 12pt;
+              line-height: 1.2;
+            }
+          }
+        `}
+      </style>
+
+      {/* Navbar (hidden when printing) */}
+      <Navbar className="no-print" />
+      <RecentActivity className="no-print" />
+
+      {/* Main bulletin content */}
+      <div
+        id="bulletin-print-wrapper"
+        className="max-w-screen-md mx-auto py-12 px-4 relative z-10 mt-20"
+      >
         <h1 className="text-5xl mt-20 font-[Barrio] font-bold text-center mb-8">
-          Upcoming Traditions
+          Upcoming
         </h1>
-        
+
         <div>
           {display.map((evt, idx) => {
             const sd = evt.start;
@@ -220,58 +285,72 @@ export default function Bulletin({ previewCount = Infinity }) {
               : null;
             const Wrapper = href ? 'a' : 'div';
             const linkProps = href
-              ? { href, ...(href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {}) }
+              ? {
+                  href,
+                  ...(href.startsWith('http')
+                    ? { target: '_blank', rel: 'noopener noreferrer' }
+                    : {}),
+                }
               : {};
 
             return React.createElement(
               Wrapper,
               {
                 key: evt.id,
-                className: `${bgCls} flex items-start space-x-4 border-b border-gray-200 py-6` + (href ? ' hover:bg-gray-100 cursor-pointer' : ''),
+                className: `${bgCls} flex items-start space-x-4 border-b border-gray-200 py-6 bulletin-item ${
+                  href ? 'hover:bg-gray-100 cursor-pointer' : ''
+                }`,
                 ...linkProps,
               },
-              isActive && <span className="block w-3 h-3 bg-green-500 rounded-full animate-ping mt-2 mr-1 flex-shrink-0" />,
+              isActive && (
+                <span className="block w-3 h-3 bg-green-500 rounded-full animate-ping mt-2 mr-1 flex-shrink-0" />
+              ),
               evt['E Image'] && (
                 <img
                   src={evt['E Image']}
-                  alt="avatar"
+                  alt=""
                   className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                 />
               ),
               <div className="flex-1">
                 <div className="flex justify-between items-center">
-                  <p className="text-lg font-semibold text-gray-800">{evt.updateText}</p>
+                  <p className="text-lg font-semibold text-gray-800">
+                    {evt.updateText}
+                  </p>
                   {!String(evt.id).startsWith('fixed') && (
                     <button
-                      onClick={e => toggleFav(evt.id, e)}
+                      onClick={(e) => toggleFav(evt.id, e)}
                       disabled={busyFav}
-                      className="text-xl"
+                      className="favorite-button no-print text-xl"
                     >
                       {favMap[evt.id] ? '❤️' : '🤍'} {favCounts[evt.id] || 0}
                     </button>
                   )}
                 </div>
                 {evt['E Description'] && (
-                  <p className="text-sm text-gray-600 mt-1 line-clamp-2">{evt['E Description']}</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {evt['E Description']}
+                  </p>
                 )}
               </div>
             );
           })}
         </div>
+
         {events.length > previewCount && (
-          <div className="text-center mt-6">
+          <div className="text-center mt-6 no-print">
             <Link
               to="/bulletin"
               className="inline-block bg-indigo-600 text-white text-xl font-semibold px-10 py-4 rounded-2xl shadow-lg hover:bg-indigo-700 transform hover:scale-105 transition"
-              >
+            >
               View Full Bulletin
             </Link>
           </div>
-          
         )}
       </div>
 
-    </div>
-    
+      {/* Footer (hidden when printing) */}
+      <Footer className="no-print" />
+    </>
   );
 }

@@ -90,66 +90,85 @@ export default function TriviaCard({
     setReviewOpenId(isOpen ? null : item.id)
   }
 
+  const placeholderImage =
+    'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/113_334387_1738156330113.webp'
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-transform hover:scale-[1.02]">
-      {/* Link to bar’s page (or external) */}
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-transform hover:scale-[1.02]">
+      {/* Placeholder Image */}
       <a
         href={item.link || '#'}
         target="_blank"
         rel="noopener noreferrer"
         className="block"
       >
-        <h2 className="text-lg font-semibold text-indigo-800 mb-1">
-          {item.Bar}
-        </h2>
-        <p className="text-gray-700 mb-1">⏰ {item.Time}</p>
-        <p className="text-gray-700">📍 {item.Neighborhood}</p>
+        <img
+          src={placeholderImage}
+          alt={item.Bar}
+          className="w-full h-40 object-cover"
+        />
       </a>
 
-      {/* Review Stats (once loaded) or “No reviews yet” */}
-      {!statsLoading && stats.totalReviews > 0 ? (
-        <div className="mt-2 text-sm text-gray-600">
-          <span>✶ {stats.totalReviews} reviews</span>
-          <span className="mx-2">|</span>
-          <span>Solo-friendly: {soloPct}%</span>
-          <span className="mx-2">|</span>
-          <span>
-            Crowd:{' '}
-            {topCrowd.charAt(0).toUpperCase() + topCrowd.slice(1)}
-          </span>
-          <span className="mx-2">|</span>
-          <span>
-            Vibe:{' '}
-            {topVibe
-              .charAt(0)
-              .toUpperCase() + topVibe.slice(1).replace('-', ' ')}
-          </span>
-        </div>
-      ) : (
-        <div className="mt-2 text-sm text-gray-500">No reviews yet.</div>
-      )}
+      <div className="p-4">
+        {/* Link to bar’s page (or external) */}
+        <a
+          href={item.link || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <h2 className="text-lg font-semibold text-indigo-800 mb-1">
+            {item.Bar}
+          </h2>
+          <p className="text-gray-700 mb-1">⏰ {item.Time}</p>
+          <p className="text-gray-700">📍 {item.Neighborhood}</p>
+        </a>
 
-      {/* Button toggles the inline review form */}
-      <button
-        type="button"
-        onClick={toggleReview}
-        className="mt-2 text-indigo-600 text-sm underline focus:outline-none"
-      >
-        {isOpen ? 'Cancel Review' : 'Leave a review'}
-      </button>
+        {/* Review Stats (once loaded) or “No reviews yet” */}
+        {!statsLoading && stats.totalReviews > 0 ? (
+          <div className="mt-2 text-sm text-gray-600">
+            <span>✶ {stats.totalReviews} reviews</span>
+            <span className="mx-2">|</span>
+            <span>Solo-friendly: {soloPct}%</span>
+            <span className="mx-2">|</span>
+            <span>
+              Crowd:{' '}
+              {topCrowd.charAt(0).toUpperCase() + topCrowd.slice(1)}
+            </span>
+            <span className="mx-2">|</span>
+            <span>
+              Vibe:{' '}
+              {topVibe
+                .charAt(0)
+                .toUpperCase() + topVibe.slice(1).replace('-', ' ')}
+            </span>
+          </div>
+        ) : (
+          <div className="mt-2 text-sm text-gray-500">No reviews yet.</div>
+        )}
 
-      {/* Inline Review Form, if open */}
-      {isOpen && (
-        <div className="mt-4 border-t pt-4">
-          <TriviaReviewForm
-            triviaId={item.id}
-            onSuccess={() => {
-              setReviewOpenId(null)
-              onReviewSuccess()
-            }}
-          />
-        </div>
-      )}
+        {/* Button toggles the inline review form */}
+        <button
+          type="button"
+          onClick={toggleReview}
+          className="mt-2 text-indigo-600 text-sm underline focus:outline-none"
+        >
+          {isOpen ? 'Cancel Review' : 'Leave a review'}
+        </button>
+
+        {/* Inline Review Form, if open */}
+        {isOpen && (
+          <div className="mt-4 border-t pt-4">
+            <TriviaReviewForm
+              triviaId={item.id}
+              onSuccess={() => {
+                setReviewOpenId(null)
+                onReviewSuccess()
+              }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
