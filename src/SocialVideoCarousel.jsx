@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import { Link } from 'react-router-dom'
+import TriviaTonightBanner from './TriviaTonightBanner'
 
 // Only Philly teams
 const teamSlugs = [
@@ -141,12 +142,10 @@ export default function SocialVideoCarousel() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      {/* ── Sports Bar ── */}
-      {!loadingSports && sportsSummary && (
-        <div className="bg-[#bf3d35] text-white text-sm py-2 px-4 text-center mt-20 z-10">
-          <span className="font-[Barrio] font-bold">TONIGHT</span> {sportsSummary}
-        </div>
-      )}
+{/* ── Bottom Bar ── */}
+<div className="bg-[#28313e] text-white py-3 text-center font-[Barrio] text-2xl mt-20">
+        Dig Into Philly
+      </div>
 
       {/* ── Carousel ── */}
       <div className="h-[calc(40vh+80px)] min-h-[340px] overflow-hidden relative">
@@ -235,15 +234,15 @@ export default function SocialVideoCarousel() {
        
       </div>
 
-      {/* ── Bottom Bar ── */}
-      <div className="bg-[#28313e] text-white py-3 text-center font-[Barrio] text-2xl">
-        Dig Into Philly
-      </div>
+      
+      <div className="bg-white mt-5">
+     <TriviaTonightBanner />
+     </div>
        {/* Heart Icon Bleeding Over Slides */}
        <img
           src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-2.png"
           alt="heart"
-          className="absolute bottom-24 left-0 w-50 h-40 z-30 pointer-events-none select-none"
+          className="absolute top-20 right-0 w-50 h-40 z-30 pointer-events-none select-none"
         />
     </div>
   )
