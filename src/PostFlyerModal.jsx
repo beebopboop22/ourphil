@@ -196,10 +196,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
             {/* Heading */}
             <h2 className="text-xl font-bold mb-2 text-center">Post an Event Flyer</h2>
 
-            {/* Notification Bar */}
-            <div className="bg-blue-100 text-blue-800 text-sm font-semibold text-center px-4 py-2 rounded mb-4">
-              Post event flyers here to add them to the calendar.{' '}
-            </div>
+            
 
             {/*** If confirmationUrl exists, show confirmation view ***/}
             {confirmationUrl ? (
