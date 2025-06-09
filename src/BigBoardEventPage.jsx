@@ -13,7 +13,7 @@ import FloatingAddButton from './FloatingAddButton';
  * BigBoardEventPage
  * -----------------
  * Detailed view of a single Big Board event with edit/delete for owners.
- * Also shows a “More events on this day” grid below the main details.
+ * Also shows a grid of upcoming community submissions below.
  */
 export default function BigBoardEventPage() {
   const { slug } = useParams();
@@ -35,7 +35,7 @@ export default function BigBoardEventPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  // “More events on this day” state
+  // Upcoming community submissions state
   const [moreEvents, setMoreEvents] = useState([]);
   const [loadingMore, setLoadingMore] = useState(true);
 
@@ -56,50 +56,37 @@ export default function BigBoardEventPage() {
   async function fetchEvent() {
     setLoading(true);
     setError(null);
-
     // 1) fetch event metadata
     const { data: ev, error: evErr } = await supabase
       .from('big_board_events')
       .select(`
-        id,
-        post_id,
-        title,
-        description,
-        link,
-        start_date,
-        end_date,
-        created_at,
-        slug
+        id, post_id, title, description, link,
+        start_date, end_date, created_at, slug
       `)
       .eq('slug', slug)
       .single();
-
     if (evErr) {
       console.error(evErr);
       setError('Could not load event.');
       setLoading(false);
       return;
     }
-
-    // 2) fetch flyer post (to get image and owner)
+    // 2) fetch flyer post
     const { data: post, error: postErr } = await supabase
       .from('big_board_posts')
       .select('image_url, user_id')
       .eq('id', ev.post_id)
       .single();
-
     if (postErr) {
       console.error(postErr);
       setError('Could not load flyer.');
       setLoading(false);
       return;
     }
-
-    // 3) resolve storage URL for main event
+    // 3) resolve storage URL
     const {
       data: { publicUrl },
     } = await supabase.storage.from('big-board').getPublicUrl(post.image_url);
-
     const fullEvent = {
       ...ev,
       imageUrl: publicUrl,
@@ -107,60 +94,47 @@ export default function BigBoardEventPage() {
     };
     setEvent(fullEvent);
     setLoading(false);
-
-    // 4) fetch “more events on this day”
-    fetchMoreEvents(fullEvent.start_date, fullEvent.id);
+    // 4) fetch upcoming submissions
+    fetchMoreEvents(fullEvent.id);
   }
 
-  async function fetchMoreEvents(startDate, excludeId) {
+  async function fetchMoreEvents(currentId) {
     setLoadingMore(true);
-
-    // Query all other events with the same start_date
+    const todayStr = new Date().toISOString().slice(0, 10);
     const { data: list, error: listErr } = await supabase
       .from('big_board_events')
-      .select(`
-        id,
-        post_id,
-        title,
-        start_date,
-        end_date,
-        slug
-      `)
-      .eq('start_date', startDate)
-      .neq('id', excludeId)        // exclude current event
-      .order('start_date', { ascending: true });
-
+      .select('id, post_id, title, start_date, end_date, slug')
+      .gte('start_date', todayStr)
+      .neq('id', currentId)
+      .order('start_date', { ascending: true })
+      .limit(24);
     if (listErr) {
       console.error(listErr);
       setLoadingMore(false);
       return;
     }
-
-    // Resolve each event’s image_url from its post
     const enriched = await Promise.all(
       list.map(async (ev) => {
-        // fetch corresponding post to get image_url
-        const { data: post, error: postErr } = await supabase
+        const { data: p, error: pErr } = await supabase
           .from('big_board_posts')
           .select('image_url')
           .eq('id', ev.post_id)
           .single();
         let imageUrl = '';
-        if (!postErr && post?.image_url) {
+        if (!pErr && p?.image_url) {
           const {
             data: { publicUrl },
-          } = await supabase.storage.from('big-board').getPublicUrl(post.image_url);
+          } = await supabase.storage.from('big-board').getPublicUrl(p.image_url);
           imageUrl = publicUrl;
         }
         return { ...ev, imageUrl };
       })
     );
-
     setMoreEvents(enriched);
     setLoadingMore(false);
   }
 
-  // Start editing
+  // editing helpers
   function startEditing() {
     setFormData({
       title: event.title,
@@ -171,93 +145,72 @@ export default function BigBoardEventPage() {
     });
     setIsEditing(true);
   }
-
-  // Handle form input changes
   function handleChange(e) {
     const { name, value } = e.target;
     setFormData((fd) => ({ ...fd, [name]: value }));
   }
-
-  // Save edits
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true);
-
-    const updatePayload = {
+    const payload = {
       title: formData.title,
       description: formData.description || null,
       link: formData.link || null,
       start_date: formData.start_date,
       end_date: formData.end_date || null,
     };
-
     const { data, error } = await supabase
       .from('big_board_events')
-      .update(updatePayload)
+      .update(payload)
       .eq('id', event.id)
       .select()
       .single();
-
     setSaving(false);
     if (error) {
       alert('Error saving event: ' + error.message);
     } else {
       setEvent({ ...event, ...data });
       setIsEditing(false);
-      // If start_date changed, re-fetch “more events on this day”
-      if (data.start_date !== event.start_date) {
-        fetchMoreEvents(data.start_date, event.id);
-      }
+      fetchMoreEvents(event.id);
     }
   }
-
-  // Delete event
   async function handleDelete() {
     if (!confirm('Are you sure you want to delete this event?')) return;
     const { error } = await supabase
       .from('big_board_events')
       .delete()
       .eq('id', event.id);
-    if (error) {
-      alert('Error deleting event: ' + error.message);
-    } else {
-      navigate('/');
-    }
+    if (error) alert('Error deleting: ' + error.message);
+    else navigate('/');
   }
 
   if (loading) return <div className="py-20 text-center">Loading…</div>;
   if (error) return <div className="py-20 text-center text-red-600">{error}</div>;
   if (!event) return <div className="py-20 text-center">Event not found.</div>;
 
-  // Format display dates
+  // compute main-event prefix
   const startDateObj = parseLocalYMD(event.start_date);
-  const endDateObj = event.end_date ? parseLocalYMD(event.end_date) : null;
-  const start = startDateObj.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-  const end = endDateObj
-    ? endDateObj.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
-    : null;
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  const diffMain = Math.round((startDateObj - today0) / (1000*60*60*24));
+  let mainPrefix;
+  if (diffMain === 0) mainPrefix = 'Today';
+  else if (diffMain === 1) mainPrefix = 'Tomorrow';
+  else {
+    const wd = startDateObj.toLocaleDateString('en-US',{ weekday:'long' });
+    mainPrefix = `This ${wd}`;
+  }
+  const mainMD = startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
 
-  // SEO: page title & meta description
-  const pageTitle = `${event.title} – ${end ? `${start}–${end}` : start} – OUR PHILLY`;
-  const metaDescription =
-    event.description ||
-    `Learn more about "${event.title}" happening on ${end ? `${start}–${end}` : start}.`;
+  // SEO
+  const pageTitle = `${event.title} – OUR PHILLY`;
+  const metaDesc = event.description || `Details for ${event.title}.`;
 
   return (
     <>
       <Helmet>
         <title>{pageTitle}</title>
-        <meta name="description" content={metaDescription} />
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-
+        <meta name="description" content={metaDesc} />
+        <link rel="icon" href="/favicon.ico" />
       </Helmet>
 
       <div className="flex flex-col min-h-screen bg-white">
@@ -266,32 +219,36 @@ export default function BigBoardEventPage() {
         <main className="flex-grow pt-24 pb-12 px-4">
           <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2">
-              {/* Left Column: Flyer Image + Posted On */}
-              <div className="bg-gray-50 flex flex-col items-center p-6 md:p-8 lg:p-12">
-                <img
-                  src={event.imageUrl}
-                  alt={event.title}
-                  className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
-                />
+              {/* Left: image + pill + posted */}
+              <div className="bg-gray-50 p-8 flex flex-col items-center">
+                <div className="relative w-full">
+                  <img
+                    src={event.imageUrl}
+                    alt={event.title}
+                    className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
+                  />
+                  <span className="absolute top-4 left-4 bg-indigo-600 text-white px-3 py-1 rounded-full text-sm">
+                    {mainPrefix}, {mainMD}
+                  </span>
+                </div>
                 <p className="mt-4 text-sm text-gray-500 self-start">
                   Posted on {new Date(event.created_at).toLocaleDateString()}
                 </p>
               </div>
 
-              {/* Right Column: Details */}
-              <div className="p-8 md:p-10 lg:p-12 flex flex-col justify-between">
-                {/* Top: Edit/Delete Buttons (if owner) */}
+              {/* Right: details or edit */}
+              <div className="p-10 flex flex-col justify-between">
                 {event.owner_id === user?.id && !isEditing && (
-                  <div className="flex flex-col items-center mb-6 space-y-3">
+                  <div className="flex flex-col space-y-3 mb-6">
                     <button
                       onClick={startEditing}
-                      className="w-full bg-indigo-600 text-white font-semibold px-5 py-3 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition"
+                      className="w-full bg-indigo-600 text-white px-5 py-3 rounded-lg shadow hover:bg-indigo-700 transition"
                     >
                       Edit Event
                     </button>
                     <button
                       onClick={handleDelete}
-                      className="w-full bg-red-600 text-white font-semibold px-5 py-3 rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 transition"
+                      className="w-full bg-red-600 text-white px-5 py-3 rounded-lg shadow hover:bg-red-700 transition"
                     >
                       Delete Event
                     </button>
@@ -299,152 +256,111 @@ export default function BigBoardEventPage() {
                 )}
 
                 {isEditing ? (
-                  /* Edit Form */
                   <form onSubmit={handleSave} className="space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Title
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
                       <input
                         name="title"
                         value={formData.title}
                         onChange={handleChange}
                         required
-                        className="w-full border border-gray-300 rounded-md px-4 py-2 text-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        className="w-full border px-4 py-2 rounded-md focus:ring-indigo-300 focus:outline-none"
                       />
                     </div>
-
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Description
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                       <textarea
                         name="description"
                         rows={4}
                         value={formData.description}
                         onChange={handleChange}
-                        className="w-full border border-gray-300 rounded-md px-4 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        className="w-full border px-4 py-2 rounded-md focus:ring-indigo-300 focus:outline-none"
                       />
                     </div>
-
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Link (optional)
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Link (optional)</label>
                       <input
                         type="url"
                         name="link"
                         value={formData.link}
                         onChange={handleChange}
                         placeholder="https://example.com"
-                        className="w-full border border-gray-300 rounded-md px-4 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        className="w-full border px-4 py-2 rounded-md focus:ring-indigo-300 focus:outline-none"
                       />
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="grid sm:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Start Date
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                         <input
                           type="date"
                           name="start_date"
                           value={formData.start_date}
                           onChange={handleChange}
                           required
-                          className="w-full border border-gray-300 rounded-md px-4 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                          className="w-full border px-4 py-2 rounded-md focus:ring-indigo-300 focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          End Date (optional)
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">End Date (optional)</label>
                         <input
                           type="date"
                           name="end_date"
                           value={formData.end_date || ''}
                           onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-md px-4 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                          className="w-full border px-4 py-2 rounded-md focus:ring-indigo-300 focus:outline-none"
                         />
                       </div>
                     </div>
-
-                    <div className="flex justify-end space-x-4 mt-6">
+                    <div className="flex justify-end space-x-4">
                       <button
                         type="button"
                         onClick={() => setIsEditing(false)}
-                        className="px-5 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300 transition"
+                        className="px-5 py-2 border rounded-md hover:bg-gray-100 transition"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
                         disabled={saving}
-                        className="bg-green-600 text-white font-semibold px-5 py-2 rounded-md shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+                        className="bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition"
                       >
                         {saving ? 'Saving...' : 'Save Changes'}
                       </button>
                     </div>
                   </form>
                 ) : (
-                  /* Display Mode */
                   <div className="flex flex-col justify-between h-full">
                     <div>
-                      {/* Title */}
-                      <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                      <h1 className="text-3xl font-bold text-gray-900">
                         {event.title}
                       </h1>
-
-                      {/* Notification Box */}
                       <div className="mt-4 p-4 bg-purple-50 border-l-4 border-purple-600 rounded-md">
                         <p className="text-purple-700 text-sm">
-                          This was submitted by a total stranger. Use the hovering purple plus icon to drop your
-                          event on our calendar.
+                          This was submitted by a total stranger. Use the hovering purple plus icon to drop your event on our calendar.
                         </p>
                       </div>
-
-                      {/* Dates */}
-                      <p className="mt-6 text-lg text-gray-700">
-                        <span className="font-medium">When:</span>{' '}
-                        {end ? `${start} — ${end}` : start}
-                      </p>
-
-                      {/* Description */}
                       {event.description && (
                         <div className="mt-8">
-                          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                            Description
-                          </h2>
-                          <p className="text-base text-gray-700 leading-relaxed">
-                            {event.description}
-                          </p>
+                          <h2 className="text-xl font-semibold text-gray-800 mb-2">Description</h2>
+                          <p className="text-gray-700 leading-relaxed">{event.description}</p>
                         </div>
                       )}
-
-                      {/* Link */}
                       {event.link && (
                         <div className="mt-8">
-                          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                            More Info
-                          </h2>
+                          <h2 className="text-xl font-semibold text-gray-800 mb-2">More Info</h2>
                           <a
                             href={event.link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-indigo-600 hover:underline text-base break-words"
+                            className="text-indigo-600 hover:underline break-words"
                           >
                             {event.link}
                           </a>
                         </div>
                       )}
                     </div>
-
-                    {/* Back Link */}
                     <div className="mt-10">
-                      <Link
-                        to="/"
-                        className="inline-block text-indigo-600 hover:underline font-semibold text-base"
-                      >
+                      <Link to="/" className="text-indigo-600 hover:underline font-semibold">
                         ← Back to More Events
                       </Link>
                     </div>
@@ -453,36 +369,38 @@ export default function BigBoardEventPage() {
               </div>
             </div>
 
-            {/* ───────────────────────────────────────────────────────────
-                “More events on this day” Section
-            ─────────────────────────────────────────────────────────── */}
+            {/* Upcoming community submissions */}
             <div className="border-t border-gray-200 mt-12 pt-8 px-8 pb-12">
               <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
-                More stranger submissions for {startDateObj.toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
+                More upcoming community submissions
               </h2>
 
               {loadingMore ? (
-                <p className="text-gray-500">Loading more events…</p>
+                <p className="text-center text-gray-500">Loading…</p>
               ) : moreEvents.length === 0 ? (
-                <p className="text-gray-600">No other events on this day.</p>
+                <p className="text-center text-gray-600">No upcoming submissions.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {moreEvents.map((ev) => {
-                    // Format date for card
-                    const cardStart = parseLocalYMD(ev.start_date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                    });
-                    const cardEnd = ev.end_date
-                      ? parseLocalYMD(ev.end_date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        })
-                      : null;
+                  {moreEvents.map(ev => {
+                    const dt = parseLocalYMD(ev.start_date);
+                    const today0 = new Date(); today0.setHours(0,0,0,0);
+                    const diff = Math.round((dt - today0) / (1000*60*60*24));
+                    let prefix;
+                    if (diff === 0) prefix = 'Today';
+                    else if (diff === 1) prefix = 'Tomorrow';
+                    else {
+                      const weekday = dt.toLocaleDateString('en-US',{ weekday:'long' });
+                      const todayDay = today0.getDay();
+                      const daysUntilEnd = 6 - todayDay;
+                      if (diff > 1 && diff <= daysUntilEnd) {
+                        prefix = `This ${weekday}`;
+                      } else if (diff > daysUntilEnd && diff <= daysUntilEnd + 7) {
+                        prefix = `Next ${weekday}`;
+                      } else {
+                        prefix = weekday;
+                      }
+                    }
+                    const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
 
                     return (
                       <Link
@@ -491,6 +409,9 @@ export default function BigBoardEventPage() {
                         className="bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-[1.02] overflow-hidden flex flex-col"
                       >
                         <div className="relative h-40 bg-gray-100">
+                          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1 z-20">
+                            COMMUNITY SUBMISSION
+                          </div>
                           {ev.imageUrl ? (
                             <img
                               src={ev.imageUrl}
@@ -503,16 +424,13 @@ export default function BigBoardEventPage() {
                             </div>
                           )}
                         </div>
-                        <div className="p-4 flex-1 flex flex-col justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-800 mb-1 line-clamp-2">
-                              {ev.title}
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              📅 {cardStart}
-                              
-                            </p>
-                          </div>
+                        <div className="p-4 flex-1 flex flex-col justify-center">
+                          <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2 text-center">
+                            {ev.title}
+                          </h3>
+                          <span className="text-sm text-gray-600 block text-center">
+                            {prefix}, {md}
+                          </span>
                         </div>
                       </Link>
                     );
@@ -520,19 +438,13 @@ export default function BigBoardEventPage() {
                 </div>
               )}
             </div>
+
           </div>
         </main>
 
         <Footer />
-
-        {/* Floating Purple Plus for Submissions */}
         <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
-
-        {/* PostFlyerModal */}
-        <PostFlyerModal
-          isOpen={showFlyerModal}
-          onClose={() => setShowFlyerModal(false)}
-        />
+        <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
       </div>
     </>
   );

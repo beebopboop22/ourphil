@@ -4,15 +4,10 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
-import GroupsList from './GroupsList';
 import { AuthContext } from './AuthProvider';
-import HeroLanding from './HeroLanding';
 import { Helmet } from 'react-helmet';
-import RecentActivity from './RecentActivity';
-import OutletsList from './OutletsList';
-
-
-
+import FloatingAddButton from './FloatingAddButton';
+import PostFlyerModal from './PostFlyerModal';
 import {
   getMyEventFavorites,
   addEventFavorite,
@@ -23,40 +18,61 @@ export default function EventDetailPage() {
   const { slug } = useParams();
   const { user } = useContext(AuthContext);
 
-  // ─── Event & Favorite state ─────────────────────────────────────────────
-  const [event, setEvent]           = useState(null);
-  const [favCount, setFavCount]     = useState(0);
-  const [myFavId, setMyFavId]       = useState(null);
-  const [toggling, setToggling]     = useState(false);
+  // ─── State ───────────────────────────────────────────────────────────
+  const [event, setEvent] = useState(null);
+  const [favCount, setFavCount] = useState(0);
+  const [myFavId, setMyFavId] = useState(null);
+  const [toggling, setToggling] = useState(false);
 
-  // ─── Reviews state ───────────────────────────────────────────────────────
-  const [reviews, setReviews]       = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
-
-  // ─── New‐review form state ──────────────────────────────────────────────
-  const [rating, setRating]         = useState(5);
-  const [comment, setComment]       = useState('');
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
   const [photoFiles, setPhotoFiles] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // ─── Edit/Delete review state ───────────────────────────────────────────
-  const [editingId, setEditingId]       = useState(null);
-  const [draftRating, setDraftRating]   = useState(5);
+  const [editingId, setEditingId] = useState(null);
+  const [draftRating, setDraftRating] = useState(5);
   const [draftComment, setDraftComment] = useState('');
 
-  // ─── Lightbox modal for photos ──────────────────────────────────────────
-  const [modalImage, setModalImage]     = useState(null);
+  const [modalImage, setModalImage] = useState(null);
+  const [showFlyerModal, setShowFlyerModal] = useState(false);
 
-  // Groups
-const [suggestedGroups, setSuggestedGroups] = useState([]);
-const [loadingSuggested, setLoadingSuggested] = useState(true);
+  // Community submissions
+  const [moreEvents, setMoreEvents] = useState([]);
+  const [loadingMore, setLoadingMore] = useState(true);
 
- // ─── Outlets You Might Like ────────────────────────────────────────────
- const [suggestedOutlets, setSuggestedOutlets] = useState([]);  // ← new
- const [loadingOutlets, setLoadingOutlets]     = useState(true); // ← new
+  // ─── Date parsing ─────────────────────────────────────────────────────
+  function parseDateStr(str) {
+    // Handles "MM/DD/YYYY" or "YYYY-MM-DD"
+    if (!str) return null;
+    if (str.includes('/')) {
+      const [m, d, y] = str.split('/').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
 
+  function getFriendlyDate(str) {
+    const d = parseDateStr(str);
+    if (!d) return '';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.round((d - today) / (1000*60*60*24));
+    let prefix;
+    if (diff === 0) prefix = 'Today';
+    else if (diff === 1) prefix = 'Tomorrow';
+    else if (diff > 1 && diff < 7)
+      prefix = `This ${d.toLocaleDateString('en-US',{weekday:'long'})}`;
+    else if (diff >= 7 && diff < 14)
+      prefix = `Next ${d.toLocaleDateString('en-US',{weekday:'long'})}`;
+    else
+      prefix = d.toLocaleDateString('en-US',{weekday:'long'});
+    const md = d.toLocaleDateString('en-US',{month:'long',day:'numeric'});
+    return `${prefix}, ${md}`;
+  }
 
-  // ─── 1) Load event data by slug ────────────────────────────────────────
+  // ─── Load event ───────────────────────────────────────────────────────
   useEffect(() => {
     supabase
       .from('events')
@@ -64,612 +80,484 @@ const [loadingSuggested, setLoadingSuggested] = useState(true);
       .eq('slug', slug)
       .single()
       .then(({ data, error }) => {
-        if (error) console.error('Event load error:', error);
+        if (error) console.error(error);
         else setEvent(data);
       });
   }, [slug]);
 
-   // ─── 1B) Fetch “groups you might like” with tag then Area fallback ──────
-useEffect(() => {
-    if (!event) return;
-    setLoadingSuggested(true);
-  
-    (async () => {
-      const tags = event.Type?.split(',').map(t => t.trim()).filter(Boolean) || [];
-      const area = event.Area?.trim();
-      let suggestions = [];
-  
-      // 1️⃣ Try matching on tags
-      if (tags.length) {
-        const orFilter = tags.map(t => `Type.ilike.%${t}%`).join(',');
-        const { data: byTag, error: tagErr } = await supabase
-          .from('groups')
-          .select('id, Name, slug, imag, Type, Area')
-          .or(orFilter)
-          .limit(50);
-        if (tagErr) console.error('byTag error', tagErr);
-        suggestions = byTag || [];
-      }
-  
-      // 2️⃣ If fewer than 4, fill from same Area
-      if (area && suggestions.length < 4) {
-        const exclude = suggestions.map(g => g.id).join(',');
-        const { data: byArea, error: areaErr } = await supabase
-          .from('groups')
-          .select('id, Name, slug, imag, Type, Area')
-          .eq('Area', area)
-          .not('id', 'in', `(${exclude})`)
-          .limit(20 - suggestions.length);
-        if (areaErr) console.error('byArea error', areaErr);
-        suggestions = suggestions.concat(byArea || []);
-      }
-  
-      // 3️⃣ Final fallback: top‑voted groups
-      if (suggestions.length < 4) {
-        const exclude = suggestions.map(g => g.id).join(',');
-        const { data: popular, error: popErr } = await supabase
-          .from('groups')
-          .select('id, Name, slug, imag, Type, Area')
-          .order('Votes', { ascending: false })
-          .not('id', 'in', `(${exclude})`)
-          .limit(4 - suggestions.length);
-        if (popErr) console.error('popular error', popErr);
-        suggestions = suggestions.concat(popular || []);
-      }
-  
-      setSuggestedGroups(suggestions);
-      setLoadingSuggested(false);
-    })();
-  }, [event]);
-
-   // ─── 1C) Fetch “outlets you might like” ───────────────────────────────
-   useEffect(() => {
-    if (!event) return;
-    setLoadingOutlets(true);
-    supabase
-      .from('news_outlets')
-      .select('*')
-      .eq('area', event.Area)   // match the same Area
-      .limit(10)
-      .then(({ data, error }) => {
-        if (error) console.error('Outlets load error:', error);
-        setSuggestedOutlets(data || []);
-      })
-      .finally(() => setLoadingOutlets(false));
-  }, [event]);
-  
-
-
-
-  // ─── 2) Load favorite count & whether *I* have favorited ───────────────
+  // ─── Load favorites ───────────────────────────────────────────────────
   useEffect(() => {
     if (!event) return;
-
-    // total count
     supabase
       .from('event_favorites')
-      .select('id', { count: 'exact', head: true })
+      .select('id',{count:'exact',head:true})
       .eq('event_id', event.id)
       .then(({ count, error }) => {
         if (!error) setFavCount(count || 0);
       });
-
-    // my own favorite row
     if (user) {
-      getMyEventFavorites().then((rows) => {
-        const mine = rows.find((r) => r.event_id === event.id);
-        setMyFavId(mine?.id ?? null);
+      getMyEventFavorites().then(rows => {
+        const mine = rows.find(r => r.event_id === event.id);
+        setMyFavId(mine?.id || null);
       });
-    } else {
-      setMyFavId(null);
     }
   }, [event, user]);
 
-  // ─── 3) Fetch & normalize reviews for this event ───────────────────────
-  const loadReviews = async () => {
-    setLoadingReviews(true);
-    const { data, error } = await supabase
-      .from('reviews')
-      .select('*')
-      .eq('event_id', event.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Reviews load error:', error);
-      setReviews([]);
-    } else {
-      // ensure photo_urls is always an array
-      const normalized = data.map((r) => {
-        let urls = [];
-        if (Array.isArray(r.photo_urls)) {
-          urls = r.photo_urls;
-        } else if (r.photo_urls) {
-          try {
-            const parsed = JSON.parse(r.photo_urls);
-            if (Array.isArray(parsed)) urls = parsed;
-          } catch { /* ignore */ }
-        }
-        return { ...r, photo_urls: urls };
-      });
-      setReviews(normalized);
-    }
-    setLoadingReviews(false);
-  };
-
-  useEffect(() => {
-    if (event) loadReviews();
-  }, [event]);
-
-  // ─── 4) Toggle favorite on/off ──────────────────────────────────────────
   const toggleFav = async () => {
     if (!user || !event) return;
     setToggling(true);
     if (myFavId) {
       await removeEventFavorite(myFavId);
       setMyFavId(null);
-      setFavCount((c) => c - 1);
+      setFavCount(c => c - 1);
     } else {
       const newRow = await addEventFavorite(event.id);
       setMyFavId(newRow.id);
-      setFavCount((c) => c + 1);
+      setFavCount(c => c + 1);
     }
     setToggling(false);
   };
 
-  // ─── 5) Post a new review (with optional photos) ───────────────────────
-  const handleSubmit = async (e) => {
+  // ─── Load reviews ─────────────────────────────────────────────────────
+  const loadReviews = async () => {
+    setLoadingReviews(true);
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('event_id', event.id)
+      .order('created_at',{ascending:false});
+    if (error) {
+      console.error(error);
+      setReviews([]);
+    } else {
+      const norm = data.map(r => {
+        let urls = Array.isArray(r.photo_urls) ? r.photo_urls : [];
+        if (!Array.isArray(r.photo_urls) && r.photo_urls) {
+          try {
+            const p = JSON.parse(r.photo_urls);
+            if (Array.isArray(p)) urls = p;
+          } catch {}
+        }
+        return { ...r, photo_urls: urls };
+      });
+      setReviews(norm);
+    }
+    setLoadingReviews(false);
+  };
+  useEffect(() => { if (event) loadReviews(); }, [event]);
+
+  const handleSubmit = async e => {
     e.preventDefault();
     if (!user) return alert('Log in to leave a review.');
     setSubmitting(true);
-
-    // upload each photo and collect its public URL
     const photoUrls = [];
     for (let file of photoFiles) {
-      const name = file.name.replace(/[^a-z0-9.\-_]/gi, '_').toLowerCase();
+      const name = file.name.replace(/[^a-z0-9.\-_]/gi,'_').toLowerCase();
       const path = `${event.id}-${Date.now()}-${name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('event-photos')
-        .upload(path, file);
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        alert('One of the uploads failed.');
-        setSubmitting(false);
-        return;
-      }
-      const { data: { publicUrl } } = supabase.storage
-        .from('event-photos')
-        .getPublicUrl(path);
+      const { error: upErr } = await supabase.storage
+        .from('event-photos').upload(path,file);
+      if (upErr) { alert('Upload failed.'); setSubmitting(false); return; }
+      const { data:{ publicUrl } } =
+        supabase.storage.from('event-photos').getPublicUrl(path);
       photoUrls.push(publicUrl);
     }
-
-    // insert the review row
     const { error } = await supabase.from('reviews').insert({
-      event_id:   event.id,
-      user_id:    user.id,
-      rating,
-      comment,
-      photo_urls: photoUrls,
+      event_id:event.id, user_id:user.id,
+      rating, comment, photo_urls:photoUrls
     });
-
     setSubmitting(false);
-    if (error) console.error('Review insert error:', error);
-    else {
-      // clear form & reload
-      setComment('');
-      setRating(5);
-      setPhotoFiles([]);
+    if (!error) {
+      setComment(''); setRating(5); setPhotoFiles([]);
       loadReviews();
     }
   };
 
-  // ─── 6) Start editing an existing review ───────────────────────────────
-  const startEdit = (r) => {
+  const startEdit = r => {
     setEditingId(r.id);
-    setDraftComment(r.comment);
     setDraftRating(r.rating);
+    setDraftComment(r.comment);
   };
-
-  // ─── 7) Save edits to a review ─────────────────────────────────────────
   const saveEdit = async () => {
     const { error } = await supabase
       .from('reviews')
-      .update({ comment: draftComment, rating: draftRating })
+      .update({ rating:draftRating, comment:draftComment })
       .eq('id', editingId);
-
-    if (error) {
-      alert('Update failed: ' + error.message);
-    } else {
-      setEditingId(null);
-      loadReviews();
-    }
+    if (!error) { setEditingId(null); loadReviews(); }
+    else alert('Update failed: '+error.message);
+  };
+  const deleteReview = async id => {
+    if (!confirm('Delete this review?')) return;
+    const { error } = await supabase.from('reviews')
+      .delete().eq('id',id);
+    if (!error) loadReviews(); else alert('Delete failed.');
   };
 
-  // ─── 8) Delete a review ────────────────────────────────────────────────
-  const deleteReview = async (id) => {
-    if (!window.confirm('Delete this review?')) return;
-    const { error } = await supabase
-      .from('reviews')
-      .delete()
-      .eq('id', id);
-    if (error) alert('Delete failed: ' + error.message);
-    else loadReviews();
-  };
+  const alreadyReviewed = user && reviews.some(r=>r.user_id===user.id);
 
-  // ─── Helpers ───────────────────────────────────────────────────────────
-  const alreadyReviewed = user && reviews.some((r) => r.user_id === user.id);
-  const photoReviews = reviews.filter((r) => r.photo_urls.length > 0);
+  // ─── Load community submissions ───────────────────────────────────────
+  useEffect(() => {
+    (async()=>{
+      setLoadingMore(true);
+      const today = new Date().toISOString().slice(0,10);
+      const { data:list, error } = await supabase
+        .from('big_board_events')
+        .select('id,post_id,title,start_date,slug')
+        .gte('start_date',today)
+        .order('start_date',{ascending:true})
+        .limit(24);
+      if(error){ console.error(error); setMoreEvents([]); setLoadingMore(false); return; }
+      const enriched = await Promise.all(list.map(async ev=>{
+        const { data:post } = await supabase
+          .from('big_board_posts').select('image_url')
+          .eq('id',ev.post_id).single();
+        let url = '';
+        if(post?.image_url){
+          const { data:{ publicUrl } } =
+            supabase.storage.from('big-board').getPublicUrl(post.image_url);
+          url = publicUrl;
+        }
+        return {...ev,imageUrl:url};
+      }));
+      setMoreEvents(enriched);
+      setLoadingMore(false);
+    })();
+  }, []);
 
-  // ─── Loading state ────────────────────────────────────────────────────
   if (!event) {
     return <div className="text-center py-20 text-gray-500">Loading…</div>;
   }
 
-  // nicely format event date(s)
-  const formatDate = (raw) =>
-    new Date(raw).toLocaleDateString('en-US', {
-      month: 'long', day: 'numeric', year: 'numeric'
-    });
-  let dateDisplay = formatDate(event.Dates);
-  if (event['End Date'] && event['End Date'] !== event.Dates) {
-    dateDisplay = `${dateDisplay} – ${formatDate(event['End Date'])}`;
+  // ─── Build displayDate ────────────────────────────────────────────────
+  const sd = parseDateStr(event.Dates);
+  const ed = parseDateStr(event['End Date']);
+  const singleDay = !ed || ed.getTime() === sd.getTime();
+  let displayDate;
+  if (!singleDay) {
+    displayDate = `${sd.toLocaleDateString('en-US',{month:'long',day:'numeric'})}
+      — ${ed.toLocaleDateString('en-US',{month:'long',day:'numeric'})}`;
+  } else {
+    displayDate = getFriendlyDate(event.Dates);
   }
 
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
       <Helmet>
-        <title>{`${event['E Name']} – ${dateDisplay} – Our Philly`}</title>
+        <title>{`${event['E Name']} – ${displayDate} – Our Philly`}</title>
         <meta name="description" content={event['E Description']} />
-        <meta property="og:description" content={event['E Description']} />
-        <meta property="article:published_time" content={event.Dates} />
-        <link rel="icon" href="/favicon.ico" />
       </Helmet>
 
-      <Navbar />
+      <Navbar/>
 
-      {/* ── Hero: image only, shorter ────────────────────────────────────────── */}
-<div className="relative w-full h-80 bg-[#28313e] flex items-center justify-center overflow-hidden">
-  {event['E Image'] ? (
-    <img
-      src={event['E Image']}
-      alt={event['E Name']}
-      className="absolute inset-0 w-full h-full object-cover opacity-80"
-    />
-  ) : (
-    <div className="absolute inset-0 bg-[#28313e]" />
-  )}
-</div>
-
-{/* ── Info Box “pops” up under the hero ───────────────────────────────── */}
-<div className="relative z-10 w-full max-w-3xl mx-auto -mt-16 mb-8">
-  <div className="bg-white rounded-2xl shadow-xl px-8 py-6 flex flex-col items-center border border-gray-100 relative">
-    <h1 className="text-4xl font-[Barrio] font-bold mb-1 text-[#28313e] text-center">
-      {event['E Name']}
-    </h1>
-    {event['E Description'] && (
-      <p className="text-gray-500 text-sm mb-2 text-center max-w-2xl">
-        {event['E Description']}
-      </p>
-    )}
-    <div className="text-xl mb-1 text-gray-800 text-center">
-      {dateDisplay}
-    </div>
-
-    {/* “Dangling” CTA button */}
-    {event['E Link'] && (
-      <a
-        href={event['E Link']}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="absolute left-1/2 transform -translate-x-1/2 translate-y-4
-                   bg-[#bf3d35] text-white font-bold px-8 py-3
-                   rounded-full shadow-lg text-lg border-4 border-white
-                   hover:bg-[#a92d23] transition-all"
-        style={{
-          bottom: -30,
-          zIndex: 20,
-          minWidth: 200,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        Let's Go Then!
-      </a>
-    )}
-  </div>
-</div>
-
-      <RecentActivity />
-
-     {/* ── Sleek Details Section ──────────────────────────────────────────── */}
-<section className="max-w-screen-md mx-auto px-4 py-6">
-  <div className="prose prose-gray">
-    {/* Overline */}
-    <p className="text-xs font-semibold uppercase text-indigo-600 mb-2">
-      Event Details
-    </p>
-    <dl className="space-y-6">
-      {event.time && (
-        <div>
-          <dt className="flex items-center text-sm font-medium text-gray-700">
-            <svg
-              className="w-4 h-4 mr-1 text-indigo-600"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 2v4h3a1 1 0 110 2H9V4a1 1 0 112 0z" />
-            </svg>
-            Time
-          </dt>
-          <dd className="mt-1 text-base text-gray-600">
-            {event.time}
-          </dd>
-        </div>
-      )}
-
-      {event.longDescription && (
-        <div>
-          <dt className="text-sm font-medium text-gray-700">
-            Summary
-          </dt>
-          <dd className="mt-1 text-base text-gray-700 leading-relaxed">
-            {event.longDescription}
-          </dd>
-        </div>
-      )}
-    </dl>
-  </div>
-</section>
-
-
-
-
-      {/* ── Photo Gallery (flat array of all user‐uploaded pics) ───────────── */}
-      {photoReviews.length > 0 && (
-        <div className="max-w-screen-xl mx-auto py-10 px-4">
-          <div className="overflow-x-auto">
-            <div className="flex space-x-4">
-              {photoReviews
-                .flatMap((r) => r.photo_urls)
-                .slice(0, 15)           // limit display to first 15
-                .map((url) => (
-                  <div
-                    key={url}
-                    className="flex-shrink-0 w-32 h-32 rounded-lg overflow-hidden cursor-pointer"
-                    onClick={() => setModalImage(url)}
-                  >
-                    <img
-                      src={url}
-                      alt="User photo"
-                      className="w-full h-full object-cover hover:scale-105 transition"
-                    />
-                  </div>
-                ))
-              }
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Reviews Section ────────────────────────────────────────────────── */}
-      <main className="max-w-screen-xl mx-auto py-12 px-4 mb-30">
-        <h2 className="text-2xl font-[Barrio] mb-6">Reviews</h2>
-
-        {/* list existing */}
-        {loadingReviews
-          ? <p>Loading reviews…</p>
-          : reviews.map((r) => (
-            <div key={r.id} className="mb-6 bg-white shadow-md rounded-xl p-6">
-              {/* If this review is in “edit” mode */}
-              {editingId === r.id ? (
-                <>
-                  {/* Rating editor */}
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium mb-1">Edit Rating</label>
-                    <div className="flex space-x-2">
-                      {[1,2,3,4,5].map((n) => (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => setDraftRating(n)}
-                          className={`text-2xl ${
-                            n <= draftRating ? 'text-yellow-500' : 'text-gray-300'
-                          }`}
-                        >★</button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Comment editor */}
-                  <textarea
-                    rows={3}
-                    className="w-full border rounded p-2 mb-3"
-                    value={draftComment}
-                    onChange={(e) => setDraftComment(e.target.value)}
-                  />
-
-                  {/* Save / Cancel */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={saveEdit}
-                      className="px-4 py-2 bg-blue-600 text-white rounded"
-                    >Save</button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="px-4 py-2 bg-gray-300 rounded"
-                    >Cancel</button>
-                  </div>
-                </>
+      <main className="flex-grow px-4 pb-12 pt-6">
+        {/* Hero + Info */}
+        <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            {/* Image */}
+            <div className="relative h-80 bg-gray-50">
+              {event['E Image'] ? (
+                <img
+                  src={event['E Image']}
+                  alt={event['E Name']}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
               ) : (
-                <>
-                  {/* Display stars */}
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-yellow-500 text-xl font-[Barrio]">
-                      {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
-                    </span>
-                    <time className="text-xs text-gray-400">
-                      {new Date(r.created_at).toLocaleString()}
-                    </time>
-                  </div>
-                  <p className="text-gray-700 mb-3">{r.comment}</p>
-
-                  {/* Photo thumbnails on each review */}
-                  {r.photo_urls.length > 0 && (
-                    <div className="flex space-x-2 mb-3">
-                      {r.photo_urls.map((url) => (
-                        <div
-                          key={url}
-                          className="w-20 h-20 rounded-lg overflow-hidden cursor-pointer"
-                          onClick={() => setModalImage(url)}
-                        >
-                          <img
-                            src={url}
-                            alt="Review"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Edit/Delete only if it’s my review */}
-                  {user?.id === r.user_id && (
-                    <div className="space-x-2">
-                      <button
-                        onClick={() => startEdit(r)}
-                        className="px-2 py-1 bg-yellow-500 text-white text-sm rounded"
-                      >Edit</button>
-                      <button
-                        onClick={() => deleteReview(r.id)}
-                        className="px-2 py-1 bg-red-600 text-white text-sm rounded"
-                      >Delete</button>
-                    </div>
-                  )}
-                </>
+                <div className="absolute inset-0 bg-gray-200" />
               )}
-            </div>
-        ))}
-
-        {/* No reviews placeholder */}
-        {(!loadingReviews && reviews.length === 0) && (
-          <p className="text-sm text-gray-500">No reviews yet.</p>
-        )}
-
-        {/* ── New‐Review Form ──────────────────────────────────────────────── */}
-        {user ? (
-          alreadyReviewed ? (
-            <p className="mt-6 text-center text-gray-600">
-              You’ve already reviewed this event.
-            </p>
-          ) : (
-            <form
-              onSubmit={handleSubmit}
-              className="mt-8 bg-white p-6 rounded-xl shadow-md space-y-6"
-            >
-              {/* Rating picker */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Your Rating</label>
-                <div className="flex space-x-2">
-                  {[1,2,3,4,5].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setRating(n)}
-                      className={`text-2xl ${
-                        n <= rating ? 'text-yellow-500' : 'text-gray-300'
-                      }`}
-                    >★</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Comment box */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Your Review</label>
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  required
-                  className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-300"
-                  rows={4}
-                  placeholder="Share your experience…"
-                />
-              </div>
-
-              {/* Photo uploader */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Upload Photos (optional)
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    const valid = files.filter((f) => f.type.startsWith('image/'));
-                    if (valid.length !== files.length) {
-                      alert('Non-image files ignored');
-                    }
-                    setPhotoFiles(valid);
-                  }}
-                  className="text-sm text-gray-600"
-                />
-              </div>
-
               <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition"
+                onClick={toggleFav}
+                disabled={toggling}
+                className="absolute top-4 right-4 text-4xl drop-shadow-lg"
               >
-                {submitting ? 'Posting…' : 'Post Review'}
+                {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
               </button>
-            </form>
-          )
-        ) : (
-          <p className="mt-6 text-center text-sm">
-            <Link to="/login" className="text-indigo-600 hover:underline">
-              Log in
-            </Link>{' '}
-            to leave a review.
-          </p>
-        )}
-
-        {/* ── Photo Modal Lightbox ──────────────────────────────────────────── */}
-        {modalImage && (
-          <div
-            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
-            onClick={() => setModalImage(null)}
-          >
-            <img
-              src={modalImage}
-              alt="Enlarged"
-              className="max-w-full max-h-[90vh] rounded-lg border-4 border-white shadow-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        )}
-
-        
-      </main>
+            </div>
+            {/* Info */}
+            <div className="p-8 flex flex-col justify-between">
+              <div>
+                <h1 className="text-4xl font-[Barrio] text-[#28313e] mb-2">
+                  {event['E Name']}
+                </h1>
+                {event['E Description'] && (
+                  <p className="text-base text-gray-700 mb-4">
+                    <span className="font-semibold">What to expect:</span> {event['E Description']}
+                  </p>
+                )}
+                
+                <p className="text-lg text-gray-800 mb-2">
+                  {displayDate}
+                </p>
+                {event.time && (
+                  <p className="text-base text-gray-600 mb-4">
+                    <span className="font-medium">Time:</span> {event.time}
+                  </p>
+                )}
       
-      <section className="w-full bg-neutral-100 pt-12 pb-12">
-  <h2 className="text-4xl text-center font-[Barrio] mb-6">
-    Groups You Might Like
-  </h2>
+                {event['E Link'] && (
+                  <a
+                    href={event['E Link']}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-[#bf3d35] text-white px-6 py-3 rounded-full hover:bg-[#a92d23] transition"
+                  >
+                    More info
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
-  {/* full-bleed wrapper, no px-4 on any parent */}
-  <div className="relative w-full left-1/2 right-1/2 mx-[-50vw] overflow-x-auto overflow-y-hidden">
-    <div className="flex space-x-4 flex-nowrap px-4">
-      {loadingSuggested
-        ? <p className="text-center w-full">Loading suggestions…</p>
-        : <GroupsList groups={suggestedGroups} isAdmin={false} />
-      }
+        {/* Reviews */}
+        <section className="max-w-screen-xl mx-auto py-12 px-4 mb-12">
+                {event.longDescription && (
+                  <div className="mb-6 w-full sm:w-2/3 mx-auto">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                      About this tradition
+                    </h2>
+                    <p className="text-base text-gray-700 leading-relaxed">
+                      {event.longDescription}
+                    </p>
+                  </div>
+                )}
+
+          <h2 className="text-2xl font-[Barrio] mb-6">Reviews</h2>
+          {loadingReviews ? (
+            <p>Loading reviews…</p>
+          ) : (
+            reviews.map(r => (
+              <div key={r.id} className="mb-6 bg-white rounded-xl shadow p-6">
+                {editingId === r.id ? (
+                  <>
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium mb-1">
+                        Edit Rating
+                      </label>
+                      <div className="flex space-x-2">
+                        {[1,2,3,4,5].map(n => (
+                          <button
+                            key={n}
+                            onClick={() => setDraftRating(n)}
+                            className={`text-2xl ${
+                              n <= draftRating ? 'text-yellow-500' : 'text-gray-300'
+                            }`}
+                          >★</button>
+                        ))}
+                      </div>
+                    </div>
+                    <textarea
+                      rows={3}
+                      className="w-full border rounded p-2 mb-3"
+                      value={draftComment}
+                      onChange={e => setDraftComment(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={saveEdit} className="px-4 py-2 bg-blue-600 text-white rounded">
+                        Save
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="px-4 py-2 bg-gray-300 rounded">
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-yellow-500 text-xl font-[Barrio]">
+                        {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
+                      </span>
+                      <time className="text-xs text-gray-400">
+                        {new Date(r.created_at).toLocaleString()}
+                      </time>
+                    </div>
+                    <p className="text-gray-700 mb-3">{r.comment}</p>
+                    {r.photo_urls.length > 0 && (
+                      <div className="flex space-x-2 mb-3">
+                        {r.photo_urls.map(url => (
+                          <div
+                            key={url}
+                            className="w-20 h-20 rounded-lg overflow-hidden cursor-pointer"
+                            onClick={() => setModalImage(url)}
+                          >
+                            <img src={url} alt="Review" className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {user?.id === r.user_id && (
+                      <div className="space-x-2">
+                        <button
+                          onClick={() => startEdit(r)}
+                          className="px-2 py-1 bg-yellow-500 text-white text-sm rounded"
+                        >Edit</button>
+                        <button
+                          onClick={() => deleteReview(r.id)}
+                          className="px-2 py-1 bg-red-600 text-white text-sm rounded"
+                        >Delete</button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))
+          )}
+          {!loadingReviews && reviews.length === 0 && (
+            <p className="text-sm text-gray-500">No reviews yet.</p>
+          )}
+
+          {user ? (
+            alreadyReviewed ? (
+              <p className="mt-6 text-center text-gray-600">
+                You’ve already reviewed this event.
+              </p>
+            ) : (
+              <form
+                onSubmit={handleSubmit}
+                className="mt-8 bg-white p-6 rounded-xl shadow space-y-6"
+              >
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Rating</label>
+                  <div className="flex space-x-2">
+                    {[1,2,3,4,5].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setRating(n)}
+                        className={`text-2xl ${
+                          n <= rating ? 'text-yellow-500' : 'text-gray-300'
+                        }`}
+                      >★</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Review</label>
+                  <textarea
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                    required
+                    className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-300"
+                    rows={4}
+                    placeholder="Share your experience…"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Upload Photos (optional)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={e => {
+                      const files = Array.from(e.target.files || []);
+                      const valid = files.filter(f => f.type.startsWith('image/'));
+                      if (valid.length !== files.length) {
+                        alert('Non-image files ignored');
+                      }
+                      setPhotoFiles(valid);
+                    }}
+                    className="text-sm text-gray-600"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition"
+                >
+                  {submitting ? 'Posting…' : 'Post Review'}
+                </button>
+              </form>
+            )
+          ) : (
+            <p className="mt-6 text-center text-sm">
+              <Link to="/login" className="text-indigo-600 hover:underline">
+                Log in
+              </Link>{' '}
+              to leave a review.
+            </p>
+          )}
+
+          {modalImage && (
+            <div
+              className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
+              onClick={() => setModalImage(null)}
+            >
+              <img
+                src={modalImage}
+                alt="Enlarged"
+                className="max-w-full max-h-[90vh] rounded-lg border-4 border-white shadow-lg"
+                onClick={e => e.stopPropagation()}
+              />
+            </div>
+          )}
+        </section>
+
+        {/* Upcoming Community Submissions */}
+        <div className="border-t border-gray-200 mt-12 pt-8 px-4 pb-12 max-w-screen-xl mx-auto">
+          <h2 className="text-2xl text-center font-[Barrio] mb-6">
+            Upcoming Community Submissions
+          </h2>
+
+          {loadingMore ? (
+            <p className="text-center text-gray-500">Loading…</p>
+          ) : moreEvents.length === 0 ? (
+            <p className="text-center text-gray-600">No upcoming submissions.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {moreEvents.map(ev => (
+                <Link
+                  key={ev.id}
+                  to={`/big-board/${ev.slug}`}
+                  className="bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-[1.02] overflow-hidden flex flex-col"
+                >
+                  <div className="relative h-40 bg-gray-100">
+                    <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
+                      <span className="text-xs font-bold text-white uppercase">
+                        COMMUNITY SUBMISSION
+                      </span>
+                    </div>
+                    {ev.imageUrl ? (
+                      <img
+                        src={ev.imageUrl}
+                        alt={ev.title}
+                        className="w-full h-full object-cover object-center"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        No Image
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col justify-center text-center">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+                      {ev.title}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {getFriendlyDate(ev.start_date)}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+
+      <Footer/>
+
+      <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
+
+      <button
+        onClick={() => setShowFlyerModal(true)}
+        className="fixed bottom-0 left-0 w-full bg-indigo-600 text-white py-4 text-center font-bold sm:hidden z-50"
+      >
+        Post Event
+      </button>
+
+      <PostFlyerModal
+        isOpen={showFlyerModal}
+        onClose={() => setShowFlyerModal(false)}
+      />
     </div>
-  </div>
-</section>
-
-           <Footer />
-
-    </div>
-    
   );
 }

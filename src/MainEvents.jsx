@@ -572,10 +572,7 @@ return (
           {/* your existing heading, but bump it above the line with z-index */}
           <h1 className="text-5xl sm:text-6xl md:text-8xl font-[Barrio] font-black text-black">
                   DIG INTO PHILLY
-          </h1>
-
-          <SportsTonightSidebar /> 
-      
+          </h1>      
           {/* decorative line + mascot, behind the h1 */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
             {/* the horizontal rule */}
@@ -596,17 +593,17 @@ return (
 
 {/* ─── Pills + Date Picker + Event Count ─── */}
 <div className="container mx-auto px-4 mt-12">
-  <div className="flex flex-wrap justify-center items-center gap-4">
+  <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4">
     {['today', 'tomorrow', 'weekend'].map(opt => (
       <button
         key={opt}
         onClick={() => { setSelectedOption(opt); goTo(opt); }}
         className={`
-          text-base                /* larger, more legible font */
-          px-5 py-2                /* bigger pill padding */
-          rounded-full border-2    /* thicker border and fully rounded */
-          font-semibold 
-          shadow-lg                /* subtle drop shadow for "pop" */
+          text-sm sm:text-base
+          px-3 sm:px-5 py-1 sm:py-2
+          rounded-full border-2
+          font-semibold
+          shadow-lg
           transform transition-transform duration-200
           ${
             selectedOption === opt
@@ -622,7 +619,7 @@ return (
     ))}
 
     {/* datepicker wrapper */}
-    <div className="relative w-full sm:w-auto">
+    <div className="relative w-auto flex-1 sm:w-auto">
       <DatePicker
         selected={new Date(customDate)}
         onChange={date => {
@@ -635,7 +632,7 @@ return (
         placeholderText="Pick a date"
         className={`
           w-full sm:w-auto
-          text-base px-4 py-2     /* match pill height */
+          text-sm sm:text-base px-2 sm:px-4 py-1 sm:py-2
           border-2 border-indigo-600 rounded-full
           shadow-lg
           focus:outline-none focus:ring-2 focus:ring-indigo-500
@@ -648,6 +645,8 @@ return (
     </div>
   </div>
 </div>
+
+
 
 
 
