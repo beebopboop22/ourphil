@@ -573,7 +573,7 @@ return (
           <h1 className="text-5xl sm:text-6xl md:text-8xl font-[Barrio] font-black text-black">
                   DIG INTO PHILLY
           </h1>
-          
+
           <SportsTonightSidebar /> 
       
           {/* decorative line + mascot, behind the h1 */}
@@ -740,7 +740,7 @@ return (
             />
             <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
               <span className="text-xs font-bold text-white uppercase">
-                BIG BOARD POST
+                COMMUNITY SUBMISSION
               </span>
             </div>
             <img
