@@ -43,15 +43,17 @@ export default function SportsTonightSidebar() {
 
   return (
     <div className="w-full mb-6">
-     
-
       {loading ? (
         <div className="text-center py-4 text-gray-500">Loading games…</div>
       ) : games.length === 0 ? (
         <div className="text-center text-gray-400 text-sm py-2">No games tonight</div>
-        
       ) : (
-        <div className="space-y-1">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2">
+          {/* Inline heading */}
+          <span className="font-[Barrio] text-sm text-indigo-900 whitespace-nowrap">
+            TONIGHT&apos;S GAMES:
+          </span>
+
           {games.map(evt => {
             const home = evt.performers.find(p => p.home_team) || evt.performers[0];
             const away = evt.performers.find(p => !p.home_team) || evt.performers[1] || home;
@@ -64,34 +66,30 @@ export default function SportsTonightSidebar() {
             const venueName = evt.venue?.name || '';
 
             return (
-              
               <a
                 key={evt.id}
                 href={evt.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition text-sm"
+                className="
+                  flex items-center gap-1
+                  hover:bg-gray-50 px-2 py-1 rounded transition text-sm
+                "
               >
-                {/* Home logo + name */}
-                <h3 className="font-[Barrio] text-xl text-indigo-900 pr-5">
-        TONIGHT&apos;S GAMES: 
-      </h3>
                 <img
                   src={home.image || '/placeholder.svg'}
                   alt={home.name}
                   className="w-5 h-5 rounded-full object-cover border border-gray-200"
                 />
                 <span className="font-semibold text-[#28313e]">{localName}</span>
-
-                {/* vs */}
                 <span className="text-gray-500">vs</span>
-
-                {/* Visitor name + logo */}
                 <span className="font-semibold text-[#28313e]">{visitorName}</span>
-                
-
-                {/* Time & venue */}
-                <span className=" text-gray-600 whitespace-nowrap">
+                <img
+                  src={away.image || '/placeholder.svg'}
+                  alt={away.name}
+                  className="w-5 h-5 rounded-full object-cover border border-gray-200"
+                />
+                <span className="ml-2 text-gray-600 whitespace-nowrap">
                   {gameTime} @ {venueName}
                 </span>
               </a>
