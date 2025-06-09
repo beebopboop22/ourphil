@@ -10,7 +10,6 @@ export default function TriviaCard({
   statsRefreshKey,
   onReviewSuccess,
 }) {
-  // ── Local state for aggregated stats ───────────────────────────────
   const [stats, setStats] = useState({
     totalReviews: 0,
     soloCount: 0,
@@ -20,155 +19,117 @@ export default function TriviaCard({
   const [statsLoading, setStatsLoading] = useState(true)
 
   useEffect(() => {
-    let isMounted = true
+    let mounted = true
     setStatsLoading(true)
-
-    // Fetch all reviews for this trivia_id, then aggregate in JS
     supabase
       .from('trivia_reviews')
       .select('solo_friendly, crowd_level, vibe')
       .eq('trivia_id', item.id)
       .then(({ data, error }) => {
-        if (!isMounted) return
+        if (!mounted) return
         if (error) {
-          console.error('Error fetching reviews:', error)
+          console.error(error)
           setStatsLoading(false)
           return
         }
-        // Aggregate on the fetched rows:
-        const totalReviews = data.length
-        let soloCount = 0
-        const crowdCounts = {}
-        const vibeCounts = {}
-
-        data.forEach((r) => {
-          if (r.solo_friendly) {
-            soloCount += 1
-          }
-          if (r.crowd_level) {
-            crowdCounts[r.crowd_level] = (crowdCounts[r.crowd_level] || 0) + 1
-          }
-          if (r.vibe) {
-            vibeCounts[r.vibe] = (vibeCounts[r.vibe] || 0) + 1
-          }
+        const total = data.length
+        let solo = 0, crowd = {}, vibe = {}
+        data.forEach(r => {
+          if (r.solo_friendly) solo++
+          if (r.crowd_level) crowd[r.crowd_level] = (crowd[r.crowd_level]||0)+1
+          if (r.vibe) vibe[r.vibe] = (vibe[r.vibe]||0)+1
         })
-
-        setStats({ totalReviews, soloCount, crowdCounts, vibeCounts })
+        setStats({ totalReviews: total, soloCount: solo, crowdCounts: crowd, vibeCounts: vibe })
         setStatsLoading(false)
       })
-
-    return () => {
-      isMounted = false
-    }
+    return () => { mounted = false }
   }, [item.id, statsRefreshKey])
 
-  // Derive summary values for display
-  let soloPct = 0
-  let topCrowd = ''
-  let topVibe = ''
-
-  if (!statsLoading && stats.totalReviews > 0) {
-    soloPct = Math.round((stats.soloCount / stats.totalReviews) * 100)
-
-    const sortedCrowd = Object.entries(stats.crowdCounts).sort(
-      (a, b) => b[1] - a[1]
-    )
-    if (sortedCrowd.length) {
-      topCrowd = sortedCrowd[0][0]
-    }
-
-    const sortedVibe = Object.entries(stats.vibeCounts).sort(
-      (a, b) => b[1] - a[1]
-    )
-    if (sortedVibe.length) {
-      topVibe = sortedVibe[0][0]
-    }
-  }
-
   const isOpen = reviewOpenId === item.id
-  const toggleReview = () => {
-    setReviewOpenId(isOpen ? null : item.id)
-  }
+  const toggleReview = () => setReviewOpenId(isOpen ? null : item.id)
 
-  const placeholderImage =
-    'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/113_334387_1738156330113.webp'
+  // hard-coded day images
+  const dayImageMap = {
+    Sunday:    'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//sunday-trivia.png',
+    Monday:    'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//MONDAY-TRIVIA.png',
+    Tuesday:   'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//TUESDAY-TRIVIA.png',
+    Wednesday: 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//WEDSNEDAY-TRIVIA.png',
+    Thursday:  'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//THURSDAY-TRIVAI.png',
+  }
+  const imgSrc = dayImageMap[item.Day] || ''
+
+  let soloPct = 0, topCrowd = '', topVibe = ''
+  if (!statsLoading && stats.totalReviews > 0) {
+    soloPct = Math.round(100 * stats.soloCount / stats.totalReviews)
+    const sortedCrowd = Object.entries(stats.crowdCounts).sort((a,b)=>b[1]-a[1])
+    if (sortedCrowd[0]) topCrowd = sortedCrowd[0][0]
+    const sortedVibe = Object.entries(stats.vibeCounts).sort((a,b)=>b[1]-a[1])
+    if (sortedVibe[0]) topVibe = sortedVibe[0][0]
+  }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-transform hover:scale-[1.02]">
-      {/* Placeholder Image */}
-      <a
-        href={item.link || '#'}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block"
-      >
+    <div className="flex flex-col bg-white border-b last:border-none hover:bg-gray-50 transition">
+      <div className="flex items-center p-4 space-x-4">
+        {/* Day image */}
         <img
-          src={placeholderImage}
-          alt={item.Bar}
-          className="w-full h-40 object-cover"
+          src={imgSrc}
+          alt={`${item.Day} trivia`}
+          className="w-16 h-16 object-cover rounded"
         />
-      </a>
 
-      <div className="p-4">
-        {/* Link to bar’s page (or external) */}
-        <a
-          href={item.link || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block"
-        >
-          <h2 className="text-lg font-semibold text-indigo-800 mb-1">
+        {/* Main info */}
+        <div className="flex-1 flex flex-col space-y-1">
+          <div className="text-lg font-semibold text-gray-900">
             {item.Bar}
-          </h2>
-          <p className="text-gray-700 mb-1">⏰ {item.Time}</p>
-          <p className="text-gray-700">📍 {item.Neighborhood}</p>
-        </a>
-
-        {/* Review Stats (once loaded) or “No reviews yet” */}
-        {!statsLoading && stats.totalReviews > 0 ? (
-          <div className="mt-2 text-sm text-gray-600">
-            <span>✶ {stats.totalReviews} reviews</span>
-            <span className="mx-2">|</span>
-            <span>Solo-friendly: {soloPct}%</span>
-            <span className="mx-2">|</span>
-            <span>
-              Crowd:{' '}
-              {topCrowd.charAt(0).toUpperCase() + topCrowd.slice(1)}
-            </span>
-            <span className="mx-2">|</span>
-            <span>
-              Vibe:{' '}
-              {topVibe
-                .charAt(0)
-                .toUpperCase() + topVibe.slice(1).replace('-', ' ')}
-            </span>
           </div>
-        ) : (
-          <div className="mt-2 text-sm text-gray-500">No reviews yet.</div>
-        )}
-
-        {/* Button toggles the inline review form */}
-        <button
-          type="button"
-          onClick={toggleReview}
-          className="mt-2 text-indigo-600 text-sm underline focus:outline-none"
-        >
-          {isOpen ? 'Cancel Review' : 'Leave a review'}
-        </button>
-
-        {/* Inline Review Form, if open */}
-        {isOpen && (
-          <div className="mt-4 border-t pt-4">
-            <TriviaReviewForm
-              triviaId={item.id}
-              onSuccess={() => {
-                setReviewOpenId(null)
-                onReviewSuccess()
-              }}
-            />
+          <div className="text-sm text-gray-600">
+            {item.Time}
+            {item.Neighborhood && ` • ${item.Neighborhood}`}
           </div>
-        )}
+        </div>
+
+        {/* Actions & stats */}
+        <div className="flex flex-col items-end space-y-1">
+          {item.link && (
+            <a
+              href={item.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-indigo-600 hover:underline"
+            >
+              Website
+            </a>
+          )}
+          {!statsLoading && stats.totalReviews > 0 ? (
+            <div className="text-xs text-gray-600">
+              {stats.totalReviews} reviews
+            </div>
+          ) : (
+            <div className="text-xs text-gray-500">
+              No reviews yet
+            </div>
+          )}
+          <button
+            onClick={toggleReview}
+            className="text-xs text-indigo-600 underline focus:outline-none"
+          >
+            {isOpen ? 'Cancel' : 'Review'}
+          </button>
+        </div>
       </div>
+
+      {/* Inline Review Form */}
+      {isOpen && (
+        <div className="px-4 pb-4 border-t">
+          <TriviaReviewForm
+            triviaId={item.id}
+            onSuccess={() => {
+              setReviewOpenId(null)
+              onReviewSuccess()
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }

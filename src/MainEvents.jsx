@@ -19,6 +19,7 @@ import SportsEventsGrid from './SportsEventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents';
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
+import TriviaTonightBanner from './TriviaTonightBanner';
 
 
 // ── Helpers ───────────────────────────────
@@ -562,64 +563,64 @@ return (
   <meta name="description" content={metaDescription} />
 </Helmet>
     
-    <div className="flex flex-col min-h-screen overflow-x-visible">
-        
-      <Navbar />
+<div className="flex flex-col min-h-screen overflow-x-visible">
+  <Navbar />
 
-      <div className="relative flex flex-col md:flex-row items-center justify-center mt-32">
-        {/* we need a positioning context for the line + mascot */}
-        <div className="relative inline-block text-center">
-          {/* your existing heading, but bump it above the line with z-index */}
-          <h1 className="text-5xl sm:text-6xl md:text-8xl font-[Barrio] font-black text-black">
-                  DIG INTO PHILLY
-          </h1>      
-          {/* decorative line + mascot, behind the h1 */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
-            {/* the horizontal rule */}
-            <span className="absolute w-full h-px bg-white opacity-20"></span>
-            {/* the mascot, pinned to the right end of that rule */}
-            <img
-              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
-              alt="Our Philly Mascot"
-              className="absolute right-0 w-24 h-auto -translate-y-1/3"
-            />
-          </div>
-        </div>
+  <div className="relative w-full max-w-screen-xl mx-auto mt-32 text-center">
+    {/* positioning context for line + mascot */}
+    <div className="relative  inline-block text-center">
+      <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-black">
+        DIG INTO PHILLY
+      </h1>
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
+        <span className="absolute w-full h-px bg-white opacity-20"></span>
+        <img
+          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
+          alt="Our Philly Mascot"
+          className="absolute right-0 w-24 h-auto -translate-y-1/3"
+        />
       </div>
-      
-      <div>
-      <CityHolidayAlert />
+    </div>
+    <div className="max-w-screen-xl mx-auto px-4 py-8">
+    <CityHolidayAlert />
+    <TriviaTonightBanner />
+    </div>
+  
+
 
 
 {/* ─── Pills + Date Picker + Event Count ─── */}
 <div className="container mx-auto px-4 mt-12">
-  <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4">
-    {['today', 'tomorrow', 'weekend'].map(opt => (
-      <button
-        key={opt}
-        onClick={() => { setSelectedOption(opt); goTo(opt); }}
-        className={`
-          text-sm sm:text-base
-          px-3 sm:px-5 py-1 sm:py-2
-          rounded-full border-2
-          font-semibold
-          shadow-lg
-          transform transition-transform duration-200
-          ${
-            selectedOption === opt
-              ? 'bg-indigo-600 text-white border-indigo-600'
-              : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
-          }
-        `}
-      >
-        {opt === 'today' ? 'Today'
-          : opt === 'tomorrow' ? 'Tomorrow'
-          : 'This Weekend'}
-      </button>
-    ))}
+  <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
+    {/* Pills row */}
+    <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4 w-full sm:w-auto">
+      {['today', 'tomorrow', 'weekend'].map(opt => (
+        <button
+          key={opt}
+          onClick={() => { setSelectedOption(opt); goTo(opt); }}
+          className={`
+            text-sm sm:text-base
+            px-3 sm:px-5 py-1 sm:py-2
+            rounded-full border-2
+            font-semibold
+            shadow-lg
+            transform transition-transform duration-200
+            ${
+              selectedOption === opt
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
+            }
+          `}
+        >
+          {opt === 'today' ? 'Today'
+            : opt === 'tomorrow' ? 'Tomorrow'
+            : 'This Weekend'}
+        </button>
+      ))}
+    </div>
 
-    {/* datepicker wrapper */}
-    <div className="relative w-auto flex-1 sm:w-auto">
+    {/* DatePicker below on mobile, inline on desktop */}
+    <div className="relative w-full sm:w-auto">
       <DatePicker
         selected={new Date(customDate)}
         onChange={date => {
@@ -645,6 +646,7 @@ return (
     </div>
   </div>
 </div>
+
 
 
 

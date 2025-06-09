@@ -1,7 +1,9 @@
 // src/TriviaNights.jsx
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from './supabaseClient'
+import { Helmet } from 'react-helmet'
 import Navbar from './Navbar'
+import Footer from './Footer'
 import TriviaCard from './TriviaCard'
 
 const daysOfWeek = [
@@ -17,125 +19,147 @@ const daysOfWeek = [
 export default function TriviaNights() {
   const [triviaList, setTriviaList] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedDay, setSelectedDay] = useState(
-    daysOfWeek[new Date().getDay()]
-  )
+
+  const [selectedDay, setSelectedDay] = useState(daysOfWeek[new Date().getDay()])
   const [selectedNeighborhood, setSelectedNeighborhood] = useState('All')
+
   const [reviewOpenId, setReviewOpenId] = useState(null)
   const [statsRefreshKey, setStatsRefreshKey] = useState(0)
 
+  // Fetch whenever selectedDay changes
   useEffect(() => {
-    const fetchTrivia = async () => {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('trivia')
-        .select('id, Bar, Time, Neighborhood, link')
-        .eq('Day', selectedDay)
-        .order('Time', { ascending: true })
-
-      if (error) {
-        console.error('Error fetching trivia nights:', error)
-        setTriviaList([])
-      } else {
-        setTriviaList(data)
-        setSelectedNeighborhood('All')
-      }
-      setLoading(false)
-    }
-    fetchTrivia()
+    setLoading(true)
+    supabase
+      .from('trivia')
+      .select('id, Bar, Time, Neighborhood, link, Day')
+      .eq('Day', selectedDay)
+      .order('Time', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error)
+          setTriviaList([])
+        } else {
+          setTriviaList(data)
+          setSelectedNeighborhood('All')
+        }
+      })
+      .finally(() => setLoading(false))
   }, [selectedDay])
 
+  // Unique neighborhoods
   const neighborhoods = useMemo(() => {
     const uniq = Array.from(
-      new Set(
-        triviaList.map((t) => t.Neighborhood || '').filter(Boolean)
-      )
+      new Set(triviaList.map(t => t.Neighborhood || '').filter(Boolean))
     )
     return ['All', ...uniq.sort()]
   }, [triviaList])
 
-  const filteredList = useMemo(() => {
+  // Filter by neighborhood
+  const filtered = useMemo(() => {
     if (selectedNeighborhood === 'All') return triviaList
-    return triviaList.filter((t) => t.Neighborhood === selectedNeighborhood)
+    return triviaList.filter(t => t.Neighborhood === selectedNeighborhood)
   }, [triviaList, selectedNeighborhood])
 
   return (
-    <div className="min-h-screen bg-gray-900 text-green-300 font-mono">
+    <div className="min-h-screen bg-white text-gray-900">
+      <Helmet>
+        <title>
+          Quizzo in Philadelphia – Quizzo on {selectedDay} – Quizzo & Trivia
+        </title>
+        <meta
+          name="description"
+          content={`Browse trivia nights in Philadelphia for ${selectedDay}.`}
+        />
+        <link rel="icon" href="/favicon.ico" />
+      </Helmet>
+
       <Navbar />
 
-      {/* Cockpit Dashboard Header */}
-      <div className="relative max-w-4xl mx-auto py-8 px-4 pt-24">
-        <div className="absolute inset-0 bg-gradient-to-b from-gray-800 via-gray-900 to-black opacity-80 pointer-events-none z-0" />
-        <h1 className="relative z-10 text-3xl font-bold text-center mb-6 tracking-widest">
-          🚀 TRIVIA CONTROL PANEL 🚀
+      <div className="max-w-screen-xl mx-auto px-4 py-8 relative">
+        {/* Massive heart in background */}
+        <img
+          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-1.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-contain opacity-5 pointer-events-none select-none"
+        />
+
+        <h1 className="text-4xl font-[Barrio] text-center mb-6 mt-20">
+          Quizzo in Philly
         </h1>
+        <p className="text-center text-sm text-gray-600 mb-8">
+          Check their website to confirm.
+        </p>
 
-        {/* Day Selector as Control Switches */}
-        <div className="relative z-10 flex overflow-x-auto space-x-2 justify-center mb-6">
-          {daysOfWeek.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
-                selectedDay === day
-                  ? 'bg-green-300 text-black border-green-300'
-                  : 'bg-gray-800 text-green-300 border-green-300 hover:bg-green-300 hover:text-black'
-              }`}
-            >
-              {day.slice(0, 3).toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-        {/* Neighborhood Dropdown as System Monitor */}
-        {neighborhoods.length > 1 && (
-          <div className="relative z-10 flex justify-center mb-6">
-            <select
-              value={selectedNeighborhood}
-              onChange={(e) => setSelectedNeighborhood(e.target.value)}
-              className="text-xs font-medium text-green-300 bg-gray-800 border border-green-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              {neighborhoods.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Loading / No Results */}
-        {loading ? (
-          <p className="relative z-10 text-green-500 text-center py-8">
-            Initializing sensors...
-          </p>
-        ) : filteredList.length === 0 ? (
-          <p className="relative z-10 text-red-500 text-center py-8">
-            No trivia stations online for {selectedDay}
-            {selectedNeighborhood !== 'All' && ` in ${selectedNeighborhood}`}.
-          </p>
-        ) : (
-          /* Trivia Grid as Cockpit Panels */
-          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {filteredList.map((item) => (
-              <div
-                key={item.id}
-                className="max-w-xs mx-auto transform hover:scale-105 transition-transform"
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {/* Sidebar */}
+          <aside className="space-y-6">
+            {/* Day selector */}
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Day</h2>
+              <select
+                value={selectedDay}
+                onChange={e => setSelectedDay(e.target.value)}
+                className="w-full border rounded px-3 py-2"
               >
+                {daysOfWeek.map(day => (
+                  <option key={day} value={day}>
+                    {day}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Neighborhood selector */}
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Neighborhood</h2>
+              <ul className="space-y-2">
+                {neighborhoods.map(n => (
+                  <li key={n}>
+                    <button
+                      onClick={() => setSelectedNeighborhood(n)}
+                      className={`w-full text-left px-4 py-2 rounded transition ${
+                        selectedNeighborhood === n
+                          ? 'bg-indigo-600 text-white'
+                          : 'hover:bg-gray-100'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+
+          {/* Main list */}
+          <section className="md:col-span-3 space-y-4">
+            {loading ? (
+              <p className="text-center text-gray-500 py-8">
+                Loading trivia nights…
+              </p>
+            ) : filtered.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">
+                No trivia tonight
+                {selectedNeighborhood !== 'All' && ` in ${selectedNeighborhood}`}.
+              </p>
+            ) : (
+              filtered.map(item => (
                 <TriviaCard
+                  key={item.id}
                   item={item}
                   reviewOpenId={reviewOpenId}
                   setReviewOpenId={setReviewOpenId}
                   statsRefreshKey={statsRefreshKey}
-                  onReviewSuccess={() =>
-                    setStatsRefreshKey((k) => k + 1)
-                  }
+                  onReviewSuccess={() => setStatsRefreshKey(k => k + 1)}
                 />
-              </div>
-            ))}
-          </div>
-        )}
+              ))
+            )}
+          </section>
+        </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

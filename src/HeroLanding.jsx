@@ -131,11 +131,11 @@ export default function HeroLanding() {
         className="absolute top-0 w-1/4 h-full object-contain pointer-events-none"
       />
 
-      <div className="relative max-w-screen-xl mx-auto z-20">
+      <div className="relative max-w-screen-xl mx-auto text-center z-20">
         {/* inline header + button */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl sm:text-4xl font-[Barrio] font-bold text-gray-700">
-            Upcoming Traditions
+        <div className="flex   justify-between mb-6">
+          <h2 className="text-2xl sm:text-4xl font-medium font-bold text-gray-700">
+            Upcoming Annual Philly Traditions
           </h2>
          
         </div>

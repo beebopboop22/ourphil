@@ -104,9 +104,9 @@ export default function PopularGroups({ isAdmin }) {
       {/* CTA Banner: edge-to-edge, no top margin, padding added */}
       <h2
         onClick={() => setShowSubmitModal(true)}
-        className="w-full bg-neutral-50 text-black text-4xl sm:text-5xl font-[Barrio] text-center cursor-pointer py-6"
+        className="w-full bg-neutral-50 text-black text-3xl sm:text-5xl font-[barrio] text-center cursor-pointer py-6"
       >
-        ORGANIZERS: CLAIM YOUR GROUP TO POST EVENTS!
+        CLAIM YOUR GROUP TO POST EVENTS!
       </h2>
 
       {/* Progress bar now beneath cards */}
