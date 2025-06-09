@@ -48,29 +48,34 @@ export default function TriviaTonightBanner() {
       .limit(2)
       .then(({ data }) => setSampleBars(data.map(d => d.Bar)))
 
-    ;(async () => {
-      let all = []
-      for (let slug of teamSlugs) {
-        const res = await fetch(
-          `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=10&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
-        )
-        const json = await res.json()
-        all.push(...(json.events || []))
-      }
-      const today0 = new Date(); today0.setHours(0,0,0,0)
-      const tonight = all.filter(e => {
-        const d = new Date(e.datetime_local); d.setHours(0,0,0,0)
-        return d.getTime() === today0.getTime()
-      })
-      if (tonight.length) {
-        const e = tonight[0]
-        const home = e.performers.find(p => p.home_team) || e.performers[0]
-        const away = e.performers.find(p => !p.home_team) || e.performers[1] || home
-        const time = new Date(e.datetime_local)
-          .toLocaleTimeString('en-US',{ hour:'numeric', minute:'2-digit' })
-        setGame({ home, away, time, venue: e.venue.name, url: e.url })
-      }
-    })()
+    // inside your useEffect fetching sports games
+;(async () => {
+    let all = []
+    for (let slug of teamSlugs) {
+      const res = await fetch(
+        `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=10&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+      )
+      const json = await res.json()
+      all.push(...(json.events || []))
+    }
+  
+    // grab today's date at midnight
+    const today0 = new Date()
+    today0.setHours(0, 0, 0, 0)
+  
+    // compare only the date string
+    const tonight = all.filter(e => {
+      const eventDate = new Date(e.datetime_local)
+      eventDate.setHours(0, 0, 0, 0)
+      return eventDate.getTime() === today0.getTime()
+    })
+  
+    if (tonight.length) {
+      const e = tonight[0]
+      // …existing code to pick home/away/time/etc.
+    }
+  })()
+  
   }, [today])
 
   return (
