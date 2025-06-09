@@ -11,7 +11,7 @@ const GroupsList = ({ groups, isAdmin }) => {
   const [typeCounts, setTypeCounts] = useState({});
   const [featuredGroupId, setFeaturedGroupId] = useState(null);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(12);
+  const [visibleCount, setVisibleCount] = useState(100);
 
   useEffect(() => {
     if (!groups.length) return;

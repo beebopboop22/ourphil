@@ -667,29 +667,7 @@ useEffect(() => {
   </div>
 </section>
 
-
-
- {/* ── Outlets You Might Like ──────────────────────────────────────────── */}
- {suggestedOutlets.length > 0 && (
-        <section className="w-full bg-neutral-100 pt-12 pb-12">
-          <div className="relative w-screen left-1/2 right-1/2 mx-[-50vw] overflow-x-auto overflow-y-hidden">
-            <div className="flex space-x-4 flex-nowrap px-4">
-              {loadingOutlets ? (
-                <p className="text-center w-full">Loading…</p>
-              ) : (
-                <OutletsList outlets={suggestedOutlets} isAdmin={false} />
-              )}
-            </div>
-          </div>
-        </section>
-      )}
-
-      
-
-
-     
-      <HeroLanding />
-      <Footer />
+           <Footer />
 
     </div>
     

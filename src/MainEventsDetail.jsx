@@ -393,15 +393,7 @@ return (
     )}
   </div>
 
-  {/* Right: Sidebar */}
-  <aside className="md:w-1/3 w-full space-y-8">
-    {/* 1. Sports tonight */}
-    <SportsTonightSidebar />
-    {/* 2. Upcoming Traditions */}
-    <div className="bg-white p-4 rounded-lg shadow">
-      <UpcomingSidebarBulletin previewCount={10} />
-    </div>
-  </aside>
+ 
 </main>
 
         <BigBoardEventsGrid />

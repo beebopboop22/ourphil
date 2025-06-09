@@ -179,7 +179,7 @@ const [groupEvents, setGroupEvents] = useState([]);
 
   // Pagination state
   const [page, setPage] = useState(1);
-  const EVENTS_PER_PAGE = 9;
+  const EVENTS_PER_PAGE = 24;
 
   // "filterDay" for single days
   const getDay = () => {
@@ -562,17 +562,37 @@ return (
   <meta name="description" content={metaDescription} />
 </Helmet>
     
-    <div className="flex flex-col min-h-screen overflow-x-hidden">
+    <div className="flex flex-col min-h-screen overflow-x-visible">
         
       <Navbar />
-      <div className="pt-20">
+
+      <div className="relative flex flex-col md:flex-row items-center justify-center mt-32">
+        {/* we need a positioning context for the line + mascot */}
+        <div className="relative inline-block text-center">
+          {/* your existing heading, but bump it above the line with z-index */}
+          <h1 className="text-5xl sm:text-6xl md:text-8xl font-[Barrio] font-black text-black">
+                  DIG INTO PHILLY
+          </h1>
+          
+          <SportsTonightSidebar /> 
+      
+          {/* decorative line + mascot, behind the h1 */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
+            {/* the horizontal rule */}
+            <span className="absolute w-full h-px bg-white opacity-20"></span>
+            {/* the mascot, pinned to the right end of that rule */}
+            <img
+              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
+              alt="Our Philly Mascot"
+              className="absolute right-0 w-24 h-auto -translate-y-1/3"
+            />
+          </div>
+        </div>
+      </div>
+      
+      <div>
       <CityHolidayAlert />
 
-        {/* ─── Hero Banner ─── */}
-        <EventsPageHero />
-
-        {/* ─── Recent Activity ─── */}
-        <RecentActivity />
 
 {/* ─── Pills + Date Picker + Event Count ─── */}
 <div className="container mx-auto px-4 mt-12">
@@ -632,15 +652,15 @@ return (
 
 
 
-<main className="flex flex-col md:flex-row gap-8 container mx-auto px-4 py-8">
+<main className="container mx-auto px-4 py-8">
   {/* Left: events */}
-  <div className="md:w-2/3 w-full">
+  <div className="w-full">
     <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
            {headerText}
     </h2>
 
     {!loading && (
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
         {allPagedEvents.map(evt => {
           const { isBigBoard, isTradition } = evt;
           const d     = evt.start_date ? parseISODateLocal(evt.start_date) : evt.start;
@@ -802,14 +822,15 @@ return (
     )}
   </div>
 
-  {/* Right: sidebar */}
-  <aside className="md:w-1/3 w-full space-y-8">
-    <SportsTonightSidebar />
-    <div className="bg-white p-4 rounded-lg shadow">
-    <UpcomingSidebarBulletin previewCount={10} />
-    </div>
-  </aside>
 </main>
+
+{/* ─── Recent Activity ─── */}
+<RecentActivity />
+
+{/* ─── Hero Banner ─── */}
+<HeroLanding />
+
+
 
 
 

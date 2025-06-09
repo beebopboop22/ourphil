@@ -27,7 +27,7 @@ const GroupProgressBar = ({ goal = 1000 }) => {
 
   return (
     <>
-      <div className="w-full bg-neutral-100 py-6 px-4 border-y border-gray-200">
+      <div className="w-full bg-neutral-50 py-6 px-4 border-y border-gray-200">
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 w-full">
       <div className="text-sm text-gray-700">
             {totalGroups.toLocaleString()} of {goal.toLocaleString()} Philly groups indexed.
