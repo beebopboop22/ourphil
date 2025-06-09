@@ -8,6 +8,7 @@ import { AuthContext } from './AuthProvider';
 import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
+import TriviaTonightBanner from './TriviaTonightBanner';
 
 /**
  * BigBoardEventPage
@@ -217,8 +218,12 @@ export default function BigBoardEventPage() {
         <Navbar />
 
         <main className="flex-grow pt-24 pb-12 px-4">
-          <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
+          <div className="mb-10">
+                  <TriviaTonightBanner />
+           </div> 
+                <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2">
+              
               {/* Left: image + pill + posted */}
               <div className="bg-gray-50 p-8 flex flex-col items-center">
                 <div className="relative w-full">

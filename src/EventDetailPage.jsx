@@ -13,6 +13,7 @@ import {
   addEventFavorite,
   removeEventFavorite,
 } from './utils/eventFavorites';
+import TriviaTonightBanner from './TriviaTonightBanner';
 
 export default function EventDetailPage() {
   const { slug } = useParams();
@@ -249,6 +250,9 @@ export default function EventDetailPage() {
       <Navbar/>
 
       <main className="flex-grow px-4 pb-12 pt-6">
+      <div className="mb-10">
+        <TriviaTonightBanner />
+      </div> 
         {/* Hero + Info */}
         <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2">

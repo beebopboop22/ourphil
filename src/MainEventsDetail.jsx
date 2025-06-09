@@ -7,6 +7,7 @@ import Footer from './Footer';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import { Helmet } from 'react-helmet';
+import TriviaTonightBanner from './TriviaTonightBanner';
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -160,6 +161,9 @@ export default function MainEventsDetail() {
 
         {/* Hero + pill */}
         <main className="flex-grow pt-24 pb-12 px-4">
+           <div className="mb-10">
+                  <TriviaTonightBanner />
+                </div> 
           <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2">
               <div className="bg-gray-50 p-8 flex flex-col items-center">

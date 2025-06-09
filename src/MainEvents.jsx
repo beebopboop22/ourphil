@@ -566,7 +566,7 @@ return (
 <div className="flex flex-col min-h-screen overflow-x-visible">
   <Navbar />
 
-  <div className="relative w-full max-w-screen-xl mx-auto mt-32 text-center">
+  <div className="relative w-full max-w-screen-3xl mx-auto mt-32 text-center">
     {/* positioning context for line + mascot */}
     <div className="relative  inline-block text-center">
       <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-black">
