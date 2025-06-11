@@ -134,8 +134,8 @@ export default function HeroLanding() {
       <div className="relative max-w-screen-xl mx-auto text-center z-20">
         {/* inline header + button */}
         <div className="flex   justify-between mb-6">
-          <h2 className="text-2xl sm:text-4xl font-medium font-bold text-gray-700">
-            Upcoming Annual Philly Traditions
+          <h2 className="text-2xl font-[barrio] sm:text-4xl font-medium font-bold text-gray-700">
+            Upcoming Festivals, Fairs, Markets
           </h2>
          
         </div>

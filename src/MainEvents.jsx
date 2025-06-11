@@ -584,7 +584,7 @@ return (
         />
       </div>
     </div>
-    <div className="max-w-screen-xl mx-auto px-4 py-8">
+    <div className="max-w-screen-xl mx-auto px-4 py-2">
     <TrendingTags />
     <CityHolidayAlert />
     <TriviaTonightBanner />
