@@ -12,7 +12,7 @@ export default function PostFlyerModal({ isOpen, onClose }) {
 
   // ── Step state ─────────────────────────────────────────────────────────────
   const [step, setStep] = useState(1);
-  const totalSteps = 3;
+  const totalSteps = 4;
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [selectedFile, setSelectedFile] = useState(null);
@@ -22,6 +22,8 @@ export default function PostFlyerModal({ isOpen, onClose }) {
   const [link, setLink] = useState('');
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+  const [tagsList, setTagsList] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
   const [uploading, setUploading] = useState(false);
 
   // Holds the final event URL once created
@@ -31,18 +33,22 @@ export default function PostFlyerModal({ isOpen, onClose }) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      // load tags once
+      loadTags();
     } else {
       document.body.style.overflow = '';
       resetForm();
-      setConfirmationUrl('');
-      setStep(1);
     }
     return () => {
       document.body.style.overflow = '';
     };
   }, [isOpen]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  async function loadTags() {
+    const { data, error } = await supabase.from('tags').select('id,name');
+    if (!error) setTagsList(data);
+  }
+
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -58,7 +64,9 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     setLink('');
     setStartDate(null);
     setEndDate(null);
+    setSelectedTags([]);
     setUploading(false);
+    setConfirmationUrl('');
     setStep(1);
   }
 
@@ -75,31 +83,28 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     setUploading(true);
 
     try {
-      // 1) Compress & upload image to Supabase Storage
+      // 1) Compress & upload image
       const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
       const compressed = await imageCompression(selectedFile, options);
-      const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi, '_').toLowerCase();
+      const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi,'_').toLowerCase();
       const key = `${user.id}-${Date.now()}-${cleanName}`;
       await supabase.storage.from('big-board').upload(key, compressed);
 
-      // 2) Insert into big_board_posts (leave event_id null for now)
-      const { data: postData, error: postError } = await supabase
+      // 2) Insert post
+      const { data: postData } = await supabase
         .from('big_board_posts')
         .insert({ user_id: user.id, image_url: key })
         .select('id')
         .single();
-      if (postError) throw postError;
       const postId = postData.id;
 
-      // 3) Generate a slug from title + timestamp
+      // 3) Make slug
       const slugBase = title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
+        .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
       const slug = `${slugBase}-${Date.now()}`;
 
-      // 4) Insert into big_board_events (with description + link), linking via post_id
-      const { data: eventData, error: eventError } = await supabase
+      // 4) Insert event
+      const { data: eventData } = await supabase
         .from('big_board_events')
         .insert({
           post_id: postId,
@@ -107,24 +112,30 @@ export default function PostFlyerModal({ isOpen, onClose }) {
           description: description || null,
           link: link || null,
           start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate
-            ? endDate.toISOString().split('T')[0]
-            : startDate.toISOString().split('T')[0],
+          end_date: (endDate||startDate).toISOString().split('T')[0],
           slug,
         })
         .select('id')
         .single();
-      if (eventError) throw eventError;
       const eventId = eventData.id;
 
-      // 5) Update the post row so that big_board_posts.event_id = the new event's id
-      const { error: updateError } = await supabase
+      // 5) Link post→event
+      await supabase
         .from('big_board_posts')
         .update({ event_id: eventId })
         .eq('id', postId);
-      if (updateError) throw updateError;
 
-      // 6) Build the confirmation URL and show the confirmation view
+      // 6) Taggings: attach selected tags
+      if (selectedTags.length) {
+        const taggings = selectedTags.map(tag_id => ({
+          tag_id,
+          taggable_type: 'big_board_events',
+          taggable_id: eventId
+        }));
+        await supabase.from('taggings').insert(taggings);
+      }
+
+      // 7) Show confirmation
       const fullUrl = `https://ourphilly.org/big-board/${slug}`;
       setConfirmationUrl(fullUrl);
     } catch (err) {
@@ -142,107 +153,69 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     if (step === 1) return Boolean(selectedFile);
     if (step === 2) return Boolean(title.trim());
     if (step === 3) return Boolean(startDate);
+    if (step === 4) return true;
     return false;
   }
 
   function handleNext() {
-    if (step < totalSteps) {
-      setStep(step + 1);
-    } else {
-      handleSubmit();
-    }
+    if (step < totalSteps) setStep(step + 1);
+    else handleSubmit();
   }
 
   function handleBack() {
-    if (step > 1) {
-      setStep(step - 1);
-    }
+    if (step > 1) setStep(step - 1);
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         >
           <motion.div
-            className="
-              bg-white
-              rounded-lg
-              mx-4            /* small padding on mobile */
-              max-w-lg
-              w-full
-              max-h-[90vh]    /* cap height to 90% of viewport */
-              overflow-y-auto /* scroll if content is tall */
-              relative
-              p-6
-            "
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.8 }}
+            className="bg-white rounded-lg mx-4 max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 relative"
+            initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }}
           >
-            {/* Close button */}
             <button
               onClick={onClose}
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 z-10"
-            >
-              ✕
-            </button>
-
-            {/* Heading */}
+            >✕</button>
             <h2 className="text-xl font-bold mb-2 text-center">Post an Event Flyer</h2>
 
-            
-
-            {/*** If confirmationUrl exists, show confirmation view ***/}
             {confirmationUrl ? (
+              // Confirmation view
               <div className="flex flex-col items-center">
-                <h3 className="text-2xl font-bold mb-4 text-center">
-                  Your event is live!
-                </h3>
-                <p className="text-center mb-4">
-                  Here’s the link to your event page:
-                </p>
+                <h3 className="text-2xl font-bold mb-4 text-center">Your event is live!</h3>
+                <p className="text-center mb-4">Here’s your link:</p>
                 <div className="flex w-full items-center mb-4">
                   <input
-                    type="text"
-                    readOnly
-                    value={confirmationUrl}
+                    type="text" readOnly value={confirmationUrl}
                     className="flex-1 border rounded-l-lg px-3 py-2 text-sm truncate"
-                    onFocus={(e) => e.target.select()}
+                    onFocus={e => e.target.select()}
                   />
                   <button
                     onClick={copyToClipboard}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700 transition"
-                  >
-                    Copy
-                  </button>
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700"
+                  >Copy</button>
                 </div>
                 <button
                   onClick={onClose}
-                  className="mt-2 bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 transition"
-                >
-                  Done
-                </button>
+                  className="mt-2 bg-gray-200 text-gray-800 px-6 py-2 rounded-lg"
+                >Done</button>
               </div>
             ) : (
-              /*** Multi-step form ***/
+              // Multi-step form
               <div>
-                {/* Step 1: Upload Flyer */}
+                {/* Step 1: Upload */}
                 {step === 1 && (
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Upload Flyer <span className="font-normal text-xs">(required)</span>
+                      Upload Flyer <span className="text-xs font-normal">(required)</span>
                     </label>
                     <input
-                      type="file"
-                      accept="image/*"
+                      type="file" accept="image/*"
                       onChange={handleFileChange}
-                      className="w-full"
                       disabled={uploading}
                     />
                     {previewUrl && (
@@ -260,25 +233,22 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                   <div className="mb-6 space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Title <span className="font-normal text-xs">(required)</span>
+                        Title <span className="text-xs font-normal">(required)</span>
                       </label>
                       <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
+                        type="text" value={title}
+                        onChange={e => setTitle(e.target.value)}
                         className="w-full border p-2 rounded"
                         disabled={uploading}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Why should we go?{' '}
-                        <span className="font-normal text-xs">(optional)</span>
+                        Why should we go? <span className="text-xs font-normal">(optional)</span>
                       </label>
                       <textarea
-                        rows={3}
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
+                        rows={3} value={description}
+                        onChange={e => setDescription(e.target.value)}
                         className="w-full border p-2 rounded"
                         disabled={uploading}
                       />
@@ -291,12 +261,11 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                   <div className="mb-6 space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Link <span className="font-normal text-xs">(optional)</span>
+                        Link <span className="text-xs font-normal">(optional)</span>
                       </label>
                       <input
-                        type="url"
-                        value={link}
-                        onChange={(e) => setLink(e.target.value)}
+                        type="url" value={link}
+                        onChange={e => setLink(e.target.value)}
                         placeholder="https://example.com"
                         className="w-full border p-2 rounded"
                         disabled={uploading}
@@ -305,24 +274,22 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Start Date <span className="font-normal text-xs">(required)</span>
+                          Start Date <span className="text-xs font-normal">(required)</span>
                         </label>
                         <DatePicker
                           selected={startDate}
-                          onChange={(date) => setStartDate(date)}
-                          placeholderText="Pick a start date"
+                          onChange={setStartDate}
                           className="w-full border p-2 rounded"
                           disabled={uploading}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          End Date <span className="font-normal text-xs">(optional)</span>
+                          End Date <span className="text-xs font-normal">(optional)</span>
                         </label>
                         <DatePicker
                           selected={endDate}
-                          onChange={(date) => setEndDate(date)}
-                          placeholderText="Pick an end date"
+                          onChange={setEndDate}
                           className="w-full border p-2 rounded"
                           disabled={uploading}
                         />
@@ -331,49 +298,72 @@ export default function PostFlyerModal({ isOpen, onClose }) {
                   </div>
                 )}
 
-                {/* Progress Bar & Label */}
+                {/* Step 4: Tags */}
+                {step === 4 && (
+                  <div className="mb-6 space-y-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tag this Event <span className="text-xs font-normal">(optional)</span>
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {tagsList.map(tagOpt => (
+                        <label key={tagOpt.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            value={tagOpt.id}
+                            checked={selectedTags.includes(tagOpt.id)}
+                            onChange={e => {
+                              const id = tagOpt.id;
+                              setSelectedTags(prev =>
+                                e.target.checked
+                                ? [...prev, id]
+                                : prev.filter(x => x !== id)
+                              );
+                            }}
+                          />
+                          <span className="text-gray-800">{tagOpt.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Progress */}
                 <div className="mb-6">
                   <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>
-                      Step {step} of {totalSteps}
-                    </span>
-                    <span>{Math.round((step / totalSteps) * 100)}%</span>
+                    <span>Step {step} of {totalSteps}</span>
+                    <span>{Math.round((step/totalSteps)*100)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 h-2 rounded">
                     <div
                       className="h-2 bg-indigo-600 rounded"
-                      style={{ width: `${(step / totalSteps) * 100}%` }}
+                      style={{ width: `${(step/totalSteps)*100}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Navigation Buttons */}
+                {/* Nav buttons */}
                 <div className="flex justify-between">
                   <button
                     onClick={handleBack}
-                    disabled={step === 1}
+                    disabled={step===1}
                     className={`px-4 py-2 rounded ${
-                      step === 1
+                      step===1
                         ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
-                    } transition`}
+                    }`}
                   >
                     Back
                   </button>
                   <button
                     onClick={handleNext}
-                    disabled={!canProceed() || uploading}
+                    disabled={!canProceed()||uploading}
                     className={`px-4 py-2 rounded text-white ${
                       canProceed()
                         ? 'bg-indigo-600 hover:bg-indigo-700'
                         : 'bg-indigo-300 cursor-not-allowed'
-                    } transition`}
+                    }`}
                   >
-                    {step < totalSteps
-                      ? 'Next'
-                      : uploading
-                      ? 'Posting…'
-                      : 'Post Event'}
+                    {step<totalSteps ? 'Next' : uploading ? 'Posting…' : 'Post Event'}
                   </button>
                 </div>
               </div>

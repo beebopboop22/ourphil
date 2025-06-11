@@ -40,6 +40,7 @@ import VenuePage from './VenuePage';
 import MainEventsDetail from './MainEventsDetail.jsx';
 import GroupEventDetailPage from './GroupEventDetailPage.jsx';
 import ScrollToTop from './ScrollToTop'
+import TagPage from './TagPage.jsx'
 
 
 
@@ -98,6 +99,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/:venue" element={<VenuePage />} />
           <Route path="/:venue/:slug" element={<MainEventsDetail />} />
           <Route path="/groups/:slug/events/:eventId" element={<GroupEventDetailPage />} />
+          <Route path="/tags/:slug" element={<TagPage />} />
+
 
 
 

@@ -20,6 +20,8 @@ import SeasonalEventsGrid from './SeasonalEvents';
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
 import TriviaTonightBanner from './TriviaTonightBanner';
+import TrendingTags from './TrendingTags';
+
 
 
 // ── Helpers ───────────────────────────────
@@ -572,6 +574,7 @@ return (
       <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-black">
         DIG INTO PHILLY
       </h1>
+      
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
         <span className="absolute w-full h-px bg-white opacity-20"></span>
         <img
@@ -582,8 +585,10 @@ return (
       </div>
     </div>
     <div className="max-w-screen-xl mx-auto px-4 py-8">
+    <TrendingTags />
     <CityHolidayAlert />
     <TriviaTonightBanner />
+    
     </div>
   
 
@@ -682,6 +687,8 @@ return (
                 : '#';
 
           const isTrad = Boolean(evt.isTradition);
+
+          
 
           // compute today, start and end objs
           const today = new Date(); today.setHours(0,0,0,0);

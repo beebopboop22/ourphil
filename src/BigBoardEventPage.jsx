@@ -189,18 +189,21 @@ export default function BigBoardEventPage() {
   if (error) return <div className="py-20 text-center text-red-600">{error}</div>;
   if (!event) return <div className="py-20 text-center">Event not found.</div>;
 
-  // compute main-event prefix
-  const startDateObj = parseLocalYMD(event.start_date);
-  const today0 = new Date(); today0.setHours(0,0,0,0);
-  const diffMain = Math.round((startDateObj - today0) / (1000*60*60*24));
-  let mainPrefix;
-  if (diffMain === 0) mainPrefix = 'Today';
-  else if (diffMain === 1) mainPrefix = 'Tomorrow';
-  else {
-    const wd = startDateObj.toLocaleDateString('en-US',{ weekday:'long' });
-    mainPrefix = `This ${wd}`;
-  }
-  const mainMD = startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
+// compute the badge prefix
+const startDateObj = parseLocalYMD(event.start_date)
+const today0 = new Date(); today0.setHours(0,0,0,0)
+const diffDays = Math.round((startDateObj - today0)/(1000*60*60*24))
+let mainPrefix
+if (diffDays === 0) mainPrefix = 'Today'
+else if (diffDays === 1) mainPrefix = 'Tomorrow'
+else {
+  const weekday = startDateObj.toLocaleDateString('en-US',{ weekday:'long' })
+  if (diffDays > 1 && diffDays < 7) mainPrefix = `This ${weekday}`
+  else if (diffDays >= 7 && diffDays < 14) mainPrefix = `Next ${weekday}`
+  else mainPrefix = weekday
+}
+const mainMD = startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric' })
+
 
   // SEO
   const pageTitle = `${event.title} – OUR PHILLY`;
