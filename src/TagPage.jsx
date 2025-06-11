@@ -306,7 +306,7 @@ const nextEvent = upcomingEvents[0] || null
               className="flex-shrink-0 w-64 relative bg-white rounded-xl shadow-lg overflow-hidden flex flex-col hover:scale-105 transition-transform"
             >
               {/* date badge */}
-              <div className="absolute top-2 left-2 w-8 h-8 rounded bg-gray-900/80 flex items-center justify-center z-10">
+              <div className="absolute top-2 left-2 pt-4 w-8 h-8 rounded bg-gray-900/80 flex items-center justify-center z-10">
                 <div className="text-center text-white">
                   <div className="font-bold text-lg">{day}</div>
                   <div className="text-xs uppercase">{month}</div>
@@ -342,7 +342,7 @@ const nextEvent = upcomingEvents[0] || null
               )}
 
               {/* footer text */}
-              <div className="p-3 pb-7 flex-1 flex flex-col justify-end">
+              <div className="pb-7 pt-2 flex-1 flex text-center flex-col">
                 <p className="text-sm font-semibold text-gray-900 leading-snug">
                   {evt.title.length > 40
                     ? `${evt.title.slice(0,40)}…`
