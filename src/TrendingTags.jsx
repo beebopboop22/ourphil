@@ -36,7 +36,7 @@ export default function TrendingTags() {
 
   return (
     <div className="flex justify-center px-2 py-3 bg-white rounded-lg shadow-sm">
-      <span className="text-xl font-bold text-gray-700 mr-3 mt-1">TRENDING EVENT TAGS:</span>
+      <span className="text-xl font-bold text-gray-700 mr-3 mt-1">TRENDING TAGS:</span>
       {tags.map((tag, i) => (
         <Link
           key={tag.slug}

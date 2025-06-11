@@ -362,31 +362,20 @@ const nextEvent = upcomingEvents[0] || null
         <section className="mt-16 mb-20">
         <div className="max-w-screen-3xl mx-auto px-4">
     {/* Hero header */}
-    <div className="text-center mb-12">
-      <h2 className="text-5xl  font-[barrio] sm:text-6xl font-extrabold text-indigo-900 mb-4 underline decoration-indigo-600 decoration-4 underline-offset-8">
-        Discover {filteredGroups.length} #{tag.name} Groups
-      </h2>
-      <div className="mx-auto w-full sm:w-1/2 flex items-center gap-2">
-        <input
-          type="search"
-          placeholder="Search groups…"
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none"
-        />
-        <select
-          value={selectedCategory}
-          onChange={e => setSelectedCategory(e.target.value)}
-          className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none"
-        >
-          {categories.map(cat => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+   <h2 className="text-4xl text-center font-[barrio] text-indigo-900">
+     Discover {filteredGroups.length} #{tag.name} groups
+   </h2>
+   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+     <input
+       type="search"
+       placeholder="Search groups..."
+       value={searchTerm}
+       onChange={e => setSearchTerm(e.target.value)}
+        className="w-full sm:flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+      />
+     </div>
+   </div>
 
             {filteredGroups.length>0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
