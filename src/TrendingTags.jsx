@@ -7,6 +7,8 @@ const pillStyles = [
   'bg-green-100 text-indigo-800',
   'bg-teal-100 text-teal-800',
   'bg-pink-100 text-pink-800',
+  'bg-blue-100 text-blue-800',
+  'bg-orange-100 text-orange-800',
 ]
 
 export default function TrendingTags() {
@@ -17,7 +19,7 @@ export default function TrendingTags() {
     supabase
       .from('tags')
       .select('name, slug')
-      .limit(3)
+      .limit(5)
       .then(({ data, error }) => {
         if (error) {
           console.error('Error loading trending tags:', error)

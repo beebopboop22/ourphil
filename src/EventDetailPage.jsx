@@ -250,9 +250,7 @@ export default function EventDetailPage() {
       <Navbar/>
 
       <main className="flex-grow px-4 pb-12 pt-6">
-      <div className="mb-10">
-        <TriviaTonightBanner />
-      </div> 
+      
         {/* Hero + Info */}
         <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2">
@@ -287,6 +285,7 @@ export default function EventDetailPage() {
                   </p>
                 )}
                 
+                <h2> When?</h2>
                 <p className="text-lg text-gray-800 mb-2">
                   {displayDate}
                 </p>
@@ -296,23 +295,28 @@ export default function EventDetailPage() {
                   </p>
                 )}
       
-                {event['E Link'] && (
-                  <a
-                    href={event['E Link']}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-[#bf3d35] text-white px-6 py-3 rounded-full hover:bg-[#a92d23] transition"
-                  >
-                    More info
-                  </a>
-                )}
+      
+
               </div>
+              {event['E Link'] && (
+  <a
+    href={event['E Link']}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="block w-full bg-[#bf3d35] text-white px-6 py-3 rounded-md text-center hover:bg-[#a92d23] transition"
+  >
+    Official Web Page
+  </a>
+)}
             </div>
           </div>
         </div>
 
+        
+
         {/* Reviews */}
         <section className="max-w-screen-xl mx-auto py-12 px-4 mb-12">
+
                 {event.longDescription && (
                   <div className="mb-6 w-full sm:w-2/3 mx-auto">
                     <h2 className="text-xl font-semibold text-gray-800 mb-2">
