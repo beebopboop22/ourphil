@@ -249,13 +249,17 @@ export default function EventDetailPage() {
 
       <Navbar/>
 
-      <main className="flex-grow px-4 pb-12 pt-6">
+      <main className="flex-grow px-4 pb-12 pt-6"  
+      >
       
         {/* Hero + Info */}
-        <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
+        <div
+  className="relative max-w-5xl mx-auto rounded-2xl overflow-hidden"
+>
   <div className="grid grid-cols-1 lg:grid-cols-2 items-stretch">
     {/* Image */}
-    <div className="relative h-full bg-gray-50">
+    <div className="relative h-64 sm:h-80 lg:h-full bg-gray-50">
+
       {event['E Image'] ? (
         <img
           src={event['E Image']}
