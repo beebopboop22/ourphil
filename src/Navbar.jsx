@@ -73,6 +73,15 @@ export default function Navbar() {
                   <span>Groups</span>
                 </Link>
               </li>
+
+              <li>
+                <Link
+                  to="/contact"
+                  className={`flex items-center space-x-1 ${linkClass('/groups')}`}
+                >
+                  <span>Contact</span>
+                </Link>
+              </li>
             </ul>
 
             {/* Auth */}
@@ -124,6 +133,12 @@ export default function Navbar() {
             <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
               Claim Your Group
             </Link>
+                <Link
+                  to="/contact"
+                  className={`flex items-center space-x-1 ${linkClass('/groups')}`}
+                >
+                  <span>Contact</span>
+                </Link>
             <button
               onClick={openPostModal}
               className="block text-left w-full"

@@ -253,26 +253,26 @@ export default function EventDetailPage() {
       
         {/* Hero + Info */}
         <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-2">
-            {/* Image */}
-            <div className="relative h-80 bg-gray-50">
-              {event['E Image'] ? (
-                <img
-                  src={event['E Image']}
-                  alt={event['E Name']}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-              ) : (
-                <div className="absolute inset-0 bg-gray-200" />
-              )}
-              <button
-                onClick={toggleFav}
-                disabled={toggling}
-                className="absolute top-4 right-4 text-4xl drop-shadow-lg"
-              >
-                {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
-              </button>
-            </div>
+  <div className="grid grid-cols-1 lg:grid-cols-2 items-stretch">
+    {/* Image */}
+    <div className="relative h-full bg-gray-50">
+      {event['E Image'] ? (
+        <img
+          src={event['E Image']}
+          alt={event['E Name']}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-gray-200" />
+      )}
+      <button
+        onClick={toggleFav}
+        disabled={toggling}
+        className="absolute top-4 right-4 text-4xl drop-shadow-lg"
+      >
+        {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
+      </button>
+    </div>
             {/* Info */}
             <div className="p-8 flex flex-col justify-between">
               <div>
