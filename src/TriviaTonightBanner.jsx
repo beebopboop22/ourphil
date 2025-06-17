@@ -58,20 +58,25 @@ export default function TriviaTonightBanner() {
         all.push(...(json.events || []))
       }
 
-      // pick the next upcoming game
       const nextGame = all[0]
       if (nextGame) {
+        const dt = new Date(nextGame.datetime_local)
+        const dayName = daysOfWeek[dt.getDay()]
+
         const home = nextGame.performers.find(p => p.home_team) || nextGame.performers[0]
         const away = nextGame.performers.find(p => !p.home_team) || nextGame.performers[1] || home
-        const time = new Date(nextGame.datetime_local)
-          .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        const time = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+
+        // determine if the Philly team is playing at home
+        const isHome = home.slug.startsWith('philadelphia-')
 
         setGame({
           homeImage: home.image || iconUrl,
           awayImage: away.image || iconUrl,
           teamText: `${home.name.replace(/^Philadelphia\s+/, '')} vs ${away.name.replace(/^Philadelphia\s+/, '')}`,
           time,
-          venue: nextGame.venue.name,
+          dayName,
+          isHome,
           url: nextGame.url,
         })
       }
@@ -81,14 +86,14 @@ export default function TriviaTonightBanner() {
 
   return (
     <div
-    className={`flex flex-col sm:flex-row
-      items-start sm:items-center
-      space-y-4 sm:space-y-0 sm:space-x-6
-      p-4 bg-white rounded-lg shadow-sm
-      mx-auto w-full sm:max-w-3xl
-      ${count === 0 ? 'justify-center' : ''}`}
-  >
-      {/* Trivia panel: only render if there are quizzo events */}
+      className={`flex flex-col sm:flex-row
+        items-start sm:items-center
+        space-y-4 sm:space-y-0 sm:space-x-6
+        p-4 bg-white rounded-lg shadow-sm
+        mx-auto w-full sm:max-w-3xl
+        ${count === 0 ? 'justify-center' : ''}`}
+    >
+      {/* Trivia panel */}
       {count > 0 && (
         <Link
           to="/trivia"
@@ -112,9 +117,13 @@ export default function TriviaTonightBanner() {
         >
           <img src={game.homeImage} alt="" className="w-12 sm:w-16 rounded object-cover" />
           <div className="flex flex-col text-left">
-            <span className="text-xs font-semibold text-gray-500 uppercase">Next Game</span>
+            <span className="text-xs font-semibold text-gray-500 uppercase">
+              Next Game, {game.dayName}
+            </span>
             <span className="font-medium text-gray-900 text-sm">{game.teamText}</span>
-            <span className="text-xs text-gray-500">{game.time} &commat; {game.venue}</span>
+            <span className="text-xs text-gray-500">
+              {game.time}, {game.isHome ? 'Home' : 'Away'}
+            </span>
           </div>
         </a>
       )}

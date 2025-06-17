@@ -204,7 +204,7 @@ const nextEvent = upcomingEvents[0] || null
   return (
     <>
       <Helmet>
-        <title>#{tag.name} | Our Philly</title>
+      <title>#{tag.name} – {tag.description || `${totalGroups} groups & ${totalEvents} events`} | Our Philly</title>
         <meta
           name="description"
           content={
@@ -220,7 +220,7 @@ const nextEvent = upcomingEvents[0] || null
 
         {/* Hero */}
         {/* Hero */}
-<div className="relative bg-gray-100 overflow-hidden pt-20 pb-12 mb-8 h-[44vh]">
+        <div className="relative bg-gray-100 overflow-hidden pt-20 pb-12 mb-8 h-[44vh]">
   {/* skyline behind */}
   <img
     src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//skyline-grey.png"
@@ -228,18 +228,12 @@ const nextEvent = upcomingEvents[0] || null
     className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none"
   />
 
-  {/* Floating gallery: column on mobile, row on sm+ */}
-  <div className="absolute inset-0 pointer-events-none flex flex-col sm:flex-row items-center justify-center gap-4">
-    <FloatingGallery images={groups.map(g => g.imag).filter(Boolean)} />
-  </div>
-
   {/* Header content */}
-  <div className="relative max-w-6xl mx-auto px-4 text-center sm:text-left z-10">
+  <div className="relative max-w-6xl mx-auto px-4 sm:text-left z-10">
     <h1 className="text-4xl font-[barrio] sm:text-8xl font-extrabold text-indigo-900 mb-2">
       #{tag.name}
     </h1>
 
-    {/* Next-Event Spotlight */}
     {nextEvent && (() => {
       let to
       if (nextEvent.isGroupEvent)       to = nextEvent.href
@@ -262,7 +256,13 @@ const nextEvent = upcomingEvents[0] || null
       )
     })()}
   </div>
+
+  {/* Floating gallery: static below header on mobile, absolute overlay on sm+ */}
+  <div className="pointer-events-none mt-4 flex flex-col sm:flex-row sm:absolute sm:inset-0 sm:mt-0 items-center justify-center gap-4">
+    <FloatingGallery images={groups.map(g => g.imag).filter(Boolean)} />
+  </div>
 </div>
+
 
 
         {/* Upcoming events grid */}
@@ -360,7 +360,7 @@ const nextEvent = upcomingEvents[0] || null
 
         {/* Discover Groups */}
         <section className="mt-16 mb-20">
-        <div className="max-w-screen-3xl mx-auto px-4">
+        <div className="max-w-screen-xl mx-auto px-4">
     {/* Hero header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
    <h2 className="text-4xl text-center font-[barrio] text-indigo-900">
