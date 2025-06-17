@@ -21,6 +21,7 @@ import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
 import TriviaTonightBanner from './TriviaTonightBanner';
 import TrendingTags from './TrendingTags';
+import NewsletterSection from './NewsletterSection';
 
 
 

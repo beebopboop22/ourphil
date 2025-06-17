@@ -9,6 +9,9 @@ const pillStyles = [
   'bg-pink-100 text-pink-800',
   'bg-blue-100 text-blue-800',
   'bg-orange-100 text-orange-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-purple-100 text-purple-800',
+  'bg-red-100 text-red-800',
 ]
 
 export default function TrendingTags() {
@@ -19,7 +22,7 @@ export default function TrendingTags() {
     supabase
       .from('tags')
       .select('name, slug')
-      .limit(5)
+      .limit(10)
       .then(({ data, error }) => {
         if (error) {
           console.error('Error loading trending tags:', error)
@@ -38,19 +41,24 @@ export default function TrendingTags() {
 
   return (
     <div className="container mx-auto px-2 py-3 bg-white rounded-lg shadow-sm">
-      <div className="flex justify-start sm:justify-center overflow-x-auto whitespace-nowrap">
-        <span className="text-sm sm:text-xl font-bold text-gray-700 mr-3 mt-1 flex-shrink-0">
+      <div className="flex items-center">
+        {/* fixed label */}
+        <span className="text-sm sm:text-xl font-bold text-gray-700 mr-4 flex-shrink-0">
           TRENDING TAGS:
         </span>
-        {tags.map((tag, i) => (
-          <Link
-            key={tag.slug}
-            to={`/tags/${tag.slug}`}
-            className={`${pillStyles[i % pillStyles.length]} text-sm sm:text-xl font-semibold px-3 sm:px-4 py-1 mr-3 rounded-full flex-shrink-0 hover:opacity-80 transition`}
-          >
-            #{tag.name.toLowerCase()}
-          </Link>
-        ))}
+
+        {/* scrollable pills */}
+        <div className="flex-1 flex overflow-x-auto whitespace-nowrap">
+          {tags.map((tag, i) => (
+            <Link
+              key={tag.slug}
+              to={`/tags/${tag.slug}`}
+              className={`${pillStyles[i % pillStyles.length]} text-sm sm:text-xl font-semibold px-3 sm:px-4 py-1 mr-3 rounded-full flex-shrink-0 hover:opacity-80 transition`}
+            >
+              #{tag.name.toLowerCase()}
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   )
