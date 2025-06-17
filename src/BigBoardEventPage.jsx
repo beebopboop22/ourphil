@@ -195,14 +195,51 @@ export default function BigBoardEventPage() {
   const daysDiff = Math.round((start - today0) / (1000*60*60*24));
   const whenText = daysDiff === 0 ? 'Today' : daysDiff === 1 ? 'Tomorrow' : start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
+// inside your component, before the return:
+const formattedDate = new Date(event.start_date)
+.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+const rawDesc = event.description || '';
+const metaDescription =
+      rawDesc.length > 155
+        ? rawDesc.slice(0, 152).trim() + '…'
+        : rawDesc;
+
+        
+
   return (
     <>
-      <Helmet>
-        <title>{event.title} – Our Philly</title>
-        <meta name="description" content={event.description || ''} />
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+     <Helmet>
+  {/* Title: “[Event Title] | Community Event on [Date] | Our Philly” */}
+  <title>
+    {`${event.title} | Community Event on ${formattedDate} | Our Philly`}
+  </title>
 
-      </Helmet>
+  {/* Meta description */}
+  <meta name="description" content={metaDescription} />
+
+  {/* Canonical URL */}
+  <link rel="canonical" href={window.location.href} />
+
+  {/* Open Graph */}
+  <meta property="og:type"        content="event" />
+  <meta property="og:title"       content={`${event.title} | Our Philly`} />
+  <meta property="og:description" content={metaDescription} />
+  <meta property="og:url"         content={window.location.href} />
+  <meta
+    property="og:image"
+    content={event.imageUrl || '/default-event-image.png'}
+  />
+
+  {/* Twitter Card */}
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content={`${event.title} | Our Philly`} />
+  <meta name="twitter:description" content={metaDescription} />
+  <meta
+    name="twitter:image"
+    content={event.imageUrl || '/default-event-image.png'}
+  />
+</Helmet>
 
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar />

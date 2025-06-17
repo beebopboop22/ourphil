@@ -138,18 +138,41 @@ export default function GroupDetails() {
   if (!group) return <div className="text-center py-20 text-gray-500">Loading Group…</div>;
 
   const types = group.Type?.split(',').map(t => t.trim()) || [];
+ 
+  // ── Prepare SEO variables ───────────────────────────────────────────────
+ const name        = group.Name;
+ const area        = group.Area || 'Philadelphia';
+ const typesArr    = group.Type ? group.Type.split(',').map(t => t.trim()) : [];
+ const typeString  = typesArr.join(', ');
+ const description = group.Description || '';
+ const image       = group.imag || '/default-group.png';
+ const url         = window.location.href;
+ const metaDesc    = description.length > 140
+   ? description.slice(0, 137) + '…'
+   : description;
+
 
   return (
     <div className="min-h-screen bg-neutral-50 pt-20">
-      {/* ── SEO & Meta Tags ─────────────────────────────────────────────── */}
-      <Helmet>
-        <title>{`${group.Name} – Our Philly – ${types.join(', ')}`}</title>
-        <meta name="description" content={group.Description} />
-        <meta property="og:title" content={group.Name} />
-        <meta property="og:description" content={group.Description} />
-        <meta property="og:url" content={window.location.href} />
-        <meta property="og:image" content={group.imag} />
-        <meta name="keywords" content={types.join(', ')} />
+       {/* ── SEO & Meta Tags ─────────────────────────────────────────────── */}
+       <Helmet>
+        <title>
+          {name} | {typeString} Community | Find Groups on Our Philly
+        </title>
+        <meta name="description" content={metaDesc} />
+
+        <meta property="og:title"       content={`${name} | Our Philly`} />
+        <meta property="og:description" content={metaDesc} />
+        <meta property="og:url"         content={url} />
+        <meta property="og:image"       content={image} />
+        <meta property="og:type"        content="website" />
+
+        <meta name="twitter:card"        content="summary_large_image" />
+        <meta name="twitter:title"       content={`${name} | Our Philly`} />
+        <meta name="twitter:description" content={metaDesc} />
+        <meta name="twitter:image"       content={image} />
+
+        <meta name="robots" content="index, follow" />
         <link rel="icon" href="/favicon.ico" />
       </Helmet>
 

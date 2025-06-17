@@ -55,12 +55,12 @@ export default function GroupsPage() {
   return (
     <>
       <Helmet>
-        <title>Philly Groups – Neighborhood Crews & Clubs | Our Philly</title>
+        <title>Philly Groups – Search & Discover Local Crews | Our Philly</title>
         <meta
           name="description"
-          content="From sports leagues to social crews, explore Philly's most active local groups and communities."
+          content="Search and discover Philadelphia’s local groups—from sports leagues and fitness crews to hobby clubs. Join your neighborhood communities today."
         />
-        <link rel="canonical" href="https://ourphilly.com/groups" />
+        <link rel="canonical" href="https://www.ourphilly.org/groups" />
       </Helmet>
 
       <div className="min-h-screen bg-neutral-50 pt-20">
