@@ -48,8 +48,6 @@ export default function TagPage() {
     return ['All', ...Array.from(new Set(all))]
   }, [groups])
 
-  
-
   // ── Filtered groups ────────────────────────────────────────────
   const filteredGroups = useMemo(() => {
     return groups.filter(g => {
@@ -69,6 +67,7 @@ export default function TagPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
+
       // 1) fetch tag
       const { data: t } = await supabase
         .from('tags')
@@ -112,7 +111,9 @@ export default function TagPage() {
         byType.big_board_events?.length
           ? supabase
               .from('big_board_events')
-              .select('id,title,slug,big_board_posts!big_board_posts_event_id_fkey(image_url),start_date,end_date')
+              .select(
+                'id,title,slug,start_date,end_date,big_board_posts!big_board_posts_event_id_fkey(image_url)'
+              )
               .in('id', byType.big_board_events)
           : { data: [] },
 
@@ -128,11 +129,12 @@ export default function TagPage() {
               .from('all_events')
               .select('id,name,slug,image,start_date,venue_id(name,slug)')
               .in('id', byType.all_events)
-          : { data: [] }
+          : { data: [] },
       ])
 
       // 4) shape each collection
       setGroups(gRes.data || [])
+
       setTraditions((trRes.data || []).map(e => ({
         id: e.id,
         title: e['E Name'],
@@ -140,8 +142,9 @@ export default function TagPage() {
         imageUrl: e['E Image'] || '',
         start: parseDate(e.Dates),
         end: parseDate(e['End Date']) || parseDate(e.Dates),
-        isTradition: true
+        isTradition: true,
       })))
+
       setBigBoard((bbRes.data || []).map(ev => {
         const key = ev.big_board_posts?.[0]?.image_url
         const url = key
@@ -154,27 +157,29 @@ export default function TagPage() {
           imageUrl: url,
           isBigBoard: true,
           start: parseISODateLocal(ev.start_date),
-          end: parseISODateLocal(ev.end_date)
+          end: parseISODateLocal(ev.end_date),
         }
       }))
+
       setGroupEvents((geRes.data || []).map(ev => ({
         id: ev.id,
         title: ev.title,
         slug: ev.slug,
-        imageUrl: ev.groups?.imag || '',
+        imageUrl: ev.groups?.[0]?.imag || '',
         start: parseISODateLocal(ev.start_date),
         end: parseISODateLocal(ev.end_date),
-        href: `/groups/${ev.groups.slug}/events/${ev.id}`,
-        isGroupEvent: true
+        href: `/groups/${ev.groups?.[0]?.slug || ''}/events/${ev.id}`,
+        isGroupEvent: true,
       })))
+
       setAllEvents((aeRes.data || []).map(ev => ({
         id: ev.id,
         title: ev.name,
         slug: ev.slug,
         imageUrl: ev.image || '',
         start: parseISODateLocal(ev.start_date),
-        href: `/${ev.venue_id.slug}/${ev.slug}`,
-        isAllEvent: true
+        href: `/${ev.venue_id?.slug || ''}/${ev.slug}`,
+        isAllEvent: true,
       })))
 
       setLoading(false)
@@ -196,15 +201,17 @@ export default function TagPage() {
     .filter(e => e.start && e.start >= today0)
     .sort((a,b) => a.start - b.start)
 
-// inside your TagPage, just below where you compute `upcomingEvents`:
-const nextEvent = upcomingEvents[0] || null
-
-    
+  // find next event for hero
+  const nextEvent = upcomingEvents[0] || null
 
   return (
     <>
       <Helmet>
-      <title>#{tag.name} – {tag.description || `${totalGroups} groups & ${totalEvents} events`} | Our Philly</title>
+        <title>
+          #{tag.name} –{' '}
+          {tag.description ||
+            `${totalGroups} groups & ${totalEvents} events`} | Our Philly
+        </title>
         <meta
           name="description"
           content={
@@ -219,165 +226,143 @@ const nextEvent = upcomingEvents[0] || null
         <Navbar/>
 
         {/* Hero */}
-        {/* Hero */}
         <div className="relative bg-gray-100 overflow-hidden pt-20 pb-12 mb-8 h-[44vh]">
-  {/* skyline behind */}
-  <img
-    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//skyline-grey.png"
-    alt=""
-    className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none"
-  />
+          <img
+            src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//skyline-grey.png"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none"
+          />
+          <div className="relative max-w-6xl mx-auto px-4 sm:text-left z-10">
+            <h1 className="text-4xl font-[barrio] sm:text-8xl font-extrabold text-indigo-900 mb-2">
+              #{tag.name}
+            </h1>
+            {nextEvent && (() => {
+              let to = '#'
+              if (nextEvent.isGroupEvent)    to = nextEvent.href
+              else if (nextEvent.isTradition) to = `/events/${nextEvent.slug}`
+              else if (nextEvent.isBigBoard)  to = `/big-board/${nextEvent.slug}`
+              else if (nextEvent.isAllEvent)  to = nextEvent.href
 
-  {/* Header content */}
-  <div className="relative max-w-6xl mx-auto px-4 sm:text-left z-10">
-    <h1 className="text-4xl font-[barrio] sm:text-8xl font-extrabold text-indigo-900 mb-2">
-      #{tag.name}
-    </h1>
+              return (
+                <div className="mt-4 text-base sm:text-lg text-gray-800">
+                  <span className="font-medium text-indigo-600">Next up:</span>{' '}
+                  <Link to={to} className="font-semibold hover:underline">
+                    {nextEvent.title} —{' '}
+                    {nextEvent.start.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </Link>
+                </div>
+              )
+            })()}
+          </div>
 
-    {nextEvent && (() => {
-      let to
-      if (nextEvent.isGroupEvent)       to = nextEvent.href
-      else if (nextEvent.isTradition)   to = `/events/${nextEvent.slug}`
-      else if (nextEvent.isBigBoard)    to = `/big-board/${nextEvent.slug}`
-      else if (nextEvent.isAllEvent)    to = nextEvent.href
-      else                               to = '#'
-
-      return (
-        <div className="mt-4 text-base sm:text-lg text-gray-800">
-          <span className="font-medium text-indigo-600">Next up:</span>{' '}
-          <Link to={to} className="font-semibold hover:underline">
-            {nextEvent.title} —{' '}
-            {nextEvent.start.toLocaleDateString('en-US', {
-              month: 'long',
-              day: 'numeric'
-            })}
-          </Link>
+          <div className="pointer-events-none mt-4 flex flex-col sm:flex-row sm:absolute sm:inset-0 sm:mt-0 items-center justify-center gap-4">
+            <FloatingGallery
+              images={groups.map(g => g.imag).filter(Boolean)}
+            />
+          </div>
         </div>
-      )
-    })()}
-  </div>
-
-  {/* Floating gallery: static below header on mobile, absolute overlay on sm+ */}
-  <div className="pointer-events-none mt-4 flex flex-col sm:flex-row sm:absolute sm:inset-0 sm:mt-0 items-center justify-center gap-4">
-    <FloatingGallery images={groups.map(g => g.imag).filter(Boolean)} />
-  </div>
-</div>
-
-
 
         {/* Upcoming events grid */}
-<section className="-mt-20 relative z-10">
-  <div className="max-w-screen-xl mx-auto bg-gray-100 text-white rounded-xl px-8 py-12 shadow-2xl">
-    <h3 className="text-3xl font-bold font-[barrio] text-black text-center mb-6">
-      Upcoming #{tag.name} events
-    </h3>
+        <section className="-mt-20 relative z-10">
+          <div className="max-w-screen-xl mx-auto bg-gray-100 text-white rounded-xl px-8 py-12 shadow-2xl">
+            <h3 className="text-3xl font-bold font-[barrio] text-black text-center mb-6">
+              Upcoming #{tag.name} events
+            </h3>
 
-    {/* horizontal scroll wrapper */}
-    <div className="overflow-x-auto -mx-4 px-4">
-      <div className="flex space-x-6">
-        {/* “+” card */}
-        <button
-          onClick={() => setShowFlyerModal(true)}
-          className="flex-shrink-0 w-64 bg-gray-700 border-2 border-dashed border-gray-500 rounded-xl flex flex-col items-center justify-center p-6 hover:bg-gray-600 transition"
-        >
-          <span className="text-5xl">+</span>
-          <span className="mt-2 text-sm">Add Event</span>
-        </button>
+            <div className="overflow-x-auto -mx-4 px-4">
+              <div className="flex space-x-6">
+                <button
+                  onClick={() => setShowFlyerModal(true)}
+                  className="flex-shrink-0 w-64 bg-gray-700 border-2 border-dashed border-gray-500 rounded-xl flex flex-col items-center justify-center p-6 hover:bg-gray-600 transition"
+                >
+                  <span className="text-5xl">+</span>
+                  <span className="mt-2 text-sm">Add Event</span>
+                </button>
 
-        {upcomingEvents.map(evt => {
-          const day = evt.start.getDate()
-          const month = evt.start
-            .toLocaleString('en-US',{ month:'short' })
-            .slice(0,3)
-          const href = evt.isGroupEvent
-            ? evt.href
-            : evt.isTradition
-              ? `/events/${evt.slug}`
-              : evt.isBigBoard
-                ? `/big-board/${evt.slug}`
-                : evt.isAllEvent
-                  ? evt.href
-                  : '#'
+                {upcomingEvents.map(evt => {
+                  const day   = evt.start.getDate()
+                  const month = evt.start
+                    .toLocaleString('en-US',{ month:'short' })
+                    .slice(0,3)
+                  let href = '#'
+                  if (evt.isGroupEvent)    href = evt.href
+                  else if (evt.isTradition) href = `/events/${evt.slug}`
+                  else if (evt.isBigBoard)  href = `/big-board/${evt.slug}`
+                  else if (evt.isAllEvent)  href = evt.href
 
-          return (
-            <Link
-              key={evt.id}
-              to={href}
-              className="flex-shrink-0 w-64 relative bg-white rounded-xl shadow-lg overflow-hidden flex flex-col hover:scale-105 transition-transform"
-            >
-              {/* date badge */}
-              <div className="absolute top-2 left-2 pt-4 w-8 h-8 rounded bg-gray-900/80 flex items-center justify-center z-10">
-                <div className="text-center text-white">
-                  <div className="font-bold text-lg">{day}</div>
-                  <div className="text-xs uppercase">{month}</div>
-                </div>
+                  return (
+                    <Link
+                      key={evt.id}
+                      to={href}
+                      className="flex-shrink-0 w-64 relative bg-white rounded-xl shadow-lg overflow-hidden flex flex-col hover:scale-105 transition-transform"
+                    >
+                      <div className="absolute top-2 left-2 pt-4 w-8 h-8 rounded bg-gray-900/80 flex items-center justify-center z-10">
+                        <div className="text-center text-white">
+                          <div className="font-bold text-lg">{day}</div>
+                          <div className="text-xs uppercase">{month}</div>
+                        </div>
+                      </div>
+                      <div className="relative w-full h-40 bg-gray-200">
+                        {evt.imageUrl && (
+                          <img
+                            src={evt.imageUrl}
+                            alt={evt.title}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-800/80 to-transparent" />
+                      </div>
+                      {evt.isBigBoard && (
+                        <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
+                          <span className="text-xs font-bold text-white uppercase">
+                            COMMUNITY SUBMISSION
+                          </span>
+                        </div>
+                      )}
+                      {evt.isTradition && (
+                        <div className="absolute inset-x-0 bottom-0 h-6 bg-yellow-500 flex items-center justify-center z-20">
+                          <span className="text-xs font-bold text-white uppercase">
+                            ANNUAL TRADITION
+                          </span>
+                        </div>
+                      )}
+                      <div className="pb-7 pt-2 flex-1 flex text-center flex-col">
+                        <p className="text-sm font-semibold text-gray-900 leading-snug">
+                          {evt.title.length > 40
+                            ? `${evt.title.slice(0,40)}…`
+                            : evt.title}
+                        </p>
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
-
-              {/* image */}
-              <div className="relative w-full h-40 bg-gray-200">
-                {evt.imageUrl && (
-                  <img
-                    src={evt.imageUrl}
-                    alt={evt.title}
-                    className="w-full h-full object-cover"
-                  />
-                )}
-                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-800/80 to-transparent" />
-              </div>
-
-              {/* ribbons */}
-              {evt.isBigBoard && (
-                <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
-                  <span className="text-xs font-bold text-white uppercase">
-                    COMMUNITY SUBMISSION
-                  </span>
-                </div>
-              )}
-              {evt.isTradition && (
-                <div className="absolute inset-x-0 bottom-0 h-6 bg-yellow-500 flex items-center justify-center z-20">
-                  <span className="text-xs font-bold text-white uppercase">
-                    ANNUAL TRADITION
-                  </span>
-                </div>
-              )}
-
-              {/* footer text */}
-              <div className="pb-7 pt-2 flex-1 flex text-center flex-col">
-                <p className="text-sm font-semibold text-gray-900 leading-snug">
-                  {evt.title.length > 40
-                    ? `${evt.title.slice(0,40)}…`
-                    : evt.title}
-                </p>
-              </div>
-            </Link>
-          )
-        })}
-      </div>
-    </div>
-  </div>
-</section>
-
+            </div>
+          </div>
+        </section>
 
         {/* Discover Groups */}
         <section className="mt-16 mb-20">
-        <div className="max-w-screen-xl mx-auto px-4">
-    {/* Hero header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-   <h2 className="text-4xl text-center font-[barrio] text-indigo-900">
-     Discover {filteredGroups.length} #{tag.name} groups
-   </h2>
-   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-     <input
-       type="search"
-       placeholder="Search groups..."
-       value={searchTerm}
-       onChange={e => setSearchTerm(e.target.value)}
-        className="w-full sm:flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none"
-      />
-     </div>
-   </div>
+          <div className="max-w-screen-xl mx-auto px-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+              <h2 className="text-4xl text-center font-[barrio] text-indigo-900">
+                Discover {filteredGroups.length} #{tag.name} groups
+              </h2>
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                <input
+                  type="search"
+                  placeholder="Search groups..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full sm:flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                />
+              </div>
+            </div>
 
-            {filteredGroups.length>0 ? (
+            {filteredGroups.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {filteredGroups.map(g => (
                   <div
@@ -412,9 +397,9 @@ const nextEvent = upcomingEvents[0] || null
                         className="flex items-center space-x-1 text-indigo-600 hover:text-indigo-800"
                       >
                         <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 
-                                    4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 
-                                    14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 
+                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42
+                                    4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81
+                                    14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4
                                     6.86-8.55 11.54L12 21.35z" />
                         </svg>
                         <span className="text-sm">Join</span>
@@ -431,9 +416,9 @@ const nextEvent = upcomingEvents[0] || null
         </section>
 
         <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
-        <PostFlyerModal 
-          isOpen={showFlyerModal} 
-          onClose={() => setShowFlyerModal(false)} 
+        <PostFlyerModal
+          isOpen={showFlyerModal}
+          onClose={() => setShowFlyerModal(false)}
         />
         <Footer/>
       </div>
