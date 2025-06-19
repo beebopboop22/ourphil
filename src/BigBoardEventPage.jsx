@@ -320,10 +320,8 @@ export default function BigBoardEventPage() {
                 />
                 <span className="mt-4 text-sm text-gray-500 self-start">
                   Posted on {new Date(event.created_at).toLocaleDateString()}
-                </span>
-                {event.owner_id === user?.id && !isEditing && (
-                  <>
-                    {/* Native Share Button (full-width) */}
+                </span> 
+                {/* Native Share Button (full-width) */}
                     <div className="w-full px-4 mt-4">
                       <button
                         onClick={handleShare}
@@ -332,6 +330,9 @@ export default function BigBoardEventPage() {
                         Share
                       </button>
                     </div>
+                {event.owner_id === user?.id && !isEditing && (
+                  <>
+    
 
                     {/* ── Edit/Delete Buttons ──────────────────────────────── */}
                     <div className="mt-6 w-full flex flex-col space-y-3">
