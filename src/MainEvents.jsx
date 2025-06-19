@@ -636,11 +636,17 @@ return (
     
 <div className="flex flex-col min-h-screen overflow-x-visible">
   <Navbar />
+
   
+  <div className="mt-20">
+  <CityHolidayAlert />
+
+  </div>
 
 
-  <div className="relative w-full max-w-screen-3xl mx-auto mt-32 text-center">
+  <div className="relative w-full max-w-screen-3xl mx-auto mt-28 text-center">
     {/* positioning context for line + mascot */}
+  
     <div className="relative  inline-block text-center">
       <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-black">
         DIG INTO PHILLY
@@ -658,7 +664,6 @@ return (
     <div className="max-w-screen-xl mx-auto px-4 py-2">
     <TrendingTags />
     <TriviaTonightBanner />
-    <CityHolidayAlert />
     
     </div>
   
@@ -891,7 +896,7 @@ return (
         {/* “+N more TAGS” */}
         {extraCount > 0 && (
           <span className="text-xs text-gray-600 flex-shrink-0">
-            +{extraCount} more
+            +{extraCount} more TAGS
           </span>
         )}
       </div>

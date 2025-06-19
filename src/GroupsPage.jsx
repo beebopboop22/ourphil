@@ -1,3 +1,4 @@
+// src/GroupsPage.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { Helmet } from 'react-helmet';
 import { supabase } from './supabaseClient';
@@ -8,13 +9,19 @@ import GroupProgressBar from './GroupProgressBar';
 import SubmitGroupModal from './SubmitGroupModal';
 import Footer from './Footer';
 
-/**
- * GroupsPage
- * ----------
- * Displays a paginated 5×5 grid of group cards with search.
- * Includes an "Add Your Group" tile that opens the SubmitGroupModal.
- */
 export default function GroupsPage() {
+  // Pill styles for group types
+  const pillStyles = [
+    'bg-green-100 text-indigo-800',
+    'bg-teal-100 text-teal-800',
+    'bg-pink-100 text-pink-800',
+    'bg-blue-100 text-blue-800',
+    'bg-orange-100 text-orange-800',
+    'bg-yellow-100 text-yellow-800',
+    'bg-purple-100 text-purple-800',
+    'bg-red-100 text-red-800',
+  ];
+
   // Fetched groups
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +31,7 @@ export default function GroupsPage() {
 
   // Pagination state
   const [page, setPage] = useState(1);
+  const itemsPerPage = 25;
 
   // Modal state for adding groups
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -42,11 +50,12 @@ export default function GroupsPage() {
   // Filter by search term
   const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return groups.filter(g => (g.Name || '').toLowerCase().includes(term));
+    return groups.filter(g =>
+      (g.Name || '').toLowerCase().includes(term)
+    );
   }, [groups, searchTerm]);
 
   // Determine groups to display
-  const itemsPerPage = 25;
   const displayedGroups = filtered.slice(0, page * itemsPerPage);
 
   // Handler for See More
@@ -55,7 +64,9 @@ export default function GroupsPage() {
   return (
     <>
       <Helmet>
-        <title>Philly Groups – Search & Discover Local Crews | Our Philly</title>
+        <title>
+          Philly Groups – Search & Discover Local Crews | Our Philly
+        </title>
         <meta
           name="description"
           content="Search and discover Philadelphia’s local groups—from sports leagues and fitness crews to hobby clubs. Join your neighborhood communities today."
@@ -77,40 +88,80 @@ export default function GroupsPage() {
 
         <div className="max-w-screen-xl mx-auto px-4 mb-20">
           {loading ? (
-            <div className="text-center py-20 text-gray-500">Loading Groups...</div>
+            <div className="text-center py-20 text-gray-500">
+              Loading Groups...
+            </div>
           ) : (
             <>
-              {/* Grid 5×5 with Add Group tile */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {/* Add Your Group tile */}
-                <button
-                  onClick={() => setShowSubmitModal(true)}
-                  className="flex flex-col items-center bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
-                >
-                  <div className="h-32 bg-white-100 flex items-center justify-center">
-                    <span className="text-4xl text-green-600">➕</span>
-                  </div>
-                  <div className="py-2 text-center text-sm font-medium text-gray-900">
+              {/* Add Your Group row */}
+              <button
+                onClick={() => setShowSubmitModal(true)}
+                className="w-full flex items-center bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition mb-6"
+              >
+                <div className="w-32 h-32 flex-shrink-0 flex items-center justify-center bg-gray-100">
+                  <span className="text-5xl text-green-600">➕</span>
+                </div>
+                <div className="p-4">
+                  <h2 className="text-2xl font-semibold text-gray-900">
                     Add Your Group
-                  </div>
-                </button>
+                  </h2>
+                  <p className="mt-1 text-gray-600">
+                    Submit a new community group
+                  </p>
+                </div>
+              </button>
 
-                {/* Existing group cards */}
+              {/* Full-width rows */}
+              <div className="space-y-4">
                 {displayedGroups.map(group => (
                   <Link
                     key={group.id}
                     to={`/groups/${group.slug}`}
-                    className="block bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
+                    className="w-full flex bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
                   >
-                    <div className="h-32 bg-gray-100">
-                      <img
-                        src={group.imag}
-                        alt={group.Name}
-                        className="w-full h-full object-cover"
-                      />
+                    {/* Left: Image */}
+                    <div className="w-32 h-32 flex-shrink-0 bg-gray-100">
+                      {group.imag ? (
+                        <img
+                          src={group.imag}
+                          alt={group.Name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          No Image
+                        </div>
+                      )}
                     </div>
-                    <div className="py-2 text-center text-sm font-medium text-gray-900">
-                      {group.Name}
+
+                    {/* Right: Details */}
+                    <div className="p-4 flex-1">
+                      <h2 className="text-2xl font-semibold text-gray-900">
+                        {group.Name}
+                      </h2>
+                      <p className="mt-2 text-gray-700">
+                        {group.Description || 'No description available.'}
+                      </p>
+
+                      {/* Group Type Pills */}
+                      {group.Type && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {group.Type.split(',').map((type, i) => {
+                            const t = type.trim();
+                            const slug = t.toLowerCase().replace(/\s+/g, '-');
+                            const style = pillStyles[i % pillStyles.length];
+                            return (
+                              <Link
+                                key={i}
+                                to={`/groups/type/${slug}`}
+                                className={`${style} px-2 py-1 rounded-full text-xs font-semibold`}
+                              >
+                                {t}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </Link>
                 ))}
