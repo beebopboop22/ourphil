@@ -39,13 +39,25 @@ export default function EventDetailPage() {
   const [modalImage, setModalImage] = useState(null);
   const [showFlyerModal, setShowFlyerModal] = useState(false);
 
-  // Community submissions
+  // Community submissions + tags
   const [moreEvents, setMoreEvents] = useState([]);
   const [loadingMore, setLoadingMore] = useState(true);
+  const [tagMap, setTagMap] = useState({});
+
+  // Tag pill styles
+  const pillStyles = [
+    'bg-green-100 text-indigo-800',
+    'bg-teal-100 text-teal-800',
+    'bg-pink-100 text-pink-800',
+    'bg-blue-100 text-blue-800',
+    'bg-orange-100 text-orange-800',
+    'bg-yellow-100 text-yellow-800',
+    'bg-purple-100 text-purple-800',
+    'bg-red-100 text-red-800',
+  ];
 
   // ─── Date parsing ─────────────────────────────────────────────────────
   function parseDateStr(str) {
-    // Handles "MM/DD/YYYY" or "YYYY-MM-DD"
     if (!str) return null;
     if (str.includes('/')) {
       const [m, d, y] = str.split('/').map(Number);
@@ -54,7 +66,6 @@ export default function EventDetailPage() {
     const [y, m, d] = str.split('-').map(Number);
     return new Date(y, m - 1, d);
   }
-
   function getFriendlyDate(str) {
     const d = parseDateStr(str);
     if (!d) return '';
@@ -71,6 +82,22 @@ export default function EventDetailPage() {
       prefix = d.toLocaleDateString('en-US',{weekday:'long'});
     const md = d.toLocaleDateString('en-US',{month:'long',day:'numeric'});
     return `${prefix}, ${md}`;
+  }
+
+  // ─── Share support ────────────────────────────────────────────────────
+  function copyLinkFallback(url) {
+    navigator.clipboard.writeText(url)
+      .then(() => alert('Link copied to clipboard!'))
+      .catch(console.error);
+  }
+  function handleShare() {
+    const url = window.location.href;
+    const title = document.title;
+    if (navigator.share) {
+      navigator.share({ title, url }).catch(console.error);
+    } else {
+      copyLinkFallback(url);
+    }
   }
 
   // ─── Load event ───────────────────────────────────────────────────────
@@ -147,6 +174,7 @@ export default function EventDetailPage() {
   };
   useEffect(() => { if (event) loadReviews(); }, [event]);
 
+  // ─── Submit review ────────────────────────────────────────────────────
   const handleSubmit = async e => {
     e.preventDefault();
     if (!user) return alert('Log in to leave a review.');
@@ -173,6 +201,7 @@ export default function EventDetailPage() {
     }
   };
 
+  // ─── Edit/Delete review ───────────────────────────────────────────────
   const startEdit = r => {
     setEditingId(r.id);
     setDraftRating(r.rating);
@@ -224,6 +253,29 @@ export default function EventDetailPage() {
     })();
   }, []);
 
+  // ─── Fetch tags for upcoming cards ───────────────────────────────────
+  useEffect(() => {
+    if (!moreEvents.length) return;
+    const ids = moreEvents.map(ev => String(ev.id));
+    supabase
+      .from('taggings')
+      .select('tags(name,slug),taggable_id')
+      .eq('taggable_type', 'big_board_events')
+      .in('taggable_id', ids)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('taggings fetch failed:', error);
+          return;
+        }
+        const map = {};
+        data.forEach(({ taggable_id, tags }) => {
+          map[taggable_id] = map[taggable_id] || [];
+          map[taggable_id].push(tags);
+        });
+        setTagMap(map);
+      });
+  }, [moreEvents]);
+
   if (!event) {
     return <div className="text-center py-20 text-gray-500">Loading…</div>;
   }
@@ -249,34 +301,31 @@ export default function EventDetailPage() {
 
       <Navbar/>
 
-      <main className="flex-grow px-4 pb-12 pt-6"  
-      >
       
-        {/* Hero + Info */}
-        <div
-  className="relative max-w-5xl mx-auto rounded-2xl overflow-hidden"
->
-  <div className="grid grid-cols-1 lg:grid-cols-2 items-stretch">
-    {/* Image */}
-    <div className="relative h-64 sm:h-80 lg:h-full bg-gray-50">
 
-      {event['E Image'] ? (
-        <img
-          src={event['E Image']}
-          alt={event['E Name']}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-gray-200" />
-      )}
-      <button
-        onClick={toggleFav}
-        disabled={toggling}
-        className="absolute top-4 right-4 text-4xl drop-shadow-lg"
-      >
-        {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
-      </button>
-    </div>
+      <main className="flex-grow px-4 pb-12 pt-6">
+        {/* Hero + Info */}
+        <div className="relative max-w-5xl mx-auto rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-2 items-stretch">
+            {/* Image */}
+            <div className="relative h-64 sm:h-80 lg:h-full bg-gray-50">
+              {event['E Image'] ? (
+                <img
+                  src={event['E Image']}
+                  alt={event['E Name']}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 bg-gray-200" />
+              )}
+              <button
+                onClick={toggleFav}
+                disabled={toggling}
+                className="absolute top-4 right-4 text-4xl drop-shadow-lg"
+              >
+                {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
+              </button>
+            </div>
             {/* Info */}
             <div className="p-8 flex flex-col justify-between">
               <div>
@@ -285,54 +334,55 @@ export default function EventDetailPage() {
                 </h1>
                 {event['E Description'] && (
                   <p className="text-base text-gray-700 mb-4">
-                    <span className="font-semibold">What to expect:</span> {event['E Description']}
+                    <span className="font-semibold">What to expect:</span>{' '}
+                    {event['E Description']}
                   </p>
                 )}
-                
-                <h2> When?</h2>
-                <p className="text-lg text-gray-800 mb-2">
-                  {displayDate}
-                </p>
+                <h2 className="text-lg font-semibold text-gray-800">When?</h2>
+                <p className="text-lg text-gray-800 mb-2">{displayDate}</p>
                 {event.time && (
                   <p className="text-base text-gray-600 mb-4">
                     <span className="font-medium">Time:</span> {event.time}
                   </p>
                 )}
-      
-      
-
               </div>
               {event['E Link'] && (
-  <a
-    href={event['E Link']}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="block w-full bg-[#bf3d35] text-white px-6 py-3 rounded-md text-center hover:bg-[#a92d23] transition"
-  >
-    Official Web Page
-  </a>
-)}
+                <a
+                  href={event['E Link']}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full bg-[#bf3d35] text-white px-6 py-3 rounded-md text-center hover:bg-[#a92d23] transition"
+                >
+                  Official Web Page
+                </a>
+              )}
+              {/* ── Share Button ──────────────────────────────────────────── */}
+              
+                <button
+                  onClick={handleShare}
+                  className="w-full block bg-green-600 text-white py-3 mt-2 shadow hover:bg-green-700 transition"
+                >
+                  Share
+                </button>
+              
             </div>
           </div>
         </div>
 
-        
-
         {/* Reviews */}
         <section className="max-w-screen-xl mx-auto py-12 px-4 mb-12">
-
-                {event.longDescription && (
-                  <div className="mb-6 w-full sm:w-2/3 mx-auto">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                      About this tradition
-                    </h2>
-                    <p className="text-base text-gray-700 leading-relaxed">
-                      {event.longDescription}
-                    </p>
-                  </div>
-                )}
-
+          {event.longDescription && (
+            <div className="mb-6 w-full sm:w-2/3 mx-auto">
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                About this tradition
+              </h2>
+              <p className="text-base text-gray-700 leading-relaxed">
+                {event.longDescription}
+              </p>
+            </div>
+          )}
           <h2 className="text-2xl font-[Barrio] mb-6">Reviews</h2>
+
           {loadingReviews ? (
             <p>Loading reviews…</p>
           ) : (
@@ -540,6 +590,7 @@ export default function EventDetailPage() {
                       </div>
                     )}
                   </div>
+
                   <div className="p-4 flex-1 flex flex-col justify-center text-center">
                     <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
                       {ev.title}
@@ -547,6 +598,39 @@ export default function EventDetailPage() {
                     <p className="text-sm text-gray-600">
                       {getFriendlyDate(ev.start_date)}
                     </p>
+
+                    {/* TAGS */}
+                    {(() => {
+                      const tags = tagMap[ev.id] || [];
+                      if (!tags.length) return null;
+                      const primary = tags[0];
+                      const extra = tags.length - 1;
+                      return (
+                        <div className="mt-2 flex items-center justify-center space-x-2">
+                          <span className="text-xs font-bold text-gray-500 uppercase flex-shrink-0">
+                            TAGS:
+                          </span>
+                          <Link
+                            to={`/tags/${primary.slug}`}
+                            className={`
+                              ${pillStyles[0]}
+                              text-xs font-semibold
+                              px-2 py-1
+                              rounded-full
+                              flex-shrink-0
+                              hover:opacity-80 transition
+                            `}
+                          >
+                            #{primary.name}
+                          </Link>
+                          {extra > 0 && (
+                            <span className="text-xs text-gray-600 flex-shrink-0">
+                              +{extra} more
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Link>
               ))}
@@ -556,7 +640,6 @@ export default function EventDetailPage() {
       </main>
 
       <Footer/>
-
       <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
 
       <button

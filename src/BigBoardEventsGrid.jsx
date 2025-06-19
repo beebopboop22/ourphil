@@ -4,8 +4,20 @@ import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import PostFlyerModal from './PostFlyerModal';
 
+const pillStyles = [
+  'bg-green-100 text-indigo-800',
+  'bg-teal-100 text-teal-800',
+  'bg-pink-100 text-pink-800',
+  'bg-blue-100 text-blue-800',
+  'bg-orange-100 text-orange-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-purple-100 text-purple-800',
+  'bg-red-100 text-red-800',
+];
+
 export default function BigBoardEventsGrid() {
   const [events, setEvents] = useState([]);
+  const [tagMap, setTagMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
@@ -23,8 +35,10 @@ export default function BigBoardEventsGrid() {
 
   // Compute full-day difference
   const dayDiff = (dateStr) => {
-    const today = new Date(); today.setHours(0,0,0,0);
-    const d = parseISODateLocal(dateStr); d.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const d = parseISODateLocal(dateStr);
+    d.setHours(0, 0, 0, 0);
     return Math.floor((d - today) / (1000 * 60 * 60 * 24));
   };
 
@@ -35,20 +49,22 @@ export default function BigBoardEventsGrid() {
     if (diff === 0) return 'TODAY';
     if (diff === 1) return 'TOMORROW';
     if (diff > 1 && diff < 7) {
-      const wd = d.toLocaleDateString('en-US',{ weekday:'long' }).toUpperCase();
+      const wd = d.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
       return `THIS ${wd}`;
     }
     if (diff >= 7 && diff < 14) {
-      const wd = d.toLocaleDateString('en-US',{ weekday:'long' }).toUpperCase();
+      const wd = d.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
       return `NEXT ${wd}`;
     }
-    return d.toLocaleDateString('en-US',{ month:'short', day:'numeric' }).toUpperCase();
+    return d
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      .toUpperCase();
   };
 
+  // Fetch Big Board events
   useEffect(() => {
     (async () => {
       const today = new Date().toISOString().split('T')[0];
-
       const { data, error } = await supabase
         .from('big_board_events')
         .select(`
@@ -63,21 +79,48 @@ export default function BigBoardEventsGrid() {
 
       if (error) {
         console.error(error);
-      } else {
-        const enriched = await Promise.all(
-          data.map(async (ev) => {
-            const key = ev.big_board_posts?.[0]?.image_url;
-            const { data: urlData } = await supabase
-              .storage.from('big-board')
-              .getPublicUrl(key);
-            return { ...ev, imageUrl: urlData.publicUrl };
-          })
-        );
-        setEvents(enriched);
+        setLoading(false);
+        return;
       }
+
+      const enriched = await Promise.all(
+        data.map(async (ev) => {
+          const key = ev.big_board_posts?.[0]?.image_url;
+          const { data: urlData } = await supabase
+            .storage
+            .from('big-board')
+            .getPublicUrl(key);
+          return { ...ev, imageUrl: urlData.publicUrl };
+        })
+      );
+
+      setEvents(enriched);
       setLoading(false);
     })();
   }, []);
+
+  // Fetch tags for these big_board_events
+  useEffect(() => {
+    if (!events.length) return;
+
+    supabase
+      .from('taggings')
+      .select('tags(name,slug),taggable_id')
+      .eq('taggable_type', 'big_board_events')
+      .in('taggable_id', events.map((ev) => ev.id))
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error loading tags:', error);
+          return;
+        }
+        const map = {};
+        data.forEach(({ taggable_id, tags }) => {
+          if (!map[taggable_id]) map[taggable_id] = [];
+          map[taggable_id].push(tags);
+        });
+        setTagMap(map);
+      });
+  }, [events]);
 
   return (
     <div className="w-full py-12" style={{ backgroundColor: '#bf3d35' }}>
@@ -103,7 +146,8 @@ export default function BigBoardEventsGrid() {
               const diff = dayDiff(ev.start_date);
               const bgColor =
                 diff === 0 ? 'bg-green-500' :
-                diff === 1 ? 'bg-blue-500' : 'bg-gray-500';
+                diff === 1 ? 'bg-blue-500' :
+                'bg-gray-500';
 
               return (
                 <Link
@@ -118,14 +162,13 @@ export default function BigBoardEventsGrid() {
                     {label}
                   </div>
 
-                  {/* Image */}
+                  {/* Image + Badge */}
                   <div className="relative h-48">
                     <img
                       src={ev.imageUrl}
                       alt={ev.title}
                       className="w-full h-full object-cover"
                     />
-                    {/* COMMUNITY SUBMISSION badge */}
                     <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
                       <span className="text-xs font-bold text-white uppercase">
                         COMMUNITY SUBMISSION
@@ -143,6 +186,39 @@ export default function BigBoardEventsGrid() {
                     <h3 className="text-lg font-semibold text-indigo-800">
                       {ev.title}
                     </h3>
+
+                    {/* TAGS footer */}
+                    {(() => {
+                      const tags = tagMap[ev.id] || [];
+                      if (tags.length === 0) return null;
+                      const primary = tags[0];
+                      const extraCount = tags.length - 1;
+                      return (
+                        <div className="mt-2 flex items-center justify-center space-x-2">
+                          <span className="text-xs font-bold text-gray-500 uppercase flex-shrink-0">
+                            TAGS:
+                          </span>
+                          <Link
+                            to={`/tags/${primary.slug}`}
+                            className={`
+                              ${pillStyles[0]}
+                              text-xs font-semibold
+                              px-2 py-1
+                              rounded-full
+                              flex-shrink-0
+                              hover:opacity-80 transition
+                            `}
+                          >
+                            #{primary.name}
+                          </Link>
+                          {extraCount > 0 && (
+                            <span className="text-xs text-gray-600 flex-shrink-0">
+                              +{extraCount} more
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Link>
               );

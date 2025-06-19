@@ -147,6 +147,9 @@ export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
 
+  // at the top of MainEvents()
+const [tagMap, setTagMap] = useState({});
+
 
   const [showFlyerModal, setShowFlyerModal] = useState(false);
 
@@ -185,6 +188,8 @@ const [groupEvents, setGroupEvents] = useState([]);
   const [page, setPage] = useState(1);
   const EVENTS_PER_PAGE = 24;
 
+  
+
   // "filterDay" for single days
   const getDay = () => {
     let d;
@@ -211,6 +216,21 @@ const [groupEvents, setGroupEvents] = useState([]);
     sun.setHours(0, 0, 0, 0);
     return [sat, sun];
   };
+
+  // import this from wherever you keep it, or just copy it in here:
+    const pillStyles = [
+      'bg-green-100 text-indigo-800',
+      'bg-teal-100 text-teal-800',
+      'bg-pink-100 text-pink-800',
+      'bg-blue-100 text-blue-800',
+      'bg-orange-100 text-orange-800',
+      'bg-yellow-100 text-yellow-800',
+      'bg-purple-100 text-purple-800',
+      'bg-red-100 text-red-800',
+    ];
+
+    
+
 
   // Navigation for pills/date changes
   const goTo = (option, dateVal) => {
@@ -434,6 +454,7 @@ setGroupEvents(geData);
   // Pagination
   const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length;;
   const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
+  
   // Big Board first, then Traditions, then All Events
 const allPagedEvents = [
     ...bigBoardEvents,
@@ -441,6 +462,53 @@ const allPagedEvents = [
     ...groupEvents, 
     ...events
   ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+
+  useEffect(() => {
+    if (!allPagedEvents.length) return;
+  
+    // group IDs by their table
+    const idsByType = allPagedEvents.reduce((acc, evt) => {
+      const table = evt.isBigBoard
+        ? 'big_board_events'
+        : evt.isTradition
+        ? 'events'
+        : evt.isGroupEvent
+        ? 'group_events'
+        : 'all_events';
+      acc[table] = acc[table] || [];
+      acc[table].push(String(evt.id));
+      return acc;
+    }, {});
+  
+    Promise.all(
+      Object.entries(idsByType).map(([taggable_type, ids]) =>
+        supabase
+          .from('taggings')
+          .select('tags(name,slug),taggable_id')      // <– returns `tags` field
+          .eq('taggable_type', taggable_type)
+          .in('taggable_id', ids)
+      )
+    ).then(results => {
+      const map = {};
+  
+      results.forEach(res => {
+        if (res.error) {
+          console.error('taggings fetch failed:', res.error);
+          return;
+        }
+        res.data.forEach(({ taggable_id, tags }) => {   // ← destructure `tags`
+          map[taggable_id] = map[taggable_id] || [];
+          map[taggable_id].push(tags);
+        });
+      });
+  
+      setTagMap(map);
+    });
+  }, [allPagedEvents]);
+  
+  
+  
+  
 
   // Sports summary for sidebar
   const [sportsSummary, setSportsSummary] = useState('');
@@ -568,6 +636,8 @@ return (
     
 <div className="flex flex-col min-h-screen overflow-x-visible">
   <Navbar />
+  
+
 
   <div className="relative w-full max-w-screen-3xl mx-auto mt-32 text-center">
     {/* positioning context for line + mascot */}
@@ -587,8 +657,8 @@ return (
     </div>
     <div className="max-w-screen-xl mx-auto px-4 py-2">
     <TrendingTags />
-    <CityHolidayAlert />
     <TriviaTonightBanner />
+    <CityHolidayAlert />
     
     </div>
   
@@ -784,10 +854,51 @@ return (
       </div>
 
       {/* FOOTER WITH TITLE */}
-      <div className="p-3 pb-7 flex flex-col justify-end relative">
-        <p className="text-sm sm:text-base font-semibold text-gray-800 leading-snug tracking-wide mb-1">
-          {title}
-        </p>
+<div className="p-3 pb-7 flex flex-col justify-end relative">
+  <p className="text-sm sm:text-base font-semibold text-gray-800 leading-snug tracking-wide mb-1">
+    {title}
+  </p>
+
+  {(() => {
+    const tags = tagMap[evt.id] || [];
+    if (tags.length === 0) return null;
+
+    const primary = tags[0];
+    const extraCount = tags.length - 1;
+
+    return (
+      <div className="mt-2 flex items-center justify-center space-x-2">
+        {/* “TAGS:” label */}
+        <span className="text-xs font-bold text-gray-500 uppercase flex-shrink-0">
+          TAGS:
+        </span>
+
+        {/* first tag pill */}
+        <Link
+          to={`/tags/${primary.slug}`}
+          className={`
+            ${pillStyles[0]} 
+            text-xs font-semibold 
+            px-2 py-1 
+            rounded-full 
+            flex-shrink-0
+            hover:opacity-80 transition
+          `}
+        >
+          #{primary.name}
+        </Link>
+
+        {/* “+N more TAGS” */}
+        {extraCount > 0 && (
+          <span className="text-xs text-gray-600 flex-shrink-0">
+            +{extraCount} more
+          </span>
+        )}
+      </div>
+    );
+  })()}
+
+
 
         {/* “ENDS IN X DAYS” BADGE */}
         {startDateObj <= today && daysLeft > 0 && (

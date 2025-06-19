@@ -1,3 +1,4 @@
+// src/BigBoardEventPage.jsx
 import React, { useEffect, useState, useContext } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
@@ -9,12 +10,6 @@ import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
 
-/**
- * BigBoardEventPage
- * -----------------
- * Detailed view of a single Big Board event with edit/delete for owners,
- * including tag display and editing functionality.
- */
 export default function BigBoardEventPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -27,7 +22,13 @@ export default function BigBoardEventPage() {
 
   // Edit form state
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({ title: '', description: '', link: '', start_date: '', end_date: '' });
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    link: '',
+    start_date: '',
+    end_date: ''
+  });
   const [saving, setSaving] = useState(false);
 
   // Tag state
@@ -46,6 +47,9 @@ export default function BigBoardEventPage() {
   const [moreEvents, setMoreEvents] = useState([]);
   const [loadingMore, setLoadingMore] = useState(true);
 
+  // Tag map for moreEvents
+  const [moreTagMap, setMoreTagMap] = useState({});
+
   // Modal
   const [showFlyerModal, setShowFlyerModal] = useState(false);
 
@@ -53,6 +57,22 @@ export default function BigBoardEventPage() {
   function parseLocalYMD(str) {
     const [y, m, d] = str.split('-').map(Number);
     return new Date(y, m - 1, d);
+  }
+
+  // Share support
+  function copyLinkFallback(url) {
+    navigator.clipboard.writeText(url)
+      .then(() => alert('Link copied to clipboard!'))
+      .catch(console.error);
+  }
+  function handleShare() {
+    const url = window.location.href;
+    const title = document.title;
+    if (navigator.share) {
+      navigator.share({ title, url }).catch(console.error);
+    } else {
+      copyLinkFallback(url);
+    }
   }
 
   // Load event, image, tags, and existing taggings
@@ -73,9 +93,15 @@ export default function BigBoardEventPage() {
           .select('image_url, user_id')
           .eq('id', ev.post_id)
           .single();
-        const { data: { publicUrl } } = await supabase.storage.from('big-board').getPublicUrl(post.image_url);
 
-        const { data: tagsData } = await supabase.from('tags').select('id,name');
+        const { data: { publicUrl } } = await supabase
+          .storage
+          .from('big-board')
+          .getPublicUrl(post.image_url);
+
+        const { data: tagsData } = await supabase
+          .from('tags')
+          .select('id,name');
         setTagsList(tagsData || []);
 
         const { data: taggings = [] } = await supabase
@@ -109,11 +135,19 @@ export default function BigBoardEventPage() {
           .gte('start_date', todayStr)
           .neq('id', event.id)
           .order('start_date', { ascending: true })
-          .limit(30);
+          .limit(39);
+
         const enriched = await Promise.all(
           list.map(async item => {
-            const { data: p } = await supabase.from('big_board_posts').select('image_url').eq('id', item.post_id).single();
-            const { data: { publicUrl } } = await supabase.storage.from('big-board').getPublicUrl(p.image_url);
+            const { data: p } = await supabase
+              .from('big_board_posts')
+              .select('image_url')
+              .eq('id', item.post_id)
+              .single();
+            const { data: { publicUrl } } = await supabase
+              .storage
+              .from('big-board')
+              .getPublicUrl(p.image_url);
             return { ...item, imageUrl: publicUrl };
           })
         );
@@ -126,6 +160,27 @@ export default function BigBoardEventPage() {
     }
     fetchMore();
   }, [event]);
+
+  // After moreEvents loads, fetch their tags
+  useEffect(() => {
+    if (moreEvents.length === 0) return;
+    const ids = moreEvents.map(e => e.id);
+    supabase
+      .from('taggings')
+      .select('tags(name,slug),taggable_id')
+      .eq('taggable_type', 'big_board_events')
+      .in('taggable_id', ids)
+      .then(({ data, error }) => {
+        if (error) throw error;
+        const map = {};
+        data.forEach(({ taggable_id, tags }) => {
+          map[taggable_id] = map[taggable_id] || [];
+          map[taggable_id].push(tags);
+        });
+        setMoreTagMap(map);
+      })
+      .catch(console.error);
+  }, [moreEvents]);
 
   // Enter edit mode
   const startEditing = () => {
@@ -157,12 +212,25 @@ export default function BigBoardEventPage() {
         start_date: formData.start_date,
         end_date: formData.end_date || null,
       };
-      const { data: updated } = await supabase.from('big_board_events').update(payload).eq('id', event.id).single();
+      const { data: updated } = await supabase
+        .from('big_board_events')
+        .update(payload)
+        .eq('id', event.id)
+        .single();
       setEvent(ev => ({ ...ev, ...updated }));
 
-      await supabase.from('taggings').delete().eq('taggable_type', 'big_board_events').eq('taggable_id', event.id);
+      await supabase
+        .from('taggings')
+        .delete()
+        .eq('taggable_type', 'big_board_events')
+        .eq('taggable_id', event.id);
+
       if (selectedTags.length) {
-        const taggings = selectedTags.map(tag_id => ({ taggable_type: 'big_board_events', taggable_id: event.id, tag_id }));
+        const taggings = selectedTags.map(tag_id => ({
+          taggable_type: 'big_board_events',
+          taggable_id: event.id,
+          tag_id
+        }));
         await supabase.from('taggings').insert(taggings);
       }
 
@@ -179,7 +247,10 @@ export default function BigBoardEventPage() {
   const handleDelete = async () => {
     if (!window.confirm('Delete this event?')) return;
     try {
-      await supabase.from('big_board_events').delete().eq('id', event.id);
+      await supabase
+        .from('big_board_events')
+        .delete()
+        .eq('id', event.id);
       navigate('/');
     } catch (err) {
       alert('Error deleting: ' + err.message);
@@ -189,73 +260,95 @@ export default function BigBoardEventPage() {
   if (loading) return <div className="py-20 text-center">Loading…</div>;
   if (error) return <div className="py-20 text-center text-red-600">{error}</div>;
 
-  // Compute friendly date
+  // Friendly date strings
   const start = parseLocalYMD(event.start_date);
   const today0 = new Date(); today0.setHours(0,0,0,0);
   const daysDiff = Math.round((start - today0) / (1000*60*60*24));
-  const whenText = daysDiff === 0 ? 'Today' : daysDiff === 1 ? 'Tomorrow' : start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const whenText =
+    daysDiff === 0 ? 'Today' :
+    daysDiff === 1 ? 'Tomorrow' :
+    start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-// inside your component, before the return:
-const formattedDate = new Date(event.start_date)
-.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
-const rawDesc = event.description || '';
-const metaDescription =
-      rawDesc.length > 155
-        ? rawDesc.slice(0, 152).trim() + '…'
-        : rawDesc;
-
-        
+  // Meta tags
+  const formattedDate = start.toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric'
+  });
+  const rawDesc = event.description || '';
+  const metaDescription =
+    rawDesc.length > 155
+      ? rawDesc.slice(0, 152).trim() + '…'
+      : rawDesc;
 
   return (
     <>
-     <Helmet>
-  {/* Title: “[Event Title] | Community Event on [Date] | Our Philly” */}
-  <title>
-    {`${event.title} | Community Event on ${formattedDate} | Our Philly`}
-  </title>
-
-  {/* Meta description */}
-  <meta name="description" content={metaDescription} />
-
-  {/* Canonical URL */}
-  <link rel="canonical" href={window.location.href} />
-
-  {/* Open Graph */}
-  <meta property="og:type"        content="event" />
-  <meta property="og:title"       content={`${event.title} | Our Philly`} />
-  <meta property="og:description" content={metaDescription} />
-  <meta property="og:url"         content={window.location.href} />
-  <meta
-    property="og:image"
-    content={event.imageUrl || '/default-event-image.png'}
-  />
-
-  {/* Twitter Card */}
-  <meta name="twitter:card"        content="summary_large_image" />
-  <meta name="twitter:title"       content={`${event.title} | Our Philly`} />
-  <meta name="twitter:description" content={metaDescription} />
-  <meta
-    name="twitter:image"
-    content={event.imageUrl || '/default-event-image.png'}
-  />
-</Helmet>
+      <Helmet>
+        <title>
+          {`${event.title} | Community Event on ${formattedDate} | Our Philly`}
+        </title>
+        <meta name="description" content={metaDescription} />
+        <link rel="canonical" href={window.location.href} />
+        <meta property="og:type" content="event" />
+        <meta property="og:title" content={`${event.title} | Our Philly`} />
+        <meta property="og:description" content={metaDescription} />
+        <meta property="og:url" content={window.location.href} />
+        <meta
+          property="og:image"
+          content={event.imageUrl || '/default-event-image.png'}
+        />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${event.title} | Our Philly`} />
+        <meta name="twitter:description" content={metaDescription} />
+        <meta
+          name="twitter:image"
+          content={event.imageUrl || '/default-event-image.png'}
+        />
+      </Helmet>
 
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar />
+
+        {/* ── Main Event Card / Edit Form ──────────────────────── */}
         <main className="flex-grow pt-24 pb-12 px-4">
-          {/* Event Card */}
           <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2">
               {/* Image & Actions */}
               <div className="bg-gray-50 p-8 flex flex-col items-center">
-                <img src={event.imageUrl} alt={event.title} className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg" />
-                <span className="mt-4 text-sm text-gray-500 self-start">Posted on {new Date(event.created_at).toLocaleDateString()}</span>
+                <img
+                  src={event.imageUrl}
+                  alt={event.title}
+                  className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
+                />
+                <span className="mt-4 text-sm text-gray-500 self-start">
+                  Posted on {new Date(event.created_at).toLocaleDateString()}
+                </span>
                 {event.owner_id === user?.id && !isEditing && (
-                  <div className="mt-6 w-full flex flex-col space-y-3">
-                    <button onClick={startEditing} className="w-full bg-indigo-600 text-white py-2 rounded-lg">Edit Event</button>
-                    <button onClick={handleDelete} className="w-full bg-red-600 text-white py-2 rounded-lg">Delete Event</button>
-                  </div>
+                  <>
+                    {/* Native Share Button (full-width) */}
+                    <div className="w-full px-4 mt-4">
+                      <button
+                        onClick={handleShare}
+                        className="w-full bg-green-600 text-white py-2 rounded-full shadow hover:bg-indigo-700 transition"
+                      >
+                        Share
+                      </button>
+                    </div>
+
+                    {/* ── Edit/Delete Buttons ──────────────────────────────── */}
+                    <div className="mt-6 w-full flex flex-col space-y-3">
+                      <button
+                        onClick={startEditing}
+                        className="w-full bg-indigo-600 text-white py-2 rounded-lg"
+                      >
+                        Edit Event
+                      </button>
+                      <button
+                        onClick={handleDelete}
+                        className="w-full bg-red-600 text-white py-2 rounded-lg"
+                      >
+                        Delete Event
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -265,23 +358,54 @@ const metaDescription =
                   <form onSubmit={handleSave} className="space-y-6">
                     {/* Title */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Title</label>
-                      <input name="title" value={formData.title} onChange={handleChange} required className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+                      <label className="block text-sm font-medium text-gray-700">
+                        Title
+                      </label>
+                      <input
+                        name="title"
+                        value={formData.title}
+                        onChange={handleChange}
+                        required
+                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                      />
                     </div>
                     {/* Description */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Description</label>
-                      <textarea name="description" rows="3" value={formData.description} onChange={handleChange} className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+                      <label className="block text-sm font-medium text-gray-700">
+                        Description
+                      </label>
+                      <textarea
+                        name="description"
+                        rows="3"
+                        value={formData.description}
+                        onChange={handleChange}
+                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                      />
                     </div>
                     {/* Tags Picker */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tags
+                      </label>
                       <div className="flex flex-wrap gap-3">
                         {tagsList.map((tagOpt, i) => {
                           const isSelected = selectedTags.includes(tagOpt.id);
-                          const styleClass = isSelected ? pillStyles[i % pillStyles.length] : 'bg-gray-200 text-gray-700';
+                          const styleClass = isSelected
+                            ? pillStyles[i % pillStyles.length]
+                            : 'bg-gray-200 text-gray-700';
                           return (
-                            <button key={tagOpt.id} type="button" onClick={() => setSelectedTags(prev => isSelected ? prev.filter(x => x !== tagOpt.id) : [...prev, tagOpt.id])} className={`${styleClass} px-4 py-2 rounded-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400 transition`}>
+                            <button
+                              key={tagOpt.id}
+                              type="button"
+                              onClick={() =>
+                                setSelectedTags(prev =>
+                                  isSelected
+                                    ? prev.filter(x => x !== tagOpt.id)
+                                    : [...prev, tagOpt.id]
+                                )
+                              }
+                              className={`${styleClass} px-4 py-2 rounded-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400 transition`}
+                            >
                               {tagOpt.name}
                             </button>
                           );
@@ -290,29 +414,68 @@ const metaDescription =
                     </div>
                     {/* Link */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Link</label>
-                      <input name="link" type="url" value={formData.link} onChange={handleChange} className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+                      <label className="block text-sm font-medium text-gray-700">
+                        Link
+                      </label>
+                      <input
+                        name="link"
+                        type="url"
+                        value={formData.link}
+                        onChange={handleChange}
+                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                      />
                     </div>
                     {/* Dates */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                        <input name="start_date" type="date" value={formData.start_date} onChange={handleChange} required className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+                        <label className="block text-sm font-medium text-gray-700">
+                          Start Date
+                        </label>
+                        <input
+                          name="start_date"
+                          type="date"
+                          value={formData.start_date}
+                          onChange={handleChange}
+                          required
+                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                        />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">End Date</label>
-                        <input name="end_date" type="date" value={formData.end_date} onChange={handleChange} className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+                        <label className="block text-sm font-medium text-gray-700">
+                          End Date
+                        </label>
+                        <input
+                          name="end_date"
+                          type="date"
+                          value={formData.end_date}
+                          onChange={handleChange}
+                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                        />
                       </div>
                     </div>
                     {/* Save/Cancel */}
                     <div className="flex space-x-4">
-                      <button type="submit" disabled={saving} className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
-                      <button type="button" onClick={() => setIsEditing(false)} className="flex-1 bg-gray-300 text-gray-800 py-2 rounded">Cancel</button>
+                      <button
+                        type="submit"
+                        disabled={saving}
+                        className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
+                      >
+                        {saving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(false)}
+                        className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </form>
                 ) : (
                   <>
-                    <h1 className="text-3xl font-bold text-gray-900">{event.title}</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">
+                      {event.title}
+                    </h1>
                     <div className="mt-4 text-gray-700">
                       <h2 className="text-xl font-semibold">When?</h2>
                       <p>{whenText}</p>
@@ -328,33 +491,51 @@ const metaDescription =
                       <div className="mt-4">
                         <h2 className="text-lg font-semibold text-gray-800">Tags</h2>
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {tagsList.filter(tag => selectedTags.includes(tag.id)).map((tag, i) => (
-                            <Link key={tag.id} to={`/tags/${tag.name.toLowerCase()}`} className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition`}>
-
-                              {tag.name}
-                            </Link>
-                          ))}
+                          {tagsList
+                            .filter(tag => selectedTags.includes(tag.id))
+                            .map((tag, i) => (
+                              <Link
+                                key={tag.id}
+                                to={`/tags/${tag.name.toLowerCase()}`}
+                                className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                              >
+                                {tag.name}
+                              </Link>
+                            ))}
                         </div>
                       </div>
                     )}
                     {event.link && (
                       <div className="mt-6">
                         <h2 className="text-xl font-semibold">More Info</h2>
-                        <a href={event.link} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">{event.link}</a>
+                        <a
+                          href={event.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:underline"
+                        >
+                          {event.link}
+                        </a>
                       </div>
                     )}
                     <div className="mt-10">
-                      <Link to="/" className="text-indigo-600 hover:underline">← Back to Events</Link>
+                      <Link to="/" className="text-indigo-600 hover:underline">
+                        ← Back to Events
+                      </Link>
                     </div>
                   </>
                 )}
               </div>
             </div>
+
             <div className="mt-8 mb-6 px-8">
               <TriviaTonightBanner />
             </div>
+
             <div className="border-t border-gray-200 mt-12 pt-8 px-8 pb-12">
-              <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">More Upcoming Community Submissions</h2>
+              <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+                More Upcoming Community Submissions
+              </h2>
               {loadingMore ? (
                 <p className="text-center text-gray-500">Loading…</p>
               ) : moreEvents.length === 0 ? (
@@ -363,18 +544,66 @@ const metaDescription =
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {moreEvents.map(ev => {
                     const dt = parseLocalYMD(ev.start_date);
-                    const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0)))/(1000*60*60*24));
-                    const prefix = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : dt.toLocaleDateString('en-US', { weekday: 'long' });
-                    const md = dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                    const diff = Math.round(
+                      (dt - new Date(new Date().setHours(0,0,0,0))) /
+                      (1000 * 60 * 60 * 24)
+                    );
+                    const prefix =
+                      diff === 0
+                        ? 'Today'
+                        : diff === 1
+                        ? 'Tomorrow'
+                        : dt.toLocaleDateString('en-US', {
+                            weekday: 'long'
+                          });
+                    const md = dt.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric'
+                    });
                     return (
-                      <Link key={ev.id} to={`/big-board/${ev.slug}`} className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition">
+                      <Link
+                        key={ev.id}
+                        to={`/big-board/${ev.slug}`}
+                        className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
+                      >
                         <div className="relative h-40 bg-gray-100">
-                          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">COMMUNITY SUBMISSION</div>
-                          <img src={ev.imageUrl} alt={ev.title} className="w-full h-full object-cover object-center" />
+                          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
+                            COMMUNITY SUBMISSION
+                          </div>
+                          <img
+                            src={ev.imageUrl}
+                            alt={ev.title}
+                            className="w-full h-full object-cover object-center"
+                          />
                         </div>
                         <div className="p-4 flex-1 flex flex-col justify-between text-center">
-                          <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">{ev.title}</h3>
-                          <span className="text-sm text-gray-600">{prefix}, {md}</span>
+                          <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+                            {ev.title}
+                          </h3>
+                          <span className="text-sm text-gray-600">
+                            {prefix}, {md}
+                          </span>
+                          {!!moreTagMap[ev.id]?.length && (
+                            <div className="mt-2 flex flex-wrap justify-center space-x-1">
+                              {moreTagMap[ev.id].map((tag, i) => (
+                                <Link
+                                  key={tag.slug}
+                                  to={`/tags/${tag.slug}`}
+                                  className={`
+                                    ${pillStyles[i % pillStyles.length]}
+                                    text-xs font-semibold
+                                    px-2 py-1
+                                    rounded-full
+                                    flex-shrink-0
+                                    hover:opacity-80
+                                    transition
+                                  `}
+                                >
+                                  #{tag.name}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </Link>
                     );
@@ -384,6 +613,7 @@ const metaDescription =
             </div>
           </div>
         </main>
+
         <Footer />
         <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
         <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
