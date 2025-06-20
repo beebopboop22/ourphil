@@ -142,10 +142,53 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
   );
 }
 
+
+
 // ── MainEvents Component ───────────────────────────────
 export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
+
+// inside MainEvents(), alongside your other useState calls:
+const [sportsEventsRaw, setSportsEventsRaw] = useState([]);    // all fetched games
+const [sportsEvents, setSportsEvents]     = useState([]);    // filtered by date
+
+
+useEffect(() => {
+  (async () => {
+    const teamSlugs = [
+      'philadelphia-phillies',
+      'philadelphia-76ers',
+      'philadelphia-eagles',
+      'philadelphia-flyers',
+      'philadelphia-union',
+    ];
+    let all = [];
+    for (const slug of teamSlugs) {
+      const res  = await fetch(
+        `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=50&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+      );
+      const json = await res.json();
+      all.push(...(json.events || []));
+    }
+    // normalize into your shape
+    const mapped = all.map(e => {
+      const dt   = new Date(e.datetime_local);
+      const home = e.performers.find(p => p.home_team) || e.performers[0];
+      const away = e.performers.find(p => !p.home_team) || home;
+      return {
+        id:         `sg-${e.id}`,
+        title:      `${home.name.replace(/^Philadelphia\s+/, '')} at ${away.name.replace(/^Philadelphia\s+/, '')}`,
+        start_date: dt.toISOString().slice(0,10),
+        imageUrl:   home.image || away.image,
+        href:       e.url,
+        isSports:   true,
+      };
+    });
+    setSportsEventsRaw(mapped);
+  })();
+}, []);
+
 
   // at the top of MainEvents()
 const [tagMap, setTagMap] = useState({});
@@ -366,6 +409,7 @@ bigData = bigData.map(ev => {
     };
   });
   
+  
 
 let bigFiltered = [];
 if (selectedOption === 'weekend') {
@@ -449,7 +493,30 @@ setGroupEvents(geData);
         console.error(err);
         setLoading(false);
       });
-  }, [selectedOption, customDate, params.view]);
+  }, [selectedOption, customDate, params.view, sportsEventsRaw]);
+
+  // ── FILTER SEATGEEK GAMES ─────────────────────────────
+useEffect(() => {
+  let f = [];
+  if (selectedOption === 'weekend') {
+    const [weekendStart, weekendEnd] = getWeekend();
+    f = sportsEventsRaw.filter(e => {
+      const d = parseISODateLocal(e.start_date);
+      return d >= weekendStart && d <= weekendEnd;
+    });
+  } else {
+    const day = getDay();
+    if (day) {
+      f = sportsEventsRaw.filter(e => {
+        const d = parseISODateLocal(e.start_date);
+        return d.getTime() === day.getTime();
+      });
+    }
+  }
+  setSportsEvents(f);
+}, [selectedOption, customDate, params.view, sportsEventsRaw]);
+
+
 
   // Pagination
   const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length;;
@@ -458,6 +525,7 @@ setGroupEvents(geData);
   // Big Board first, then Traditions, then All Events
 const allPagedEvents = [
     ...bigBoardEvents,
+    ...sportsEvents,
     ...traditionEvents,
     ...groupEvents, 
     ...events
@@ -758,7 +826,8 @@ return (
             ? `/events/${evt.slug}`
             : evt.isBigBoard
               ? `/big-board/${evt.slug}`
-              : evt.venues?.slug && evt.slug
+              :  evt.isSports       ? evt.href    :
+              evt.venues?.slug && evt.slug
                 ? `/${evt.venues.slug}/${evt.slug}`
                 : '#';
 

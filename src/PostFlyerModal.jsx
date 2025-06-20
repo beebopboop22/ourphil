@@ -184,7 +184,7 @@ const pillStyles = [
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-white rounded-lg mx-4 max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 relative"
+            className="bg-white rounded-lg border border-gray-200 shadow-lg mx-4 max-w-full md:max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8 relative"
             initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }}
           >
             <button
