@@ -109,7 +109,7 @@ export default function SocialVideoCarousel() {
           if (aActive!==bActive) return aActive?-1:1
           return a.start - b.start
         })
-        .slice(0, 16)
+        .slice(0, 30)
 
       setEvents(combined)
       setLoading(false)
@@ -196,7 +196,7 @@ export default function SocialVideoCarousel() {
                         <p className="text-white uppercase font-semibold tracking-widest text-sm md:text-base mb-2">
                           {relativeDay}
                         </p>
-                        <h3 className="font-[Barrio] text-6xl md:text-7xl text-white drop-shadow-lg font-bold leading-snug">
+                        <h3 className="font-[Barrio] text-4xl md:text-4xl text-white drop-shadow-lg font-bold leading-snug">
                           {evt.name}
                         </h3>
                       </div>
