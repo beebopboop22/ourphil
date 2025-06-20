@@ -1,235 +1,173 @@
 // src/ProfilePage.jsx
-import React, { useContext, useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from './supabaseClient';
-import { AuthContext } from './AuthProvider';
-import Navbar from './Navbar';
-import GroupProgressBar from './GroupProgressBar';
-import Footer from './Footer';
-import { getMyFavorites } from './utils/favorites';
-import MyPhotos from './MyPhotos';
+import React, { useContext, useEffect, useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { supabase } from './supabaseClient'
+import { AuthContext } from './AuthProvider'
+import Navbar from './Navbar'
+import Footer from './Footer'
 
 export default function ProfilePage() {
-  const { user } = useContext(AuthContext);
-  const navigate = useNavigate();
+  const { user } = useContext(AuthContext)
+  const navigate = useNavigate()
 
-  const [favRows, setFavRows] = useState([]);
-  const [favGroups, setFavGroups] = useState([]);
-  const [loadingFav, setLoadingFav] = useState(true);
+  // ── Tag subscriptions ────────────────────────────────────
+  const [allTags, setAllTags] = useState([])
+  const [subs, setSubs] = useState(new Set())
 
-  const [updates, setUpdates] = useState([]);
-  const [loadingUpdates, setLoadingUpdates] = useState(true);
+  // ── Account settings ─────────────────────────────────────
+  const [email, setEmail] = useState('')
+  const [updating, setUpdating] = useState(false)
+  const [status, setStatus] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
-  const [email, setEmail] = useState('');
-  const [updating, setUpdating] = useState(false);
-  const [status, setStatus] = useState('');
+  // ── Styles for tag pills ─────────────────────────────────
+  const pillStyles = [
+    'bg-green-100 text-indigo-800',
+    'bg-teal-100 text-teal-800',
+    'bg-pink-100 text-pink-800',
+    'bg-blue-100 text-blue-800',
+    'bg-orange-100 text-orange-800',
+    'bg-yellow-100 text-yellow-800',
+    'bg-purple-100 text-purple-800',
+    'bg-red-100 text-red-800',
+  ]
 
-  const [deleting, setDeleting] = useState(false);
-
-  // Load current email
+  // ── Load initial data ────────────────────────────────────
   useEffect(() => {
-    if (user) setEmail(user.email);
-  }, [user]);
+    if (!user) return
+    setEmail(user.email)
 
-  // Load favorites
-  useEffect(() => {
-    if (!user) return setLoadingFav(false);
-    setLoadingFav(true);
-    getMyFavorites()
-      .then(async (rows) => {
-        setFavRows(rows);
-        if (rows.length) {
-          const ids = rows.map((r) => r.group_id);
-          const { data: groups, error } = await supabase
-            .from('groups')
-            .select('id, Name, slug, imag')
-            .in('id', ids);
-          if (!error) setFavGroups(groups);
-        } else {
-          setFavGroups([]);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoadingFav(false));
-  }, [user]);
-
-  // Load updates
-  useEffect(() => {
-    if (favRows.length === 0) return setLoadingUpdates(false);
-    setLoadingUpdates(true);
-    const ids = favRows.map((r) => r.group_id);
+    // all tags
     supabase
-      .from('group_updates')
-      .select(`
-        id,
-        content,
-        created_at,
-        group_id,
-        groups (
-          Name,
-          slug,
-          imag
-        )
-      `)
-      .in('group_id', ids)
-      .order('created_at', { ascending: false })
+      .from('tags')
+      .select('id,name,slug')
+      .order('name', { ascending: true })
       .then(({ data, error }) => {
-        if (error) {
-          console.error('Error fetching updates:', error);
-          setUpdates([]);
-        } else {
-          setUpdates(data);
-        }
+        if (error) console.error(error)
+        else setAllTags(data || [])
       })
-      .finally(() => setLoadingUpdates(false));
-  }, [favRows]);
 
+    // user's subscriptions
+    supabase
+      .from('user_subscriptions')
+      .select('tag_id')
+      .eq('user_id', user.id)
+      .then(({ data, error }) => {
+        if (error) console.error(error)
+        else setSubs(new Set((data || []).map(r => r.tag_id)))
+      })
+  }, [user])
+
+  // ── Toggle one tag subscription ──────────────────────────
+  const toggleSub = async (tagId) => {
+    if (!user) return
+    if (subs.has(tagId)) {
+      await supabase
+        .from('user_subscriptions')
+        .delete()
+        .match({ user_id: user.id, tag_id: tagId })
+      setSubs(s => { s.delete(tagId); return new Set(s) })
+    } else {
+      await supabase
+        .from('user_subscriptions')
+        .insert({ user_id: user.id, tag_id: tagId })
+      setSubs(s => new Set(s).add(tagId))
+    }
+  }
+
+  // ── Account actions ─────────────────────────────────────
   const updateEmail = async () => {
-    setUpdating(true);
-    setStatus('');
-    const { error } = await supabase.auth.updateUser({ email });
-    if (error) setStatus(`❌ ${error.message}`);
-    else setStatus('✅ Email update requested. Check your inbox to confirm.');
-    setUpdating(false);
-  };
+    setUpdating(true)
+    setStatus('')
+    const { error } = await supabase.auth.updateUser({ email })
+    if (error) setStatus(`❌ ${error.message}`)
+    else setStatus('✅ Check your inbox to confirm email change.')
+    setUpdating(false)
+  }
 
   const sendPasswordReset = async () => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: 'https://www.ourphilly.org/update-password',
-    });
-    if (error) alert('Error sending reset link: ' + error.message);
-    else alert('Check your email for the password reset link.');
-  };
+    })
+    if (error) alert('Error: ' + error.message)
+    else alert('Password reset link sent.')
+  }
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to permanently delete your account?')) return;
-    setDeleting(true);
-    const { error } = await supabase.functions.invoke('delete_user_account');
+    if (!window.confirm('Delete your account permanently?')) return
+    setDeleting(true)
+    const { error } = await supabase.functions.invoke('delete_user_account')
     if (error) {
-      alert('Unable to delete account: ' + error.message);
-      setDeleting(false);
-      return;
+      alert('Could not delete: ' + error.message)
+      setDeleting(false)
+    } else {
+      await supabase.auth.signOut()
+      navigate('/')
     }
-    await supabase.auth.signOut();
-    navigate('/');
-  };
+  }
 
+  // ── If not logged in ────────────────────────────────────
   if (!user) {
     return (
       <>
         <Navbar />
-        <div className="text-center py-20 text-gray-600">
+        <div className="py-20 text-center text-gray-600">
           Please{' '}
-          <a href="/login" className="text-indigo-600 hover:underline">
+          <Link to="/login" className="text-indigo-600 hover:underline">
             log in
-          </a>{' '}
-          to view your profile.
+          </Link>{' '}
+          to manage your subscriptions.
         </div>
       </>
-    );
+    )
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-neutral-50 pb-12">
       <Navbar />
 
-       {/* ── My Photo Diary (masonry grid) ─────────────────────────────── */}
-       <section className="max-w-full bg-white mx-auto px-4 mt-32 py-12">
-            
-             <MyPhotos />
-       </section>
+      {/* ── Main Content ─────────────────────────────────────── */}
+      <div className="max-w-screen-md mx-auto px-4 py-12 space-y-12">
 
+        {/* Header */}
+        <header className="text-center">
+          <h1 className="text-4xl mt-24 font-[Barrio] text-indigo-900 mb-2">
+            Your Email Digests
+          </h1>
+          <p className="text-gray-700">
+            Pick the topics you want delivered in your once-a-week roundup.
+          </p>
+        </header>
 
-      <div className="max-w-screen-xl mx-auto px-4 py-12 space-y-12">
-        {/* Updates from Favorites */}
+        {/* Tag selector */}
         <section>
-          <h2 className="text-2xl text-center font-[Barrio] text-gray-800 mb-4 text-left">
-            Updates from Your Favorite Groups
-          </h2>
-          {loadingUpdates ? (
-            <p className="text-center">Loading updates…</p>
-          ) : updates.length === 0 ? (
-            <p className="text-center text-gray-600">
-              No recent updates from your favorited groups.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {updates.map((u) => (
-                <Link
-                  key={u.id}
-                  to={`/groups/${u.groups.slug}`}
-                  className="block bg-white rounded-xl shadow p-4 hover:bg-gray-50 transition"
+          <div className="flex flex-wrap justify-center gap-4">
+            {allTags.map((tag, i) => {
+              const selected = subs.has(tag.id)
+              return (
+                <button
+                  key={tag.id}
+                  onClick={() => toggleSub(tag.id)}
+                  className={`
+                    ${pillStyles[i % pillStyles.length]}
+                    px-6 py-3 text-lg font-bold rounded-full
+                    transition transform hover:scale-105
+                    ${selected
+                      ? 'border-4 border-indigo-700'
+                      : 'opacity-60 hover:opacity-80'
+                    }
+                  `}
                 >
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center space-x-3">
-                      <img
-                        src={u.groups.imag}
-                        alt={u.groups.Name}
-                        className="w-12 h-12 object-cover rounded-full"
-                      />
-                      <span className="font-semibold text-gray-800">
-                        {u.groups.Name}
-                      </span>
-                    </div>
-                    <time
-                      dateTime={u.created_at}
-                      className="text-sm font-medium text-indigo-600"
-                    >
-                      {new Date(u.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </time>
-                  </div>
-                  <p className="mt-2 text-gray-700">{u.content}</p>
-                </Link>
-              ))}
-            </div>
-          )}
+                  #{tag.name}
+                </button>
+              )
+            })}
+          </div>
         </section>
 
-        {/* Your Favorites */}
-        <section>
-          <h2 className="text-2xl font-[Barrio] text-gray-800 mb-4 text-center">
-            Favorite Groups
-          </h2>
-          {loadingFav ? (
-            <p className="text-center">Loading favorites…</p>
-          ) : favGroups.length === 0 ? (
-            <p className="text-center text-gray-600">
-              You haven’t favorited any groups yet.
-            </p>
-          ) : (
-            <div className="overflow-x-auto pb-4">
-              <div className="grid grid-flow-col auto-cols-max gap-4">
-                {favGroups.map((g) => (
-                  <Link
-                    key={g.id}
-                    to={`/groups/${g.slug}`}
-                    className="flex-shrink-0 w-24 flex flex-col items-center"
-                  >
-                    <img
-                      src={g.imag}
-                      alt={g.Name}
-                      className="w-24 h-24 object-cover rounded-md"
-                    />
-                    <span className="text-xs text-center mt-1 truncate w-full">
-                      {g.Name}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        
-
-        
-       {/* My Account */}
-       <section className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-3xl font-[Barrio] text-gray-800 mb-4">My Account</h2>
+        {/* Account settings */}
+        <section className="bg-white rounded-xl shadow-md p-6 space-y-6">
+          <h2 className="text-2xl font-semibold text-gray-800">Account Settings</h2>
           <div className="space-y-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">
@@ -238,7 +176,7 @@ export default function ProfilePage() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 className="w-full border rounded p-2"
               />
             </div>
@@ -264,7 +202,9 @@ export default function ProfilePage() {
                 {deleting ? 'Deleting…' : 'Delete My Account'}
               </button>
             </div>
-            {status && <p className="text-sm mt-2 text-gray-700">{status}</p>}
+            {status && (
+              <p className="text-sm text-gray-700">{status}</p>
+            )}
           </div>
         </section>
 
@@ -272,5 +212,5 @@ export default function ProfilePage() {
 
       <Footer />
     </div>
-  );
+  )
 }
