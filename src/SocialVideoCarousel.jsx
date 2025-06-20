@@ -15,6 +15,14 @@ const parseISODateLocal = str => {
   const [y, m, d] = str.split('-').map(Number)
   return new Date(y, m - 1, d)
 }
+const isThisWeekend = date => {
+  const t = new Date(); t.setHours(0,0,0,0)
+  const d = t.getDay()
+  const sat = new Date(t); sat.setDate(t.getDate()+((6-d+7)%7))
+  const sun = new Date(t); sun.setDate(t.getDate()+((0-d+7)%7))
+  sat.setHours(0,0,0,0); sun.setHours(23,59,59,999)
+  return date>=sat && date<=sun
+}
 const getBubble = (start, isActive) => {
   const today = new Date(); today.setHours(0,0,0,0)
   if (isActive) return { text: 'Today' }
@@ -25,17 +33,9 @@ const getBubble = (start, isActive) => {
   if (diff>=7 && diff<14) return { text:`Next ${wd}` }
   return { text: wd }
 }
-const isThisWeekend = date => {
-  const t = new Date(); t.setHours(0,0,0,0)
-  const d = t.getDay()
-  const fri = new Date(t); fri.setDate(t.getDate()+((5-d+7)%7))
-  const sun = new Date(t); sun.setDate(t.getDate()+((0-d+7)%7))
-  fri.setHours(0,0,0,0); sun.setHours(23,59,59,999)
-  return date>=fri && date<=sun
-}
 
 export default function SocialVideoCarousel() {
-  // ─── Falling‐pills setup ────────────────────────────────
+  // ─── Falling pills setup ────────────────────────────────
   const [pillConfigs, setPillConfigs] = useState([])
   const colors = ['#22C55E','#0D9488','#DB2777','#3B82F6','#F97316','#EAB308','#8B5CF6','#EF4444']
   useEffect(() => {
@@ -47,9 +47,9 @@ export default function SocialVideoCarousel() {
         const configs = (data||[]).map((t,i) => ({
           name:     t.name,
           color:    colors[i % colors.length],
-          left:     Math.random()*100,
-          duration: 6 + Math.random()*3,   // 6–9s
-          delay:    -Math.random()*9,
+          left:     50 + Math.random()*50,  // between 50% and 100%
+          duration: 4 + Math.random()*2,    // 4–6s fall
+          delay:    -Math.random()*6,
         }))
         setPillConfigs(configs)
       })
@@ -61,10 +61,9 @@ export default function SocialVideoCarousel() {
   const containerRef          = useRef(null)
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // ─── Fetch & combine events + big-board ─────────────────
+  // ─── Fetch & combine weekend events + big-board ───────────
   useEffect(() => {
     ;(async () => {
-      const today = new Date(); today.setHours(0,0,0,0)
       const { data: tradData = [] } = await supabase
         .from('events')
         .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
@@ -75,89 +74,93 @@ export default function SocialVideoCarousel() {
           big_board_posts!big_board_posts_event_id_fkey(image_url)
         `)
 
-      const trad = tradData.map(e => ({
-        key:    `ev-${e.id}`,
-        slug:   `/events/${e.slug}`,
-        name:   e['E Name'],
-        start:  parseDate(e.Dates),
-        end:    e['End Date'] ? parseDate(e['End Date']) : parseDate(e.Dates),
-        image:  e['E Image'] || '',
-      }))
+      const trad = tradData
+        .map(e => ({
+          key:   `ev-${e.id}`,
+          slug:  `/events/${e.slug}`,
+          name:  e['E Name'],
+          start: parseDate(e.Dates),
+          end:   e['End Date'] ? parseDate(e['End Date']) : parseDate(e.Dates),
+          image: e['E Image'] || '',
+        }))
+        .filter(evt => isThisWeekend(evt.start))
 
-      const bb = bbData.map(e => {
-        const start = parseISODateLocal(e.start_date)
-        const key   = e.big_board_posts?.[0]?.image_url
-        const { data:{ publicUrl='' } } = supabase
-          .storage.from('big-board')
-          .getPublicUrl(key)
-        return {
-          key:    `bb-${e.id}`,
-          slug:   `/big-board/${e.slug}`,
-          name:   e.title,
-          start,
-          end:    start,
-          image:  publicUrl,
-          isBB:   true,
-        }
-      })
-
-      const combined = [...trad, ...bb]
-        .filter(evt => evt.end >= today)
-        .sort((a,b) => {
-          const aActive = a.start<=today && today<=a.end
-          const bActive = b.start<=today && today<=b.end
-          if (aActive!==bActive) return aActive?-1:1
-          return a.start - b.start
+      const bb = bbData
+        .map(e => {
+          const start = parseISODateLocal(e.start_date)
+          const key   = e.big_board_posts?.[0]?.image_url
+          const { data:{ publicUrl='' } } = supabase
+            .storage.from('big-board')
+            .getPublicUrl(key)
+          return {
+            key:   `bb-${e.id}`,
+            slug:  `/big-board/${e.slug}`,
+            name:  e.title,
+            start,
+            end:   start,
+            image: publicUrl,
+            isBB:  true,
+          }
         })
-        .slice(0, 30)
+        .filter(evt => isThisWeekend(evt.start))
 
-      setEvents(combined)
+      setEvents([...trad, ...bb].slice(0,30))
       setLoading(false)
     })()
   }, [])
 
-  // ─── Auto‐scroll every 3s ─────────────────────────────────
+  // auto-scroll every 1.5s
   useEffect(() => {
     if (!events.length) return
     const iv = setInterval(() => {
-      setCurrentIndex(i=>(i+1)%events.length)
-    }, 3000)
-    return ()=>clearInterval(iv)
+      setCurrentIndex(i => (i + 1) % events.length)
+    }, 1500)
+    return () => clearInterval(iv)
   }, [events])
 
+  // scroll on index change
   useEffect(() => {
     const el = containerRef.current
     if (el) {
-      const w = el.clientWidth
-      el.scrollTo({ left: currentIndex*w, behavior:'smooth' })
+      el.scrollTo({ left: currentIndex * el.clientWidth, behavior: 'smooth' })
     }
   }, [currentIndex])
 
   return (
     <>
       <style>{`
-        @keyframes fall { to { transform: translateY(110vh); } }
+        .pill {
+          position: absolute;
+          top: -2rem;
+          padding: .4rem .8rem;
+          border-radius: 9999px;
+          color: #fff;
+          font-size: .875rem;
+          white-space: nowrap;
+          opacity: .9;
+          animation-name: fall;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+        }
+        @keyframes fall {
+          to { transform: translateY(110vh); }
+        }
       `}</style>
 
       <div className="relative flex flex-col min-h-screen overflow-hidden">
         <Navbar />
 
         {/* falling pills restricted to right half */}
-        <div className="absolute inset-y-0 right-0 w-1/2 sm:w-1/3 pointer-events-none z-50">
-          {pillConfigs.map((p,i)=>(
-            <span key={i}
+        <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none z-50">
+          {pillConfigs.map((p, i) => (
+            <span
+              key={i}
+              className="pill"
               style={{
-                position:        'absolute',
-                left:            `${p.left}%`,
-                top:             '-3rem',
-                padding:         '.5rem 1rem',
-                borderRadius:    '9999px',
-                color:           '#fff',
-                fontSize:        '1rem',
-                whiteSpace:      'nowrap',
-                opacity:         0.9,
-                backgroundColor: p.color,
-                animation:       `fall ${p.duration}s linear ${p.delay}s infinite`,
+                left:              `${p.left}%`,
+                backgroundColor:   p.color,
+                animationDuration: `${p.duration}s`,
+                animationDelay:    `${p.delay}s`,
               }}
             >
               #{p.name}
@@ -165,53 +168,45 @@ export default function SocialVideoCarousel() {
           ))}
         </div>
 
-        <div className="bg-[#28313e] text-white py-3 text-center font-[Barrio] text-xl mt-20 z-10">
+        <div className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg mt-20 z-10">
           Subscribe to #tags for your weekly digest
         </div>
 
-        <div className="h-[calc(40vh+80px)] min-h-[340px] overflow-hidden relative z-10">
+        <div className="h-[calc(50vh+80px)] min-h-[400px] overflow-hidden relative z-10">
           {loading ? (
             <p className="text-center py-20">Loading…</p>
           ) : (
             <div ref={containerRef} className="flex w-full h-full overflow-hidden">
               {events.map(evt => {
-                const isActive = evt.start<=new Date() && new Date()<=evt.end
-                const { text: relativeDay } = getBubble(evt.start, isActive)
-                const weekend = isThisWeekend(evt.start)
+                const isActive = evt.start <= new Date() && new Date() <= evt.end
+                const relativeDay = getBubble(evt.start, isActive).text
                 return (
                   <Link
                     key={evt.key}
                     to={evt.slug}
-                    className="relative w-full flex-shrink-0 h-full block"
-                    style={{ minWidth:'100%' }}
+                    className="relative w-full flex-shrink-0 h-full"
+                    style={{ minWidth: '100%' }}
                   >
                     <img
                       src={evt.image}
                       alt={evt.name}
-                      className="absolute inset-0 w-full h-full object-cover z-0"
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/80 to-black/30 z-10"/>
-                    <div className="absolute inset-0 flex flex-col justify-center z-20">
-                      <div className="border-l-4 border-white pl-4 px-8">
-                        <p className="text-white uppercase font-semibold tracking-widest text-sm md:text-base mb-2">
-                          {relativeDay}
-                        </p>
-                        <h3 className="font-[Barrio] text-4xl md:text-4xl text-white drop-shadow-lg font-bold leading-snug">
-                          {evt.name}
-                        </h3>
-                      </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/80 to-black/30" />
+                    <div className="absolute inset-0 flex flex-col justify-center px-6 z-20">
+                      <p className="text-white uppercase font-semibold tracking-wide text-sm mb-2">
+                        {relativeDay}
+                      </p>
+                      <h3 className="font-[Barrio] text-3xl md:text-5xl text-white drop-shadow-lg font-bold leading-snug">
+                        {evt.name}
+                      </h3>
                     </div>
                     {evt.isBB && (
-                      <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
+                      <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center">
                         <span className="text-xs font-bold text-white uppercase">
                           COMMUNITY SUBMISSION
                         </span>
                       </div>
-                    )}
-                    {weekend && (
-                      <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full z-20">
-                        Weekend Pick
-                      </span>
                     )}
                   </Link>
                 )
