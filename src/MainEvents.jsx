@@ -813,8 +813,8 @@ return (
             ? evt.end
             : parseISODateLocal(evt.end_date || evt.start_date);
           const isActive = startDate <= today && today <= endDate;
-          const monthDay = today.toLocaleDateString('en-US',{
-            month:'long', day:'numeric'
+          const monthDay = today.toLocaleDateString('en-US', {
+            month: 'long', day: 'numeric'
           });
           const whenText = isActive
             ? `Today, ${monthDay}`
@@ -822,15 +822,13 @@ return (
                 const diff = Math.ceil((startDate - today)/(1000*60*60*24));
                 if (diff === 1) return `Tomorrow, ${monthDay}`;
                 const wd = startDate.toLocaleDateString('en-US',{ weekday:'long' });
-                return `${wd}, ${startDate.toLocaleDateString('en-US',{
-                  month:'long', day:'numeric'
-                })}`;
+                return `${wd}, ${startDate.toLocaleDateString('en-US',{ month:'long',day:'numeric' })}`;
               })();
 
           const isExternal = evt.isSports;
-          const Wrapper = isExternal ? 'a' : Link;
-          const linkProps = isExternal
-            ? { href: evt.href, target:'_blank', rel:'noopener noreferrer' }
+          const Wrapper    = isExternal ? 'a' : Link;
+          const linkProps  = isExternal
+            ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
             : {
                 to: evt.isTradition
                   ? `/events/${evt.slug}`
@@ -843,13 +841,13 @@ return (
             <Wrapper
               key={evt.id}
               {...linkProps}
-              className="flex items-stretch bg-white shadow rounded-xl overflow-hidden hover:shadow-lg transition h-44"
+              className="flex items-stretch bg-white shadow rounded-xl overflow-hidden hover:shadow-lg transition h-48"
             >
               {/* IMAGE */}
               <div className="relative w-1/4 h-full">
                 <img
-                  src={evt.imageUrl||evt.image||''}
-                  alt={evt.title||evt.name}
+                  src={evt.imageUrl || evt.image || ''}
+                  alt={evt.title || evt.name}
                   className="w-full h-full object-cover"
                 />
                 {evt.isBigBoard && (
@@ -866,26 +864,28 @@ return (
 
               {/* DETAILS */}
               <div className="flex-1 px-4 py-3 text-left">
-                <h3 className="text-xl font-bold text-gray-800">
-                  {evt.title||evt.name}
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800 line-clamp-2">
+                  {evt.title || evt.name}
                 </h3>
-                <p className="mt-1 text-gray-600">{whenText}</p>
 
-                {/* ← DESCRIPTION for all_event, big_board, tradition */}
+                <p className="mt-1 text-gray-600 text-sm sm:text-base">
+                  {whenText}
+                </p>
+
                 {evt.description && (
-                  <p className="mt-2 text-gray-500 text-sm line-clamp-2">
+                  <p className="mt-2 text-gray-500 text-sm sm:text-base line-clamp-2">
                     {evt.description}
                   </p>
                 )}
 
                 {!!tagMap[evt.id]?.length && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {tagMap[evt.id].map((tag,i) => (
+                    {tagMap[evt.id].map((tag, i) => (
                       <Link
                         key={tag.slug}
                         to={`/tags/${tag.slug}`}
                         className={`
-                          ${pillStyles[i%pillStyles.length]}
+                          ${pillStyles[i % pillStyles.length]}
                           text-xs sm:text-sm
                           px-2 sm:px-3
                           py-1 sm:py-2
@@ -915,7 +915,7 @@ return (
                         : evt.href || '#'
                     );
                     if (navigator.share) {
-                      navigator.share({ title:evt.title||evt.name, url });
+                      navigator.share({ title: evt.title || evt.name, url });
                     } else {
                       navigator.clipboard.writeText(url);
                       alert('Link copied!');
