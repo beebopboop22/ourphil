@@ -837,6 +837,11 @@ return (
                   : evt.href || '#'
               };
 
+          // cap tags at 2
+          const tags = tagMap[evt.id] || [];
+          const shown = tags.slice(0, 2);
+          const extraCount = tags.length - shown.length;
+
           return (
             <Wrapper
               key={evt.id}
@@ -844,7 +849,7 @@ return (
               className="flex items-stretch bg-white shadow rounded-xl overflow-hidden hover:shadow-lg transition h-48"
             >
               {/* IMAGE */}
-              <div className="relative w-1/4 h-full">
+              <div className="relative w-2/5 sm:w-1/4 h-full">
                 <img
                   src={evt.imageUrl || evt.image || ''}
                   alt={evt.title || evt.name}
@@ -867,26 +872,24 @@ return (
                 <h3 className="text-lg sm:text-xl font-bold text-gray-800 line-clamp-2">
                   {evt.title || evt.name}
                 </h3>
-
                 <p className="mt-1 text-gray-600 text-sm sm:text-base">
                   {whenText}
                 </p>
-
                 {evt.description && (
-                  <p className="mt-2 text-gray-500 text-sm sm:text-base line-clamp-2">
+                  <p className="mt-2 text-gray-500 text-xs sm:text-base line-clamp-2">
                     {evt.description}
                   </p>
                 )}
 
-                {!!tagMap[evt.id]?.length && (
+                {shown.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {tagMap[evt.id].map((tag, i) => (
+                    {shown.map((tag, i) => (
                       <Link
                         key={tag.slug}
                         to={`/tags/${tag.slug}`}
                         className={`
                           ${pillStyles[i % pillStyles.length]}
-                          text-xs sm:text-sm
+                          text-[0.6rem] sm:text-sm
                           px-2 sm:px-3
                           py-1 sm:py-2
                           rounded-full
@@ -896,6 +899,11 @@ return (
                         #{tag.name}
                       </Link>
                     ))}
+                    {extraCount > 0 && (
+                      <span className="text-[0.6rem] sm:text-sm text-gray-600 self-center">
+                        +{extraCount} more
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -928,7 +936,7 @@ return (
                     alt="share"
                     className="w-6 h-6 mb-1"
                   />
-                  <span className="text-xxs text-gray-700">share</span>
+                  <span className="text-xxs sm:text-xxs text-gray-700">share</span>
                 </button>
               </div>
             </Wrapper>
@@ -957,9 +965,6 @@ return (
     )}
   </div>
 </main>
-
-
-
 
 
 {/* ─── Recent Activity ─── */}
