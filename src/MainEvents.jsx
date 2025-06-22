@@ -22,7 +22,7 @@ import PostFlyerModal from './PostFlyerModal'
 import TriviaTonightBanner from './TriviaTonightBanner';
 import TrendingTags from './TrendingTags';
 import NewsletterSection from './NewsletterSection';
-
+import { Share2 } from 'lucide-react';
 
 
 // ── Helpers ───────────────────────────────
@@ -834,13 +834,15 @@ return (
                   ? `/events/${evt.slug}`
                   : evt.isBigBoard
                   ? `/big-board/${evt.slug}`
-                  : evt.href || '#'
+                  : evt.venues?.slug && evt.slug
+                  ? `/${evt.venues.slug}/${evt.slug}`
+                  : '/'
               };
 
-          // cap tags at 2
+          // cap to 2 tags
           const tags = tagMap[evt.id] || [];
-          const shown = tags.slice(0, 2);
-          const extraCount = tags.length - shown.length;
+          const shown = tags.slice(0,2);
+          const extra = tags.length - shown.length;
 
           return (
             <Wrapper
@@ -849,10 +851,10 @@ return (
               className="flex items-stretch bg-white shadow rounded-xl overflow-hidden hover:shadow-lg transition h-48"
             >
               {/* IMAGE */}
-              <div className="relative w-2/5 sm:w-1/4 h-full">
+              <div className="relative flex-none w-1/5 h-full">
                 <img
-                  src={evt.imageUrl || evt.image || ''}
-                  alt={evt.title || evt.name}
+                  src={evt.imageUrl||evt.image||''}
+                  alt={evt.title||evt.name}
                   className="w-full h-full object-cover"
                 />
                 {evt.isBigBoard && (
@@ -868,48 +870,48 @@ return (
               </div>
 
               {/* DETAILS */}
-              <div className="flex-1 px-4 py-3 text-left">
+              <div className="flex-1 px-6 py-4 text-left">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-800 line-clamp-2">
-                  {evt.title || evt.name}
+                  {evt.title||evt.name}
                 </h3>
                 <p className="mt-1 text-gray-600 text-sm sm:text-base">
                   {whenText}
                 </p>
-                {evt.description && (
-                  <p className="mt-2 text-gray-500 text-xs sm:text-base line-clamp-2">
+
+                {!!evt.description && (
+                  <p className="mt-2 text-gray-500 text-xs sm:text-sm line-clamp-2">
                     {evt.description}
                   </p>
                 )}
 
                 {shown.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {shown.map((tag, i) => (
+                    {shown.map((tag,i) => (
                       <Link
                         key={tag.slug}
                         to={`/tags/${tag.slug}`}
                         className={`
-                          ${pillStyles[i % pillStyles.length]}
+                          ${pillStyles[i%pillStyles.length]}
                           text-[0.6rem] sm:text-sm
                           px-2 sm:px-3
                           py-1 sm:py-2
-                          rounded-full
-                          font-semibold
+                          rounded-full font-semibold
                         `}
                       >
                         #{tag.name}
                       </Link>
                     ))}
-                    {extraCount > 0 && (
+                    {extra > 0 && (
                       <span className="text-[0.6rem] sm:text-sm text-gray-600 self-center">
-                        +{extraCount} more
+                        +{extra} more
                       </span>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* SHARE COLUMN */}
-              <div className="w-14 bg-gray-100 flex flex-col items-center justify-center">
+              {/* SHARE BUTTON */}
+              <div className="flex-none w-14 bg-gray-50 flex items-center justify-center">
                 <button
                   onClick={e => {
                     e.preventDefault();
@@ -920,23 +922,20 @@ return (
                         ? `/events/${evt.slug}`
                         : evt.isBigBoard
                         ? `/big-board/${evt.slug}`
-                        : evt.href || '#'
+                        : evt.venues?.slug && evt.slug
+                        ? `/${evt.venues.slug}/${evt.slug}`
+                        : '/'
                     );
                     if (navigator.share) {
-                      navigator.share({ title: evt.title || evt.name, url });
+                      navigator.share({ title: evt.title||evt.name, url });
                     } else {
                       navigator.clipboard.writeText(url);
                       alert('Link copied!');
                     }
                   }}
-                  className="flex flex-col items-center focus:outline-none"
+                  className="p-2 rounded-full bg-[#28313e] hover:bg-[#bf3d35] transition"
                 >
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
-                    alt="share"
-                    className="w-6 h-6 mb-1"
-                  />
-                  <span className="text-xxs sm:text-xxs text-gray-700">share</span>
+                  <Share2 size={20} className="text-white"/>
                 </button>
               </div>
             </Wrapper>
@@ -948,7 +947,7 @@ return (
     {/* pagination */}
     {!loading && pageCount > 1 && (
       <div className="flex justify-center mt-6 space-x-2">
-        {[...Array(pageCount)].map((_, i) => (
+        {[...Array(pageCount)].map((_,i) => (
           <button
             key={i}
             onClick={() => setPage(i+1)}
@@ -965,6 +964,7 @@ return (
     )}
   </div>
 </main>
+
 
 
 {/* ─── Recent Activity ─── */}
