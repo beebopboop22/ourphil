@@ -301,7 +301,7 @@ const [groupEvents, setGroupEvents] = useState([]);
     const fetchAllEvents = supabase
       .from('all_events')
       .select(`
-        id, name, link, image, start_date, start_time, end_time, end_date, description, slug, venue_id,
+        id, name, description,  link, image, start_date, start_time, end_time, end_date, description, slug, venue_id,
         venues:venue_id ( name, slug )
       `)
       .order('start_date', { ascending: true });
@@ -311,6 +311,7 @@ const [groupEvents, setGroupEvents] = useState([]);
       .select(`
         id,
         title,
+        description,  
         start_date,
         end_date,
         slug,
@@ -320,12 +321,12 @@ const [groupEvents, setGroupEvents] = useState([]);
       `)
       .order('start_date', { ascending: true });
 
-    const fetchTraditions = supabase
+      const fetchTraditions = supabase
       .from('events')
       .select(`
         id,
         "E Name",
-        "E Link",
+        "E Description",
         Dates,
         "End Date",
         "E Image",
@@ -436,22 +437,21 @@ if (selectedOption === 'weekend') {
 
 setBigBoardEvents(bigFiltered);
 
-        // ── TRADITIONS EVENTS FILTERING ───────────────────────────────
 const tradData = tradRes.data || [];
 const tradFiltered = tradData
   .map(ev => {
     const start = parseDate(ev.Dates);
     const end   = parseDate(ev['End Date']) || start;
     return {
-      id: ev.id,
-      title: ev['E Name'],
+      id:          ev.id,
+      title:       ev['E Name'],
+      description: ev['E Description'],   // ← pull in here
       start,
       end,
-      imageUrl: ev['E Image'] || '',
-      slug: ev.slug,
-      // mark as tradition, not Big Board
+      imageUrl:    ev['E Image'] || '',
+      slug:        ev.slug,
       isTradition: true,
-      isBigBoard: false
+      isBigBoard:  false
     };
   })
   .filter(evt => {
@@ -796,201 +796,142 @@ return (
   </div>
 </div>
 
-
-
-
-
-
-
 <main className="container mx-auto px-4 py-8">
-  {/* Left: events */}
   <div className="w-full">
     <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
-           {headerText}
+      {headerText}
     </h2>
 
     {!loading && (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+      <div className="space-y-6">
         {allPagedEvents.map(evt => {
-          const { isBigBoard, isTradition } = evt;
-          const d     = evt.start_date ? parseISODateLocal(evt.start_date) : evt.start;
-          const day   = d.getDate();
-          const month = d.toLocaleString('en-US',{ month:'short' }).slice(0,3);
-          const raw   = evt.name || evt.title || '';
-          const title = raw.length > 40 ? raw.slice(0,50) + '…' : raw;
-          const venue = evt.venues?.name || '';
-          // pick the correct link for each source:
-          const href = evt.isGroupEvent
-          ? evt.href
-          : evt.isTradition
-            ? `/events/${evt.slug}`
-            : evt.isBigBoard
-              ? `/big-board/${evt.slug}`
-              :  evt.isSports       ? evt.href    :
-              evt.venues?.slug && evt.slug
-                ? `/${evt.venues.slug}/${evt.slug}`
-                : '#';
-
-          const isTrad = Boolean(evt.isTradition);
-
-          
-
-          // compute today, start and end objs
           const today = new Date(); today.setHours(0,0,0,0);
-          let startDateObj, endDateObj;
-          if (evt.isTradition) {
-            startDateObj = evt.start;
-            endDateObj   = evt.end;
-          } else {
-            startDateObj = parseISODateLocal(evt.start_date);
-            endDateObj   = parseISODateLocal(evt.end_date || evt.start_date);
-          }
-          const daysLeft = Math.ceil((endDateObj - today) / (1000 * 60 * 60 * 24));
+          const startDate = evt.isTradition
+            ? evt.start
+            : parseISODateLocal(evt.start_date);
+          const endDate = evt.isTradition
+            ? evt.end
+            : parseISODateLocal(evt.end_date || evt.start_date);
+          const isActive = startDate <= today && today <= endDate;
+          const monthDay = today.toLocaleDateString('en-US',{
+            month:'long', day:'numeric'
+          });
+          const whenText = isActive
+            ? `Today, ${monthDay}`
+            : (() => {
+                const diff = Math.ceil((startDate - today)/(1000*60*60*24));
+                if (diff === 1) return `Tomorrow, ${monthDay}`;
+                const wd = startDate.toLocaleDateString('en-US',{ weekday:'long' });
+                return `${wd}, ${startDate.toLocaleDateString('en-US',{
+                  month:'long', day:'numeric'
+                })}`;
+              })();
+
+          const isExternal = evt.isSports;
+          const Wrapper = isExternal ? 'a' : Link;
+          const linkProps = isExternal
+            ? { href: evt.href, target:'_blank', rel:'noopener noreferrer' }
+            : {
+                to: evt.isTradition
+                  ? `/events/${evt.slug}`
+                  : evt.isBigBoard
+                  ? `/big-board/${evt.slug}`
+                  : evt.href || '#'
+              };
 
           return (
-            <Link
-      key={evt.id}
-      to={href}
-      className="
-        relative
-        bg-white
-        rounded-xl
-        shadow-md
-        overflow-hidden
-        flex flex-col
-        hover:scale-105
-        text-center
-        hover:shadow-lg
-        focus:outline-none focus:ring-2 focus:ring-indigo-500
-        transition-transform
-      "
-    >
-      {/* DATE BADGE (softened) */}
-      <div className="absolute top-2 left-2 w-8 h-8 rounded bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
-        <div className="text-center">
-          <div className="font-bold text-lg leading-none">{day}</div>
-          <div className="text-xs uppercase">{month}</div>
-        </div>
-      </div>
+            <Wrapper
+              key={evt.id}
+              {...linkProps}
+              className="flex items-stretch bg-white shadow rounded-xl overflow-hidden hover:shadow-lg transition h-44"
+            >
+              {/* IMAGE */}
+              <div className="relative w-1/4 h-full">
+                <img
+                  src={evt.imageUrl||evt.image||''}
+                  alt={evt.title||evt.name}
+                  className="w-full h-full object-cover"
+                />
+                {evt.isBigBoard && (
+                  <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
+                    COMMUNITY SUBMISSION
+                  </div>
+                )}
+                {evt.isTradition && (
+                  <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
+                    ANNUAL TRADITION
+                  </div>
+                )}
+              </div>
 
-      {/* IMAGE + GRADIENT OVERLAY */}
-      <div className="relative w-full">
-        <img
-          src={evt.imageUrl || evt.image || ''}
-          alt={raw}
-          className="w-full h-40 object-cover object-top"
-        />
-        {/* subtle gradient under text */}
-        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white/90 to-transparent pointer-events-none" />
+              {/* DETAILS */}
+              <div className="flex-1 px-4 py-3 text-left">
+                <h3 className="text-xl font-bold text-gray-800">
+                  {evt.title||evt.name}
+                </h3>
+                <p className="mt-1 text-gray-600">{whenText}</p>
 
-        {/* BIG BOARD PIN + STRIPE + ICON */}
-        {isBigBoard && (
-          <>
-            <img
-              src={pinUrl}
-              alt=""
-              className="absolute right-0 top-1 w-16 h-12 transform rotate-12 z-30 pointer-events-none"
-            />
-            <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
-              <span className="text-xs font-bold text-white uppercase">
-                COMMUNITY SUBMISSION
-              </span>
-            </div>
-            <img
-              src={iconUrl}
-              alt="Community"
-              className="absolute bottom-2 right-2 w-12 h-12 z-30"
-            />
-          </>
-        )}
+                {/* ← DESCRIPTION for all_event, big_board, tradition */}
+                {evt.description && (
+                  <p className="mt-2 text-gray-500 text-sm line-clamp-2">
+                    {evt.description}
+                  </p>
+                )}
 
-{evt.isGroupEvent && (
-  <div className="absolute inset-x-0 bottom-0 bg-blue-600 text-white text-xs uppercase text-center py-1">
-    Approved Group
-  </div>
-)}
+                {!!tagMap[evt.id]?.length && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {tagMap[evt.id].map((tag,i) => (
+                      <Link
+                        key={tag.slug}
+                        to={`/tags/${tag.slug}`}
+                        className={`
+                          ${pillStyles[i%pillStyles.length]}
+                          text-xs sm:text-sm
+                          px-2 sm:px-3
+                          py-1 sm:py-2
+                          rounded-full
+                          font-semibold
+                        `}
+                      >
+                        #{tag.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-        {/* TRADITION STRIPE */}
-        {isTradition && (
-          <div className="absolute inset-x-0 bottom-0 h-6 bg-yellow-500 z-20 flex items-center justify-center">
-            <span className="text-xs font-bold text-white uppercase">
-              Annual Tradition
-            </span>
-          </div>
-        )}
-
-        {/* VENUE OVERLAY (bottom-right) */}
-        {venue && (
-          <div className="absolute bottom-2 right-2 bg-white/80 backdrop-blur-sm px-2 py-0.5 rounded-full text-xs font-medium z-20">
-            {venue}
-          </div>
-        )}
-      </div>
-
-      {/* FOOTER WITH TITLE */}
-<div className="p-3 pb-7 flex flex-col justify-end relative">
-  <p className="text-sm sm:text-base font-semibold text-gray-800 leading-snug tracking-wide mb-1">
-    {title}
-  </p>
-
-  {(() => {
-    const tags = tagMap[evt.id] || [];
-    if (tags.length === 0) return null;
-
-    const primary = tags[0];
-    const extraCount = tags.length - 1;
-
-    return (
-      <div className="mt-2 flex items-center justify-center space-x-2">
-        {/* “TAGS:” label */}
-        <span className="text-xs font-bold text-gray-500 uppercase flex-shrink-0">
-          TAGS:
-        </span>
-
-        {/* first tag pill */}
-        <Link
-          to={`/tags/${primary.slug}`}
-          className={`
-            ${pillStyles[0]} 
-            text-xs font-semibold 
-            px-2 py-1 
-            rounded-full 
-            flex-shrink-0
-            hover:opacity-80 transition
-          `}
-        >
-          #{primary.name}
-        </Link>
-
-        {/* “+N more TAGS” */}
-        {extraCount > 0 && (
-          <span className="text-xs text-gray-600 flex-shrink-0">
-            +{extraCount} more TAGS
-          </span>
-        )}
-      </div>
-    );
-  })()}
-
-
-
-        {/* “ENDS IN X DAYS” BADGE */}
-        {startDateObj <= today && daysLeft > 0 && (
-          <div className="mt-1 
-          bg-green-500 
-          text-white 
-          font-bold 
-          text-[0.6rem] sm:text-xs 
-          flex justify-center items-center 
-          px-2 py-0.5 
-          rounded 
-          w-full">
-            {daysLeft === 1 ? 'Ends tomorrow!' : `${daysLeft} more days`}
-            </div>
-        
-        )}
-      </div>
-    </Link>
+              {/* SHARE COLUMN */}
+              <div className="w-14 bg-gray-100 flex flex-col items-center justify-center">
+                <button
+                  onClick={e => {
+                    e.preventDefault();
+                    const url = window.location.origin + (
+                      isExternal
+                        ? evt.href
+                        : evt.isTradition
+                        ? `/events/${evt.slug}`
+                        : evt.isBigBoard
+                        ? `/big-board/${evt.slug}`
+                        : evt.href || '#'
+                    );
+                    if (navigator.share) {
+                      navigator.share({ title:evt.title||evt.name, url });
+                    } else {
+                      navigator.clipboard.writeText(url);
+                      alert('Link copied!');
+                    }
+                  }}
+                  className="flex flex-col items-center focus:outline-none"
+                >
+                  <img
+                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
+                    alt="share"
+                    className="w-6 h-6 mb-1"
+                  />
+                  <span className="text-xxs text-gray-700">share</span>
+                </button>
+              </div>
+            </Wrapper>
           );
         })}
       </div>
@@ -1015,8 +956,11 @@ return (
       </div>
     )}
   </div>
-
 </main>
+
+
+
+
 
 {/* ─── Recent Activity ─── */}
 <RecentActivity />
