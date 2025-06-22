@@ -1,5 +1,5 @@
 // src/PostFlyerModal.jsx
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -9,12 +9,11 @@ import { AuthContext } from './AuthProvider';
 
 export default function PostFlyerModal({ isOpen, onClose }) {
   const { user } = useContext(AuthContext);
-
-  // ── Step state ─────────────────────────────────────────────────────────────
+  const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 5;
 
-  // ── Form state ──────────────────────────────────────────────────────────────
+  // ── Form state ──────────────────────────────────────────────
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -22,36 +21,37 @@ export default function PostFlyerModal({ isOpen, onClose }) {
   const [link, setLink] = useState('');
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [address, setAddress] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [lat, setLat] = useState(null);
+  const [lng, setLng] = useState(null);
   const [tagsList, setTagsList] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
   const [uploading, setUploading] = useState(false);
-
-  // Holds the final event URL once created
   const [confirmationUrl, setConfirmationUrl] = useState('');
 
-  // inside PostFlyerModal.jsx, near the top of the component:
-const pillStyles = [
+  const suggestRef = useRef(null);
+  const pillStyles = [
     'bg-red-100 text-red-800',
     'bg-green-100 text-green-800',
     'bg-blue-100 text-blue-800',
     'bg-yellow-100 text-yellow-800',
     'bg-purple-100 text-purple-800',
-    'bg-orange-100 text-orange-800',    
+    'bg-orange-100 text-orange-800',
   ];
 
-  // Prevent background scroll when modal is open
+  // Prevent background scroll & load tags
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      // load tags once
       loadTags();
     } else {
       document.body.style.overflow = '';
       resetForm();
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
+    return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
   async function loadTags() {
@@ -61,9 +61,10 @@ const pillStyles = [
 
   function handleFileChange(e) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    if (file) {
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
   }
 
   function resetForm() {
@@ -74,33 +75,65 @@ const pillStyles = [
     setLink('');
     setStartDate(null);
     setEndDate(null);
+    setStartTime('');
+    setEndTime('');
+    setAddress('');
+    setSuggestions([]);
+    setLat(null);
+    setLng(null);
     setSelectedTags([]);
     setUploading(false);
     setConfirmationUrl('');
     setStep(1);
   }
 
+  // Debounced geocoding
+  useEffect(() => {
+    if (!address.trim()) return setSuggestions([]);
+    const timeout = setTimeout(() => {
+      fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          address
+        )}.json?access_token=${geocoderToken}&autocomplete=true&limit=5`
+      )
+        .then(r => r.json())
+        .then(json => setSuggestions(json.features || []))
+        .catch(console.error);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [address]);
+
+  function pickSuggestion(feat) {
+    setAddress(feat.place_name);
+    setLat(feat.center[1]);
+    setLng(feat.center[0]);
+    setSuggestions([]);
+  }
+
+  function canProceed() {
+    switch (step) {
+      case 1: return Boolean(selectedFile);
+      case 2: return Boolean(title.trim());
+      // now optional: always allow through step 3
+      case 3: return true;
+      case 4: return Boolean(startDate);
+      case 5: return true;
+      default: return false;
+    }
+  }
+
   async function handleSubmit() {
-    if (!user) {
-      alert('You must be logged in to post an event');
-      return;
-    }
-    if (!selectedFile || !title || !startDate) {
-      alert('Please provide an image, title, and start date.');
-      return;
-    }
-
+    if (!user) return alert('Please log in first.');
     setUploading(true);
-
     try {
-      // 1) Compress & upload image
-      const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
-      const compressed = await imageCompression(selectedFile, options);
-      const cleanName = compressed.name.replace(/[^a-z0-9.\-_]/gi,'_').toLowerCase();
-      const key = `${user.id}-${Date.now()}-${cleanName}`;
-      await supabase.storage.from('big-board').upload(key, compressed);
+      // 1) Image upload
+      const opts = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
+      const comp = await imageCompression(selectedFile, opts);
+      const clean = comp.name.replace(/[^a-z0-9.\-_]/gi,'_').toLowerCase();
+      const key = `${user.id}-${Date.now()}-${clean}`;
+      await supabase.storage.from('big-board').upload(key, comp);
 
-      // 2) Insert post
+      // 2) Post record
       const { data: postData } = await supabase
         .from('big_board_posts')
         .insert({ user_id: user.id, image_url: key })
@@ -108,13 +141,14 @@ const pillStyles = [
         .single();
       const postId = postData.id;
 
-      // 3) Make slug
-      const slugBase = title
-        .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-      const slug = `${slugBase}-${Date.now()}`;
+      // 3) Slug
+      const base = title.toLowerCase()
+        .replace(/[^a-z0-9]+/g,'-')
+        .replace(/(^-|-$)/g,'');
+      const slug = `${base}-${Date.now()}`;
 
-      // 4) Insert event
-      const { data: eventData } = await supabase
+      // 4) Event insert
+      const { data: ev } = await supabase
         .from('big_board_events')
         .insert({
           post_id: postId,
@@ -122,12 +156,17 @@ const pillStyles = [
           description: description || null,
           link: link || null,
           start_date: startDate.toISOString().split('T')[0],
-          end_date: (endDate||startDate).toISOString().split('T')[0],
-          slug,
+          end_date: (endDate || startDate).toISOString().split('T')[0],
+          start_time: startTime || null,
+          end_time: endTime || null,
+          address: address || null,
+          latitude: lat,
+          longitude: lng,
+          slug
         })
         .select('id')
         .single();
-      const eventId = eventData.id;
+      const eventId = ev.id;
 
       // 5) Link post→event
       await supabase
@@ -135,19 +174,16 @@ const pillStyles = [
         .update({ event_id: eventId })
         .eq('id', postId);
 
-      // 6) Taggings: attach selected tags
+      // 6) Taggings
       if (selectedTags.length) {
         const taggings = selectedTags.map(tag_id => ({
-          tag_id,
-          taggable_type: 'big_board_events',
-          taggable_id: eventId
+          tag_id, taggable_type: 'big_board_events', taggable_id: eventId
         }));
         await supabase.from('taggings').insert(taggings);
       }
 
-      // 7) Show confirmation
-      const fullUrl = `https://ourphilly.org/big-board/${slug}`;
-      setConfirmationUrl(fullUrl);
+      // 7) Done
+      setConfirmationUrl(`https://ourphilly.org/big-board/${slug}`);
     } catch (err) {
       console.error(err);
       alert(err.message);
@@ -155,26 +191,12 @@ const pillStyles = [
     }
   }
 
-  function copyToClipboard() {
-    navigator.clipboard.writeText(confirmationUrl);
-  }
-
-  function canProceed() {
-    if (step === 1) return Boolean(selectedFile);
-    if (step === 2) return Boolean(title.trim());
-    if (step === 3) return Boolean(startDate);
-    if (step === 4) return true;
-    return false;
-  }
-
   function handleNext() {
     if (step < totalSteps) setStep(step + 1);
     else handleSubmit();
   }
-
-  function handleBack() {
-    if (step > 1) setStep(step - 1);
-  }
+  function handleBack() { if (step > 1) setStep(step - 1); }
+  function copyToClipboard() { navigator.clipboard.writeText(confirmationUrl); }
 
   return (
     <AnimatePresence>
@@ -184,25 +206,24 @@ const pillStyles = [
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-white rounded-lg border border-gray-200 shadow-lg mx-4 max-w-full md:max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8 relative"
+            className="bg-white rounded-lg shadow-lg mx-4 max-w-full md:max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8 relative"
             initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }}
           >
             <button
               onClick={onClose}
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 z-10"
             >✕</button>
-            <h2 className="text-xl font-bold mb-2 text-center">Post an Event Flyer</h2>
+            <h2 className="text-xl font-bold mb-4 text-center">Post an Event Flyer</h2>
 
             {confirmationUrl ? (
-              // Confirmation view
               <div className="flex flex-col items-center">
-                <h3 className="text-2xl font-bold mb-4 text-center">Your event is live!</h3>
-                <p className="text-center mb-4">Here’s your link:</p>
+                <h3 className="text-2xl font-bold mb-4">Your event is live!</h3>
                 <div className="flex w-full items-center mb-4">
                   <input
-                    type="text" readOnly value={confirmationUrl}
-                    className="flex-1 border rounded-l-lg px-3 py-2 text-sm truncate"
+                    type="text" readOnly
+                    value={confirmationUrl}
                     onFocus={e => e.target.select()}
+                    className="flex-1 border rounded-l-lg px-3 py-2 text-sm truncate"
                   />
                   <button
                     onClick={copyToClipboard}
@@ -215,18 +236,18 @@ const pillStyles = [
                 >Done</button>
               </div>
             ) : (
-              // Multi-step form
               <div>
-                {/* Step 1: Upload */}
+                {/* Step 1: Flyer */}
                 {step === 1 && (
                   <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
                       Upload Flyer <span className="text-xs font-normal">(required)</span>
                     </label>
                     <input
                       type="file" accept="image/*"
                       onChange={handleFileChange}
                       disabled={uploading}
+                      className="mt-1"
                     />
                     {previewUrl && (
                       <img
@@ -242,112 +263,164 @@ const pillStyles = [
                 {step === 2 && (
                   <div className="mb-6 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700">
                         Title <span className="text-xs font-normal">(required)</span>
                       </label>
                       <input
                         type="text" value={title}
                         onChange={e => setTitle(e.target.value)}
-                        className="w-full border p-2 rounded"
                         disabled={uploading}
+                        className="w-full border p-2 rounded mt-1"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700">
                         Why should we go? <span className="text-xs font-normal">(optional)</span>
                       </label>
                       <textarea
                         rows={3} value={description}
                         onChange={e => setDescription(e.target.value)}
-                        className="w-full border p-2 rounded"
                         disabled={uploading}
+                        className="w-full border p-2 rounded mt-1"
                       />
                     </div>
                   </div>
                 )}
 
-                {/* Step 3: Link & Dates */}
+                {/* Step 3: Location (now optional) */}
                 {step === 3 && (
+                  <div className="mb-6 relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Location <span className="text-xs font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={e => setAddress(e.target.value)}
+                      disabled={uploading}
+                      className="w-full border p-2 rounded"
+                      placeholder="Search address..."
+                      ref={suggestRef}
+                    />
+                    {suggestions.length > 0 && (
+                      <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
+                        {suggestions.map(feat => (
+                          <li
+                            key={feat.id}
+                            onClick={() => pickSuggestion(feat)}
+                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          >
+                            {feat.place_name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 4: Link, Dates & Times */}
+                {step === 4 && (
                   <div className="mb-6 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700">
                         Link <span className="text-xs font-normal">(optional)</span>
                       </label>
                       <input
                         type="url" value={link}
                         onChange={e => setLink(e.target.value)}
-                        placeholder="https://example.com"
-                        className="w-full border p-2 rounded"
                         disabled={uploading}
+                        placeholder="https://example.com"
+                        className="w-full border p-2 rounded mt-1"
                       />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700">
                           Start Date <span className="text-xs font-normal">(required)</span>
                         </label>
                         <DatePicker
                           selected={startDate}
                           onChange={setStartDate}
-                          className="w-full border p-2 rounded"
                           disabled={uploading}
+                          className="w-full border p-2 rounded mt-1"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700">
                           End Date <span className="text-xs font-normal">(optional)</span>
                         </label>
                         <DatePicker
                           selected={endDate}
                           onChange={setEndDate}
-                          className="w-full border p-2 rounded"
                           disabled={uploading}
+                          className="w-full border p-2 rounded mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Start Time
+                        </label>
+                        <input
+                          type="time"
+                          value={startTime}
+                          onChange={e => setStartTime(e.target.value)}
+                          disabled={uploading}
+                          className="w-full border p-2 rounded mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          End Time
+                        </label>
+                        <input
+                          type="time"
+                          value={endTime}
+                          onChange={e => setEndTime(e.target.value)}
+                          disabled={uploading}
+                          className="w-full border p-2 rounded mt-1"
                         />
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Step 4: Tags */}
-{step === 4 && (
-  <div className="mb-6">
-    <label className="block text-sm font-medium text-gray-700 mb-2">
-      Tag this Event <span className="text-xs font-normal">(optional)</span>
-    </label>
-    <div className="flex flex-wrap gap-3">
-      {tagsList.map((tagOpt, i) => {
-        const isSelected = selectedTags.includes(tagOpt.id)
-        const styleClass = isSelected
-          ? pillStyles[i % pillStyles.length]
-          : 'bg-gray-200 text-gray-700'
-        return (
-          <button
-            key={tagOpt.id}
-            type="button"
-            onClick={() => {
-              setSelectedTags(prev =>
-                isSelected
-                  ? prev.filter(x => x !== tagOpt.id)
-                  : [...prev, tagOpt.id]
-              )
-            }}
-            className={`
-              ${styleClass}
-              px-4 py-2 rounded-full
-              text-sm font-semibold
-              focus:outline-none focus:ring-2 focus:ring-indigo-400
-              transition
-            `}
-          >
-            {tagOpt.name}
-          </button>
-        )
-      })}
-    </div>
-  </div>
-)}
+                {/* Step 5: Tags */}
+                {step === 5 && (
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tag this Event <span className="text-xs font-normal">(optional)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {tagsList.map((tagOpt, i) => {
+                        const isSel = selectedTags.includes(tagOpt.id);
+                        const cls = isSel
+                          ? pillStyles[i % pillStyles.length]
+                          : 'bg-gray-200 text-gray-700';
+                        return (
+                          <button
+                            key={tagOpt.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedTags(prev =>
+                                isSel
+                                  ? prev.filter(x => x !== tagOpt.id)
+                                  : [...prev, tagOpt.id]
+                              )
+                            }
+                            disabled={uploading}
+                            className={`${cls} px-4 py-2 rounded-full text-sm font-semibold`}
+                          >
+                            {tagOpt.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                {/* Progress */}
+                {/* Progress bar */}
                 <div className="mb-6">
                   <div className="flex justify-between text-xs font-semibold mb-1">
                     <span>Step {step} of {totalSteps}</span>
@@ -361,13 +434,13 @@ const pillStyles = [
                   </div>
                 </div>
 
-                {/* Nav buttons */}
+                {/* Navigation buttons */}
                 <div className="flex justify-between">
                   <button
                     onClick={handleBack}
-                    disabled={step===1}
+                    disabled={step === 1}
                     className={`px-4 py-2 rounded ${
-                      step===1
+                      step === 1
                         ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
                     }`}
@@ -376,14 +449,18 @@ const pillStyles = [
                   </button>
                   <button
                     onClick={handleNext}
-                    disabled={!canProceed()||uploading}
+                    disabled={!canProceed() || uploading}
                     className={`px-4 py-2 rounded text-white ${
                       canProceed()
                         ? 'bg-indigo-600 hover:bg-indigo-700'
                         : 'bg-indigo-300 cursor-not-allowed'
                     }`}
                   >
-                    {step<totalSteps ? 'Next' : uploading ? 'Posting…' : 'Post Event'}
+                    {step < totalSteps
+                      ? 'Next'
+                      : uploading
+                      ? 'Posting…'
+                      : 'Post Event'}
                   </button>
                 </div>
               </div>

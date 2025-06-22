@@ -33,6 +33,15 @@ function parseISODateLocal(str) {
   return new Date(y, m - 1, d);
 }
 
+function formatTime(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':');
+  let hour = parseInt(h,10);
+  const ampm = hour >= 12 ? 'p.m.' : 'a.m.';
+  hour = hour % 12 || 12;
+  return `${hour}:${m.padStart(2,'0')} ${ampm}`;
+}
+
 // NEW: Parse 'MM/DD/YYYY' as local date
 function parseDate(datesStr) {
   if (!datesStr) return null;
