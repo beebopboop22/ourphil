@@ -809,191 +809,134 @@ return (
 </div>
 
 <main className="container mx-auto px-4 py-8">
-  <div className="w-full">
-    <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
-      {headerText}
-    </h2>
+  <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
+    {headerText}
+  </h2>
 
-    {!loading && (
-      <div className="space-y-6">
-        {allPagedEvents.map(evt => {
-  // date-only “today”
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  {!loading && (
+    <div className="space-y-6">
+      {allPagedEvents.map(evt => {
+        const today = new Date(); today.setHours(0,0,0,0);
+        const now = new Date();
+        const startDate = evt.isTradition ? evt.start : parseISODateLocal(evt.start_date);
+        const isToday = startDate.getTime() === today.getTime();
+        let whenText = isToday
+          ? `Today, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`
+          : (() => {
+              const diff = Math.ceil((startDate - now)/(1000*60*60*24));
+              if (diff === 1)
+                return `Tomorrow, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
+              const wd = startDate.toLocaleDateString('en-US',{ weekday:'long' });
+              return `${wd}, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
+            })();
 
-  // full timestamp “now”
-  const now = new Date();
+        const isExternal = evt.isSports;
+        const Wrapper = isExternal ? 'a' : Link;
+        const linkProps = isExternal
+          ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
+          : {
+              to: evt.isTradition
+                ? `/events/${evt.slug}`
+                : evt.isBigBoard
+                ? `/big-board/${evt.slug}`
+                : evt.venues?.slug && evt.slug
+                ? `/${evt.venues.slug}/${evt.slug}`
+                : '/'
+            };
 
-  // parse your event’s start/end dates
-  const startDate = evt.isTradition
-    ? evt.start
-    : parseISODateLocal(evt.start_date);
-  const endDate = evt.isTradition
-    ? evt.end
-    : parseISODateLocal(evt.end_date || evt.start_date);
+        const tags = tagMap[evt.id] || [];
+        const shown = tags.slice(0,2);
+        const extra = tags.length - shown.length;
 
-  // determine “whenText” as before…
-  const isToday = startDate.getTime() === today.getTime();
-  let whenText = isToday
-    ? `Today, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`
-    : (() => {
-        const diff = Math.ceil((startDate - now)/(1000*60*60*24));
-        if (diff === 1)
-          return `Tomorrow, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
-        const wd = startDate.toLocaleDateString('en-US',{ weekday:'long' });
-        return `${wd}, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
-      })();
-
-  // check if event has ended *today*
-  let endedBadge = false;
-  if (evt.end_time && isToday) {
-    const endDT = new Date(`${evt.end_date || evt.start_date}T${evt.end_time}`);
-    if (now > endDT) endedBadge = true;
-  }
-          
-
-          const isExternal = evt.isSports;
-          const Wrapper    = isExternal ? 'a' : Link;
-          const linkProps  = isExternal
-            ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
-            : {
-                to: evt.isTradition
-                  ? `/events/${evt.slug}`
-                  : evt.isBigBoard
-                  ? `/big-board/${evt.slug}`
-                  : evt.venues?.slug && evt.slug
-                  ? `/${evt.venues.slug}/${evt.slug}`
-                  : '/'
-              };
-
-          // cap to 2 tags
-          const tags = tagMap[evt.id] || [];
-          const shown = tags.slice(0,2);
-          const extra = tags.length - shown.length;
-
-          
-
-          return (
-            <Wrapper
-              key={evt.id}
-              {...linkProps}
-              className="flex items-stretch bg-white shadow rounded-xl overflow-hidden hover:shadow-lg transition h-48"
-            >
-              {/* IMAGE */}
-              <div className="relative flex-none w-1/5 h-full">
-                <img
-                  src={evt.imageUrl||evt.image||''}
-                  alt={evt.title||evt.name}
-                  className="w-full h-full object-cover"
-                />
-                {evt.isBigBoard && (
-                  <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
-                    COMMUNITY SUBMISSION
-                  </div>
-                )}
-                {evt.isTradition && (
-                  <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
-                    ANNUAL TRADITION
-                  </div>
-                )}
-              </div>
-
-              {/* DETAILS */}
-              {/* DETAILS */}
-    <div className="flex-1 px-6 py-4 text-left">
-      <h3 className="text-lg sm:text-xl font-bold text-gray-800 line-clamp-2">
-        {evt.title||evt.name}
-      </h3>
-      <p className="mt-1 text-gray-600 text-sm sm:text-base">
-        {whenText}
-        {evt.start_time && ` — ${formatTime(evt.start_time)}`}
-      </p>
-
-      {!!evt.description && (
-        <p className="mt-2 text-gray-500 text-xs sm:text-sm line-clamp-2">
-          {evt.description}
-        </p>
-      )}
-
-                {shown.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {shown.map((tag,i) => (
-                      <Link
-                        key={tag.slug}
-                        to={`/tags/${tag.slug}`}
-                        className={`
-                          ${pillStyles[i%pillStyles.length]}
-                          text-[0.6rem] sm:text-sm
-                          px-2 sm:px-3
-                          py-1 sm:py-2
-                          rounded-full font-semibold
-                        `}
-                      >
-                        #{tag.name}
-                      </Link>
-                    ))}
-                    {extra > 0 && (
-                      <span className="text-[0.6rem] sm:text-sm text-gray-600 self-center">
-                        +{extra} more
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* SHARE BUTTON */}
-              <div className="flex-none w-14 bg-gray-50 flex items-center justify-center">
-                <button
-                  onClick={e => {
-                    e.preventDefault();
-                    const url = window.location.origin + (
-                      isExternal
-                        ? evt.href
-                        : evt.isTradition
-                        ? `/events/${evt.slug}`
-                        : evt.isBigBoard
-                        ? `/big-board/${evt.slug}`
-                        : evt.venues?.slug && evt.slug
-                        ? `/${evt.venues.slug}/${evt.slug}`
-                        : '/'
-                    );
-                    if (navigator.share) {
-                      navigator.share({ title: evt.title||evt.name, url });
-                    } else {
-                      navigator.clipboard.writeText(url);
-                      alert('Link copied!');
-                    }
-                  }}
-                  className="p-2 rounded-full bg-[#28313e] hover:bg-[#bf3d35] transition"
-                >
-                  <Share2 size={20} className="text-white"/>
-                </button>
-              </div>
-            </Wrapper>
-          );
-        })}
-      </div>
-    )}
-
-    {/* pagination */}
-    {!loading && pageCount > 1 && (
-      <div className="flex justify-center mt-6 space-x-2">
-        {[...Array(pageCount)].map((_,i) => (
-          <button
-            key={i}
-            onClick={() => setPage(i+1)}
-            className={`px-4 py-2 rounded-full border ${
-              page === i+1
-                ? 'bg-[#28313e] text-white'
-                : 'bg-white text-[#28313e] border-[#28313e] hover:bg-[#28313e] hover:text-white'
-            } font-semibold transition`}
+        return (
+          <Wrapper
+            key={evt.id}
+            {...linkProps}
+            className="flex items-stretch bg-white shadow rounded-xl overflow-hidden hover:shadow-lg transition h-48"
           >
-            {i+1}
-          </button>
-        ))}
-      </div>
-    )}
-  </div>
+            {/* IMAGE + BADGE */}
+            <div className="relative flex-none w-1/5 h-full">
+              <img
+                src={evt.imageUrl||evt.image||''}
+                alt={evt.title||evt.name}
+                className="w-full h-full object-cover"
+              />
+              {evt.isBigBoard && (
+                <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
+                  SUBMISSION
+                </div>
+              )}
+              {evt.isTradition && (
+                <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
+                  TRADITION
+                </div>
+              )}
+            </div>
+
+            {/* DETAILS */}
+            <div className="flex-1 px-6 py-4 text-left">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 line-clamp-2">
+                {evt.title||evt.name}
+              </h3>
+              <p className="mt-1 text-gray-600 text-sm sm:text-base">
+                {whenText}
+                {evt.start_time && ` — ${formatTime(evt.start_time)}`}
+              </p>
+
+              {!!evt.description && (
+                <p className="mt-2 text-gray-500 text-xs sm:text-sm line-clamp-2">
+                  {evt.description}
+                </p>
+              )}
+
+              {shown.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {shown.map((tag,i) => (
+                    <Link
+                      key={tag.slug}
+                      to={`/tags/${tag.slug}`}
+                      className={`
+                        ${pillStyles[i%pillStyles.length]}
+                        text-[0.6rem] sm:text-sm
+                        px-2 sm:px-3
+                        py-1 sm:py-2
+                        rounded-full font-semibold
+                      `}
+                    >
+                      #{tag.name}
+                    </Link>
+                  ))}
+                  {extra > 0 && (
+                    <span className="text-[0.6rem] sm:text-sm text-gray-600 self-center">
+                      +{extra} more
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </Wrapper>
+        );
+      })}
+    </div>
+  )}
+
+  {!loading && pageCount > 1 && (
+    <div className="flex justify-center mt-6 space-x-2">
+      {[...Array(pageCount)].map((_,i) => (
+        <button
+          key={i}
+          onClick={() => setPage(i+1)}
+          className={`px-4 py-2 rounded-full border ${
+            page === i+1
+              ? 'bg-[#28313e] text-white'
+              : 'bg-white text-[#28313e] border-[#28313e] hover:bg-[#28313e] hover:text-white'
+          } font-semibold transition`}
+        >
+          {i+1}
+        </button>
+      ))}
+    </div>
+  )}
 </main>
 
 
