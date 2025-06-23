@@ -1,0 +1,36 @@
+name: Scrape City Winery
+
+on:
+  schedule:
+    # Runs every day at 3:00 AM UTC
+    - cron:  '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    name: Scrape City Winery Events
+    runs-on: ubuntu-latest
+    env:
+      # Make sure you've added these to your repo's Secrets
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install supabase requests beautifulsoup4 python-dotenv
+          fi
+
+      - name: Run City Winery scraper
+        run: python scripts/scrape-citywinery.py

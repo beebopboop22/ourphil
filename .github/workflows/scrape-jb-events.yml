@@ -3,7 +3,6 @@ name: Scrape Johnny Brenda’s Events
 
 on:
   push:
-    # you can narrow this to only run when your script or .env.scraper changes:
     paths:
       - 'scripts/upsert_jb_events.py'
       - '.env.scraper'
@@ -25,7 +24,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 python-dotenv supabase dateutil
+          pip install \
+            cloudscraper \
+            beautifulsoup4 \
+            python-dotenv \
+            python-dateutil \
+            certifi \
+            supabase
 
       - name: Run Johnny Brenda’s scraper
         env:

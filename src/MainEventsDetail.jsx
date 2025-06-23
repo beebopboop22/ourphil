@@ -29,8 +29,6 @@ export default function MainEventsDetail() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user, isAdmin } = useContext(AuthContext);
-  console.log('user:', user?.email, 'isAdmin:', isAdmin);
-
 
   // State
   const [event, setEvent] = useState(null);
@@ -52,7 +50,6 @@ export default function MainEventsDetail() {
     address: '',
   });
   const [saving, setSaving] = useState(false);
-  
 
   // Fetch main event, venue, related, community
   useEffect(() => {
@@ -86,10 +83,12 @@ export default function MainEventsDetail() {
 
         // 3) related events at same venue
         if (ev.venue_id) {
+          const todayStr = new Date().toISOString().slice(0,10);
           const { data: rel } = await supabase
             .from('all_events')
             .select(`id, name, slug, start_date, start_time, image`)
             .eq('venue_id', ev.venue_id)
+            .gte('start_date', todayStr) 
             .neq('slug', slug)
             .order('start_date', { ascending: true })
             .limit(5);
@@ -350,7 +349,7 @@ export default function MainEventsDetail() {
                           type="time"
                           value={formData.end_time}
                           onChange={handleChange}
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus-ring-indigo-500"
                         />
                       </div>
                     </div>
@@ -374,7 +373,7 @@ export default function MainEventsDetail() {
                           type="date"
                           value={formData.end_date}
                           onChange={handleChange}
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus-ring-indigo-500"
                         />
                       </div>
                     </div>
@@ -413,15 +412,40 @@ export default function MainEventsDetail() {
                           </>
                         )}
                       </p>
-                      {event.address && (
-                        <a
-                          href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-600 hover:underline mt-1 block"
-                        >
-                          {event.address}
-                        </a>
+
+                      {venueData && (
+                        <p className="mt-2">
+                          Venue:{' '}
+                          
+                            {venueData.name}
+                          {venueData.address && (
+  <p className="mt-2">
+    <a
+      href={`https://maps.google.com?q=${encodeURIComponent(venueData.address)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-indigo-600 hover:underline"
+    >
+      {venueData.address}
+    </a>
+  </p>
+)}
+
+                          
+                        </p>
+                      )}
+
+                      {event.link && (
+                        <p className="mt-2">
+                          <a
+                            href={event.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-indigo-600 hover:underline"
+                          >
+                            Visit official event page
+                          </a>
+                        </p>
                       )}
                     </div>
 
@@ -436,14 +460,16 @@ export default function MainEventsDetail() {
                     )}
 
                     {/* Related Events */}
-                    {relatedEvents.length > 0 && (
+                    {relatedEvents.length > 0 && venueData && (
                       <div className="mt-8">
-                        <h2 className="text-xl font-semibold">More at this venue</h2>
+                        <h2 className="text-xl font-semibold">
+                          More at {venueData.name}
+                        </h2>
                         <ul className="mt-2 space-y-1">
                           {relatedEvents.map(re => (
                             <li key={re.id}>
                               <Link
-                                to={`/${venueData?.slug}/${re.slug}`}
+                                to={`/${venueData.slug}/${re.slug}`}
                                 className="text-indigo-600 hover:underline"
                               >
                                 {re.name} — {parseLocalYMD(re.start_date).toLocaleDateString()}
