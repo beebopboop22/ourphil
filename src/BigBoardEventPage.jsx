@@ -1,5 +1,5 @@
 // src/BigBoardEventPage.jsx
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -19,6 +19,11 @@ export default function BigBoardEventPage() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Mapbox geocoding
+  const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  const suggestRef = useRef(null);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
 
   // Edit form state
   const [isEditing, setIsEditing] = useState(false);
@@ -46,12 +51,12 @@ export default function BigBoardEventPage() {
   const [tagsList, setTagsList] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
 
-  // Upcoming submissions
+  // Upcoming community submissions
   const [moreEvents, setMoreEvents] = useState([]);
   const [loadingMore, setLoadingMore] = useState(true);
   const [moreTagMap, setMoreTagMap] = useState({});
 
-  // Modal
+  // Post flyer modal
   const [showFlyerModal, setShowFlyerModal] = useState(false);
 
   // Helpers
@@ -69,11 +74,9 @@ export default function BigBoardEventPage() {
     return `${hour}:${min} ${ampm}`;
   }
 
-  // Share
+  // Share fallback
   function copyLinkFallback(url) {
-    navigator.clipboard.writeText(url)
-      .then(() => alert('Link copied!'))
-      .catch(console.error);
+    navigator.clipboard.writeText(url).catch(console.error);
   }
   function handleShare() {
     const url = window.location.href;
@@ -84,7 +87,7 @@ export default function BigBoardEventPage() {
 
   // Fetch main event
   useEffect(() => {
-    async function fetchEvent() {
+    (async () => {
       setLoading(true);
       setError(null);
       try {
@@ -105,10 +108,12 @@ export default function BigBoardEventPage() {
           .eq('id', ev.post_id)
           .single();
         const { data: { publicUrl } } = supabase
-          .storage.from('big-board').getPublicUrl(post.image_url);
+          .storage.from('big-board')
+          .getPublicUrl(post.image_url);
 
         const { data: tagsData } = await supabase
-          .from('tags').select('id,name');
+          .from('tags')
+          .select('id,name');
         setTagsList(tagsData || []);
 
         const { data: taggings = [] } = await supabase
@@ -125,11 +130,10 @@ export default function BigBoardEventPage() {
       } finally {
         setLoading(false);
       }
-    }
-    fetchEvent();
+    })();
   }, [slug]);
 
-  // Fetch more events
+  // Fetch more community submissions
   useEffect(() => {
     if (!event) return;
     setLoadingMore(true);
@@ -141,7 +145,7 @@ export default function BigBoardEventPage() {
           .select('id, post_id, title, start_date, slug')
           .gte('start_date', todayStr)
           .neq('id', event.id)
-          .order('start_date',{ascending:true})
+          .order('start_date',{ ascending: true })
           .limit(39);
         const enriched = await Promise.all(
           list.map(async itm => {
@@ -150,18 +154,22 @@ export default function BigBoardEventPage() {
               .select('image_url')
               .eq('id', itm.post_id)
               .single();
-            const { data:{ publicUrl } } = supabase
-              .storage.from('big-board').getPublicUrl(p.image_url);
+            const { data: { publicUrl } } = supabase
+              .storage.from('big-board')
+              .getPublicUrl(p.image_url);
             return { ...itm, imageUrl: publicUrl };
           })
         );
         setMoreEvents(enriched);
-      } catch(e){ console.error(e); }
-      finally{ setLoadingMore(false); }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoadingMore(false);
+      }
     })();
   }, [event]);
 
-  // Fetch tags for moreEvents
+  // Fetch tags for those submissions
   useEffect(() => {
     if (!moreEvents.length) return;
     const ids = moreEvents.map(e => e.id);
@@ -169,7 +177,7 @@ export default function BigBoardEventPage() {
       .from('taggings')
       .select('tags(name,slug),taggable_id')
       .eq('taggable_type','big_board_events')
-      .in('taggable_id',ids)
+      .in('taggable_id', ids)
       .then(({ data, error }) => {
         if (error) throw error;
         const map = {};
@@ -197,11 +205,44 @@ export default function BigBoardEventPage() {
     setIsEditing(true);
   };
 
-  // Change handler
+  // Handle form field change
   const handleChange = e => {
     const { name, value } = e.target;
     setFormData(fd => ({ ...fd, [name]: value }));
   };
+
+  // Address suggestions effect (only in edit mode)
+  useEffect(() => {
+    if (!isEditing) return;
+    const addr = formData.address?.trim();
+    if (!addr) {
+      setAddressSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/` +
+        `${encodeURIComponent(addr)}.json?` +
+        `access_token=${geocoderToken}` +
+        `&autocomplete=true&limit=5&types=address,place`
+      )
+        .then(r => r.json())
+        .then(json => {
+          console.log('🗺️ suggestions:', json.features);
+          setAddressSuggestions(json.features || []);
+        })
+        .catch(console.error);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [formData.address, isEditing]);
+
+  // Pick a suggestion
+  function pickSuggestion(feat) {
+    setFormData(fd => ({ ...fd, address: feat.place_name }));
+    setAddressSuggestions([]);
+    // focus back to input
+    suggestRef.current?.focus();
+  }
 
   // Save edits
   const handleSave = async e => {
@@ -218,11 +259,12 @@ export default function BigBoardEventPage() {
         end_time: formData.end_time || null,
         address: formData.address || null
       };
-      const { data: upd } = await supabase
+      const { data: upd, error } = await supabase
         .from('big_board_events')
         .update(payload)
         .eq('id', event.id)
         .single();
+      if (error) throw error;
       setEvent(ev => ({ ...ev, ...upd }));
 
       // refresh taggings
@@ -233,14 +275,15 @@ export default function BigBoardEventPage() {
         .eq('taggable_id', event.id);
       if (selectedTags.length) {
         const taggings = selectedTags.map(tag_id => ({
-          taggable_type:'big_board_events',
-          taggable_id:event.id,
+          taggable_type: 'big_board_events',
+          taggable_id: event.id,
           tag_id
         }));
         await supabase.from('taggings').insert(taggings);
       }
+
       setIsEditing(false);
-    } catch(err) {
+    } catch (err) {
       console.error(err);
       alert('Error saving: ' + err.message);
     } finally {
@@ -248,42 +291,34 @@ export default function BigBoardEventPage() {
     }
   };
 
-  // Delete
+  // Delete event
   const handleDelete = async () => {
     if (!window.confirm('Delete this event?')) return;
     try {
       await supabase
         .from('big_board_events')
         .delete()
-        .eq('id',event.id);
+        .eq('id', event.id);
       navigate('/');
-    } catch(err) {
+    } catch (err) {
       alert('Error deleting: ' + err.message);
     }
   };
 
-  if (loading) return <div className="py-20 text-center">Loading…</div>;
-  if (error)   return <div className="py-20 text-center text-red-600">{error}</div>;
+  if (loading)   return <div className="py-20 text-center">Loading…</div>;
+  if (error)     return <div className="py-20 text-center text-red-600">{error}</div>;
 
   // Compute whenText
-  const now = new Date();
   const startDateObj = parseLocalYMD(event.start_date);
-  const startDT = new Date(`${event.start_date}T${event.start_time||'00:00'}`);
-  const diffMins = Math.floor((startDT - now)/60000);
-  const daysDiff = Math.round((startDateObj - new Date(now.setHours(0,0,0,0))) / (1000*60*60*24));
+  const daysDiff = Math.round((startDateObj - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
   const whenText =
-    diffMins >= 0 && diffMins < 60
-      ? `In ${diffMins} min`
-      : daysDiff === 0
-        ? 'Today'
-        : daysDiff === 1
-          ? 'Tomorrow'
-          : startDateObj.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
+    daysDiff === 0 ? 'Today' :
+    daysDiff === 1 ? 'Tomorrow' :
+    startDateObj.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
 
-  // Meta
-  const formattedDate = startDateObj.toLocaleDateString('en-US',{ month:'long',day:'numeric',year:'numeric'});
-  const rawDesc = event.description||'';
-  const metaDesc = rawDesc.length>155 ? rawDesc.slice(0,152)+'…' : rawDesc;
+  const formattedDate = startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric', year:'numeric' });
+  const rawDesc = event.description || '';
+  const metaDesc = rawDesc.length > 155 ? rawDesc.slice(0,152) + '…' : rawDesc;
 
   return (
     <>
@@ -291,15 +326,6 @@ export default function BigBoardEventPage() {
         <title>{`${event.title} | Community Event on ${formattedDate} | Our Philly`}</title>
         <meta name="description" content={metaDesc} />
         <link rel="canonical" href={window.location.href} />
-        <meta property="og:type" content="event" />
-        <meta property="og:title" content={`${event.title} | Our Philly`} />
-        <meta property="og:description" content={metaDesc} />
-        <meta property="og:url" content={window.location.href} />
-        <meta property="og:image" content={event.imageUrl||'/default-event-image.png'} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={`${event.title} | Our Philly`} />
-        <meta name="twitter:description" content={metaDesc} />
-        <meta name="twitter:image" content={event.imageUrl||'/default-event-image.png'} />
       </Helmet>
 
       <div className="flex flex-col min-h-screen bg-white">
@@ -320,23 +346,29 @@ export default function BigBoardEventPage() {
                 </span>
                 <button
                   onClick={handleShare}
-                  className="w-full bg-green-600 text-white py-2 rounded-full shadow hover:bg-indigo-700 transition"
+                  className="w-full bg-green-600 text-white py-2 rounded-full shadow hover:bg-green-700 transition"
                 >
                   Share
                 </button>
-                {event.owner_id===user?.id && !isEditing && (
-                  <div className="mt-6 w-full flex flex-col space-y-3">
-                    <button onClick={startEditing} className="w-full bg-indigo-600 text-white py-2 rounded-lg">
+                {event.owner_id === user?.id && !isEditing && (
+                  <div className="mt-6 w-full flex flex-col space-y-2">
+                    <button
+                      onClick={startEditing}
+                      className="w-full bg-indigo-600 text-white py-2 rounded-lg"
+                    >
                       Edit Event
                     </button>
-                    <button onClick={handleDelete} className="w-full bg-red-600 text-white py-2 rounded-lg">
+                    <button
+                      onClick={handleDelete}
+                      className="w-full bg-red-600 text-white py-2 rounded-lg"
+                    >
                       Delete Event
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* Details/Edit */}
+              {/* Details / Edit Form */}
               <div className="p-10">
                 {isEditing ? (
                   <form onSubmit={handleSave} className="space-y-6">
@@ -351,6 +383,7 @@ export default function BigBoardEventPage() {
                         className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
+
                     {/* Description */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Description</label>
@@ -362,17 +395,35 @@ export default function BigBoardEventPage() {
                         className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
+
                     {/* Address */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Address</label>
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
                       <input
                         name="address"
                         type="text"
+                        autoComplete="off"
+                        ref={suggestRef}
                         value={formData.address}
                         onChange={handleChange}
                         className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Start typing an address…"
                       />
+                      {addressSuggestions.length > 0 && (
+                        <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
+                          {addressSuggestions.map(feat => (
+                            <li
+                              key={feat.id}
+                              onClick={() => pickSuggestion(feat)}
+                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                            >
+                              {feat.place_name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
+
                     {/* Times */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -396,7 +447,8 @@ export default function BigBoardEventPage() {
                         />
                       </div>
                     </div>
-                    {/* Link & Dates */}
+
+                    {/* Dates */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">Start Date</label>
@@ -420,32 +472,38 @@ export default function BigBoardEventPage() {
                         />
                       </div>
                     </div>
+
                     {/* Tags */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
                       <div className="flex flex-wrap gap-3">
-                        {tagsList.map((tagOpt, i) => (
-                          <button
-                            key={tagOpt.id}
-                            type="button"
-                            onClick={() => {
-                              const sel = selectedTags.includes(tagOpt.id);
-                              setSelectedTags(prev =>
-                                sel ? prev.filter(x => x !== tagOpt.id) : [...prev, tagOpt.id]
-                              );
-                            }}
-                            className={`${
-                              selectedTags.includes(tagOpt.id)
-                                ? pillStyles[i % pillStyles.length]
-                                : 'bg-gray-200 text-gray-700'
-                            } px-4 py-2 rounded-full text-sm font-semibold`}
-                          >
-                            {tagOpt.name}
-                          </button>
-                        ))}
+                        {tagsList.map((tagOpt, i) => {
+                          const isSel = selectedTags.includes(tagOpt.id);
+                          return (
+                            <button
+                              key={tagOpt.id}
+                              type="button"
+                              onClick={() =>
+                                setSelectedTags(prev =>
+                                  isSel
+                                    ? prev.filter(x => x !== tagOpt.id)
+                                    : [...prev, tagOpt.id]
+                                )
+                              }
+                              className={`${
+                                isSel
+                                  ? pillStyles[i % pillStyles.length]
+                                  : 'bg-gray-200 text-gray-700'
+                              } px-4 py-2 rounded-full text-sm font-semibold`}
+                            >
+                              {tagOpt.name}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                    {/* Save/Cancel */}
+
+                    {/* Save / Cancel */}
                     <div className="flex space-x-4">
                       <button
                         type="submit"
@@ -466,25 +524,31 @@ export default function BigBoardEventPage() {
                 ) : (
                   <>
                     <h1 className="text-3xl font-bold text-gray-900">{event.title}</h1>
+
                     {/* When & Where */}
                     <div className="mt-4 text-gray-700">
                       <h2 className="text-xl font-semibold">When & Where?</h2>
                       <p className="mt-1">
                         {whenText}
                         {event.start_time && ` — ${formatTime(event.start_time)}`}
-                        {event.end_time && ` to ${formatTime(event.end_time)}`}
                       </p>
-                      {event.address && (
-                        <a
-                          href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 block text-indigo-600 hover:underline"
-                        >
-                          {event.address}
-                        </a>
-                      )}
+                      <p className="mt-1">
+                        {event.address
+                          ? (
+                            <a
+                              href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-indigo-600 hover:underline"
+                            >
+                              {event.address}
+                            </a>
+                          )
+                          : <span className="text-gray-500 italic">No location specified</span>
+                        }
+                      </p>
                     </div>
+
                     {/* Description */}
                     {event.description && (
                       <div className="mt-6">
@@ -492,6 +556,7 @@ export default function BigBoardEventPage() {
                         <p className="mt-2 text-gray-700">{event.description}</p>
                       </div>
                     )}
+
                     {/* Tags */}
                     {selectedTags.length > 0 && (
                       <div className="mt-4">
@@ -511,6 +576,7 @@ export default function BigBoardEventPage() {
                         </div>
                       </div>
                     )}
+
                     {/* More Info */}
                     {event.link && (
                       <div className="mt-6">
@@ -525,6 +591,7 @@ export default function BigBoardEventPage() {
                         </a>
                       </div>
                     )}
+
                     {/* Back */}
                     <div className="mt-10">
                       <Link to="/" className="text-indigo-600 hover:underline">
@@ -536,10 +603,12 @@ export default function BigBoardEventPage() {
               </div>
             </div>
 
+            {/* Trivia Banner */}
             <div className="mt-8 mb-6 px-8">
               <TriviaTonightBanner />
             </div>
 
+            {/* More Upcoming */}
             <div className="border-t border-gray-200 mt-12 pt-8 px-8 pb-12">
               <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
                 More Upcoming Community Submissions
@@ -552,22 +621,13 @@ export default function BigBoardEventPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {moreEvents.map(ev => {
                     const dt = parseLocalYMD(ev.start_date);
-                    const diff = Math.round(
-                      (dt - new Date(new Date().setHours(0, 0, 0, 0))) /
-                        (1000 * 60 * 60 * 24)
-                    );
-                    const prefix =
-                      diff === 0
-                        ? 'Today'
-                        : diff === 1
-                        ? 'Tomorrow'
-                        : dt.toLocaleDateString('en-US', {
-                            weekday: 'long'
-                          });
-                    const md = dt.toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric'
-                    });
+                    const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
+                    const prefix = diff === 0
+                      ? 'Today'
+                      : diff === 1
+                      ? 'Tomorrow'
+                      : dt.toLocaleDateString('en-US',{ weekday:'long' });
+                    const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
                     return (
                       <Link
                         key={ev.id}
@@ -575,7 +635,7 @@ export default function BigBoardEventPage() {
                         className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
                       >
                         <div className="relative h-40 bg-gray-100">
-                          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
+                          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
                             COMMUNITY SUBMISSION
                           </div>
                           <img
@@ -597,15 +657,7 @@ export default function BigBoardEventPage() {
                                 <Link
                                   key={tag.slug}
                                   to={`/tags/${tag.slug}`}
-                                  className={`
-                                    ${pillStyles[i % pillStyles.length]}
-                                    text-xs font-semibold
-                                    px-2 py-1
-                                    rounded-full
-                                    flex-shrink-0
-                                    hover:opacity-80
-                                    transition
-                                  `}
+                                  className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
                                 >
                                   #{tag.name}
                                 </Link>

@@ -5,6 +5,7 @@ import { supabase } from './supabaseClient';
 export const AuthContext = createContext({
   session: null,
   user: null,
+  isAdmin: false,
 });
 
 export function AuthProvider({ children }) {
@@ -18,7 +19,7 @@ export function AuthProvider({ children }) {
       setUser(session?.user ?? null);
     });
 
-    // listen for changes
+    // listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
         setSession(newSession);
@@ -31,8 +32,11 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // only bill@solar-states.com is treated as admin
+  const isAdmin = user?.email === 'bill@solar-states.com';
+
   return (
-    <AuthContext.Provider value={{ session, user }}>
+    <AuthContext.Provider value={{ session, user, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

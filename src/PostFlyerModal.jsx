@@ -87,14 +87,17 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     setStep(1);
   }
 
-  // Debounced geocoding
-  useEffect(() => {
-    if (!address.trim()) return setSuggestions([]);
+  // ── Debounced geocoding ──────────────────────────────────────────────
+useEffect(() => {
+    if (!address.trim()) {
+      setSuggestions([]);
+      return;
+    }
     const timeout = setTimeout(() => {
       fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-          address
-        )}.json?access_token=${geocoderToken}&autocomplete=true&limit=5`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/` +
+        `${encodeURIComponent(address)}.json?access_token=${geocoderToken}` +
+        `&autocomplete=true&limit=5&types=address,place`
       )
         .then(r => r.json())
         .then(json => setSuggestions(json.features || []))
@@ -102,6 +105,8 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     }, 300);
     return () => clearTimeout(timeout);
   }, [address]);
+  
+  
 
   function pickSuggestion(feat) {
     setAddress(feat.place_name);

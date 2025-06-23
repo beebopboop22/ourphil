@@ -322,6 +322,8 @@ const [groupEvents, setGroupEvents] = useState([]);
         title,
         description,  
         start_date,
+        start_time,
+        end_time,
         end_date,
         slug,
         big_board_posts!big_board_posts_event_id_fkey (
@@ -610,6 +612,7 @@ const allPagedEvents = [
           all.push(...(json.events || []));
         }
         const today = new Date(); today.setHours(0, 0, 0, 0);
+        const now   = new Date(); 
         const gamesToday = all
           .filter(e => {
             const d = new Date(e.datetime_local);
@@ -814,25 +817,40 @@ return (
     {!loading && (
       <div className="space-y-6">
         {allPagedEvents.map(evt => {
-          const today = new Date(); today.setHours(0,0,0,0);
-          const startDate = evt.isTradition
-            ? evt.start
-            : parseISODateLocal(evt.start_date);
-          const endDate = evt.isTradition
-            ? evt.end
-            : parseISODateLocal(evt.end_date || evt.start_date);
-          const isActive = startDate <= today && today <= endDate;
-          const monthDay = today.toLocaleDateString('en-US', {
-            month: 'long', day: 'numeric'
-          });
-          const whenText = isActive
-            ? `Today, ${monthDay}`
-            : (() => {
-                const diff = Math.ceil((startDate - today)/(1000*60*60*24));
-                if (diff === 1) return `Tomorrow, ${monthDay}`;
-                const wd = startDate.toLocaleDateString('en-US',{ weekday:'long' });
-                return `${wd}, ${startDate.toLocaleDateString('en-US',{ month:'long',day:'numeric' })}`;
-              })();
+  // date-only “today”
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // full timestamp “now”
+  const now = new Date();
+
+  // parse your event’s start/end dates
+  const startDate = evt.isTradition
+    ? evt.start
+    : parseISODateLocal(evt.start_date);
+  const endDate = evt.isTradition
+    ? evt.end
+    : parseISODateLocal(evt.end_date || evt.start_date);
+
+  // determine “whenText” as before…
+  const isToday = startDate.getTime() === today.getTime();
+  let whenText = isToday
+    ? `Today, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`
+    : (() => {
+        const diff = Math.ceil((startDate - now)/(1000*60*60*24));
+        if (diff === 1)
+          return `Tomorrow, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
+        const wd = startDate.toLocaleDateString('en-US',{ weekday:'long' });
+        return `${wd}, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
+      })();
+
+  // check if event has ended *today*
+  let endedBadge = false;
+  if (evt.end_time && isToday) {
+    const endDT = new Date(`${evt.end_date || evt.start_date}T${evt.end_time}`);
+    if (now > endDT) endedBadge = true;
+  }
+          
 
           const isExternal = evt.isSports;
           const Wrapper    = isExternal ? 'a' : Link;
@@ -852,6 +870,8 @@ return (
           const tags = tagMap[evt.id] || [];
           const shown = tags.slice(0,2);
           const extra = tags.length - shown.length;
+
+          
 
           return (
             <Wrapper
@@ -879,19 +899,21 @@ return (
               </div>
 
               {/* DETAILS */}
-              <div className="flex-1 px-6 py-4 text-left">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-800 line-clamp-2">
-                  {evt.title||evt.name}
-                </h3>
-                <p className="mt-1 text-gray-600 text-sm sm:text-base">
-                  {whenText}
-                </p>
+              {/* DETAILS */}
+    <div className="flex-1 px-6 py-4 text-left">
+      <h3 className="text-lg sm:text-xl font-bold text-gray-800 line-clamp-2">
+        {evt.title||evt.name}
+      </h3>
+      <p className="mt-1 text-gray-600 text-sm sm:text-base">
+        {whenText}
+        {evt.start_time && ` — ${formatTime(evt.start_time)}`}
+      </p>
 
-                {!!evt.description && (
-                  <p className="mt-2 text-gray-500 text-xs sm:text-sm line-clamp-2">
-                    {evt.description}
-                  </p>
-                )}
+      {!!evt.description && (
+        <p className="mt-2 text-gray-500 text-xs sm:text-sm line-clamp-2">
+          {evt.description}
+        </p>
+      )}
 
                 {shown.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
