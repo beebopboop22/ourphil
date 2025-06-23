@@ -7,7 +7,6 @@ import Footer from './Footer'
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
 import { Helmet } from 'react-helmet'
-import FloatingGallery from './FloatingGallery'
 
 // ── Helpers to parse dates ────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -35,7 +34,7 @@ export default function TagPage() {
   const [loading, setLoading] = useState(true)
   const [showFlyerModal, setShowFlyerModal] = useState(false)
 
-  // ── Filter UI state ────────────────────────────────────────────
+  // ── Filter UI state ───────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
 
@@ -48,7 +47,7 @@ export default function TagPage() {
     return ['All', ...Array.from(new Set(all))]
   }, [groups])
 
-  // ── Filtered groups ────────────────────────────────────────────
+  // ── Filtered groups ───────────────────────────────────────────
   const filteredGroups = useMemo(() => {
     return groups.filter(g => {
       if (selectedCategory !== 'All') {
@@ -63,7 +62,7 @@ export default function TagPage() {
     })
   }, [groups, searchTerm, selectedCategory])
 
-  // ── Load everything ─────────────────────────────────────────────
+  // ── Load data ─────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
       setLoading(true)
@@ -226,66 +225,64 @@ export default function TagPage() {
         <Navbar/>
 
         {/* Hero */}
-        <div className="relative bg-gray-100 overflow-hidden pt-20 pb-12 mb-8 h-[44vh]">
+        <div className="relative bg-gray-100 overflow-hidden pt-20 pb-12 mb-8 h-[50vh]">
           <img
-            src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//skyline-grey.png"
+            src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/skyline-grey.png"
             alt=""
             className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none"
           />
           <div className="relative max-w-6xl mx-auto px-4 sm:text-left z-10">
-            <h1 className="text-4xl font-[barrio] sm:text-8xl font-extrabold text-indigo-900 mb-2">
+            <h1 className="text-4xl sm:text-8xl font-extrabold font-[barrio] text-indigo-900 mb-4">
               #{tag.name}
             </h1>
-            {nextEvent && (() => {
-              let to = '#'
-              if (nextEvent.isGroupEvent)    to = nextEvent.href
-              else if (nextEvent.isTradition) to = `/events/${nextEvent.slug}`
-              else if (nextEvent.isBigBoard)  to = `/big-board/${nextEvent.slug}`
-              else if (nextEvent.isAllEvent)  to = nextEvent.href
+            {tag.description && (
+              <p className="text-lg text-gray-800 mb-4">
+                {tag.description}
+              </p>
+            )}
+            {nextEvent && (
+              <div className="mt-4 text-base sm:text-lg text-gray-800">
+                <span className="font-medium text-indigo-600">Next up:</span>{' '}
+                <Link
+                  to={
+                    nextEvent.isGroupEvent
+                      ? nextEvent.href
+                      : nextEvent.isTradition
+                      ? `/events/${nextEvent.slug}`
+                      : nextEvent.isBigBoard
+                      ? `/big-board/${nextEvent.slug}`
+                      : nextEvent.href
+                  }
+                  className="font-semibold hover:underline"
+                >
+                  {nextEvent.title} —{' '}
+                  {nextEvent.start.toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </Link>
+              </div>
+            )}
 
-              return (
-                <div className="mt-4 text-base sm:text-lg text-gray-800">
-                  <span className="font-medium text-indigo-600">Next up:</span>{' '}
-                  <Link to={to} className="font-semibold hover:underline">
-                    {nextEvent.title} —{' '}
-                    {nextEvent.start.toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </Link>
-                </div>
-              )
-            })()}
-          </div>
-
-          <div className="pointer-events-none mt-4 flex flex-col sm:flex-row sm:absolute sm:inset-0 sm:mt-0 items-center justify-center gap-4">
-            <FloatingGallery
-              images={groups.map(g => g.imag).filter(Boolean)}
-            />
+            
           </div>
         </div>
 
         {/* Upcoming events grid */}
-        <section className="-mt-20 relative z-10">
+        <section className="-mt-20 relative z-10 mb-16">
           <div className="max-w-screen-xl mx-auto bg-gray-100 text-white rounded-xl px-8 py-12 shadow-2xl">
             <h3 className="text-3xl font-bold font-[barrio] text-black text-center mb-6">
               Upcoming #{tag.name} events
             </h3>
 
-            <div className="overflow-x-auto -mx-4 px-4">
-              <div className="flex space-x-6">
-                <button
-                  onClick={() => setShowFlyerModal(true)}
-                  className="flex-shrink-0 w-64 bg-gray-700 border-2 border-dashed border-gray-500 rounded-xl flex flex-col items-center justify-center p-6 hover:bg-gray-600 transition"
-                >
-                  <span className="text-5xl">+</span>
-                  <span className="mt-2 text-sm">Add Event</span>
-                </button>
+            <div className="relative -mx-4 px-4">
+             
 
+              <div className="overflow-x-auto pt-8 pb-4 flex space-x-6">
                 {upcomingEvents.map(evt => {
-                  const day   = evt.start.getDate()
+                  const day = evt.start.getDate()
                   const month = evt.start
-                    .toLocaleString('en-US',{ month:'short' })
+                    .toLocaleString('en-US', { month: 'short' })
                     .slice(0,3)
                   let href = '#'
                   if (evt.isGroupEvent)    href = evt.href
@@ -297,7 +294,7 @@ export default function TagPage() {
                     <Link
                       key={evt.id}
                       to={href}
-                      className="flex-shrink-0 w-64 relative bg-white rounded-xl shadow-lg overflow-hidden flex flex-col hover:scale-105 transition-transform"
+                      className="flex-shrink-0 w-64 relative bg-white rounded-xl shadow-lg overflow-hidden hover:scale-105 transition-transform"
                     >
                       <div className="absolute top-2 left-2 pt-4 w-8 h-8 rounded bg-gray-900/80 flex items-center justify-center z-10">
                         <div className="text-center text-white">
@@ -315,20 +312,6 @@ export default function TagPage() {
                         )}
                         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-800/80 to-transparent" />
                       </div>
-                      {evt.isBigBoard && (
-                        <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
-                          <span className="text-xs font-bold text-white uppercase">
-                            COMMUNITY SUBMISSION
-                          </span>
-                        </div>
-                      )}
-                      {evt.isTradition && (
-                        <div className="absolute inset-x-0 bottom-0 h-6 bg-yellow-500 flex items-center justify-center z-20">
-                          <span className="text-xs font-bold text-white uppercase">
-                            ANNUAL TRADITION
-                          </span>
-                        </div>
-                      )}
                       <div className="pb-7 pt-2 flex-1 flex text-center flex-col">
                         <p className="text-sm font-semibold text-gray-900 leading-snug">
                           {evt.title.length > 40
@@ -415,7 +398,9 @@ export default function TagPage() {
           </div>
         </section>
 
+        {/* Floating Add Button */}
         <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
+
         <PostFlyerModal
           isOpen={showFlyerModal}
           onClose={() => setShowFlyerModal(false)}
