@@ -1,0 +1,17 @@
+# .github/workflows/send-digest.yml
+name: Send Digest (every 3 minutes)
+
+on:
+  schedule:
+    - cron: '*/3 * * * *'  # every 3 minutes (UTC)
+
+jobs:
+  invoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke Supabase send-digest
+        run: |
+          curl -s -X POST \
+            https://qdartpzrxmftmaftfdbd.supabase.co/functions/v1/send-digest \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"
