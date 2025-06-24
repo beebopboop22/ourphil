@@ -266,12 +266,12 @@ useEffect(() => {
       const away = e.performers.find(p => !p.home_team) || home;
       return {
         id:         `sg-${e.id}`,
-        title:      `${home.name.replace(/^Philadelphia\s+/, '')} at ${away.name.replace(/^Philadelphia\s+/, '')}`,
+        title,
         start_date: dt.toISOString().slice(0,10),
-        imageUrl:   home.image || away.image,
+        imageUrl:   local.image || other.image,
         href:       e.url,
         isSports:   true,
-      };
+      }
     });
     setSportsEventsRaw(mapped);
   })();
@@ -700,7 +700,12 @@ const allPagedEvents = [
           })
           .map(e => {
             const local = e.performers.find(p => p.name.startsWith('Philadelphia '));
-            const opp = e.performers.find(p => p !== local);
+            const other = e.performers.find(p => p !== local) || local;
+            const teamName = local.name.replace(/^Philadelphia\s+/, '');
+            const oppName  = other.name.replace(/^Philadelphia\s+/, '');
+            const title = local.home_team
+            ? `${oppName} at ${teamName}`
+            : `${teamName} at ${oppName}`;
             const team = local?.name.replace(/^Philadelphia\s+/, '') || '';
             const opponent = opp?.name.replace(/^Philadelphia\s+/, '') || '';
             const hour = new Date(e.datetime_local)
@@ -959,40 +964,42 @@ if (loading) {
                         </div>
       
                         {/* FOOTER */}
-                        <div className="p-4 flex-1 flex flex-col justify-between">
-                          <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-2">
-                            {evt.title || evt.name}
-                          </h3>
-      
-                          {evt.isAllEvent && evt.venues?.name && (
-                            <p className="text-sm text-gray-600 mb-2">
-                              Live event at {evt.venues.name}
-                            </p>
-                          )}
-      
-                          <div className="flex flex-wrap items-center gap-2 mt-auto">
-                            {shown.map((tag, i) => (
-                              <Link
-                                key={tag.slug}
-                                to={`/tags/${tag.slug}`}
-                                className={`
-                                  ${pillStyles[i % pillStyles.length]}
-                                  text-[0.6rem] sm:text-sm
-                                  px-2 sm:px-3
-                                  py-1 sm:py-2
-                                  rounded-full font-semibold
-                                `}
-                              >
-                                #{tag.name}
-                              </Link>
-                            ))}
-                            {extra > 0 && (
-                              <span className="text-[0.6rem] sm:text-sm text-gray-600">
-                                +{extra} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
+<div className="p-4 flex-1 flex flex-col justify-between items-center text-center">
+  <div>
+    <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">
+      {evt.title || evt.name}
+    </h3>
+    {evt.venues?.name && (
+      <p className="text-sm text-gray-600">
+        at {evt.venues.name}
+      </p>
+    )}
+  </div>
+
+  <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
+    {shown.map((tag, i) => (
+      <Link
+        key={tag.slug}
+        to={`/tags/${tag.slug}`}
+        className={`
+          ${pillStyles[i % pillStyles.length]}
+          text-[0.6rem] sm:text-sm
+          px-2 sm:px-3
+          py-1 sm:py-2
+          rounded-full font-semibold
+        `}
+      >
+        #{tag.name}
+      </Link>
+    ))}
+    {extra > 0 && (
+      <span className="text-[0.6rem] sm:text-sm text-gray-600">
+        +{extra} more
+      </span>
+    )}
+  </div>
+</div>
+
                       </Wrapper>
                     )
                   })}
