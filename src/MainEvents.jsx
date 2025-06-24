@@ -152,11 +152,90 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
 }
 
 
+// ── Falling Pills Setup ───────────────────────────────────
+const colors = ['#22C55E','#0D9488','#DB2777','#3B82F6','#F97316','#EAB308','#8B5CF6','#EF4444']
+
+function FallingPills() {
+  const [pillConfigs, setPillConfigs] = useState([])
+
+  useEffect(() => {
+    supabase
+      .from('tags')
+      .select('id,name,slug')
+      .order('name', { ascending: true })
+      .then(({ data }) => {
+        if (!data) return
+        const configs = data.map((t, i) => ({
+          key:      t.slug,
+          name:     t.name,
+          color:    colors[i % colors.length],
+          left:     Math.random() * 100,             // anywhere across the screen
+          duration: 20 + Math.random() * 10,         // slow: 20–30s
+          delay:    -Math.random() * 20,             // start at random offsets
+        }))
+        setPillConfigs(configs)
+      })
+  }, [])
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+      <style>{`
+        .pill {
+          position: absolute;
+          top: -4rem;
+          padding: .6rem 1.2rem;
+          border-radius: 9999px;
+          color: #fff;
+          font-size: 1rem;
+          white-space: nowrap;
+          opacity: .1;
+          animation-name: fall;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+        }
+        @keyframes fall {
+          to { transform: translateY(120vh); }
+        }
+      `}</style>
+
+      {pillConfigs.map((p) => (
+        <span
+          key={p.key}
+          className="pill"
+          style={{
+            left:              `${p.left}%`,
+            backgroundColor:   p.color,
+            animationDuration: `${p.duration}s`,
+            animationDelay:    `${p.delay}s`,
+          }}
+        >
+          #{p.name}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 
 // ── MainEvents Component ───────────────────────────────
 export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
+
+
+// at the top of MainEvents()
+const [allTags, setAllTags] = useState([]);
+
+// fetch all tags on mount
+useEffect(() => {
+  supabase
+    .from('tags')
+    .select('name,slug')
+    .then(({ data, error }) => {
+      if (error) console.error('tags load error', error)
+      else setAllTags(data)
+    })
+}, [])
 
 // inside MainEvents(), alongside your other useState calls:
 const [sportsEventsRaw, setSportsEventsRaw] = useState([]);    // all fetched games
@@ -705,267 +784,261 @@ if (loading) {
 
   
 
-return (
-    <>
-    <Helmet>
-  <title>{pageTitle} | Our Philly - Dig Into Philly</title>
-  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-
-  <meta name="description" content={metaDescription} />
-</Helmet>
-    
-<div className="flex flex-col min-h-screen overflow-x-visible">
-  <Navbar />
-
-  
-  <div className="mt-20">
-  <CityHolidayAlert />
-
-  </div>
-
-
-  <div className="relative w-full max-w-screen-3xl mx-auto mt-28 text-center">
-    {/* positioning context for line + mascot */}
-  
-    <div className="relative  inline-block text-center">
-      <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-black">
-        DIG INTO PHILLY
-      </h1>
+      return (
+        <>
+          <Helmet>
+            <title>Build Your Philly Digest | Our Philly</title>
+            <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+            <meta
+              name="description"
+              content="Subscribe to your personalized Philly digest—get a daily roundup of the best events, traditions, and community happenings delivered straight to your inbox."
+            />
+          </Helmet>
       
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
-        <span className="absolute w-full h-px bg-white opacity-20"></span>
-        <img
-          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
-          alt="Our Philly Mascot"
-          className="absolute right-0 w-24 h-auto -translate-y-1/3"
-        />
-      </div>
-    </div>
-    <div className="max-w-screen-xl mx-auto px-4 py-2">
-    <TrendingTags />
-    <TriviaTonightBanner />
-    
-    </div>
-  
-
-
-
-{/* ─── Pills + Date Picker + Event Count ─── */}
-<div className="container mx-auto px-4 mt-12">
-  <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
-    {/* Pills row */}
-    <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4 w-full sm:w-auto">
-      {['today', 'tomorrow', 'weekend'].map(opt => (
-        <button
-          key={opt}
-          onClick={() => { setSelectedOption(opt); goTo(opt); }}
-          className={`
-            text-sm sm:text-base
-            px-3 sm:px-5 py-1 sm:py-2
-            rounded-full border-2
-            font-semibold
-            shadow-lg
-            transform transition-transform duration-200
-            ${
-              selectedOption === opt
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
-            }
-          `}
-        >
-          {opt === 'today' ? 'Today'
-            : opt === 'tomorrow' ? 'Tomorrow'
-            : 'This Weekend'}
-        </button>
-      ))}
-    </div>
-
-    {/* DatePicker below on mobile, inline on desktop */}
-    <div className="relative w-full sm:w-auto">
-      <DatePicker
-        selected={new Date(customDate)}
-        onChange={date => {
-          const iso = date.toISOString().slice(0, 10);
-          setCustomDate(iso);
-          setSelectedOption('custom');
-          goTo('custom', iso);
-        }}
-        dateFormat="yyyy-MM-dd"
-        placeholderText="Pick a date"
-        className={`
-          w-full sm:w-auto
-          text-sm sm:text-base px-2 sm:px-4 py-1 sm:py-2
-          border-2 border-indigo-600 rounded-full
-          shadow-lg
-          focus:outline-none focus:ring-2 focus:ring-indigo-500
-          transition duration-200
-        `}
-        wrapperClassName="w-full sm:w-auto"
-        calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
-        popperClassName="z-50"
-      />
-    </div>
-  </div>
-</div>
-
-<main className="container mx-auto px-4 py-8">
-  <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
-    {headerText}
-  </h2>
-
-  {!loading && (
-    <div className="space-y-6">
-      {allPagedEvents.map(evt => {
-        const today = new Date(); today.setHours(0,0,0,0);
-        const now = new Date();
-        const startDate = evt.isTradition ? evt.start : parseISODateLocal(evt.start_date);
-        const isToday = startDate.getTime() === today.getTime();
-        let whenText = isToday
-          ? `Today, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`
-          : (() => {
-              const diff = Math.ceil((startDate - now)/(1000*60*60*24));
-              if (diff === 1)
-                return `Tomorrow, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
-              const wd = startDate.toLocaleDateString('en-US',{ weekday:'long' });
-              return `${wd}, ${startDate.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
-            })();
-
-        const isExternal = evt.isSports;
-        const Wrapper = isExternal ? 'a' : Link;
-        const linkProps = isExternal
-          ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
-          : {
-              to: evt.isTradition
-                ? `/events/${evt.slug}`
-                : evt.isBigBoard
-                ? `/big-board/${evt.slug}`
-                : evt.venues?.slug && evt.slug
-                ? `/${evt.venues.slug}/${evt.slug}`
-                : '/'
-            };
-
-        const tags = tagMap[evt.id] || [];
-        const shown = tags.slice(0,2);
-        const extra = tags.length - shown.length;
-
-        return (
-          <Wrapper
-            key={evt.id}
-            {...linkProps}
-            className="flex items-stretch bg-white shadow rounded-xl overflow-hidden hover:shadow-lg transition h-48"
-          >
-            {/* IMAGE + BADGE */}
-            <div className="relative flex-none w-1/5 h-full">
-              <img
-                src={evt.imageUrl||evt.image||''}
-                alt={evt.title||evt.name}
-                className="w-full h-full object-cover"
-              />
-              {evt.isBigBoard && (
-                <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
-                  SUBMISSION
-                </div>
-              )}
-              {evt.isTradition && (
-                <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
-                  TRADITION
-                </div>
-              )}
+          <div className="flex flex-col min-h-screen overflow-x-visible">
+            <Navbar />
+      
+            <div className="mt-20">
+              <CityHolidayAlert />
             </div>
-
-            {/* DETAILS */}
-            <div className="flex-1 px-6 py-4 text-left">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800 line-clamp-2">
-                {evt.title||evt.name}
-              </h3>
-              <p className="mt-1 text-gray-600 text-sm sm:text-base">
-                {whenText}
-                {evt.start_time && ` — ${formatTime(evt.start_time)}`}
-              </p>
-
-              {!!evt.description && (
-                <p className="mt-2 text-gray-500 text-xs sm:text-sm line-clamp-2">
-                  {evt.description}
+      
+            {/* Hero */}
+            <div className="relative w-full max-w-screen-3xl mx-auto pt-14 text-center overflow-hidden">
+              {/* falling pills background */}
+              <FallingPills  />
+      
+              <div className="relative inline-block text-center z-10">
+                <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-indigo-900 mb-4">
+                  Build Your Philly Digest
+                </h1>
+                <p className="text-lg sm:text-xl text-gray-700 max-w-2xl mx-auto">
+                  Pick your favorite tags and get a curated daily email of Philly’s top events, traditions, and community happenings.
                 </p>
-              )}
-
-              {shown.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {shown.map((tag,i) => (
-                    <Link
-                      key={tag.slug}
-                      to={`/tags/${tag.slug}`}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
+                  <span className="absolute w-full h-px bg-white opacity-20" />
+                  <img
+                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
+                    alt="Our Philly Mascot"
+                    className="absolute right-0 w-24 h-auto -translate-y-1/3"
+                  />
+                </div>
+              </div>
+      
+              <div className="max-w-screen-xl mx-auto px-4 py-2 z-10">
+                <TrendingTags />
+                <TriviaTonightBanner />
+              </div>
+            </div>
+      
+            {/* ─── Pills + Date Picker + Event Count ─── */}
+            <div className="container mx-auto px-4 mt-12">
+              <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
+                {/* Pills row */}
+                <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                  {['today', 'tomorrow', 'weekend'].map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => { setSelectedOption(opt); goTo(opt); }}
                       className={`
-                        ${pillStyles[i%pillStyles.length]}
-                        text-[0.6rem] sm:text-sm
-                        px-2 sm:px-3
-                        py-1 sm:py-2
-                        rounded-full font-semibold
+                        text-sm sm:text-base
+                        px-3 sm:px-5 py-1 sm:py-2
+                        rounded-full border-2
+                        font-semibold
+                        shadow-lg
+                        transform transition-transform duration-200
+                        ${
+                          selectedOption === opt
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
+                        }
                       `}
                     >
-                      #{tag.name}
-                    </Link>
+                      {opt === 'today' ? 'Today'
+                        : opt === 'tomorrow' ? 'Tomorrow'
+                        : 'This Weekend'}
+                    </button>
                   ))}
-                  {extra > 0 && (
-                    <span className="text-[0.6rem] sm:text-sm text-gray-600 self-center">
-                      +{extra} more
-                    </span>
-                  )}
+                </div>
+      
+                {/* DatePicker below on mobile, inline on desktop */}
+                <div className="relative w-full sm:w-auto">
+                  <DatePicker
+                    selected={new Date(customDate)}
+                    onChange={date => {
+                      const iso = date.toISOString().slice(0, 10)
+                      setCustomDate(iso)
+                      setSelectedOption('custom')
+                      goTo('custom', iso)
+                    }}
+                    dateFormat="yyyy-MM-dd"
+                    placeholderText="Pick a date"
+                    className={`
+                      w-full sm:w-auto
+                      text-sm sm:text-base px-2 sm:px-4 py-1 sm:py-2
+                      border-2 border-indigo-600 rounded-full
+                      shadow-lg
+                      focus:outline-none focus:ring-2 focus:ring-indigo-500
+                      transition duration-200
+                    `}
+                    wrapperClassName="w-full sm:w-auto"
+                    calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
+                    popperClassName="z-50"
+                  />
+                </div>
+              </div>
+            </div>
+      
+            <main className="container mx-auto px-4 py-8">
+              <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
+                {headerText}
+              </h2>
+      
+              {!loading && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                  {allPagedEvents.map(evt => {
+                    const today = new Date(); today.setHours(0,0,0,0)
+                    const now = new Date()
+                    const startDate = evt.isTradition
+                      ? evt.start
+                      : parseISODateLocal(evt.start_date)
+      
+                    const isToday = startDate.getTime() === today.getTime()
+                    const diffDays = Math.ceil((startDate - now) / (1000*60*60*24))
+                    const bubbleLabel = isToday
+                      ? 'Today'
+                      : diffDays === 1
+                      ? 'Tomorrow'
+                      : startDate.toLocaleDateString('en-US',{ month:'short', day:'numeric' })
+      
+                    const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : ''
+      
+                    const isExternal = evt.isSports
+                    const Wrapper = isExternal ? 'a' : Link
+                    const linkProps = isExternal
+                      ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
+                      : {
+                          to: evt.isTradition
+                            ? `/events/${evt.slug}`
+                            : evt.isBigBoard
+                            ? `/big-board/${evt.slug}`
+                            : evt.venues?.slug && evt.slug
+                            ? `/${evt.venues.slug}/${evt.slug}`
+                            : '/'
+                        }
+      
+                    const tags = tagMap[evt.id] || []
+                    const shown = tags.slice(0,2)
+                    const extra = tags.length - shown.length
+      
+                    return (
+                      <Wrapper
+                        key={evt.id}
+                        {...linkProps}
+                        className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col"
+                      >
+                        {/* IMAGE + BUBBLE + BADGES */}
+                        <div className="relative w-full h-48">
+                          <img
+                            src={evt.imageUrl || evt.image || ''}
+                            alt={evt.title || evt.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
+                            {bubbleLabel}{bubbleTime}
+                          </div>
+                          {evt.isBigBoard && (
+                            <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
+                              Submission
+                            </div>
+                          )}
+                          {evt.isTradition && (
+                            <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
+                              Tradition
+                            </div>
+                          )}
+                        </div>
+      
+                        {/* FOOTER */}
+                        <div className="p-4 flex-1 flex flex-col justify-between">
+                          <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-2">
+                            {evt.title || evt.name}
+                          </h3>
+      
+                          {evt.isAllEvent && evt.venues?.name && (
+                            <p className="text-sm text-gray-600 mb-2">
+                              Live event at {evt.venues.name}
+                            </p>
+                          )}
+      
+                          <div className="flex flex-wrap items-center gap-2 mt-auto">
+                            {shown.map((tag, i) => (
+                              <Link
+                                key={tag.slug}
+                                to={`/tags/${tag.slug}`}
+                                className={`
+                                  ${pillStyles[i % pillStyles.length]}
+                                  text-[0.6rem] sm:text-sm
+                                  px-2 sm:px-3
+                                  py-1 sm:py-2
+                                  rounded-full font-semibold
+                                `}
+                              >
+                                #{tag.name}
+                              </Link>
+                            ))}
+                            {extra > 0 && (
+                              <span className="text-[0.6rem] sm:text-sm text-gray-600">
+                                +{extra} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </Wrapper>
+                    )
+                  })}
                 </div>
               )}
-            </div>
-          </Wrapper>
-        );
-      })}
-    </div>
-  )}
-
-  {!loading && pageCount > 1 && (
-    <div className="flex justify-center mt-6 space-x-2">
-      {[...Array(pageCount)].map((_,i) => (
-        <button
-          key={i}
-          onClick={() => setPage(i+1)}
-          className={`px-4 py-2 rounded-full border ${
-            page === i+1
-              ? 'bg-[#28313e] text-white'
-              : 'bg-white text-[#28313e] border-[#28313e] hover:bg-[#28313e] hover:text-white'
-          } font-semibold transition`}
-        >
-          {i+1}
-        </button>
-      ))}
-    </div>
-  )}
-</main>
-
-
-
-{/* ─── Recent Activity ─── */}
-<RecentActivity />
-
-{/* ─── Hero Banner ─── */}
-<HeroLanding />
-
-
-
-
-
-
-        <BigBoardEventsGrid />
-        <PopularGroups />
-        {/* ─── Floating “+” (always on top) ───────────────────────────── */}
-      <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
-
-{/* ─── PostFlyerModal: opens when showFlyerModal=true ────────── */}
-<PostFlyerModal
-  isOpen={showFlyerModal}
-  onClose={() => setShowFlyerModal(false)}
-/>
-        <Footer />
-      </div>
-    </div>
-    </>
-
-  );
-}
+      
+              {!loading && pageCount > 1 && (
+                <div className="flex justify-center mt-6 space-x-2">
+                  {[...Array(pageCount)].map((_,i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPage(i+1)}
+                      className={`px-4 py-2 rounded-full border ${
+                        page === i+1
+                          ? 'bg-[#28313e] text-white'
+                          : 'bg-white text-[#28313e] border-[#28313e] hover:bg-[#28313e] hover:text-white'
+                      } font-semibold transition`}
+                    >
+                      {i+1}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </main>
+      
+            {/* ─── Recent Activity ─── */}
+            <RecentActivity />
+      
+            {/* ─── Hero Banner ─── */}
+            <HeroLanding />
+      
+            <BigBoardEventsGrid />
+            <PopularGroups />
+      
+            {/* ─── Floating “+” (always on top) ─── */}
+            <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
+      
+            {/* ─── PostFlyerModal ─── */}
+            <PostFlyerModal
+              isOpen={showFlyerModal}
+              onClose={() => setShowFlyerModal(false)}
+            />
+      
+            <Footer />
+          </div>
+        </>
+      )
+      }
+      

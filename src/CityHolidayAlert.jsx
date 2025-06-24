@@ -52,7 +52,7 @@ export default function CityHolidayAlert() {
       const start = new Date(holidayDate);
       start.setDate(start.getDate() - 1);
       const end = new Date(holidayDate);
-      end.setDate(end.getDate() + 6);
+      end.setDate(end.getDate() + 4);
 
       if (today >= start && today <= end) {
         setActiveHoliday({
@@ -70,7 +70,7 @@ export default function CityHolidayAlert() {
 
   return (
     <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded text-center">
-      🗑️ {`${activeHoliday.name} on ${activeHoliday.date}: Trash & recycling collection delayed by one day through ${activeHoliday.end}.`}
+      🗑️ {`${activeHoliday.name} on ${activeHoliday.date}: Trash & recycling collection delayed by one day the week of.`}
     </div>
   );
 }
