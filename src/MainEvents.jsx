@@ -23,6 +23,7 @@ import TriviaTonightBanner from './TriviaTonightBanner';
 import TrendingTags from './TrendingTags';
 import NewsletterSection from './NewsletterSection';
 import { Share2 } from 'lucide-react';
+import { RRule } from 'rrule';
 
 
 // ── Helpers ───────────────────────────────
@@ -221,6 +222,10 @@ function FallingPills() {
 export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
+
+   // Recurring‐series state
+ const [recurringRaw, setRecurringRaw]   = useState([]);
+ const [recurringOccs, setRecurringOccs] = useState([]);
 
 
 // at the top of MainEvents()
@@ -432,9 +437,19 @@ const [groupEvents, setGroupEvents] = useState([]);
       `)
       .order('start_date', { ascending: true });
 
+      // <<< Fetch the active recurring series
+      const fetchRecurring    = supabase
+        .from('recurring_events')
+        .select(`
+          id, name, slug, description, address, link,
+          start_date, end_date, start_time, end_time,
+          rrule, image_url
+        `)
+        .eq('is_active', true);
 
-    Promise.all([fetchAllEvents, fetchBigBoard, fetchTraditions, fetchGroupEvents])
-    .then(([allEventsRes, bigBoardRes, tradRes, geRes]) => {
+
+    Promise.all([fetchAllEvents, fetchBigBoard, fetchTraditions, fetchGroupEvents, fetchRecurring ])
+    .then(([allEventsRes, bigBoardRes, tradRes, geRes, recRes]) => {
 
         
         // ----- ALL_EVENTS FILTERING -----
@@ -576,6 +591,9 @@ const geData = (geRes.data || []).map(ev => ({
 }));
 setGroupEvents(geData);
 
+    // <<< store the raw recurring series
+     setRecurringRaw(recRes.data || []);
+
 
         setLoading(false);
       })
@@ -584,6 +602,49 @@ setGroupEvents(geData);
         setLoading(false);
       });
   }, [selectedOption, customDate, params.view, sportsEventsRaw]);
+
+  // Expand recurringRaw → recurringOccs whenever filter changes
+useEffect(() => {
+  if (!recurringRaw.length) return;
+
+  // compute our window exactly like above
+  let windowStart, windowEnd;
+  if (selectedOption === 'weekend') {
+    [windowStart, windowEnd] = getWeekend();
+  } else {
+    windowStart = getDay();
+    windowEnd   = windowStart;
+  }
+
+  const occs = recurringRaw.flatMap(series => {
+    const opts = RRule.parseString(series.rrule);
+    opts.dtstart = new Date(`${series.start_date}T${series.start_time}`);
+    if (series.end_date) opts.until = new Date(`${series.end_date}T23:59:59`);
+    const rule = new RRule(opts);
+
+    return rule
+      .between(
+        new Date(windowStart.setHours(0,0,0,0)),
+        new Date(windowEnd.setHours(23,59,59,999)),
+        true
+      )
+      .map(dt => ({
+        id:         `${series.id}::${dt.toISOString().slice(0,10)}`,
+        title:      series.name,
+        slug:       series.slug,
+        description:series.description,
+        address:    series.address,
+        link:       `/${series.slug}/${dt.toISOString().slice(0,10)}`,
+        imageUrl:   series.image_url,
+        start_date: dt.toISOString().slice(0,10),
+        start_time: series.start_time,
+        isRecurring:true
+      }));
+  });
+
+  setRecurringOccs(occs);
+}, [recurringRaw, selectedOption, customDate, params.view]);
+
 
   // ── FILTER SEATGEEK GAMES ─────────────────────────────
 useEffect(() => {
@@ -616,6 +677,7 @@ useEffect(() => {
 const allPagedEvents = [
     ...bigBoardEvents,
     ...sportsEvents,
+    ...recurringOccs,  
     ...traditionEvents,
     ...groupEvents, 
     ...events
@@ -917,19 +979,20 @@ if (loading) {
       
                     const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : ''
       
-                    const isExternal = evt.isSports
-                    const Wrapper = isExternal ? 'a' : Link
-                    const linkProps = isExternal
-                      ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
-                      : {
-                          to: evt.isTradition
-                            ? `/events/${evt.slug}`
+                    const isExternal = evt.isSports;
+                      const Wrapper    = isExternal ? 'a' : Link;
+
+                      const linkProps = isExternal
+                        ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
+                        : evt.isRecurring
+                          ? { to: `/series/${evt.slug}/${evt.start_date}` }                               // ← handle recurring here
+                          : evt.isTradition
+                            ? { to: `/events/${evt.slug}` }
                             : evt.isBigBoard
-                            ? `/big-board/${evt.slug}`
-                            : evt.venues?.slug && evt.slug
-                            ? `/${evt.venues.slug}/${evt.slug}`
-                            : '/'
-                        }
+                              ? { to: `/big-board/${evt.slug}` }
+                              : evt.venues?.slug && evt.slug
+                                ? { to: `/${evt.venues.slug}/${evt.slug}` }
+                                : { to: '/' };
       
                     const tags = tagMap[evt.id] || []
                     const shown = tags.slice(0,2)

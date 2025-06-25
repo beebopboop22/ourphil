@@ -7,6 +7,7 @@ import Footer from './Footer'
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
 import { Helmet } from 'react-helmet'
+import { RRule } from 'rrule'
 
 // ── Helpers to parse dates ────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -31,6 +32,7 @@ export default function TagPage() {
   const [bigBoard, setBigBoard] = useState([])
   const [groupEvents, setGroupEvents] = useState([])
   const [allEvents, setAllEvents] = useState([])
+  const [recSeries, setRecSeries] = useState([])
   const [loading, setLoading] = useState(true)
   const [showFlyerModal, setShowFlyerModal] = useState(false)
 
@@ -40,11 +42,11 @@ export default function TagPage() {
 
   // ── Derived category list ─────────────────────────────────────
   const categories = useMemo(() => {
-    const all = groups
+    const allCats = groups
       .flatMap(g => (g.Type || '').split(','))
       .map(t => t.trim())
       .filter(Boolean)
-    return ['All', ...Array.from(new Set(all))]
+    return ['All', ...Array.from(new Set(allCats))]
   }, [groups])
 
   // ── Filtered groups ───────────────────────────────────────────
@@ -62,12 +64,12 @@ export default function TagPage() {
     })
   }, [groups, searchTerm, selectedCategory])
 
-  // ── Load data ─────────────────────────────────────────────────
+  // ── Load all the data ──────────────────────────────────────────
   useEffect(() => {
     async function load() {
       setLoading(true)
 
-      // 1) fetch tag
+      // 1) get the tag row
       const { data: t } = await supabase
         .from('tags')
         .select('*')
@@ -79,7 +81,7 @@ export default function TagPage() {
       }
       setTag(t)
 
-      // 2) fetch taggings
+      // 2) find all taggings
       const { data: taggings } = await supabase
         .from('taggings')
         .select('taggable_type,taggable_id')
@@ -91,8 +93,10 @@ export default function TagPage() {
         return acc
       }, {})
 
-      // 3) fetch each table
-      const [gRes, trRes, bbRes, geRes, aeRes] = await Promise.all([
+      const recurringIds = byType.recurring_events || []
+
+      // 3) fetch each source in parallel, including recurring_events
+      const [gRes, trRes, bbRes, geRes, aeRes, recRes] = await Promise.all([
         byType.groups?.length
           ? supabase
               .from('groups')
@@ -110,9 +114,7 @@ export default function TagPage() {
         byType.big_board_events?.length
           ? supabase
               .from('big_board_events')
-              .select(
-                'id,title,slug,start_date,end_date,big_board_posts!big_board_posts_event_id_fkey(image_url)'
-              )
+              .select('id,title,slug,start_date,end_date,big_board_posts!big_board_posts_event_id_fkey(image_url)')
               .in('id', byType.big_board_events)
           : { data: [] },
 
@@ -129,78 +131,127 @@ export default function TagPage() {
               .select('id,name,slug,image,start_date,venue_id(name,slug)')
               .in('id', byType.all_events)
           : { data: [] },
+
+        recurringIds.length
+          ? supabase
+              .from('recurring_events')
+              .select('id,name,slug,image_url,start_date,end_date,start_time,rrule')
+              .in('id', recurringIds)
+          : { data: [] },
       ])
 
-      // 4) shape each collection
+      // 4) shape and store them
       setGroups(gRes.data || [])
 
-      setTraditions((trRes.data || []).map(e => ({
-        id: e.id,
-        title: e['E Name'],
-        slug: e.slug,
-        imageUrl: e['E Image'] || '',
-        start: parseDate(e.Dates),
-        end: parseDate(e['End Date']) || parseDate(e.Dates),
-        isTradition: true,
-      })))
+      setTraditions(
+        (trRes.data || []).map(e => ({
+          id: e.id,
+          title: e['E Name'],
+          slug: e.slug,
+          imageUrl: e['E Image'] || '',
+          start: parseDate(e.Dates),
+          end: parseDate(e['End Date']) || parseDate(e.Dates),
+          isTradition: true,
+        }))
+      )
 
-      setBigBoard((bbRes.data || []).map(ev => {
-        const key = ev.big_board_posts?.[0]?.image_url
-        const url = key
-          ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
-          : ''
-        return {
+      setBigBoard(
+        (bbRes.data || []).map(ev => {
+          const key = ev.big_board_posts?.[0]?.image_url
+          const url = key
+            ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
+            : ''
+          return {
+            id: ev.id,
+            title: ev.title,
+            slug: ev.slug,
+            imageUrl: url,
+            isBigBoard: true,
+            start: parseISODateLocal(ev.start_date),
+            end: parseISODateLocal(ev.end_date),
+          }
+        })
+      )
+
+      setGroupEvents(
+        (geRes.data || []).map(ev => ({
           id: ev.id,
           title: ev.title,
           slug: ev.slug,
-          imageUrl: url,
-          isBigBoard: true,
+          imageUrl: ev.groups?.[0]?.imag || '',
           start: parseISODateLocal(ev.start_date),
           end: parseISODateLocal(ev.end_date),
-        }
-      }))
+          href: `/groups/${ev.groups?.[0]?.slug || ''}/events/${ev.id}`,
+          isGroupEvent: true,
+        }))
+      )
 
-      setGroupEvents((geRes.data || []).map(ev => ({
-        id: ev.id,
-        title: ev.title,
-        slug: ev.slug,
-        imageUrl: ev.groups?.[0]?.imag || '',
-        start: parseISODateLocal(ev.start_date),
-        end: parseISODateLocal(ev.end_date),
-        href: `/groups/${ev.groups?.[0]?.slug || ''}/events/${ev.id}`,
-        isGroupEvent: true,
-      })))
+      setAllEvents(
+        (aeRes.data || []).map(ev => ({
+          id: ev.id,
+          title: ev.name,
+          slug: ev.slug,
+          imageUrl: ev.image || '',
+          start: parseISODateLocal(ev.start_date),
+          href: `/${ev.venue_id?.slug || ''}/${ev.slug}`,
+          isAllEvent: true,
+        }))
+      )
 
-      setAllEvents((aeRes.data || []).map(ev => ({
-        id: ev.id,
-        title: ev.name,
-        slug: ev.slug,
-        imageUrl: ev.image || '',
-        start: parseISODateLocal(ev.start_date),
-        href: `/${ev.venue_id?.slug || ''}/${ev.slug}`,
-        isAllEvent: true,
-      })))
-
+      setRecSeries(recRes.data || [])
       setLoading(false)
     }
+
     load()
   }, [slug])
+
+  // ── derive the next 3 occurrences for each recurring series ────
+  const recEvents = useMemo(() => {
+    return recSeries.flatMap(series => {
+      const opts = RRule.parseString(series.rrule)
+      opts.dtstart = new Date(`${series.start_date}T${series.start_time}`)
+      if (series.end_date) {
+        opts.until = new Date(`${series.end_date}T23:59:59`)
+      }
+      const rule = new RRule(opts)
+
+      return rule
+        .all()
+        .filter(d => d >= new Date())
+        .slice(0, 3)
+        .map(d => ({
+          id: `${series.id}::${d.toISOString().slice(0,10)}`,
+          title: series.name,
+          slug: series.slug,
+          imageUrl: series.image_url,
+          start: d,
+          href: `/series/${series.slug}/${d.toISOString().slice(0,3)}`,
+          isRecurring: true,
+        }))
+    })
+  }, [recSeries])
 
   if (loading) return <p className="text-center py-20">Loading…</p>
   if (!tag)    return <p className="text-center py-20 text-red-600">Tag not found</p>
 
-  // combine all event-like items
-  const events = [...traditions, ...bigBoard, ...groupEvents, ...allEvents]
+  // ── combine everything ────────────────────────────────────────
+  const events = [
+    ...traditions,
+    ...bigBoard,
+    ...groupEvents,
+    ...allEvents,
+    ...recEvents,
+  ]
   const totalGroups = groups.length
   const totalEvents = events.length
 
-  // filter only upcoming
+  // ── only future ones, sorted ─────────────────────────────────
   const today0 = new Date(); today0.setHours(0,0,0,0)
   const upcomingEvents = events
     .filter(e => e.start && e.start >= today0)
     .sort((a,b) => a.start - b.start)
 
-  // find next event for hero
+  // ── “next up” hero ────────────────────────────────────────────
   const nextEvent = upcomingEvents[0] || null
 
   return (
@@ -208,8 +259,7 @@ export default function TagPage() {
       <Helmet>
         <title>
           #{tag.name} –{' '}
-          {tag.description ||
-            `${totalGroups} groups & ${totalEvents} events`} | Our Philly
+          {tag.description || `${totalGroups} groups & ${totalEvents} events`} | Our Philly
         </title>
         <meta
           name="description"
@@ -222,7 +272,7 @@ export default function TagPage() {
       </Helmet>
 
       <div className="flex flex-col min-h-screen bg-neutral-50 pt-20">
-        <Navbar/>
+        <Navbar />
 
         {/* Hero */}
         <div className="relative bg-gray-100 overflow-hidden pt-20 pb-12 mb-8 h-[50vh]">
@@ -236,9 +286,7 @@ export default function TagPage() {
               #{tag.name}
             </h1>
             {tag.description && (
-              <p className="text-lg text-gray-800 mb-4">
-                {tag.description}
-              </p>
+              <p className="text-lg text-gray-800 mb-4">{tag.description}</p>
             )}
             {nextEvent && (
               <div className="mt-4 text-base sm:text-lg text-gray-800">
@@ -257,14 +305,11 @@ export default function TagPage() {
                 >
                   {nextEvent.title} —{' '}
                   {nextEvent.start.toLocaleDateString('en-US', {
-                    month: 'long',
-                    day: 'numeric'
+                    month: 'long', day: 'numeric'
                   })}
                 </Link>
               </div>
             )}
-
-            
           </div>
         </div>
 
@@ -274,20 +319,18 @@ export default function TagPage() {
             <h3 className="text-3xl font-bold font-[barrio] text-black text-center mb-6">
               Upcoming #{tag.name} events
             </h3>
-
             <div className="relative -mx-4 px-4">
-             
-
               <div className="overflow-x-auto pt-8 pb-4 flex space-x-6">
                 {upcomingEvents.map(evt => {
                   const day = evt.start.getDate()
                   const month = evt.start
-                    .toLocaleString('en-US', { month: 'short' })
+                    .toLocaleString('en-US',{ month: 'short' })
                     .slice(0,3)
                   let href = '#'
                   if (evt.isGroupEvent)    href = evt.href
                   else if (evt.isTradition) href = `/events/${evt.slug}`
                   else if (evt.isBigBoard)  href = `/big-board/${evt.slug}`
+                  else if (evt.isRecurring) href = evt.href
                   else if (evt.isAllEvent)  href = evt.href
 
                   return (
@@ -344,7 +387,6 @@ export default function TagPage() {
                 />
               </div>
             </div>
-
             {filteredGroups.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {filteredGroups.map(g => (
@@ -400,12 +442,8 @@ export default function TagPage() {
 
         {/* Floating Add Button */}
         <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
-
-        <PostFlyerModal
-          isOpen={showFlyerModal}
-          onClose={() => setShowFlyerModal(false)}
-        />
-        <Footer/>
+        <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
+        <Footer />
       </div>
     </>
   )
