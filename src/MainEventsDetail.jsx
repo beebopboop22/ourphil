@@ -1,12 +1,11 @@
 // src/MainEventsDetail.jsx
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import { Helmet } from 'react-helmet';
-import TriviaTonightBanner from './TriviaTonightBanner';
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -51,12 +50,21 @@ export default function MainEventsDetail() {
   });
   const [saving, setSaving] = useState(false);
 
-  // Fetch main event, venue, related, community
+  // Refs for share fallback
+  const copyLinkFallback = url => navigator.clipboard.writeText(url).catch(console.error);
+  const handleShare = () => {
+    const url = window.location.href;
+    const title = document.title;
+    if (navigator.share) navigator.share({ title, url }).catch(console.error);
+    else copyLinkFallback(url);
+  };
+
+  // Fetch everything
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        // 1) main event
+        // main event
         const { data: evs, error: evErr } = await supabase
           .from('all_events')
           .select(`
@@ -71,55 +79,55 @@ export default function MainEventsDetail() {
         const ev = evs[0];
         setEvent(ev);
 
-        // 2) venue
+        // venue
         if (ev.venue_id) {
           const { data: vens } = await supabase
             .from('venues')
-            .select('*')
+            .select('id,name,slug,address')
             .eq('id', ev.venue_id)
             .limit(1);
           setVenueData(vens?.[0] || null);
         }
 
-        // 3) related events at same venue
+        // related at same venue
         if (ev.venue_id) {
           const todayStr = new Date().toISOString().slice(0,10);
           const { data: rel } = await supabase
             .from('all_events')
-            .select(`id, name, slug, start_date, start_time, image`)
+            .select(`id,name,slug,start_date,image`)
             .eq('venue_id', ev.venue_id)
-            .gte('start_date', todayStr) 
+            .gte('start_date', todayStr)
             .neq('slug', slug)
-            .order('start_date', { ascending: true })
+            .order('start_date',{ ascending: true })
             .limit(5);
           setRelatedEvents(rel || []);
         }
 
-        // 4) community submissions
+        // community subs
         const todayStr = new Date().toISOString().slice(0,10);
         const { data: list } = await supabase
           .from('big_board_events')
-          .select('id, post_id, title, start_date, slug')
+          .select('id,post_id,title,start_date,slug')
           .gte('start_date', todayStr)
           .neq('slug', slug)
-          .order('start_date', { ascending: true })
+          .order('start_date',{ ascending: true })
           .limit(24);
         if (list) {
           const enriched = await Promise.all(
-            list.map(async ev => {
+            list.map(async evb => {
               const { data: p } = await supabase
                 .from('big_board_posts')
                 .select('image_url')
-                .eq('id', ev.post_id)
+                .eq('id', evb.post_id)
                 .single();
               let url = '';
               if (p?.image_url) {
-                const { data: { publicUrl }} = supabase
+                const { data:{ publicUrl }} = supabase
                   .storage.from('big-board')
                   .getPublicUrl(p.image_url);
                 url = publicUrl;
               }
-              return { ...ev, imageUrl: url };
+              return { ...evb, imageUrl: url };
             })
           );
           setCommunityEvents(enriched);
@@ -132,7 +140,7 @@ export default function MainEventsDetail() {
     })();
   }, [slug]);
 
-  // When entering edit mode, populate form
+  // Populate form on edit
   useEffect(() => {
     if (isEditing && event) {
       setFormData({
@@ -148,7 +156,6 @@ export default function MainEventsDetail() {
     }
   }, [isEditing, event]);
 
-  // Handlers
   const handleChange = e => {
     const { name, value } = e.target;
     setFormData(fd => ({ ...fd, [name]: value }));
@@ -187,10 +194,7 @@ export default function MainEventsDetail() {
   const handleDelete = async () => {
     if (!window.confirm('Delete this event?')) return;
     try {
-      await supabase
-        .from('all_events')
-        .delete()
-        .eq('id', event.id);
+      await supabase.from('all_events').delete().eq('id', event.id);
       navigate('/');
     } catch (err) {
       alert('Error deleting: ' + err.message);
@@ -199,7 +203,7 @@ export default function MainEventsDetail() {
 
   if (loading) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-white">
         <Navbar/>
         <div className="flex-grow flex items-center justify-center">
           <div className="text-2xl text-gray-500">Loading…</div>
@@ -208,9 +212,10 @@ export default function MainEventsDetail() {
       </div>
     );
   }
+
   if (!event) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-white">
         <Navbar/>
         <div className="flex-grow flex items-center justify-center">
           <div className="text-2xl text-red-600">Event not found.</div>
@@ -220,20 +225,16 @@ export default function MainEventsDetail() {
     );
   }
 
-  // Compute friendly text
-  const startDateObj = parseLocalYMD(event.start_date);
+  // Compute friendly date/time
+  const sd = parseLocalYMD(event.start_date);
   const today0 = new Date(); today0.setHours(0,0,0,0);
-  const daysDiff = Math.round((startDateObj - today0)/(1000*60*60*24));
+  const daysDiff = Math.round((sd - today0)/(1000*60*60*24));
   const whenText =
     daysDiff === 0 ? 'Today' :
     daysDiff === 1 ? 'Tomorrow' :
-    startDateObj.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
-  const timeText = event.start_time
-    ? `Starts at ${formatTime(event.start_time)}`
-    : '';
-  const endTimeText = event.end_time
-    ? `Ends at ${formatTime(event.end_time)}`
-    : '';
+    sd.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
+  const timeText = event.start_time ? formatTime(event.start_time) : '';
+  const endTimeText = event.end_time ? formatTime(event.end_time) : '';
 
   return (
     <>
@@ -245,302 +246,271 @@ export default function MainEventsDetail() {
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar/>
 
-        <main className="flex-grow pt-24 pb-12 px-4">
-          <div className="mb-10">
-            <TriviaTonightBanner />
+        <main className="flex-grow">
+          {/* Hero */}
+          <div
+            className="w-full h-[40vh] bg-cover bg-center"
+            style={{ backgroundImage: `url(${event.image})` }}
+          />
+
+          {/* Overlap Card */}
+          <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform">
+            <div className="text-center space-y-4">
+              <h1 className="text-4xl font-bold">{event.name}</h1>
+              <p className="text-lg font-medium">
+                {whenText}
+                {timeText && ` — ${timeText}`}
+                {endTimeText && ` to ${endTimeText}`}
+              </p>
+              {event.address && (
+                <p>
+                  <a
+                    href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline"
+                  >
+                    {event.address}
+                  </a>
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-2">
-              {/* IMAGE */}
-              <div className="bg-gray-50 p-8 flex flex-col items-center">
-                {event.image ? (
-                  <img
-                    src={event.image}
-                    alt={event.name}
-                    className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
-                  />
-                ) : (
-                  <div className="w-full h-[240px] bg-gray-200 rounded-lg"/>
-                )}
-                <span className="mt-4 text-sm text-gray-500 self-start">
-                  Posted on {new Date(event.created_at).toLocaleDateString()}
-                </span>
-
-                {/* Admin edit/delete */}
-                {isAdmin && !isEditing && (
-                  <div className="mt-6 w-full flex flex-col space-y-3">
-                    <button
-                      onClick={()=>setIsEditing(true)}
-                      className="w-full bg-indigo-600 text-white py-2 rounded-lg"
-                    >Edit Event</button>
-                    <button
-                      onClick={handleDelete}
-                      className="w-full bg-red-600 text-white py-2 rounded-lg"
-                    >Delete Event</button>
+          {/* Content */}
+          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left: description / form / related / share / admin */}
+            <div>
+              {isEditing ? (
+                <form onSubmit={handleSave} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Name</label>
+                    <input
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      required
+                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
                   </div>
-                )}
-              </div>
-
-              {/* DETAILS or EDIT FORM */}
-              <div className="p-10">
-                {isEditing ? (
-                  <form onSubmit={handleSave} className="space-y-6">
-                    {/* Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea
+                      name="description"
+                      rows="3"
+                      value={formData.description}
+                      onChange={handleChange}
+                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Link</label>
+                    <input
+                      name="link"
+                      type="url"
+                      value={formData.link}
+                      onChange={handleChange}
+                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Address</label>
+                    <input
+                      name="address"
+                      type="text"
+                      value={formData.address}
+                      onChange={handleChange}
+                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Name</label>
+                      <label className="block text-sm font-medium text-gray-700">Start Time</label>
                       <input
-                        name="name"
-                        value={formData.name}
+                        name="start_time"
+                        type="time"
+                        value={formData.start_time}
+                        onChange={handleChange}
+                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">End Time</label>
+                      <input
+                        name="end_time"
+                        type="time"
+                        value={formData.end_time}
+                        onChange={handleChange}
+                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                      <input
+                        name="start_date"
+                        type="date"
+                        value={formData.start_date}
                         onChange={handleChange}
                         required
                         className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
-                    {/* Description */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Description</label>
-                      <textarea
-                        name="description"
-                        rows="3"
-                        value={formData.description}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    {/* Link */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Link</label>
+                      <label className="block text-sm font-medium text-gray-700">End Date</label>
                       <input
-                        name="link"
-                        type="url"
-                        value={formData.link}
+                        name="end_date"
+                        type="date"
+                        value={formData.end_date}
                         onChange={handleChange}
                         className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
-                    {/* Address */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Address</label>
-                      <input
-                        name="address"
-                        type="text"
-                        value={formData.address}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
+                  </div>
+                  <div className="flex space-x-4">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
+                    >
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  {event.description && (
+                    <div className="mb-6">
+                      <h2 className="text-2xl font-semibold text-gray-900 mb-2">Description</h2>
+                      <p className="text-gray-700 leading-relaxed">{event.description}</p>
                     </div>
-                    {/* Times */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Start Time</label>
-                        <input
-                          name="start_time"
-                          type="time"
-                          value={formData.start_time}
-                          onChange={handleChange}
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">End Time</label>
-                        <input
-                          name="end_time"
-                          type="time"
-                          value={formData.end_time}
-                          onChange={handleChange}
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus-ring-indigo-500"
-                        />
-                      </div>
+                  )}
+
+                  {relatedEvents.length > 0 && venueData && (
+                    <div className="mb-6">
+                      <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                        More at {venueData.name}
+                      </h2>
+                      <ul className="list-disc list-inside space-y-1">
+                        {relatedEvents.map(re => (
+                          <li key={re.id}>
+                            <Link
+                              to={`/${venueData.slug}/${re.slug}`}
+                              className="text-indigo-600 hover:underline"
+                            >
+                              {re.name} — {parseLocalYMD(re.start_date).toLocaleDateString()}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    {/* Dates */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                        <input
-                          name="start_date"
-                          type="date"
-                          value={formData.start_date}
-                          onChange={handleChange}
-                          required
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">End Date</label>
-                        <input
-                          name="end_date"
-                          type="date"
-                          value={formData.end_date}
-                          onChange={handleChange}
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus-ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-                    {/* Save/Cancel */}
-                    <div className="flex space-x-4">
+                  )}
+
+                  <button
+                    onClick={handleShare}
+                    className="w-full bg-green-600 text-white py-3 rounded-lg shadow hover:bg-green-700 transition mb-4"
+                  >
+                    Share
+                  </button>
+
+                  {isAdmin && (
+                    <div className="space-y-3">
                       <button
-                        type="submit"
-                        disabled={saving}
-                        className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
+                        onClick={() => setIsEditing(true)}
+                        className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition"
                       >
-                        {saving ? 'Saving…' : 'Save'}
+                        Edit Event
                       </button>
                       <button
-                        type="button"
-                        onClick={() => setIsEditing(false)}
-                        className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
+                        onClick={handleDelete}
+                        className="w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition"
                       >
-                        Cancel
+                        Delete Event
                       </button>
                     </div>
-                  </form>
-                ) : (
-                  <>
-                    <h1 className="text-3xl font-bold text-gray-900">{event.name}</h1>
-
-                    {/* When & Where */}
-                    <div className="mt-4 text-gray-700">
-                      <h2 className="text-xl font-semibold">When & Where?</h2>
-                      <p className="mt-1">
-                        {whenText}
-                        {(timeText || endTimeText) && (
-                          <>
-                            <br />
-                            {timeText}
-                            {endTimeText && <> — {endTimeText}</>}
-                          </>
-                        )}
-                      </p>
-
-                      {venueData && (
-                        <p className="mt-2">
-                          Venue:{' '}
-                          
-                            {venueData.name}
-                          {venueData.address && (
-  <p className="mt-2">
-    <a
-      href={`https://maps.google.com?q=${encodeURIComponent(venueData.address)}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-indigo-600 hover:underline"
-    >
-      {venueData.address}
-    </a>
-  </p>
-)}
-
-                          
-                        </p>
-                      )}
-
-                      {event.link && (
-                        <p className="mt-2">
-                          <a
-                            href={event.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-indigo-600 hover:underline"
-                          >
-                            Visit official event page
-                          </a>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Description */}
-                    {event.description && (
-                      <div className="mt-6">
-                        <h2 className="text-xl font-semibold">Description</h2>
-                        <p className="mt-2 text-gray-700 leading-relaxed">
-                          {event.description}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Related Events */}
-                    {relatedEvents.length > 0 && venueData && (
-                      <div className="mt-8">
-                        <h2 className="text-xl font-semibold">
-                          More at {venueData.name}
-                        </h2>
-                        <ul className="mt-2 space-y-1">
-                          {relatedEvents.map(re => (
-                            <li key={re.id}>
-                              <Link
-                                to={`/${venueData.slug}/${re.slug}`}
-                                className="text-indigo-600 hover:underline"
-                              >
-                                {re.name} — {parseLocalYMD(re.start_date).toLocaleDateString()}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+                  )}
+                </>
+              )}
             </div>
 
-            {/* Community Submissions */}
-            <section className="border-t border-gray-200 mt-8 pt-8 px-4 pb-12">
-              <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
-                Upcoming community submissions
-              </h2>
-              {communityEvents.length === 0 ? (
-                <p className="text-center text-gray-600">No upcoming submissions.</p>
+            {/* Right: image */}
+            <div>
+              {event.image ? (
+                <img
+                  src={event.image}
+                  alt={event.name}
+                  className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
+                />
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {communityEvents.map(ev => {
-                    const dt = parseLocalYMD(ev.start_date);
-                    const diff = Math.round(
-                      (dt - new Date(new Date().setHours(0,0,0,0))) /
-                      (1000*60*60*24)
-                    );
-                    const prefix =
-                      diff === 0 ? 'Today' :
-                      diff === 1 ? 'Tomorrow' :
-                      dt.toLocaleDateString('en-US',{ weekday:'long' });
-                    const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
-                    return (
-                      <Link
-                        key={ev.id}
-                        to={`/big-board/${ev.slug}`}
-                        className="bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-[1.02] overflow-hidden flex flex-col"
-                      >
-                        <div className="relative h-40 bg-gray-100">
-                          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1 z-20">
-                            COMMUNITY SUBMISSION
-                          </div>
-                          {ev.imageUrl ? (
-                            <img
-                              src={ev.imageUrl}
-                              alt={ev.title}
-                              className="w-full h-full object-cover object-center"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400">
-                              No Image
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-4 flex-1 flex flex-col justify-center text-center">
-                          <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                            {ev.title}
-                          </h3>
-                          <span className="text-sm text-gray-600">
-                            {prefix}, {md}
-                          </span>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
+                <div className="w-full h-[240px] bg-gray-200 rounded-lg" />
               )}
-            </section>
+            </div>
           </div>
+
+          {/* Community Submissions */}
+          <section className="border-t border-gray-200 mt-12 pt-8 px-4 pb-12 max-w-4xl mx-auto">
+            <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+              Upcoming Community Submissions
+            </h2>
+            {communityEvents.length === 0 ? (
+              <p className="text-center text-gray-600">No upcoming submissions.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {communityEvents.map(evb => {
+                  const dt = parseLocalYMD(evb.start_date);
+                  const diff = Math.round(
+                    (dt - new Date(new Date().setHours(0,0,0,0))) /
+                    (1000*60*60*24)
+                  );
+                  const prefix =
+                    diff === 0 ? 'Today' :
+                    diff === 1 ? 'Tomorrow' :
+                    dt.toLocaleDateString('en-US',{ weekday:'long' });
+                  const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
+                  return (
+                    <Link
+                      key={evb.id}
+                      to={`/big-board/${evb.slug}`}
+                      className="bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-[1.02] overflow-hidden flex flex-col"
+                    >
+                      <div className="relative h-40 bg-gray-100">
+                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1 z-20">
+                          COMMUNITY SUBMISSION
+                        </div>
+                        {evb.imageUrl ? (
+                          <img
+                            src={evb.imageUrl}
+                            alt={evb.title}
+                            className="w-full h-full object-cover object-center"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            No Image
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 flex-1 flex flex-col justify-center text-center">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+                          {evb.title}
+                        </h3>
+                        <span className="text-sm text-gray-600">
+                          {prefix}, {md}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </main>
 
         <Footer/>

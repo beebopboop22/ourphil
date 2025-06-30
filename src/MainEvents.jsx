@@ -24,6 +24,7 @@ import TrendingTags from './TrendingTags';
 import NewsletterSection from './NewsletterSection';
 import { Share2 } from 'lucide-react';
 import { RRule } from 'rrule';
+import TaggedEventScroller from './TaggedEventsScroller';
 
 
 // ── Helpers ───────────────────────────────
@@ -322,7 +323,10 @@ const [groupEvents, setGroupEvents] = useState([]);
 
   // Pagination state
   const [page, setPage] = useState(1);
+  const [showAllToday, setShowAllToday] = useState(false);
   const EVENTS_PER_PAGE = 24;
+
+  
 
   
 
@@ -619,31 +623,45 @@ useEffect(() => {
   const occs = recurringRaw.flatMap(series => {
     const opts = RRule.parseString(series.rrule);
     opts.dtstart = new Date(`${series.start_date}T${series.start_time}`);
-    if (series.end_date) opts.until = new Date(`${series.end_date}T23:59:59`);
+    if (series.end_date) {
+      opts.until = new Date(`${series.end_date}T23:59:59`);
+    }
     const rule = new RRule(opts);
 
+    // clone and normalize boundaries
+    const startBoundary = new Date(windowStart);
+    startBoundary.setHours(0, 0, 0, 0);
+    const endBoundary = new Date(windowEnd);
+    endBoundary.setHours(23, 59, 59, 999);
+
     return rule
-      .between(
-        new Date(windowStart.setHours(0,0,0,0)),
-        new Date(windowEnd.setHours(23,59,59,999)),
-        true
-      )
-      .map(dt => ({
-        id:         `${series.id}::${dt.toISOString().slice(0,10)}`,
-        title:      series.name,
-        slug:       series.slug,
-        description:series.description,
-        address:    series.address,
-        link:       `/${series.slug}/${dt.toISOString().slice(0,10)}`,
-        imageUrl:   series.image_url,
-        start_date: dt.toISOString().slice(0,10),
-        start_time: series.start_time,
-        isRecurring:true
-      }));
+      .between(startBoundary, endBoundary, true)
+      .map(raw => {
+        // normalize to local date (midnight) to avoid UTC offsets
+        const local = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate());
+        const yyyy = local.getFullYear();
+        const mm   = String(local.getMonth() + 1).padStart(2, '0');
+        const dd   = String(local.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+
+        return {
+          id:          `${series.id}::${dateStr}`,
+          title:       series.name,
+          slug:        series.slug,
+          description: series.description,
+          address:     series.address,
+          link:        `/${series.slug}/${dateStr}`,
+          imageUrl:    series.image_url,
+          start_date:  dateStr,
+          start_time:  series.start_time,
+          isRecurring: true
+        };
+      });
   });
 
   setRecurringOccs(occs);
 }, [recurringRaw, selectedOption, customDate, params.view]);
+
 
 
   // ── FILTER SEATGEEK GAMES ─────────────────────────────
@@ -682,6 +700,13 @@ const allPagedEvents = [
     ...groupEvents, 
     ...events
   ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+
+  const fullCount = allPagedEvents.length
+
+  let toShow = allPagedEvents;
+if (selectedOption === 'today' && !showAllToday) {
+  toShow = allPagedEvents.slice(0, 4);
+}
 
   useEffect(() => {
     if (!allPagedEvents.length) return;
@@ -805,23 +830,23 @@ if (!loading) {
 const traditionsCount = traditionEvents.length;
 
 // after you’ve calculated headerDateStr and traditionsCount…
-
-let headerText;
+let headerText
 if (loading) {
-  headerText = 'Loading…';
-} else if (!totalCount) {
-  headerText = 'No events found';
+  headerText = 'Loading…'
+} else if (fullCount === 0) {
+  headerText = 'No events found'
 } else {
   // base string: either “on DATE” or “this weekend”
   const base = selectedOption === 'weekend'
-    ? `${totalCount} event${totalCount > 1 ? 's' : ''} this weekend`
-    : `${totalCount} event${totalCount > 1 ? 's' : ''} on ${headerDateStr}`;
+    ? `${fullCount} event${fullCount > 1 ? 's' : ''} this weekend`
+    : `${fullCount} event${fullCount > 1 ? 's' : ''} on ${headerDateStr}`
 
   // append traditions if any
   headerText = traditionsCount
-    ? `${base}, including ${traditionsCount} tradition${traditionsCount > 1 ? 's' : ''}!`
-    : base;
+    ? `${base}, including ${traditionsCount} Philly tradition${traditionsCount > 1 ? 's' : ''}!`
+    : base
 }
+
 
 
     let pageTitle;
@@ -956,140 +981,155 @@ if (loading) {
             </div>
       
             <main className="container mx-auto px-4 py-8">
-              <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
-                {headerText}
-              </h2>
-      
-              {!loading && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                  {allPagedEvents.map(evt => {
-                    const today = new Date(); today.setHours(0,0,0,0)
-                    const now = new Date()
-                    const startDate = evt.isTradition
-                      ? evt.start
-                      : parseISODateLocal(evt.start_date)
-      
-                    const isToday = startDate.getTime() === today.getTime()
-                    const diffDays = Math.ceil((startDate - now) / (1000*60*60*24))
-                    const bubbleLabel = isToday
-                      ? 'Today'
-                      : diffDays === 1
-                      ? 'Tomorrow'
-                      : startDate.toLocaleDateString('en-US',{ month:'short', day:'numeric' })
-      
-                    const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : ''
-      
-                    const isExternal = evt.isSports;
-                      const Wrapper    = isExternal ? 'a' : Link;
+  <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
+    {headerText}
+  </h2>
 
-                      const linkProps = isExternal
-                        ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
-                        : evt.isRecurring
-                          ? { to: `/series/${evt.slug}/${evt.start_date}` }                               // ← handle recurring here
-                          : evt.isTradition
-                            ? { to: `/events/${evt.slug}` }
-                            : evt.isBigBoard
-                              ? { to: `/big-board/${evt.slug}` }
-                              : evt.venues?.slug && evt.slug
-                                ? { to: `/${evt.venues.slug}/${evt.slug}` }
-                                : { to: '/' };
-      
-                    const tags = tagMap[evt.id] || []
-                    const shown = tags.slice(0,2)
-                    const extra = tags.length - shown.length
-      
-                    return (
-                      <Wrapper
-                        key={evt.id}
-                        {...linkProps}
-                        className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col"
-                      >
-                        {/* IMAGE + BUBBLE + BADGES */}
-                        <div className="relative w-full h-48">
-                          <img
-                            src={evt.imageUrl || evt.image || ''}
-                            alt={evt.title || evt.name}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
-                            {bubbleLabel}{bubbleTime}
-                          </div>
-                          {evt.isBigBoard && (
-                            <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
-                              Submission
-                            </div>
-                          )}
-                          {evt.isTradition && (
-                            <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
-                              Tradition
-                            </div>
-                          )}
-                        </div>
-      
-                        {/* FOOTER */}
-<div className="p-4 flex-1 flex flex-col justify-between items-center text-center">
-  <div>
-    <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">
-      {evt.title || evt.name}
-    </h3>
-    {evt.venues?.name && (
-      <p className="text-sm text-gray-600">
-        at {evt.venues.name}
-      </p>
-    )}
-  </div>
+  {!loading && (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+        {toShow.map(evt => {
+          const today = new Date(); today.setHours(0,0,0,0);
+          const now = new Date();
+          const startDate = evt.isTradition
+            ? evt.start
+            : parseISODateLocal(evt.start_date);
 
-  <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
-    {shown.map((tag, i) => (
-      <Link
-        key={tag.slug}
-        to={`/tags/${tag.slug}`}
-        className={`
-          ${pillStyles[i % pillStyles.length]}
-          text-[0.6rem] sm:text-sm
-          px-2 sm:px-3
-          py-1 sm:py-2
-          rounded-full font-semibold
-        `}
-      >
-        #{tag.name}
-      </Link>
-    ))}
-    {extra > 0 && (
-      <span className="text-[0.6rem] sm:text-sm text-gray-600">
-        +{extra} more
-      </span>
-    )}
-  </div>
-</div>
+          const isToday = startDate.getTime() === today.getTime();
+          const diffDays = Math.ceil((startDate - now) / (1000*60*60*24));
+          const bubbleLabel = isToday
+            ? 'Today'
+            : diffDays === 1
+            ? 'Tomorrow'
+            : startDate.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
 
-                      </Wrapper>
-                    )
-                  })}
+          const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : '';
+
+          const isExternal = evt.isSports;
+          const Wrapper    = isExternal ? 'a' : Link;
+          const linkProps = isExternal
+            ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
+            : evt.isRecurring
+              ? { to: `/series/${evt.slug}/${evt.start_date}` }
+              : evt.isTradition
+                ? { to: `/events/${evt.slug}` }
+                : evt.isBigBoard
+                  ? { to: `/big-board/${evt.slug}` }
+                  : evt.venues?.slug && evt.slug
+                    ? { to: `/${evt.venues.slug}/${evt.slug}` }
+                    : { to: '/' };
+
+          const tags = tagMap[evt.id] || [];
+          const shown = tags.slice(0,2);
+          const extra = tags.length - shown.length;
+
+          return (
+            <Wrapper
+              key={evt.id}
+              {...linkProps}
+              className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col"
+            >
+              {/* IMAGE + BUBBLE + BADGES */}
+              <div className="relative w-full h-48">
+                <img
+                  src={evt.imageUrl || evt.image || ''}
+                  alt={evt.title || evt.name}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
+                  {bubbleLabel}{bubbleTime}
                 </div>
-              )}
-      
-              {!loading && pageCount > 1 && (
-                <div className="flex justify-center mt-6 space-x-2">
-                  {[...Array(pageCount)].map((_,i) => (
-                    <button
-                      key={i}
-                      onClick={() => setPage(i+1)}
-                      className={`px-4 py-2 rounded-full border ${
-                        page === i+1
-                          ? 'bg-[#28313e] text-white'
-                          : 'bg-white text-[#28313e] border-[#28313e] hover:bg-[#28313e] hover:text-white'
-                      } font-semibold transition`}
+                {evt.isBigBoard && (
+                  <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
+                    Submission
+                  </div>
+                )}
+                {evt.isTradition && (
+                  <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
+                    Tradition
+                  </div>
+                )}
+              </div>
+
+              {/* FOOTER */}
+              <div className="p-4 flex-1 flex flex-col justify-between items-center text-center">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">
+                    {evt.title || evt.name}
+                  </h3>
+                  {evt.venues?.name && (
+                    <p className="text-sm text-gray-600">
+                      at {evt.venues.name}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
+                  {shown.map((tag, i) => (
+                    <Link
+                      key={tag.slug}
+                      to={`/tags/${tag.slug}`}
+                      className={`
+                        ${pillStyles[i % pillStyles.length]}
+                        text-[0.6rem] sm:text-sm
+                        px-2 sm:px-3
+                        py-1 sm:py-2
+                        rounded-full font-semibold
+                      `}
                     >
-                      {i+1}
-                    </button>
+                      #{tag.name}
+                    </Link>
                   ))}
+                  {extra > 0 && (
+                    <span className="text-[0.6rem] sm:text-sm text-gray-600">
+                      +{extra} more
+                    </span>
+                  )}
                 </div>
-              )}
-            </main>
+              </div>
+            </Wrapper>
+          );
+        })}
+      </div>
+
+      {selectedOption === 'today' && !showAllToday && allPagedEvents.length > 4 && (
+        <div className="flex justify-center mt-6">
+          <button
+            onClick={() => setShowAllToday(true)}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition"
+          >
+            See all {allPagedEvents.length} events →
+          </button>
+        </div>
+      )}
+    </>
+  )}
+
+  {!loading && pageCount > 1 && (
+    <div className="flex justify-center mt-6 space-x-2">
+      {[...Array(pageCount)].map((_, i) => (
+        <button
+          key={i}
+          onClick={() => setPage(i+1)}
+          className={`px-4 py-2 rounded-full border ${
+            page === i+1
+              ? 'bg-[#28313e] text-white'
+              : 'bg-white text-[#28313e] border-[#28313e] hover:bg-[#28313e] hover:text-white'
+          } font-semibold transition`}
+        >
+          {i+1}
+        </button>
+      ))}
+    </div>
+  )}
+</main>
+
       
             {/* ─── Recent Activity ─── */}
             <RecentActivity />
+            <TaggedEventScroller tags={['arts']}  header="#Arts Coming Soon"/>
+            <TaggedEventScroller tags={['nomnomslurp']}  header="#NomNomSlurp Next Up"/>
+
       
             {/* ─── Hero Banner ─── */}
             <HeroLanding />

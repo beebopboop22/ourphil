@@ -20,6 +20,9 @@ export default function BigBoardEventPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Siblings for prev/next
+  const [siblings, setSiblings] = useState([]);
+
   // Mapbox geocoding
   const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
   const suggestRef = useRef(null);
@@ -133,6 +136,19 @@ export default function BigBoardEventPage() {
     })();
   }, [slug]);
 
+  // Fetch siblings same-day
+  useEffect(() => {
+    if (!event) return;
+    (async () => {
+      const { data } = await supabase
+        .from('big_board_events')
+        .select('slug,title,start_time')
+        .eq('start_date', event.start_date)
+        .order('start_time',{ ascending: true });
+      setSiblings(data || []);
+    })();
+  }, [event]);
+
   // Fetch more community submissions
   useEffect(() => {
     if (!event) return;
@@ -211,7 +227,7 @@ export default function BigBoardEventPage() {
     setFormData(fd => ({ ...fd, [name]: value }));
   };
 
-  // Address suggestions effect (only in edit mode)
+  // Address suggestions effect
   useEffect(() => {
     if (!isEditing) return;
     const addr = formData.address?.trim();
@@ -228,7 +244,6 @@ export default function BigBoardEventPage() {
       )
         .then(r => r.json())
         .then(json => {
-          console.log('🗺️ suggestions:', json.features);
           setAddressSuggestions(json.features || []);
         })
         .catch(console.error);
@@ -240,7 +255,6 @@ export default function BigBoardEventPage() {
   function pickSuggestion(feat) {
     setFormData(fd => ({ ...fd, address: feat.place_name }));
     setAddressSuggestions([]);
-    // focus back to input
     suggestRef.current?.focus();
   }
 
@@ -305,8 +319,8 @@ export default function BigBoardEventPage() {
     }
   };
 
-  if (loading)   return <div className="py-20 text-center">Loading…</div>;
-  if (error)     return <div className="py-20 text-center text-red-600">{error}</div>;
+  if (loading) return <div className="py-20 text-center">Loading…</div>;
+  if (error) return <div className="py-20 text-center text-red-600">{error}</div>;
 
   // Compute whenText
   const startDateObj = parseLocalYMD(event.start_date);
@@ -320,6 +334,11 @@ export default function BigBoardEventPage() {
   const rawDesc = event.description || '';
   const metaDesc = rawDesc.length > 155 ? rawDesc.slice(0,152) + '…' : rawDesc;
 
+  // Prev/Next logic
+  const currentIndex = siblings.findIndex(e => e.slug === slug);
+  const prev = siblings.length ? siblings[(currentIndex - 1 + siblings.length) % siblings.length] : null;
+  const next = siblings.length ? siblings[(currentIndex + 1) % siblings.length] : null;
+
   return (
     <>
       <Helmet>
@@ -331,346 +350,398 @@ export default function BigBoardEventPage() {
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar />
 
-        <main className="flex-grow pt-24 pb-12 px-4">
-          <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-2">
-              {/* Image & Actions */}
-              <div className="bg-gray-50 p-8 flex flex-col items-center space-y-4">
-                <img
-                  src={event.imageUrl}
-                  alt={event.title}
-                  className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
-                />
-                <span className="text-sm text-gray-500 self-start">
-                  Posted on {new Date(event.created_at).toLocaleDateString()}
-                </span>
-                <button
-                  onClick={handleShare}
-                  className="w-full bg-green-600 text-white py-2 rounded-full shadow hover:bg-green-700 transition"
-                >
-                  Share
-                </button>
-                {event.owner_id === user?.id && !isEditing && (
-                  <div className="mt-6 w-full flex flex-col space-y-2">
-                    <button
-                      onClick={startEditing}
-                      className="w-full bg-indigo-600 text-white py-2 rounded-lg"
-                    >
-                      Edit Event
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="w-full bg-red-600 text-white py-2 rounded-lg"
-                    >
-                      Delete Event
-                    </button>
-                  </div>
-                )}
-              </div>
+        <main className="flex-grow relative">
+          {/* Hero banner */}
+          <div
+            className="w-full h-[40vh] bg-cover bg-center"
+            style={{ backgroundImage: `url(${event.imageUrl})` }}
+          />
 
-              {/* Details / Edit Form */}
-              <div className="p-10">
-                {isEditing ? (
-                  <form onSubmit={handleSave} className="space-y-6">
-                    {/* Title */}
+          
+
+          {/* Overlapping centered card */}
+          <div className="relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform z-10">
+          {prev && (
+    <button
+      onClick={() => navigate(`/big-board/${prev.slug}`)}
+      className="absolute top-1/2 left-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
+    >
+      ←
+    </button>
+  )}
+  {next && (
+    <button
+      onClick={() => navigate(`/big-board/${next.slug}`)}
+      className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
+    >
+      →
+    </button>
+  )}
+            <div className="text-center space-y-4">
+              <h1 className="text-4xl font-bold">{event.title}</h1>
+
+              <p className="text-lg font-medium">
+                {whenText}
+                {event.start_time && ` — ${formatTime(event.start_time)}`}
+                {event.address && (
+                  <> • <a
+                    href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline"
+                  >
+                    {event.address}
+                  </a></>
+                )}
+              </p>
+
+              <div className="flex flex-wrap justify-center gap-3">
+                {tagsList
+                  .filter(t => selectedTags.includes(t.id))
+                  .map((tag, i) => (
+                    <Link
+                      key={tag.id}
+                      to={`/tags/${tag.name.toLowerCase()}`}
+                      className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-lg font-semibold`}
+                    >
+                      #{tag.name}
+                    </Link>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Description, full image, More Info, and bottom buttons */}
+          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left: description / form / More Info */}
+            <div>
+              {isEditing ? (
+                <form onSubmit={handleSave} className="space-y-6">
+                  {/* Title */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Title</label>
+                    <input
+                      name="title"
+                      value={formData.title}
+                      onChange={handleChange}
+                      required
+                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea
+                      name="description"
+                      rows="3"
+                      value={formData.description}
+                      onChange={handleChange}
+                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  {/* Address */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <input
+                      name="address"
+                      type="text"
+                      autoComplete="off"
+                      ref={suggestRef}
+                      value={formData.address}
+                      onChange={handleChange}
+                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Start typing an address…"
+                    />
+                    {addressSuggestions.length > 0 && (
+                      <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
+                        {addressSuggestions.map(feat => (
+                          <li
+                            key={feat.id}
+                            onClick={() => pickSuggestion(feat)}
+                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          >
+                            {feat.place_name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {/* Times */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Title</label>
+                      <label className="block text-sm font-medium text-gray-700">Start Time</label>
                       <input
-                        name="title"
-                        value={formData.title}
+                        name="start_time"
+                        type="time"
+                        value={formData.start_time}
+                        onChange={handleChange}
+                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">End Time</label>
+                      <input
+                        name="end_time"
+                        type="time"
+                        value={formData.end_time}
+                        onChange={handleChange}
+                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  {/* Dates */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                      <input
+                        name="start_date"
+                        type="date"
+                        value={formData.start_date}
                         onChange={handleChange}
                         required
                         className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
-
-                    {/* Description */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Description</label>
-                      <textarea
-                        name="description"
-                        rows="3"
-                        value={formData.description}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-
-                    {/* Address */}
-                    <div className="relative">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                      <label className="block text-sm font-medium text-gray-700">End Date</label>
                       <input
-                        name="address"
-                        type="text"
-                        autoComplete="off"
-                        ref={suggestRef}
-                        value={formData.address}
+                        name="end_date"
+                        type="date"
+                        value={formData.end_date}
                         onChange={handleChange}
                         className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Start typing an address…"
                       />
-                      {addressSuggestions.length > 0 && (
-                        <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
-                          {addressSuggestions.map(feat => (
-                            <li
-                              key={feat.id}
-                              onClick={() => pickSuggestion(feat)}
-                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                            >
-                              {feat.place_name}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
                     </div>
-
-                    {/* Times */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Start Time</label>
-                        <input
-                          name="start_time"
-                          type="time"
-                          value={formData.start_time}
-                          onChange={handleChange}
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">End Time</label>
-                        <input
-                          name="end_time"
-                          type="time"
-                          value={formData.end_time}
-                          onChange={handleChange}
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Dates */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                        <input
-                          name="start_date"
-                          type="date"
-                          value={formData.start_date}
-                          onChange={handleChange}
-                          required
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">End Date</label>
-                        <input
-                          name="end_date"
-                          type="date"
-                          value={formData.end_date}
-                          onChange={handleChange}
-                          className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Tags */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
-                      <div className="flex flex-wrap gap-3">
-                        {tagsList.map((tagOpt, i) => {
-                          const isSel = selectedTags.includes(tagOpt.id);
-                          return (
-                            <button
-                              key={tagOpt.id}
-                              type="button"
-                              onClick={() =>
-                                setSelectedTags(prev =>
-                                  isSel
-                                    ? prev.filter(x => x !== tagOpt.id)
-                                    : [...prev, tagOpt.id]
-                                )
-                              }
-                              className={`${
+                  </div>
+                  {/* Tags */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                    <div className="flex flex-wrap gap-3">
+                      {tagsList.map((tagOpt, i) => {
+                        const isSel = selectedTags.includes(tagOpt.id);
+                        return (
+                          <button
+                            key={tagOpt.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedTags(prev =>
                                 isSel
-                                  ? pillStyles[i % pillStyles.length]
-                                  : 'bg-gray-200 text-gray-700'
-                              } px-4 py-2 rounded-full text-sm font-semibold`}
-                            >
-                              {tagOpt.name}
-                            </button>
-                          );
-                        })}
+                                  ? prev.filter(x => x !== tagOpt.id)
+                                  : [...prev, tagOpt.id]
+                              )
+                            }
+                            className={`${
+                              isSel
+                                ? pillStyles[i % pillStyles.length]
+                                : 'bg-gray-200 text-gray-700'
+                            } px-4 py-2 rounded-full text-sm font-semibold`}
+                          >
+                            {tagOpt.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* Save / Cancel */}
+                  <div className="flex space-x-4">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
+                    >
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  {event.description && (
+                    <div className="mb-6">
+                      <h2 className="text-2xl font-semibold text-gray-900 mb-2">Description</h2>
+                      <p className="text-gray-700">{event.description}</p>
+                    </div>
+                  )}
+                  {event.link && (
+                    <div className="mb-6">
+                      {/* Full-width “More Info” button */}
+<a
+  href={event.link}
+  target="_blank"
+  rel="noopener noreferrer"
+  role="button"
+  className={`
+    block w-full
+    px-6 py-3
+    rounded-md
+    text-center
+    bg-indigo-600 text-white
+    text-base font-medium
+    shadow-sm
+    hover:bg-indigo-700
+    focus:outline-none focus:ring-2 focus:ring-indigo-500
+    active:scale-95
+    transition duration-150 ease-in-out
+    disabled:opacity-40 disabled:cursor-not-allowed
+    mb-4
+  `}
+>
+  Event Page
+</a>
+
+                    </div>
+                  )}
+
+                  {/* Inline Share / Edit / Delete down here */}
+                  <div className="mt-6 flex justify-center space-x-4">
+                    {/* Full-width “Share” button */}
+<button
+  onClick={handleShare}
+  className={`
+    block w-full
+    px-6 py-3
+    rounded-md
+    bg-green-600 text-white
+    text-base font-medium
+    shadow-sm
+    hover:bg-green-700
+    focus:outline-none focus:ring-2 focus:ring-green-500
+    active:scale-95
+    transition duration-150 ease-in-out
+    disabled:opacity-40 disabled:cursor-not-allowed
+    mb-4
+  `}
+>
+  Share
+</button>
+
+{/* If the user owns the event, show full-width Edit & Delete */}
+{event.owner_id === user?.id && (
+  <>
+    <button
+      onClick={startEditing}
+      className={`
+        block w-full
+        px-6 py-3
+        rounded-md
+        bg-indigo-600 text-white
+        text-base font-medium
+        shadow-sm
+        hover:bg-indigo-700
+        focus:outline-none focus:ring-2 focus:ring-indigo-500
+        active:scale-95
+        transition duration-150 ease-in-out
+        mb-4
+      `}
+    >
+      Edit
+    </button>
+    <button
+      onClick={handleDelete}
+      className={`
+        block w-full
+        px-6 py-3
+        rounded-md
+        bg-red-600 text-white
+        text-base font-medium
+        shadow-sm
+        hover:bg-red-700
+        focus:outline-none focus:ring-2 focus:ring-red-500
+        active:scale-95
+        transition duration-150 ease-in-out
+        mb-4
+      `}
+    >
+      Delete
+    </button>
+  </>
+)}
+                  </div>
+
+                  <div className="mt-6 text-center">
+                    <Link to="/" className="text-indigo-600 hover:underline font-medium">
+                      ← Back to Events
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Right: full image */}
+            <div>
+              <img
+                src={event.imageUrl}
+                alt={event.title}
+                className="w-full h-auto rounded-lg shadow-lg max-h-[60vh]"
+              />
+            </div>
+          </div>
+
+          {/* More Upcoming Community Submissions */}
+          <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">
+            <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+              More Upcoming Community Submissions
+            </h2>
+            {loadingMore ? (
+              <p className="text-center text-gray-500">Loading…</p>
+            ) : moreEvents.length === 0 ? (
+              <p className="text-center text-gray-600">No upcoming submissions.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {moreEvents.map(ev => {
+                  const dt = parseLocalYMD(ev.start_date);
+                  const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
+                  const prefix =
+                    diff === 0 ? 'Today' :
+                    diff === 1 ? 'Tomorrow' :
+                    dt.toLocaleDateString('en-US',{ weekday:'long' });
+                  const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
+                  return (
+                    <Link
+                      key={ev.id}
+                      to={`/big-board/${ev.slug}`}
+                      className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
+                    >
+                      <div className="relative h-40 bg-gray-100">
+                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
+                          COMMUNITY SUBMISSION
+                        </div>
+                        <img
+                          src={ev.imageUrl}
+                          alt={ev.title}
+                          className="w-full h-full object-cover object-center"
+                        />
                       </div>
-                    </div>
-
-                    {/* Save / Cancel */}
-                    <div className="flex space-x-4">
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
-                      >
-                        {saving ? 'Saving…' : 'Save'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditing(false)}
-                        className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    <h1 className="text-3xl font-bold text-gray-900">{event.title}</h1>
-
-                    {/* When & Where */}
-                    <div className="mt-4 text-gray-700">
-                      <h2 className="text-xl font-semibold">When & Where?</h2>
-                      <p className="mt-1">
-                        {whenText}
-                        {event.start_time && ` — ${formatTime(event.start_time)}`}
-                      </p>
-                      <p className="mt-1">
-                        {event.address
-                          ? (
-                            <a
-                              href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-indigo-600 hover:underline"
-                            >
-                              {event.address}
-                            </a>
-                          )
-                          : <span className="text-gray-500 italic">No location specified</span>
-                        }
-                      </p>
-                    </div>
-
-                    {/* Description */}
-                    {event.description && (
-                      <div className="mt-6">
-                        <h2 className="text-xl font-semibold">Description</h2>
-                        <p className="mt-2 text-gray-700">{event.description}</p>
-                      </div>
-                    )}
-
-                    {/* Tags */}
-                    {selectedTags.length > 0 && (
-                      <div className="mt-4">
-                        <h2 className="text-lg font-semibold text-gray-800">Tags</h2>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {tagsList
-                            .filter(t => selectedTags.includes(t.id))
-                            .map((tag, i) => (
+                      <div className="p-4 flex-1 flex flex-col justify-between text-center">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+                          {ev.title}
+                        </h3>
+                        <span className="text-sm text-gray-600">{prefix}, {md}</span>
+                        {!!moreTagMap[ev.id]?.length && (
+                          <div className="mt-2 flex flex-wrap justify-center space-x-1">
+                            {moreTagMap[ev.id].map((tag, i) => (
                               <Link
-                                key={tag.id}
-                                to={`/tags/${tag.name.toLowerCase()}`}
-                                className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                                key={tag.slug}
+                                to={`/tags/${tag.slug}`}
+                                className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
                               >
                                 #{tag.name}
                               </Link>
                             ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* More Info */}
-                    {event.link && (
-                      <div className="mt-6">
-                        <h2 className="text-xl font-semibold">More Info</h2>
-                        <a
-                          href={event.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-600 hover:underline"
-                        >
-                          {event.link}
-                        </a>
-                      </div>
-                    )}
-
-                    {/* Back */}
-                    <div className="mt-10">
-                      <Link to="/" className="text-indigo-600 hover:underline">
-                        ← Back to Events
-                      </Link>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Trivia Banner */}
-            <div className="mt-8 mb-6 px-8">
-              <TriviaTonightBanner />
-            </div>
-
-            {/* More Upcoming */}
-            <div className="border-t border-gray-200 mt-12 pt-8 px-8 pb-12">
-              <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
-                More Upcoming Community Submissions
-              </h2>
-              {loadingMore ? (
-                <p className="text-center text-gray-500">Loading…</p>
-              ) : moreEvents.length === 0 ? (
-                <p className="text-center text-gray-600">No upcoming submissions.</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {moreEvents.map(ev => {
-                    const dt = parseLocalYMD(ev.start_date);
-                    const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
-                    const prefix = diff === 0
-                      ? 'Today'
-                      : diff === 1
-                      ? 'Tomorrow'
-                      : dt.toLocaleDateString('en-US',{ weekday:'long' });
-                    const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
-                    return (
-                      <Link
-                        key={ev.id}
-                        to={`/big-board/${ev.slug}`}
-                        className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
-                      >
-                        <div className="relative h-40 bg-gray-100">
-                          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
-                            COMMUNITY SUBMISSION
                           </div>
-                          <img
-                            src={ev.imageUrl}
-                            alt={ev.title}
-                            className="w-full h-full object-cover object-center"
-                          />
-                        </div>
-                        <div className="p-4 flex-1 flex flex-col justify-between text-center">
-                          <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                            {ev.title}
-                          </h3>
-                          <span className="text-sm text-gray-600">
-                            {prefix}, {md}
-                          </span>
-                          {!!moreTagMap[ev.id]?.length && (
-                            <div className="mt-2 flex flex-wrap justify-center space-x-1">
-                              {moreTagMap[ev.id].map((tag, i) => (
-                                <Link
-                                  key={tag.slug}
-                                  to={`/tags/${tag.slug}`}
-                                  className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
-                                >
-                                  #{tag.name}
-                                </Link>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </main>
 
