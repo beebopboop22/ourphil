@@ -10,10 +10,13 @@ import { AuthContext } from './AuthProvider';
 export default function PostFlyerModal({ isOpen, onClose }) {
   const { user } = useContext(AuthContext);
   const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  const sessionToken = useRef(crypto.randomUUID());
+  const skipNextFetch = useRef(false);
+
   const [step, setStep] = useState(1);
   const totalSteps = 5;
 
-  // ── Form state ──────────────────────────────────────────────
+  // ── Form state ─────────────────────────
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -79,48 +82,81 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     setEndTime('');
     setAddress('');
     setSuggestions([]);
+    if (suggestRef.current) suggestRef.current.blur();
     setLat(null);
     setLng(null);
     setSelectedTags([]);
     setUploading(false);
     setConfirmationUrl('');
     setStep(1);
+    sessionToken.current = crypto.randomUUID();
+    skipNextFetch.current = false;
   }
 
-  // ── Debounced geocoding ──────────────────────────────────────────────
-useEffect(() => {
+  // ── Debounced Mapbox “suggest” ───────────────
+  useEffect(() => {
+    // if we just picked a suggestion, skip this fetch cycle
+    if (skipNextFetch.current) {
+      skipNextFetch.current = false;
+      return;
+    }
+
     if (!address.trim()) {
       setSuggestions([]);
       return;
     }
+
     const timeout = setTimeout(() => {
       fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/` +
-        `${encodeURIComponent(address)}.json?access_token=${geocoderToken}` +
-        `&autocomplete=true&limit=5&types=address,place`
+        `https://api.mapbox.com/search/searchbox/v1/suggest` +
+        `?q=${encodeURIComponent(address)}` +
+        `&access_token=${geocoderToken}` +
+        `&session_token=${sessionToken.current}` +
+        `&limit=5` +
+        `&proximity=-75.1652,39.9526` +            // bias to Philly center
+        `&bbox=-75.2803,39.8670,-74.9558,40.1379`  // restrict to Philly bbox
       )
         .then(r => r.json())
-        .then(json => setSuggestions(json.features || []))
+        .then(json => setSuggestions(json.suggestions || []))
         .catch(console.error);
     }, 300);
-    return () => clearTimeout(timeout);
-  }, [address]);
-  
-  
 
+    return () => clearTimeout(timeout);
+  }, [address, geocoderToken]);
+
+  // ── On select suggestion → retrieve full feature ───
   function pickSuggestion(feat) {
-    setAddress(feat.place_name);
-    setLat(feat.center[1]);
-    setLng(feat.center[0]);
+    // prevent the next suggest() call
+    skipNextFetch.current = true;
+
+    fetch(
+      `https://api.mapbox.com/search/searchbox/v1/retrieve/${feat.mapbox_id}` +
+      `?access_token=${geocoderToken}` +
+      `&session_token=${sessionToken.current}`
+    )
+      .then(r => r.json())
+      .then(json => {
+        const feature = json.features?.[0];
+        if (feature) {
+          const name = feature.properties.name_preferred || feature.properties.name;
+          const context = feature.properties.place_formatted;
+          setAddress(`${name}, ${context}`);
+          const [lng_, lat_] = feature.geometry.coordinates;
+          setLat(lat_);
+          setLng(lng_);
+        }
+      })
+      .catch(console.error);
+
     setSuggestions([]);
+    if (suggestRef.current) suggestRef.current.blur();
   }
 
   function canProceed() {
     switch (step) {
       case 1: return Boolean(selectedFile);
       case 2: return Boolean(title.trim());
-      // now optional: always allow through step 3
-      case 3: return true;
+      case 3: return true;                  // location optional
       case 4: return Boolean(startDate);
       case 5: return true;
       default: return false;
@@ -153,22 +189,23 @@ useEffect(() => {
       const slug = `${base}-${Date.now()}`;
 
       // 4) Event insert
+      const payload = {
+        post_id:    postId,
+        title,
+        description: description || null,
+        link:        link || null,
+        start_date:  startDate.toISOString().split('T')[0],
+        end_date:    (endDate || startDate).toISOString().split('T')[0],
+        start_time:  startTime || null,
+        end_time:    endTime   || null,
+        address:     address   || null,
+        latitude:    lat,
+        longitude:   lng,
+        slug,
+      };
       const { data: ev } = await supabase
         .from('big_board_events')
-        .insert({
-          post_id: postId,
-          title,
-          description: description || null,
-          link: link || null,
-          start_date: startDate.toISOString().split('T')[0],
-          end_date: (endDate || startDate).toISOString().split('T')[0],
-          start_time: startTime || null,
-          end_time: endTime || null,
-          address: address || null,
-          latitude: lat,
-          longitude: lng,
-          slug
-        })
+        .insert(payload)
         .select('id')
         .single();
       const eventId = ev.id;
@@ -182,7 +219,9 @@ useEffect(() => {
       // 6) Taggings
       if (selectedTags.length) {
         const taggings = selectedTags.map(tag_id => ({
-          tag_id, taggable_type: 'big_board_events', taggable_id: eventId
+          tag_id,
+          taggable_type: 'big_board_events',
+          taggable_id:   eventId,
         }));
         await supabase.from('taggings').insert(taggings);
       }
@@ -211,7 +250,7 @@ useEffect(() => {
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-white rounded-lg shadow-lg mx-4 max-w-full md:max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8 relative"
+            className="bg-white rounded-lg shadow-lg mx-4 max-w-full md:max-w-2xl w-full max-h-[95vh] overflow-y-auto p-8 relative"
             initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }}
           >
             <button
@@ -242,7 +281,7 @@ useEffect(() => {
               </div>
             ) : (
               <div>
-                {/* Step 1: Flyer */}
+                {/* Step 1 */}
                 {step === 1 && (
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700">
@@ -264,7 +303,7 @@ useEffect(() => {
                   </div>
                 )}
 
-                {/* Step 2: Title & Description */}
+                {/* Step 2 */}
                 {step === 2 && (
                   <div className="mb-6 space-y-4">
                     <div>
@@ -272,7 +311,8 @@ useEffect(() => {
                         Title <span className="text-xs font-normal">(required)</span>
                       </label>
                       <input
-                        type="text" value={title}
+                        type="text"
+                        value={title}
                         onChange={e => setTitle(e.target.value)}
                         disabled={uploading}
                         className="w-full border p-2 rounded mt-1"
@@ -283,7 +323,8 @@ useEffect(() => {
                         Why should we go? <span className="text-xs font-normal">(optional)</span>
                       </label>
                       <textarea
-                        rows={3} value={description}
+                        rows={3}
+                        value={description}
                         onChange={e => setDescription(e.target.value)}
                         disabled={uploading}
                         className="w-full border p-2 rounded mt-1"
@@ -292,7 +333,7 @@ useEffect(() => {
                   </div>
                 )}
 
-                {/* Step 3: Location (now optional) */}
+                {/* Step 3 */}
                 {step === 3 && (
                   <div className="mb-6 relative">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -304,18 +345,18 @@ useEffect(() => {
                       onChange={e => setAddress(e.target.value)}
                       disabled={uploading}
                       className="w-full border p-2 rounded"
-                      placeholder="Search address..."
+                      placeholder="Search place or address"
                       ref={suggestRef}
                     />
                     {suggestions.length > 0 && (
                       <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
                         {suggestions.map(feat => (
                           <li
-                            key={feat.id}
+                            key={feat.mapbox_id}
                             onClick={() => pickSuggestion(feat)}
                             className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
                           >
-                            {feat.place_name}
+                            {feat.name} — {feat.full_address || feat.place_formatted}
                           </li>
                         ))}
                       </ul>
@@ -323,7 +364,7 @@ useEffect(() => {
                   </div>
                 )}
 
-                {/* Step 4: Link, Dates & Times */}
+                {/* Step 4 */}
                 {step === 4 && (
                   <div className="mb-6 space-y-4">
                     <div>
@@ -331,7 +372,8 @@ useEffect(() => {
                         Link <span className="text-xs font-normal">(optional)</span>
                       </label>
                       <input
-                        type="url" value={link}
+                        type="url"
+                        value={link}
                         onChange={e => setLink(e.target.value)}
                         disabled={uploading}
                         placeholder="https://example.com"
@@ -391,7 +433,7 @@ useEffect(() => {
                   </div>
                 )}
 
-                {/* Step 5: Tags */}
+                {/* Step 5 */}
                 {step === 5 && (
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -439,7 +481,7 @@ useEffect(() => {
                   </div>
                 </div>
 
-                {/* Navigation buttons */}
+                {/* Navigation */}
                 <div className="flex justify-between">
                   <button
                     onClick={handleBack}
