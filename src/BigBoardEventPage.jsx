@@ -23,8 +23,9 @@ export default function BigBoardEventPage() {
   // Siblings for prev/next
   const [siblings, setSiblings] = useState([]);
 
-  // Mapbox geocoding
+  // Mapbox Search Box setup
   const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  const sessionToken = useRef(crypto.randomUUID());
   const suggestRef = useRef(null);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
 
@@ -38,7 +39,9 @@ export default function BigBoardEventPage() {
     end_date: '',
     start_time: '',
     end_time: '',
-    address: ''
+    address: '',
+    latitude: null,
+    longitude: null,
   });
   const [saving, setSaving] = useState(false);
 
@@ -69,26 +72,29 @@ export default function BigBoardEventPage() {
   }
   function formatTime(timeStr) {
     if (!timeStr) return '';
-    const [h, m] = timeStr.split(':');
-    let hour = parseInt(h, 10);
-    const min = (m || '00').padStart(2, '0');
-    const ampm = hour >= 12 ? 'p.m.' : 'a.m.';
-    hour = hour % 12 || 12;
-    return `${hour}:${min} ${ampm}`;
+    let [h, m] = timeStr.split(':');
+    h = parseInt(h, 10);
+    m = (m || '00').padStart(2, '0');
+    const ampm = h >= 12 ? 'p.m.' : 'a.m.';
+    h = h % 12 || 12;
+    return `${h}:${m} ${ampm}`;
   }
 
-  // Share fallback
+  // Share fallback & handler
   function copyLinkFallback(url) {
     navigator.clipboard.writeText(url).catch(console.error);
   }
   function handleShare() {
     const url = window.location.href;
     const title = document.title;
-    if (navigator.share) navigator.share({ title, url }).catch(console.error);
-    else copyLinkFallback(url);
+    if (navigator.share) {
+      navigator.share({ title, url }).catch(console.error);
+    } else {
+      copyLinkFallback(url);
+    }
   }
 
-  // Fetch main event
+  // Fetch main event (including lat/lng)
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -99,12 +105,14 @@ export default function BigBoardEventPage() {
           .select(`
             id, post_id, title, description, link,
             start_date, end_date, start_time, end_time,
-            address, created_at, slug
+            address, latitude, longitude,
+            created_at, slug
           `)
           .eq('slug', slug)
           .single();
         if (evErr) throw evErr;
 
+        // load image & owner
         const { data: post } = await supabase
           .from('big_board_posts')
           .select('image_url, user_id')
@@ -114,11 +122,9 @@ export default function BigBoardEventPage() {
           .storage.from('big-board')
           .getPublicUrl(post.image_url);
 
-        const { data: tagsData } = await supabase
-          .from('tags')
-          .select('id,name');
+        // load tags list & existing tags
+        const { data: tagsData } = await supabase.from('tags').select('id,name');
         setTagsList(tagsData || []);
-
         const { data: taggings = [] } = await supabase
           .from('taggings')
           .select('tag_id')
@@ -209,14 +215,16 @@ export default function BigBoardEventPage() {
   // Enter edit mode
   const startEditing = () => {
     setFormData({
-      title: event.title,
+      title:       event.title,
       description: event.description || '',
-      link: event.link || '',
-      start_date: event.start_date,
-      end_date: event.end_date || '',
-      start_time: event.start_time || '',
-      end_time: event.end_time || '',
-      address: event.address || ''
+      link:        event.link || '',
+      start_date:  event.start_date,
+      end_date:    event.end_date   || '',
+      start_time:  event.start_time || '',
+      end_time:    event.end_time   || '',
+      address:     event.address    || '',
+      latitude:    event.latitude   || null,
+      longitude:   event.longitude  || null,
     });
     setIsEditing(true);
   };
@@ -227,7 +235,7 @@ export default function BigBoardEventPage() {
     setFormData(fd => ({ ...fd, [name]: value }));
   };
 
-  // Address suggestions effect
+  // Address suggestions effect (Mapbox Search Box /suggest)
   useEffect(() => {
     if (!isEditing) return;
     const addr = formData.address?.trim();
@@ -237,25 +245,47 @@ export default function BigBoardEventPage() {
     }
     const timer = setTimeout(() => {
       fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/` +
-        `${encodeURIComponent(addr)}.json?` +
-        `access_token=${geocoderToken}` +
-        `&autocomplete=true&limit=5&types=address,place`
+        `https://api.mapbox.com/search/searchbox/v1/suggest` +
+        `?q=${encodeURIComponent(addr)}` +
+        `&access_token=${geocoderToken}` +
+        `&session_token=${sessionToken.current}` +
+        `&limit=5` +
+        `&proximity=-75.1652,39.9526` +
+        `&bbox=-75.2803,39.8670,-74.9558,40.1379`
       )
         .then(r => r.json())
-        .then(json => {
-          setAddressSuggestions(json.features || []);
-        })
+        .then(json => setAddressSuggestions(json.suggestions || []))
         .catch(console.error);
     }, 300);
     return () => clearTimeout(timer);
-  }, [formData.address, isEditing]);
+  }, [formData.address, isEditing, geocoderToken]);
 
-  // Pick a suggestion
+  // Pick a suggestion (Mapbox Search Box /retrieve)
   function pickSuggestion(feat) {
-    setFormData(fd => ({ ...fd, address: feat.place_name }));
+    fetch(
+      `https://api.mapbox.com/search/searchbox/v1/retrieve/${feat.mapbox_id}` +
+      `?access_token=${geocoderToken}` +
+      `&session_token=${sessionToken.current}`
+    )
+      .then(r => r.json())
+      .then(json => {
+        const feature = json.features?.[0];
+        if (feature) {
+          const name    = feature.properties.name_preferred || feature.properties.name;
+          const context = feature.properties.place_formatted;
+          const [lng, lat] = feature.geometry.coordinates;
+          setFormData(fd => ({
+            ...fd,
+            address:   `${name}, ${context}`,
+            latitude:  lat,
+            longitude: lng,
+          }));
+        }
+      })
+      .catch(console.error);
+
     setAddressSuggestions([]);
-    suggestRef.current?.focus();
+    suggestRef.current?.blur();
   }
 
   // Save edits
@@ -264,14 +294,16 @@ export default function BigBoardEventPage() {
     setSaving(true);
     try {
       const payload = {
-        title: formData.title,
+        title:       formData.title,
         description: formData.description || null,
-        link: formData.link || null,
-        start_date: formData.start_date,
-        end_date: formData.end_date || null,
-        start_time: formData.start_time || null,
-        end_time: formData.end_time || null,
-        address: formData.address || null
+        link:        formData.link || null,
+        start_date:  formData.start_date,
+        end_date:    formData.end_date   || null,
+        start_time:  formData.start_time || null,
+        end_time:    formData.end_time   || null,
+        address:     formData.address    || null,
+        latitude:    formData.latitude,
+        longitude:   formData.longitude,
       };
       const { data: upd, error } = await supabase
         .from('big_board_events')
@@ -290,8 +322,8 @@ export default function BigBoardEventPage() {
       if (selectedTags.length) {
         const taggings = selectedTags.map(tag_id => ({
           taggable_type: 'big_board_events',
-          taggable_id: event.id,
-          tag_id
+          taggable_id:   event.id,
+          tag_id,
         }));
         await supabase.from('taggings').insert(taggings);
       }
@@ -320,7 +352,7 @@ export default function BigBoardEventPage() {
   };
 
   if (loading) return <div className="py-20 text-center">Loading…</div>;
-  if (error) return <div className="py-20 text-center text-red-600">{error}</div>;
+  if (error)   return <div className="py-20 text-center text-red-600">{error}</div>;
 
   // Compute whenText
   const startDateObj = parseLocalYMD(event.start_date);
@@ -336,8 +368,12 @@ export default function BigBoardEventPage() {
 
   // Prev/Next logic
   const currentIndex = siblings.findIndex(e => e.slug === slug);
-  const prev = siblings.length ? siblings[(currentIndex - 1 + siblings.length) % siblings.length] : null;
-  const next = siblings.length ? siblings[(currentIndex + 1) % siblings.length] : null;
+  const prev = siblings.length
+    ? siblings[(currentIndex - 1 + siblings.length) % siblings.length]
+    : null;
+  const next = siblings.length
+    ? siblings[(currentIndex + 1) % siblings.length]
+    : null;
 
   return (
     <>
@@ -357,29 +393,22 @@ export default function BigBoardEventPage() {
             style={{ backgroundImage: `url(${event.imageUrl})` }}
           />
 
-          
-
           {/* Overlapping centered card */}
           <div className="relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform z-10">
-          {prev && (
-    <button
-      onClick={() => navigate(`/big-board/${prev.slug}`)}
-      className="absolute top-1/2 left-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-    >
-      ←
-    </button>
-  )}
-  {next && (
-    <button
-      onClick={() => navigate(`/big-board/${next.slug}`)}
-      className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-    >
-      →
-    </button>
-  )}
+            {prev && (
+              <button
+                onClick={() => navigate(`/big-board/${prev.slug}`)}
+                className="absolute top-1/2 left-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
+              >←</button>
+            )}
+            {next && (
+              <button
+                onClick={() => navigate(`/big-board/${next.slug}`)}
+                className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
+              >→</button>
+            )}
             <div className="text-center space-y-4">
               <h1 className="text-4xl font-bold">{event.title}</h1>
-
               <p className="text-lg font-medium">
                 {whenText}
                 {event.start_time && ` — ${formatTime(event.start_time)}`}
@@ -394,7 +423,6 @@ export default function BigBoardEventPage() {
                   </a></>
                 )}
               </p>
-
               <div className="flex flex-wrap justify-center gap-3">
                 {tagsList
                   .filter(t => selectedTags.includes(t.id))
@@ -411,9 +439,9 @@ export default function BigBoardEventPage() {
             </div>
           </div>
 
-          {/* Description, full image, More Info, and bottom buttons */}
+          {/* Description, form / details, and image */}
           <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left: description / form / More Info */}
+            {/* Left: description / edit form / buttons */}
             <div>
               {isEditing ? (
                 <form onSubmit={handleSave} className="space-y-6">
@@ -439,7 +467,7 @@ export default function BigBoardEventPage() {
                       className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                  {/* Address */}
+                  {/* Address with suggestions */}
                   <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
                     <input
@@ -456,11 +484,11 @@ export default function BigBoardEventPage() {
                       <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
                         {addressSuggestions.map(feat => (
                           <li
-                            key={feat.id}
+                            key={feat.mapbox_id}
                             onClick={() => pickSuggestion(feat)}
                             className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
                           >
-                            {feat.place_name}
+                            {feat.name} — {feat.full_address || feat.place_formatted}
                           </li>
                         ))}
                       </ul>
@@ -570,102 +598,90 @@ export default function BigBoardEventPage() {
                   )}
                   {event.link && (
                     <div className="mb-6">
-                      {/* Full-width “More Info” button */}
-<a
-  href={event.link}
-  target="_blank"
-  rel="noopener noreferrer"
-  role="button"
-  className={`
-    block w-full
-    px-6 py-3
-    rounded-md
-    text-center
-    bg-indigo-600 text-white
-    text-base font-medium
-    shadow-sm
-    hover:bg-indigo-700
-    focus:outline-none focus:ring-2 focus:ring-indigo-500
-    active:scale-95
-    transition duration-150 ease-in-out
-    disabled:opacity-40 disabled:cursor-not-allowed
-    mb-4
-  `}
->
-  Event Page
-</a>
-
+                      <a
+                        href={event.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`
+                          block w-full
+                          px-6 py-3
+                          rounded-md
+                          text-center
+                          bg-indigo-600 text-white
+                          text-base font-medium
+                          shadow-sm
+                          hover:bg-indigo-700
+                          focus:outline-none focus:ring-2 focus:ring-indigo-500
+                          active:scale-95
+                          transition duration-150 ease-in-out
+                          mb-4
+                        `}
+                      >
+                        Event Page
+                      </a>
                     </div>
                   )}
 
-                  {/* Inline Share / Edit / Delete down here */}
-                  <div className="mt-6 flex justify-center space-x-4">
-                    {/* Full-width “Share” button */}
-<button
-  onClick={handleShare}
-  className={`
-    block w-full
-    px-6 py-3
-    rounded-md
-    bg-green-600 text-white
-    text-base font-medium
-    shadow-sm
-    hover:bg-green-700
-    focus:outline-none focus:ring-2 focus:ring-green-500
-    active:scale-95
-    transition duration-150 ease-in-out
-    disabled:opacity-40 disabled:cursor-not-allowed
-    mb-4
-  `}
->
-  Share
-</button>
-
-{/* If the user owns the event, show full-width Edit & Delete */}
-{event.owner_id === user?.id && (
-  <>
-    <button
-      onClick={startEditing}
-      className={`
-        block w-full
-        px-6 py-3
-        rounded-md
-        bg-indigo-600 text-white
-        text-base font-medium
-        shadow-sm
-        hover:bg-indigo-700
-        focus:outline-none focus:ring-2 focus:ring-indigo-500
-        active:scale-95
-        transition duration-150 ease-in-out
-        mb-4
-      `}
-    >
-      Edit
-    </button>
-    <button
-      onClick={handleDelete}
-      className={`
-        block w-full
-        px-6 py-3
-        rounded-md
-        bg-red-600 text-white
-        text-base font-medium
-        shadow-sm
-        hover:bg-red-700
-        focus:outline-none focus:ring-2 focus:ring-red-500
-        active:scale-95
-        transition duration-150 ease-in-out
-        mb-4
-      `}
-    >
-      Delete
-    </button>
-  </>
-)}
-                  </div>
-
-                  <div className="mt-6 text-center">
-                    <Link to="/" className="text-indigo-600 hover:underline font-medium">
+                  <div className="mt-6 flex flex-col space-y-4">
+                    <button
+                      onClick={handleShare}
+                      className={`
+                        w-full
+                        px-6 py-3
+                        rounded-md
+                        bg-green-600 text-white
+                        text-base font-medium
+                        shadow-sm
+                        hover:bg-green-700
+                        focus:outline-none focus:ring-2 focus:ring-green-500
+                        active:scale-95
+                        transition duration-150 ease-in-out
+                      `}
+                    >
+                      Share
+                    </button>
+                    {event.owner_id === user?.id && (
+                      <>
+                        <button
+                          onClick={startEditing}
+                          className={`
+                            w-full
+                            px-6 py-3
+                            rounded-md
+                            bg-indigo-600 text-white
+                            text-base font-medium
+                            shadow-sm
+                            hover:bg-indigo-700
+                            focus:outline-none focus:ring-2 focus:ring-indigo-500
+                            active:scale-95
+                            transition duration-150 ease-in-out
+                          `}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={handleDelete}
+                          className={`
+                            w-full
+                            px-6 py-3
+                            rounded-md
+                            bg-red-600 text-white
+                            text-base font-medium
+                            shadow-sm
+                            hover:bg-red-700
+                            focus:outline-none focus:ring-2 focus:ring-red-500
+                            active:scale-95
+                            transition duration-150 ease-in-out
+                          `}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                    <Link
+                      to="/"
+                      className="w-full text-center text-indigo-600 hover:underline font-medium"
+                    >
                       ← Back to Events
                     </Link>
                   </div>
@@ -694,8 +710,8 @@ export default function BigBoardEventPage() {
               <p className="text-center text-gray-600">No upcoming submissions.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {moreEvents.map(ev => {
-                  const dt = parseLocalYMD(ev.start_date);
+                {moreEvents.map(evItem => {
+                  const dt = parseLocalYMD(evItem.start_date);
                   const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
                   const prefix =
                     diff === 0 ? 'Today' :
@@ -704,8 +720,8 @@ export default function BigBoardEventPage() {
                   const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
                   return (
                     <Link
-                      key={ev.id}
-                      to={`/big-board/${ev.slug}`}
+                      key={evItem.id}
+                      to={`/big-board/${evItem.slug}`}
                       className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
                     >
                       <div className="relative h-40 bg-gray-100">
@@ -713,19 +729,19 @@ export default function BigBoardEventPage() {
                           COMMUNITY SUBMISSION
                         </div>
                         <img
-                          src={ev.imageUrl}
-                          alt={ev.title}
+                          src={evItem.imageUrl}
+                          alt={evItem.title}
                           className="w-full h-full object-cover object-center"
                         />
                       </div>
                       <div className="p-4 flex-1 flex flex-col justify-between text-center">
                         <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                          {ev.title}
+                          {evItem.title}
                         </h3>
                         <span className="text-sm text-gray-600">{prefix}, {md}</span>
-                        {!!moreTagMap[ev.id]?.length && (
+                        {!!moreTagMap[evItem.id]?.length && (
                           <div className="mt-2 flex flex-wrap justify-center space-x-1">
-                            {moreTagMap[ev.id].map((tag, i) => (
+                            {moreTagMap[evItem.id].map((tag, i) => (
                               <Link
                                 key={tag.slug}
                                 to={`/tags/${tag.slug}`}

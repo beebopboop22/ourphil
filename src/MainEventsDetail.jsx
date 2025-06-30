@@ -1,5 +1,5 @@
 // src/MainEventsDetail.jsx
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -50,7 +50,7 @@ export default function MainEventsDetail() {
   });
   const [saving, setSaving] = useState(false);
 
-  // Refs for share fallback
+  // Share fallback
   const copyLinkFallback = url => navigator.clipboard.writeText(url).catch(console.error);
   const handleShare = () => {
     const url = window.location.href;
@@ -144,23 +144,25 @@ export default function MainEventsDetail() {
   useEffect(() => {
     if (isEditing && event) {
       setFormData({
-        name:        event.name || '',
+        name:        event.name        || '',
         description: event.description || '',
-        link:        event.link || '',
-        start_date:  event.start_date || '',
-        end_date:    event.end_date || '',
-        start_time:  event.start_time || '',
-        end_time:    event.end_time || '',
-        address:     event.address || '',
+        link:        event.link        || '',
+        start_date:  event.start_date  || '',
+        end_date:    event.end_date    || '',
+        start_time:  event.start_time  || '',
+        end_time:    event.end_time    || '',
+        address:     event.address     || '',
       });
     }
   }, [isEditing, event]);
 
+  // Handle form field change
   const handleChange = e => {
     const { name, value } = e.target;
     setFormData(fd => ({ ...fd, [name]: value }));
   };
 
+  // Save edits
   const handleSave = async e => {
     e.preventDefault();
     setSaving(true);
@@ -170,10 +172,10 @@ export default function MainEventsDetail() {
         description: formData.description || null,
         link:        formData.link || null,
         start_date:  formData.start_date,
-        end_date:    formData.end_date || null,
+        end_date:    formData.end_date   || null,
         start_time:  formData.start_time || null,
-        end_time:    formData.end_time || null,
-        address:     formData.address || null,
+        end_time:    formData.end_time   || null,
+        address:     formData.address    || null,
       };
       const { data: updated, error } = await supabase
         .from('all_events')
@@ -191,6 +193,7 @@ export default function MainEventsDetail() {
     }
   };
 
+  // Delete event
   const handleDelete = async () => {
     if (!window.confirm('Delete this event?')) return;
     try {
@@ -225,7 +228,7 @@ export default function MainEventsDetail() {
     );
   }
 
-  // Compute friendly date/time
+  // Friendly date/time
   const sd = parseLocalYMD(event.start_date);
   const today0 = new Date(); today0.setHours(0,0,0,0);
   const daysDiff = Math.round((sd - today0)/(1000*60*60*24));
@@ -235,6 +238,11 @@ export default function MainEventsDetail() {
     sd.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
   const timeText = event.start_time ? formatTime(event.start_time) : '';
   const endTimeText = event.end_time ? formatTime(event.end_time) : '';
+
+  // Which address to_SEARCH for Google Maps:
+  const resolvedAddress = event.address?.trim() || venueData?.address?.trim();
+  // Link text is always venue name if available:
+  const linkText = venueData?.name || resolvedAddress;
 
   return (
     <>
@@ -261,28 +269,27 @@ export default function MainEventsDetail() {
                 {whenText}
                 {timeText && ` — ${timeText}`}
                 {endTimeText && ` to ${endTimeText}`}
-              </p>
-              {event.address && (
-                <p>
-                  <a
-                    href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
+                {resolvedAddress && (
+                  <> • <a
+                    href={`https://maps.google.com?q=${encodeURIComponent(resolvedAddress)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-indigo-600 hover:underline"
                   >
-                    {event.address}
-                  </a>
-                </p>
-              )}
+                    {linkText}
+                  </a></>
+                )}
+              </p>
             </div>
           </div>
 
           {/* Content */}
           <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left: description / form / related / share / admin */}
+            {/* Left */}
             <div>
               {isEditing ? (
                 <form onSubmit={handleSave} className="space-y-6">
+                  {/* Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Name</label>
                     <input
@@ -293,6 +300,7 @@ export default function MainEventsDetail() {
                       className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+                  {/* Description */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Description</label>
                     <textarea
@@ -303,6 +311,7 @@ export default function MainEventsDetail() {
                       className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+                  {/* Link */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Link</label>
                     <input
@@ -313,6 +322,7 @@ export default function MainEventsDetail() {
                       className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+                  {/* Address */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Address</label>
                     <input
@@ -323,6 +333,7 @@ export default function MainEventsDetail() {
                       className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+                  {/* Times */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Start Time</label>
@@ -345,6 +356,7 @@ export default function MainEventsDetail() {
                       />
                     </div>
                   </div>
+                  {/* Dates */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Start Date</label>
@@ -368,6 +380,7 @@ export default function MainEventsDetail() {
                       />
                     </div>
                   </div>
+                  {/* Save / Cancel */}
                   <div className="flex space-x-4">
                     <button
                       type="submit"
