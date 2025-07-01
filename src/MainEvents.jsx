@@ -25,6 +25,11 @@ import NewsletterSection from './NewsletterSection';
 import { Share2 } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
+import EventsMap from './EventsMap';
+import 'mapbox-gl/dist/mapbox-gl.css'
+import RecurringEventsScroller from './RecurringEventsScroller'
+
+
 
 
 // ── Helpers ───────────────────────────────
@@ -51,6 +56,12 @@ function parseDate(datesStr) {
   const [m, d, y] = first.trim().split('/').map(Number);
   return new Date(y, m - 1, d);
 }
+
+// inside your component render:
+const startOfWeek = new Date()
+startOfWeek.setHours(0, 0, 0, 0)
+const endOfWeek = new Date(startOfWeek)
+endOfWeek.setDate(endOfWeek.getDate() + 6)
 
 function formatShortDate(d) {
   return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
@@ -396,29 +407,46 @@ const [groupEvents, setGroupEvents] = useState([]);
     }
 
     const fetchAllEvents = supabase
-      .from('all_events')
-      .select(`
-        id, name, description,  link, image, start_date, start_time, end_time, end_date, description, slug, venue_id,
-        venues:venue_id ( name, slug )
-      `)
-      .order('start_date', { ascending: true });
+  .from('all_events')
+  .select(`
+    id,
+    name,
+    description,
+    link,
+    image,
+    start_date,
+    start_time,
+    end_time,
+    end_date,
+    slug,
+    venue_id,
+    venues:venue_id (
+      name,
+      slug,
+      latitude,
+      longitude
+    )
+  `)
+  .order('start_date', { ascending: true });
 
-    const fetchBigBoard = supabase
-      .from('big_board_events')
-      .select(`
-        id,
-        title,
-        description,  
-        start_date,
-        start_time,
-        end_time,
-        end_date,
-        slug,
-        big_board_posts!big_board_posts_event_id_fkey (
-          image_url
-        )
-      `)
-      .order('start_date', { ascending: true });
+        const fetchBigBoard = supabase
+        .from('big_board_events')
+        .select(`
+          id,
+          title,
+          description,
+          start_date,
+          start_time,
+          end_time,
+          end_date,
+          slug,
+          latitude,
+          longitude,
+          big_board_posts!big_board_posts_event_id_fkey (
+            image_url
+          )
+        `)
+        .order('start_date', { ascending: true });
 
       const fetchTraditions = supabase
       .from('events')
@@ -447,7 +475,7 @@ const [groupEvents, setGroupEvents] = useState([]);
         .select(`
           id, name, slug, description, address, link,
           start_date, end_date, start_time, end_time,
-          rrule, image_url
+          rrule, image_url, latitude, longitude
         `)
         .eq('is_active', true);
 
@@ -643,7 +671,6 @@ useEffect(() => {
         const mm   = String(local.getMonth() + 1).padStart(2, '0');
         const dd   = String(local.getDate()).padStart(2, '0');
         const dateStr = `${yyyy}-${mm}-${dd}`;
-
         return {
           id:          `${series.id}::${dateStr}`,
           title:       series.name,
@@ -654,8 +681,11 @@ useEffect(() => {
           imageUrl:    series.image_url,
           start_date:  dateStr,
           start_time:  series.start_time,
-          isRecurring: true
+          isRecurring: true,
+          latitude:    series.latitude,
+          longitude:   series.longitude
         };
+        
       });
   });
 
@@ -690,6 +720,15 @@ useEffect(() => {
   // Pagination
   const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length;;
   const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
+
+  const allFilteredEvents = [
+    ...bigBoardEvents,
+    ...sportsEvents,
+    ...recurringOccs,
+    ...traditionEvents,
+    ...groupEvents,
+    ...events
+  ];
   
   // Big Board first, then Traditions, then All Events
 const allPagedEvents = [
@@ -703,10 +742,24 @@ const allPagedEvents = [
 
   const fullCount = allPagedEvents.length
 
+  // normalize coords
+const coordsEvents = allFilteredEvents
+.map(evt => {
+  if (evt.latitude != null && evt.longitude != null) {
+    return { ...evt, lat: evt.latitude, lng: evt.longitude }
+  }
+  if (evt.venues?.latitude != null && evt.venues?.longitude != null) {
+    return { ...evt, lat: evt.venues.latitude, lng: evt.venues.longitude }
+  }
+  return null
+})
+.filter(Boolean)
+
   let toShow = allPagedEvents;
 if (selectedOption === 'today' && !showAllToday) {
   toShow = allPagedEvents.slice(0, 4);
 }
+
 
   useEffect(() => {
     if (!allPagedEvents.length) return;
@@ -987,6 +1040,13 @@ if (loading) {
 
   {!loading && (
     <>
+  
+
+    {/* MAP GOES HERE */}
+
+    
+
+    
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         {toShow.map(evt => {
           const today = new Date(); today.setHours(0,0,0,0);
@@ -1023,6 +1083,9 @@ if (loading) {
           const shown = tags.slice(0,2);
           const extra = tags.length - shown.length;
 
+          // only pass ones with coords
+const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
+
           return (
             <Wrapper
               key={evt.id}
@@ -1057,11 +1120,20 @@ if (loading) {
                   <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">
                     {evt.title || evt.name}
                   </h3>
-                  {evt.venues?.name && (
-                    <p className="text-sm text-gray-600">
-                      at {evt.venues.name}
-                    </p>
-                  )}
+                  {/* location line */}
+                    {evt.isRecurring ? (
+                      evt.address && (
+                        <p className="text-sm text-gray-600">
+                          at {evt.address}
+                        </p>
+                      )
+                    ) : (
+                      evt.venues?.name && (
+                        <p className="text-sm text-gray-600">
+                          at {evt.venues.name}
+                        </p>
+                      )
+                    )}
                 </div>
 
                 <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
@@ -1129,8 +1201,8 @@ if (loading) {
             <RecentActivity />
             <TaggedEventScroller tags={['arts']}  header="#Arts Coming Soon"/>
             <TaggedEventScroller tags={['nomnomslurp']}  header="#NomNomSlurp Next Up"/>
+            <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
 
-      
             {/* ─── Hero Banner ─── */}
             <HeroLanding />
       
