@@ -93,21 +93,28 @@ export default function RecurringEventsScroller({
     <section className="py-8">
       <h2 className="text-3xl font-[Barrio] font-bold text-center mb-6">{header}</h2>
 
-      {/* Filters */}
-      <div className="flex justify-center gap-6 mb-8">
-        {TYPE_OPTIONS.map((opt) => (
-          <button
-            key={opt.key ?? 'all'}
-            onClick={() => setSelectedType(opt.key)}
-            className={`flex items-center space-x-2 text-sm font-semibold px-4 py-2 rounded-full transition
-              ${selectedType === opt.key
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-indigo-100'}`}
-          >
-            {opt.icon && <img src={opt.icon} alt={opt.label} className="h-5 w-5" />}
-            <span>{opt.label}</span>
-          </button>
-        ))}
+      {/* Filters: horizontally scrollable on mobile */}
+      <div className="overflow-x-auto scrollbar-hide px-4 mb-8">
+        <div className="flex space-x-2 whitespace-nowrap">
+          {TYPE_OPTIONS.map((opt) => (
+            <button
+              key={opt.key ?? 'all'}
+              onClick={() => setSelectedType(opt.key)}
+              className={`
+                flex items-center space-x-1
+                text-xs sm:text-sm font-semibold
+                px-3 sm:px-4 py-1 sm:py-2 rounded-full
+                transition
+                ${selectedType === opt.key
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-indigo-100'}
+              `}
+            >
+              {opt.icon && <img src={opt.icon} alt={opt.label} className="h-5 w-5" />}
+              <span>{opt.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -116,7 +123,7 @@ export default function RecurringEventsScroller({
         <p className="text-center py-8 text-gray-600">No events found.</p>
       ) : (
         <div className="overflow-x-auto scrollbar-hide">
-          <div className="flex gap-6 pb-4 px-4">
+          <div className="flex gap-4 sm:gap-6 pb-4 px-4">
             {occs.map((evt) => {
               const day = getDayLabel(evt.date)
               const time = formatTime(evt.time)
@@ -126,7 +133,7 @@ export default function RecurringEventsScroller({
                 <Link
                   key={evt.id}
                   to={evt.href}
-                  className="relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition"
+                  className="relative w-[220px] sm:w-[260px] h-[340px] sm:h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition"
                 >
                   <img
                     src={evt.image}
@@ -135,15 +142,15 @@ export default function RecurringEventsScroller({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
 
-                  <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-2xl font-[Barrio] font-bold z-20 leading-tight">
+                  <h3 className="absolute bottom-20 left-3 sm:left-4 right-3 sm:right-4 text-center text-white text-xl sm:text-2xl font-[Barrio] font-bold z-20 leading-tight">
                     {evt.title}
                   </h3>
 
                   <span
-                    className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-sm font-semibold px-4 py-1 rounded-full whitespace-nowrap min-w-max z-20"
-                    >
+                    className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-xs sm:text-sm font-semibold px-4 py-1 rounded-full whitespace-nowrap min-w-max z-20"
+                  >
                     {bubbleText}
-                    </span>
+                  </span>
                 </Link>
               )
             })}

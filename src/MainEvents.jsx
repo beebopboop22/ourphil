@@ -722,11 +722,11 @@ useEffect(() => {
   const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
 
   const allFilteredEvents = [
+    ...groupEvents,
     ...bigBoardEvents,
     ...sportsEvents,
     ...recurringOccs,
     ...traditionEvents,
-    ...groupEvents,
     ...events
   ];
   
@@ -944,7 +944,6 @@ if (loading) {
             <Navbar />
       
             <div className="mt-20">
-              <CityHolidayAlert />
             </div>
       
             {/* Hero */}
@@ -1068,7 +1067,9 @@ if (loading) {
           const isExternal = evt.isSports;
           const Wrapper    = isExternal ? 'a' : Link;
           const linkProps = isExternal
-            ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
+          ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
+          : evt.isGroupEvent
+            ? { to: evt.href }
             : evt.isRecurring
               ? { to: `/series/${evt.slug}/${evt.start_date}` }
               : evt.isTradition
@@ -1078,6 +1079,7 @@ if (loading) {
                   : evt.venues?.slug && evt.slug
                     ? { to: `/${evt.venues.slug}/${evt.slug}` }
                     : { to: '/' };
+
 
           const tags = tagMap[evt.id] || [];
           const shown = tags.slice(0,2);
@@ -1102,6 +1104,14 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
                   {bubbleLabel}{bubbleTime}
                 </div>
+
+                {/* Group Event comes first */}
+                {evt.isGroupEvent && (
+                  <div className="absolute inset-x-0 bottom-0 bg-green-600 text-white text-xs uppercase text-center py-1">
+                    Group Event
+                  </div>
+                )}
+
                 {evt.isBigBoard && (
                   <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
                     Submission
