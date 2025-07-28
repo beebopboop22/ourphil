@@ -8,6 +8,11 @@ import { AuthContext } from './AuthProvider';
 import { Helmet } from 'react-helmet';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
+import HeroLanding from './HeroLanding';
+import TaggedGroupsScroller from './TaggedGroupsScroller';
+import TaggedEventScroller from './TaggedEventsScroller';
+import SimilarEventsScroller from './SimilarEventsScroller';
+import SubmitEventSection from './SubmitEventSection';
 import {
   getMyEventFavorites,
   addEventFavorite,
@@ -37,21 +42,40 @@ export default function EventDetailPage() {
 
   const [modalImage, setModalImage] = useState(null);
   const [showFlyerModal, setShowFlyerModal] = useState(false);
+  const [modalStartStep, setModalStartStep] = useState(1);
+  const [initialFlyer, setInitialFlyer] = useState(null);
 
   const [moreEvents, setMoreEvents] = useState([]);
   const [loadingMore, setLoadingMore] = useState(true);
   const [tagMap, setTagMap] = useState({});
   const [eventTags, setEventTags] = useState([]);
+  const [allTags, setAllTags] = useState([]);
 
   const pillStyles = [
-    'bg-green-100 text-indigo-800',
-    'bg-teal-100 text-teal-800',
-    'bg-pink-100 text-pink-800',
-    'bg-blue-100 text-blue-800',
-    'bg-orange-100 text-orange-800',
-    'bg-yellow-100 text-yellow-800',
-    'bg-purple-100 text-purple-800',
     'bg-red-100 text-red-800',
+    'bg-orange-100 text-orange-800',
+    'bg-amber-100 text-amber-800',
+    'bg-yellow-100 text-yellow-800',
+    'bg-lime-100 text-lime-800',
+    'bg-green-100 text-green-800',
+    'bg-emerald-100 text-emerald-800',
+    'bg-teal-100 text-teal-800',
+    'bg-cyan-100 text-cyan-800',
+    'bg-sky-100 text-sky-800',
+    'bg-blue-100 text-blue-800',
+    'bg-indigo-100 text-indigo-800',
+    'bg-violet-100 text-violet-800',
+    'bg-purple-100 text-purple-800',
+    'bg-fuchsia-100 text-fuchsia-800',
+    'bg-pink-100 text-pink-800',
+    'bg-rose-100 text-rose-800',
+    'bg-gray-100 text-gray-800',
+    'bg-slate-100 text-slate-800',
+    'bg-zinc-100 text-zinc-800',
+    'bg-neutral-100 text-neutral-800',
+    'bg-stone-100 text-stone-800',
+    'bg-lime-200 text-lime-900',
+    'bg-orange-200 text-orange-900',
   ];
 
   // ─── Helpers ─────────────────────────────────────────────────────────
@@ -124,6 +148,18 @@ export default function EventDetailPage() {
         }
       });
   }, [event]);
+
+  // load all tags for "Explore" section
+  useEffect(() => {
+    supabase
+      .from('tags')
+      .select('name,slug')
+      .order('name', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) console.error('tags load error', error);
+        else setAllTags(data || []);
+      });
+  }, []);
 
   useEffect(() => {
     if (!event) return;
@@ -333,7 +369,7 @@ export default function EventDetailPage() {
               {displayDate}
               {event.time && ` — ${event.time}`}
             </p>
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-center gap-4 mb-6">
               {event['E Link'] && (
                 <a
                   href={event['E Link']}
@@ -351,19 +387,13 @@ export default function EventDetailPage() {
                 Share
               </button>
             </div>
-            <button
-              onClick={handleShare}
-              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
-            >
-              Share
-            </button>
             {eventTags.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-2 mt-2">
+              <div className="flex flex-wrap justify-center gap-3 mt-4">
                 {eventTags.map((tag, i) => (
                   <Link
                     key={tag.slug}
                     to={`/tags/${tag.slug}`}
-                    className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                    className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-base font-semibold hover:opacity-80 transition`}
                   >
                     #{tag.name}
                   </Link>
@@ -387,19 +417,18 @@ export default function EventDetailPage() {
                 <p className="text-gray-700">{event.longDescription}</p>
               </div>
             )}
-            {event['E Link'] && (
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">More Info</h2>
-                <a
-                  href={event['E Link']}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-indigo-600 hover:underline"
-                >
-                  Visit Site
-                </a>
-              </div>
-            )}
+            <div className="mb-6 flex items-center space-x-3 bg-gray-50 border rounded-lg p-3">
+              <button
+                onClick={toggleFav}
+                disabled={toggling}
+                className="text-2xl"
+              >
+                {myFavId ? '❤️' : '🤍'}
+              </button>
+              <span className="text-gray-700">
+                {favCount} people have favorited this
+              </span>
+            </div>
           </div>
           <div>
             {event['E Image'] && (
@@ -412,9 +441,16 @@ export default function EventDetailPage() {
           </div>
         </div>
 
+        <hr className="my-12 border-gray-200" />
+
+        <SimilarEventsScroller
+          tagSlugs={eventTags.map(t => t.slug)}
+          excludeId={event.id}
+        />
+
         {/* Reviews */}
         <section className="max-w-4xl mx-auto py-12 px-4">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6">Reviews</h2>
+          <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-8">Reviews</h2>
           {loadingReviews ? (
             <p>Loading reviews…</p>
           ) : reviews.length === 0 ? (
@@ -569,9 +605,40 @@ export default function EventDetailPage() {
           )}
         </section>
 
+        <hr className="my-12 border-gray-200" />
+
+        <HeroLanding />
+
+        <hr className="my-12 border-gray-200" />
+
+        <TaggedGroupsScroller tags={eventTags} />
+
+        <hr className="my-12 border-gray-200" />
+
+        <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Upcoming" />
+
+        <hr className="my-12 border-gray-200" />
+
+        {allTags.length > 0 && (
+          <div className="my-12 text-center">
+            <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
+            <div className="flex flex-wrap justify-center gap-3">
+              {allTags.map((tag, i) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
+                >
+                  #{tag.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* More Upcoming Community Submissions */}
         <div className="border-t border-gray-200 mt-12 pt-8 px-4 pb-12 max-w-screen-xl mx-auto">
-          <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+          <h2 className="text-3xl sm:text-4xl text-center font-[Barrio] text-gray-800 mb-8">
             More Upcoming Community Submissions
           </h2>
           {loadingMore ? (
@@ -631,17 +698,23 @@ export default function EventDetailPage() {
             </div>
           )}
         </div>
+        <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
       </main>
 
       <Footer />
-      <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
+      <FloatingAddButton onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}} />
       <button
-        onClick={() => setShowFlyerModal(true)}
+        onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}}
         className="fixed bottom-0 left-0 w-full bg-indigo-600 text-white py-4 text-center font-bold sm:hidden z-50"
       >
         Post Event
       </button>
-      <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
+      <PostFlyerModal
+        isOpen={showFlyerModal}
+        onClose={() => setShowFlyerModal(false)}
+        startStep={modalStartStep}
+        initialFile={initialFlyer}
+      />
     </div>
   );
 }
