@@ -41,6 +41,7 @@ export default function EventDetailPage() {
   const [moreEvents, setMoreEvents] = useState([]);
   const [loadingMore, setLoadingMore] = useState(true);
   const [tagMap, setTagMap] = useState({});
+  const [eventTags, setEventTags] = useState([]);
 
   const pillStyles = [
     'bg-green-100 text-indigo-800',
@@ -106,6 +107,23 @@ export default function EventDetailPage() {
     }
     load();
   }, [slug]);
+
+  useEffect(() => {
+    if (!event) return;
+    supabase
+      .from('taggings')
+      .select('tags(name,slug)')
+      .eq('taggable_type', 'events')
+      .eq('taggable_id', event.id)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          setEventTags([]);
+        } else {
+          setEventTags((data || []).map(r => r.tags));
+        }
+      });
+  }, [event]);
 
   useEffect(() => {
     if (!event) return;
@@ -319,6 +337,19 @@ export default function EventDetailPage() {
               {displayDate}
               {event.time && ` — ${event.time}`}
             </p>
+            {eventTags.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2 mt-2">
+                {eventTags.map((tag, i) => (
+                  <Link
+                    key={tag.slug}
+                    to={`/tags/${tag.slug}`}
+                    className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                  >
+                    #{tag.name}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
