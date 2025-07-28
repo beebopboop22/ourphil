@@ -248,23 +248,7 @@ export default function RecurringEventPage() {
                       to={`/series/${slug}/${iso}`}
                       className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
                     >
-                      <div className="relative h-40 bg-gray-100">
-                        <img
-                          src={series.image_url}
-                          alt={series.name}
-                          className="w-full h-full object-cover object-center"
-                        />
-                      </div>
-                      <div className="p-4 flex-1 flex flex-col justify-between text-center">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                          {label}
-                        </h3>
-                        {series.start_time && (
-                          <span className="text-sm text-gray-600">
-                            @ {formatTime(series.start_time)}
-                          </span>
-                        )}
-                      </div>
+                      Sign up for your daily digest.
                     </Link>
                   );
                 })}
