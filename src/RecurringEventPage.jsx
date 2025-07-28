@@ -140,7 +140,7 @@ export default function RecurringEventPage() {
             {prevDate && (
               <button
                 onClick={() => navigate(`/series/${slug}/${prevDate}`)}
-                className="absolute left-0 top-1/2 -translate-y-1/2 p-3 bg-gray-100 hover:bg-gray-200 rounded-full shadow"
+                className="absolute left-0 top-1/2 -translate-y-1/2 p-3 bg-gray-100 hover:bg-gray-200 rounded-full shadow z-20 text-3xl"
               >
                 ←
               </button>
@@ -181,7 +181,7 @@ export default function RecurringEventPage() {
             {nextDate && (
               <button
                 onClick={() => navigate(`/series/${slug}/${nextDate}`)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 p-3 bg-gray-100 hover:bg-gray-200 rounded-full shadow"
+                className="absolute right-0 top-1/2 -translate-y-1/2 p-3 bg-gray-100 hover:bg-gray-200 rounded-full shadow z-20 text-3xl"
               >
                 →
               </button>
