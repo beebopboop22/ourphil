@@ -41,6 +41,7 @@ export default function EventDetailPage() {
   const [moreEvents, setMoreEvents] = useState([]);
   const [loadingMore, setLoadingMore] = useState(true);
   const [tagMap, setTagMap] = useState({});
+  const [eventTags, setEventTags] = useState([]);
 
   const pillStyles = [
     'bg-green-100 text-indigo-800',
@@ -163,6 +164,20 @@ export default function EventDetailPage() {
       setLoadingMore(false);
     })();
   }, [event, user]);
+
+  // ─── Load tags for this event ───────────────────────────────────────
+  useEffect(() => {
+    if (!event) return;
+    supabase
+      .from('taggings')
+      .select('tags(name,slug)')
+      .eq('taggable_type', 'events')
+      .eq('taggable_id', event.id)
+      .then(({ data, error }) => {
+        if (error) return console.error(error);
+        setEventTags((data || []).map(t => t.tags));
+      });
+  }, [event]);
 
   // ─── Load tags for community cards ────────────────────────────────────
   useEffect(() => {
@@ -297,28 +312,41 @@ export default function EventDetailPage() {
 
       <main className="flex-grow">
         {/* Hero */}
-        <div className="relative">
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event['E Image']})` }}
+        <div className="relative h-[60vh]">
+          <img
+            src={event['E Image']}
+            alt={event['E Name']}
+            className="absolute inset-0 w-full h-full object-cover object-center"
           />
+          <div className="absolute inset-0 bg-black/40" />
           <button
             onClick={toggleFav}
             disabled={toggling}
-            className="absolute top-6 right-6 text-4xl drop-shadow-lg"
+            className="absolute top-6 right-6 text-5xl drop-shadow-lg"
           >
-            {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
+            {myFavId ? '❤️' : '🤍'} {favCount}
           </button>
-        </div>
-
-        {/* Overlapping Card */}
-        <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform">
-          <div className="text-center space-y-4">
-            <h1 className="text-4xl font-bold">{event['E Name']}</h1>
-            <p className="text-lg font-medium">
+          <div className="absolute bottom-8 left-8 text-white max-w-3xl">
+            <h1 className="text-5xl font-[Barrio] leading-tight mb-2 drop-shadow">
+              {event['E Name']}
+            </h1>
+            <p className="text-xl mb-4 drop-shadow">
               {displayDate}
               {event.time && ` — ${event.time}`}
             </p>
+            {!!eventTags.length && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {eventTags.map((tag, i) => (
+                  <Link
+                    key={tag.slug}
+                    to={`/tags/${tag.slug}`}
+                    className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold backdrop-blur bg-white/30`}
+                  >
+                    #{tag.name}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
