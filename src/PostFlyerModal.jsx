@@ -7,7 +7,7 @@ import imageCompression from 'browser-image-compression';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 
-export default function PostFlyerModal({ isOpen, onClose }) {
+export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initialFile = null }) {
   const { user } = useContext(AuthContext);
   const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
   const sessionToken = useRef(crypto.randomUUID());
@@ -50,6 +50,11 @@ export default function PostFlyerModal({ isOpen, onClose }) {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       loadTags();
+      setStep(startStep);
+      if (initialFile) {
+        setSelectedFile(initialFile);
+        setPreviewUrl(URL.createObjectURL(initialFile));
+      }
     } else {
       document.body.style.overflow = '';
       resetForm();
