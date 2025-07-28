@@ -297,29 +297,40 @@ export default function EventDetailPage() {
 
       <main className="flex-grow">
         {/* Hero */}
-        <div className="relative">
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event['E Image']})` }}
-          />
-          <button
-            onClick={toggleFav}
-            disabled={toggling}
-            className="absolute top-6 right-6 text-4xl drop-shadow-lg"
-          >
-            {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
-          </button>
+        <div
+          className="relative w-full h-screen bg-cover bg-center flex items-end"
+          style={{ backgroundImage: `url(${event['E Image']})` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
+          <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white">
+            <h1 className="text-4xl font-bold mb-2">{event['E Name']}</h1>
+            <p className="text-lg mb-4">
+              {displayDate}
+              {event.time && ` — ${event.time}`}
+            </p>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={toggleFav}
+                disabled={toggling}
+                className="text-4xl"
+              >
+                {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
+              </button>
+              <button
+                onClick={handleShare}
+                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
+              >
+                Share
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Overlapping Card */}
         <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform">
-          <div className="text-center space-y-4">
-            <h1 className="text-4xl font-bold">{event['E Name']}</h1>
-            <p className="text-lg font-medium">
-              {displayDate}
-              {event.time && ` — ${event.time}`}
-            </p>
-          </div>
+          {event['E Description'] && (
+            <p className="text-center text-gray-700 text-lg">{event['E Description']}</p>
+          )}
         </div>
 
         {/* Description & Image */}
@@ -350,12 +361,6 @@ export default function EventDetailPage() {
                 </a>
               </div>
             )}
-            <button
-              onClick={handleShare}
-              className="w-full bg-green-600 text-white py-3 rounded-lg shadow hover:bg-green-700 transition"
-            >
-              Share
-            </button>
           </div>
           <div>
             {event['E Image'] && (
