@@ -52,15 +52,15 @@ export default function TaggedGroupsScroller({ tags = [] }) {
 
   return (
     <section className="py-8 max-w-screen-xl mx-auto">
-      <h2 className="text-center text-2xl font-semibold text-gray-800 mb-4">
-        More groups like this
+      <h2 className="text-center text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">
+        Groups you might like
       </h2>
       <div className="flex flex-wrap justify-center gap-2 mb-4">
         {tags.map((t, i) => (
           <button
             key={t.slug}
             onClick={() => setSelected(t.slug)}
-            className={`${selected === t.slug ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} px-3 py-1 rounded-full text-sm font-semibold`}
+            className={`${selected === t.slug ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} px-4 py-2 rounded-full text-base font-semibold`}
           >
             #{t.name}
           </button>
@@ -77,16 +77,15 @@ export default function TaggedGroupsScroller({ tags = [] }) {
               <Link
                 key={g.id}
                 to={`/groups/${g.slug}`}
-                className="flex-none w-[200px] sm:w-[240px] bg-white border rounded-xl overflow-hidden shadow hover:shadow-lg transition"
+                className="relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-transform hover:scale-105 bg-white"
               >
-                <div className="h-32 bg-gray-100">
-                  {g.imag && (
-                    <img src={g.imag} alt={g.Name} className="w-full h-full object-cover" />
-                  )}
-                </div>
-                <div className="p-3 text-center">
-                  <h3 className="text-sm font-semibold text-gray-900 truncate">{g.Name}</h3>
-                </div>
+                {g.imag && (
+                  <img src={g.imag} alt={g.Name} className="absolute inset-0 w-full h-full object-cover" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                <h3 className="absolute bottom-8 left-3 right-3 text-center text-white text-2xl font-bold z-20 leading-tight">
+                  {g.Name}
+                </h3>
               </Link>
             ))}
           </div>

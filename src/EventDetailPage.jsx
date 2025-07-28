@@ -45,6 +45,7 @@ export default function EventDetailPage() {
   const [loadingMore, setLoadingMore] = useState(true);
   const [tagMap, setTagMap] = useState({});
   const [eventTags, setEventTags] = useState([]);
+  const [allTags, setAllTags] = useState([]);
 
   const pillStyles = [
     'bg-green-100 text-indigo-800',
@@ -127,6 +128,18 @@ export default function EventDetailPage() {
         }
       });
   }, [event]);
+
+  // load all tags for "Explore" section
+  useEffect(() => {
+    supabase
+      .from('tags')
+      .select('name,slug')
+      .order('name', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) console.error('tags load error', error);
+        else setAllTags(data || []);
+      });
+  }, []);
 
   useEffect(() => {
     if (!event) return;
@@ -336,7 +349,7 @@ export default function EventDetailPage() {
               {displayDate}
               {event.time && ` — ${event.time}`}
             </p>
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-center gap-4 mb-6">
               {event['E Link'] && (
                 <a
                   href={event['E Link']}
@@ -355,12 +368,12 @@ export default function EventDetailPage() {
               </button>
             </div>
             {eventTags.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-2 mt-2">
+              <div className="flex flex-wrap justify-center gap-3 mt-4">
                 {eventTags.map((tag, i) => (
                   <Link
                     key={tag.slug}
                     to={`/tags/${tag.slug}`}
-                    className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                    className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-base font-semibold hover:opacity-80 transition`}
                   >
                     #{tag.name}
                   </Link>
@@ -412,7 +425,7 @@ export default function EventDetailPage() {
 
         {/* Reviews */}
         <section className="max-w-4xl mx-auto py-12 px-4">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6">Reviews</h2>
+          <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-8">Reviews</h2>
           {loadingReviews ? (
             <p>Loading reviews…</p>
           ) : reviews.length === 0 ? (
@@ -581,15 +594,15 @@ export default function EventDetailPage() {
 
         <hr className="my-12 border-gray-200" />
 
-        {eventTags.length > 0 && (
-          <div className="my-8 text-center">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Explore these tags</h3>
-            <div className="flex flex-wrap justify-center gap-2">
-              {eventTags.map((tag, i) => (
+        {allTags.length > 0 && (
+          <div className="my-12 text-center">
+            <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
+            <div className="flex flex-wrap justify-center gap-3">
+              {allTags.map((tag, i) => (
                 <Link
                   key={tag.slug}
                   to={`/tags/${tag.slug}`}
-                  className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                  className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-base font-semibold hover:opacity-80 transition`}
                 >
                   #{tag.name}
                 </Link>
@@ -600,7 +613,7 @@ export default function EventDetailPage() {
 
         {/* More Upcoming Community Submissions */}
         <div className="border-t border-gray-200 mt-12 pt-8 px-4 pb-12 max-w-screen-xl mx-auto">
-          <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+          <h2 className="text-3xl sm:text-4xl text-center font-[Barrio] text-gray-800 mb-8">
             More Upcoming Community Submissions
           </h2>
           {loadingMore ? (
