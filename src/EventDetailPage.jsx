@@ -8,6 +8,9 @@ import { AuthContext } from './AuthProvider';
 import { Helmet } from 'react-helmet';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
+import SimilarEventsScroller from './SimilarEventsScroller';
+import TaggedGroupsScroller from './TaggedGroupsScroller';
+import TaggedEventScroller from './TaggedEventsScroller';
 import {
   getMyEventFavorites,
   addEventFavorite,
@@ -351,12 +354,6 @@ export default function EventDetailPage() {
                 Share
               </button>
             </div>
-            <button
-              onClick={handleShare}
-              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
-            >
-              Share
-            </button>
             {eventTags.length > 0 && (
               <div className="flex flex-wrap justify-center gap-2 mt-2">
                 {eventTags.map((tag, i) => (
@@ -381,25 +378,18 @@ export default function EventDetailPage() {
                 <p className="text-gray-700">{event['E Description']}</p>
               </div>
             )}
-            {event.longDescription && (
-              <div className="mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">About this tradition</h2>
-                <p className="text-gray-700">{event.longDescription}</p>
-              </div>
-            )}
-            {event['E Link'] && (
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">More Info</h2>
-                <a
-                  href={event['E Link']}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-indigo-600 hover:underline"
-                >
-                  Visit Site
-                </a>
-              </div>
-            )}
+            <div className="mb-6 flex items-center space-x-3 bg-gray-50 border rounded-lg p-3">
+              <button
+                onClick={toggleFav}
+                disabled={toggling}
+                className="text-2xl"
+              >
+                {myFavId ? '❤️' : '🤍'}
+              </button>
+              <span className="text-gray-700">
+                {favCount} people have favorited this
+              </span>
+            </div>
           </div>
           <div>
             {event['E Image'] && (
@@ -411,6 +401,15 @@ export default function EventDetailPage() {
             )}
           </div>
         </div>
+
+        <SimilarEventsScroller
+          tagSlugs={eventTags.map(t => t.slug)}
+          excludeId={event.id}
+        />
+
+        <TaggedGroupsScroller tags={eventTags} />
+
+        <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Upcoming" />
 
         {/* Reviews */}
         <section className="max-w-4xl mx-auto py-12 px-4">
