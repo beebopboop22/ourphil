@@ -8,6 +8,9 @@ import { AuthContext } from './AuthProvider';
 import { Helmet } from 'react-helmet';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
+import HeroLanding from './HeroLanding';
+import TaggedGroupsScroller from './TaggedGroupsScroller';
+import TaggedEventScroller from './TaggedEventsScroller';
 import {
   getMyEventFavorites,
   addEventFavorite,
@@ -351,12 +354,6 @@ export default function EventDetailPage() {
                 Share
               </button>
             </div>
-            <button
-              onClick={handleShare}
-              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
-            >
-              Share
-            </button>
             {eventTags.length > 0 && (
               <div className="flex flex-wrap justify-center gap-2 mt-2">
                 {eventTags.map((tag, i) => (
@@ -387,19 +384,18 @@ export default function EventDetailPage() {
                 <p className="text-gray-700">{event.longDescription}</p>
               </div>
             )}
-            {event['E Link'] && (
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">More Info</h2>
-                <a
-                  href={event['E Link']}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-indigo-600 hover:underline"
-                >
-                  Visit Site
-                </a>
-              </div>
-            )}
+            <div className="mb-6 flex items-center space-x-3 bg-gray-50 border rounded-lg p-3">
+              <button
+                onClick={toggleFav}
+                disabled={toggling}
+                className="text-2xl"
+              >
+                {myFavId ? '❤️' : '🤍'}
+              </button>
+              <span className="text-gray-700">
+                {favCount} people have favorited this
+              </span>
+            </div>
           </div>
           <div>
             {event['E Image'] && (
@@ -411,6 +407,8 @@ export default function EventDetailPage() {
             )}
           </div>
         </div>
+
+        <hr className="my-12 border-gray-200" />
 
         {/* Reviews */}
         <section className="max-w-4xl mx-auto py-12 px-4">
@@ -568,6 +566,37 @@ export default function EventDetailPage() {
             </div>
           )}
         </section>
+
+        <hr className="my-12 border-gray-200" />
+
+        <HeroLanding />
+
+        <hr className="my-12 border-gray-200" />
+
+        <TaggedGroupsScroller tags={eventTags} />
+
+        <hr className="my-12 border-gray-200" />
+
+        <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Upcoming" />
+
+        <hr className="my-12 border-gray-200" />
+
+        {eventTags.length > 0 && (
+          <div className="my-8 text-center">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Explore these tags</h3>
+            <div className="flex flex-wrap justify-center gap-2">
+              {eventTags.map((tag, i) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                >
+                  #{tag.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* More Upcoming Community Submissions */}
         <div className="border-t border-gray-200 mt-12 pt-8 px-4 pb-12 max-w-screen-xl mx-auto">
