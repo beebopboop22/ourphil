@@ -8,6 +8,13 @@ export default function TaggedGroupsScroller({ tags = [] }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!tags.length) return;
+    if (!selected || !tags.some(t => t.slug === selected)) {
+      setSelected(tags[0].slug);
+    }
+  }, [tags.map(t => t.slug).join(',')]);
+
+  useEffect(() => {
     if (!selected) { setGroups([]); setLoading(false); return; }
     setLoading(true);
     (async () => {
