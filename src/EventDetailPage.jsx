@@ -297,31 +297,44 @@ export default function EventDetailPage() {
 
       <main className="flex-grow">
         {/* Hero */}
-        <div className="relative">
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event['E Image']})` }}
-          />
+        <div
+          className="relative w-full h-screen bg-cover bg-center flex items-end"
+          style={{ backgroundImage: `url(${event['E Image']})` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
           <button
             onClick={toggleFav}
             disabled={toggling}
-            className="absolute top-6 right-6 text-4xl drop-shadow-lg"
+            className="absolute top-6 left-6 z-10 text-4xl"
           >
             {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
           </button>
-        </div>
-
-        {/* Overlapping Card */}
-        <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform">
-          <div className="text-center space-y-4">
-            <h1 className="text-4xl font-bold">{event['E Name']}</h1>
-            <p className="text-lg font-medium">
+          <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white text-center">
+            <h1 className="text-6xl font-[Barrio] mb-4">{event['E Name']}</h1>
+            <p className="text-xl mb-6">
               {displayDate}
               {event.time && ` — ${event.time}`}
             </p>
+            <div className="flex justify-center gap-4">
+              {event['E Link'] && (
+                <a
+                  href={event['E Link']}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
+                >
+                  Visit Site
+                </a>
+              )}
+              <button
+                onClick={handleShare}
+                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
+              >
+                Share
+              </button>
+            </div>
           </div>
         </div>
-
         {/* Description & Image */}
         <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div>
@@ -350,12 +363,6 @@ export default function EventDetailPage() {
                 </a>
               </div>
             )}
-            <button
-              onClick={handleShare}
-              className="w-full bg-green-600 text-white py-3 rounded-lg shadow hover:bg-green-700 transition"
-            >
-              Share
-            </button>
           </div>
           <div>
             {event['E Image'] && (
@@ -573,7 +580,7 @@ export default function EventDetailPage() {
                             <Link
                               key={tag.slug}
                               to={`/tags/${tag.slug}`}
-                              className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
+                              className={`${pillStyles[i % pillStyles.length]} text-base font-semibold px-3 py-1 rounded-full hover:opacity-80 transition`}
                             >
                               #{tag.name}
                             </Link>
