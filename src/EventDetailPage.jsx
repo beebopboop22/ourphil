@@ -333,7 +333,24 @@ export default function EventDetailPage() {
               {displayDate}
               {event.time && ` — ${event.time}`}
             </p>
-codex/replace-hero-component-with-full-viewport-design
+            <div className="flex justify-center gap-4">
+              {event['E Link'] && (
+                <a
+                  href={event['E Link']}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
+                >
+                  Visit Site
+                </a>
+              )}
+              <button
+                onClick={handleShare}
+                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
+              >
+                Share
+              </button>
+            </div>
             <button
               onClick={handleShare}
               className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
@@ -600,7 +617,7 @@ codex/replace-hero-component-with-full-viewport-design
                             <Link
                               key={tag.slug}
                               to={`/tags/${tag.slug}`}
-                              className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
+                              className={`${pillStyles[i % pillStyles.length]} text-base font-semibold px-3 py-1 rounded-full hover:opacity-80 transition`}
                             >
                               #{tag.name}
                             </Link>
