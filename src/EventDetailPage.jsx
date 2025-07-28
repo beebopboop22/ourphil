@@ -302,37 +302,27 @@ export default function EventDetailPage() {
           style={{ backgroundImage: `url(${event['E Image']})` }}
         >
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
-          <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white">
-            <h1 className="text-4xl font-bold mb-2">{event['E Name']}</h1>
-            <p className="text-lg mb-4">
+          <button
+            onClick={toggleFav}
+            disabled={toggling}
+            className="absolute top-6 left-6 z-10 text-4xl"
+          >
+            {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
+          </button>
+          <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white text-center">
+            <h1 className="text-6xl font-[Barrio] mb-4">{event['E Name']}</h1>
+            <p className="text-xl mb-6">
               {displayDate}
               {event.time && ` — ${event.time}`}
             </p>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={toggleFav}
-                disabled={toggling}
-                className="text-4xl"
-              >
-                {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
-              </button>
-              <button
-                onClick={handleShare}
-                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
-              >
-                Share
-              </button>
-            </div>
+            <button
+              onClick={handleShare}
+              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
+            >
+              Share
+            </button>
           </div>
         </div>
-
-        {/* Overlapping Card */}
-        <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform">
-          {event['E Description'] && (
-            <p className="text-center text-gray-700 text-lg">{event['E Description']}</p>
-          )}
-        </div>
-
         {/* Description & Image */}
         <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div>
