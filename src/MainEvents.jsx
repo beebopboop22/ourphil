@@ -229,6 +229,77 @@ function FallingPills() {
   )
 }
 
+// ── “What’s Ahead” Editorial Snippet ──────────────────────
+function WhatsAheadSnippet() {
+  const [lines, setLines] = useState([])
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select('id, "E Name", Dates, slug')
+          .order('Dates', { ascending: true })
+
+        if (error) throw error
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0)
+
+        const upcoming = (data || [])
+          .map(e => ({ name: e['E Name'], date: parseDate(e.Dates) }))
+          .filter(ev => ev.date && ev.date >= today)
+          .slice(0, 4)
+
+        const templates = [
+          "Don't miss {name} on {date}.",
+          "It's back: {name} on {date}.",
+          "That time of year for {name}, coming {date}.",
+          "Mark your calendar for {name} on {date}.",
+          "Save the date: {name} {date}.",
+          "Can you believe {name} returns {date}?",
+          "Another Philly tradition: {name} on {date}.",
+          "Clear your schedule—{name} hits {date}.",
+          "Get ready for {name} on {date}.",
+          "All eyes on {name}, {date}.",
+          "It's nearly time for {name} {date}.",
+          "Up next: {name} on {date}.",
+          "Warm up for {name} {date}.",
+          "Yes, it's {name} season on {date}.",
+          "The beloved {name} arrives {date}.",
+          "Make plans for {name} {date}.",
+          "Our favorite, {name}, returns {date}.",
+          "Don't forget {name} on {date}.",
+          "Look forward to {name} on {date}.",
+          "{name} lights up the city {date}."
+        ]
+
+        const pick = () => templates[Math.floor(Math.random() * templates.length)]
+
+        const textLines = upcoming.map(ev => {
+          const dateStr = ev.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+          return pick().replace('{name}', ev.name).replace('{date}', dateStr)
+        })
+
+        setLines(textLines)
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+  }, [])
+
+  if (!lines.length) return null
+
+  return (
+    <div className="max-w-screen-xl mx-auto my-6 p-6 bg-white border border-gray-200 shadow">
+      <h3 className="font-[Barrio] text-2xl text-indigo-900 mb-2">What&apos;s Ahead</h3>
+      <p className="text-gray-700 leading-relaxed">
+        {lines.join(' ')}
+      </p>
+    </div>
+  )
+}
+
 
 // ── MainEvents Component ───────────────────────────────
 export default function MainEvents() {
@@ -973,7 +1044,9 @@ if (loading) {
                 <TriviaTonightBanner />
               </div>
             </div>
-      
+
+            <WhatsAheadSnippet />
+
             {/* ─── Pills + Date Picker + Event Count ─── */}
             <div className="container mx-auto px-4 mt-12">
               <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
