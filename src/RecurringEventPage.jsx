@@ -1,5 +1,5 @@
 // src/RecurringEventPage.jsx
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -9,6 +9,13 @@ import { RRule } from 'rrule';
 import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
+import TaggedGroupsScroller from './TaggedGroupsScroller';
+import TaggedEventScroller from './TaggedEventsScroller';
+import SubmitEventSection from './SubmitEventSection';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 export default function RecurringEventPage() {
   const { slug, date } = useParams();
@@ -26,6 +33,23 @@ export default function RecurringEventPage() {
   // Tags
   const [tagsList, setTagsList] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
+
+  // More community submissions
+  const [moreEvents, setMoreEvents] = useState([]);
+  const [loadingMore, setLoadingMore] = useState(true);
+  const [moreTagMap, setMoreTagMap] = useState({});
+  const [allTags, setAllTags] = useState([]);
+
+  // Flyer modal
+  const [showFlyerModal, setShowFlyerModal] = useState(false);
+  const [modalStartStep, setModalStartStep] = useState(1);
+  const [initialFlyer, setInitialFlyer] = useState(null);
+
+  // Map refs
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+
+  const [otherSameDay, setOtherSameDay] = useState([]);
 
   // Helpers
   function formatTime(t) {
@@ -59,7 +83,7 @@ export default function RecurringEventPage() {
           .select(`
             id, name, description, link, address,
             start_date, end_date, start_time, end_time,
-            rrule, image_url, created_at
+            rrule, image_url, latitude, longitude, created_at
           `)
           .eq('slug', slug)
           .single();
@@ -83,6 +107,136 @@ export default function RecurringEventPage() {
       }
     })();
   }, [slug]);
+
+  // Load tags for "Explore" section
+  useEffect(() => {
+    supabase
+      .from('tags')
+      .select('name,slug')
+      .order('name', { ascending: true })
+      .then(({ data, error }) => {
+        if (!error) setAllTags(data || []);
+      });
+  }, []);
+
+  // Upcoming community submissions
+  useEffect(() => {
+    if (!series) return;
+    setLoadingMore(true);
+    (async () => {
+      try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const { data: list } = await supabase
+          .from('big_board_events')
+          .select('id, post_id, title, start_date, slug')
+          .gte('start_date', todayStr)
+          .order('start_date', { ascending: true })
+          .limit(3);
+        const enriched = await Promise.all(
+          (list || []).map(async ev => {
+            const { data: post } = await supabase
+              .from('big_board_posts')
+              .select('image_url')
+              .eq('id', ev.post_id)
+              .single();
+            let url = '';
+            if (post?.image_url) {
+              url = supabase.storage.from('big-board').getPublicUrl(post.image_url).data.publicUrl;
+            }
+            return { ...ev, imageUrl: url };
+          })
+        );
+        setMoreEvents(enriched);
+      } catch (e) {
+        console.error(e);
+        setMoreEvents([]);
+      } finally {
+        setLoadingMore(false);
+      }
+    })();
+  }, [series]);
+
+  // Load tags for community submissions
+  useEffect(() => {
+    if (!moreEvents.length) return;
+    const ids = moreEvents.map(ev => String(ev.id));
+    supabase
+      .from('taggings')
+      .select('tags(name,slug),taggable_id')
+      .eq('taggable_type', 'big_board_events')
+      .in('taggable_id', ids)
+      .then(({ data, error }) => {
+        if (error) return;
+        const map = {};
+        data.forEach(({ taggable_id, tags }) => {
+          map[taggable_id] = map[taggable_id] || [];
+          map[taggable_id].push(tags);
+        });
+        setMoreTagMap(map);
+      });
+  }, [moreEvents]);
+
+  // Map setup
+  useEffect(() => {
+    if (!series || mapRef.current || !mapContainerRef.current) return;
+    mapRef.current = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: 'mapbox://styles/mapbox/dark-v11',
+      center: [series.longitude || -75.1652, series.latitude || 39.9526],
+      zoom: 13,
+      pitch: 45,
+      bearing: -15,
+      antialias: true,
+    });
+    mapRef.current.on('load', () => {
+      mapRef.current.addLayer({
+        id: '3d-buildings',
+        source: 'composite',
+        'source-layer': 'building',
+        filter: ['==', 'extrude', 'true'],
+        type: 'fill-extrusion',
+        minzoom: 15,
+        paint: {
+          'fill-extrusion-color': '#aaa',
+          'fill-extrusion-height': ['get', 'height'],
+          'fill-extrusion-base': ['get', 'min_height'],
+          'fill-extrusion-opacity': 0.6,
+        },
+      });
+      if (series.latitude && series.longitude) {
+        new mapboxgl.Marker({ color: '#FACC15' })
+          .setLngLat([series.longitude, series.latitude])
+          .addTo(mapRef.current);
+      }
+      mapRef.current.flyTo({ zoom: 14, speed: 0.8, curve: 1.2 });
+    });
+  }, [series]);
+
+  // Other recurring events on this day
+  useEffect(() => {
+    if (!date) { setOtherSameDay([]); return; }
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('recurring_events')
+          .select('id,name,slug,image_url,start_date,start_time,rrule')
+          .eq('is_active', true)
+          .neq('slug', slug);
+        const d0 = parseLocalYMD(date);
+        const nextDay = new Date(d0); nextDay.setDate(d0.getDate() + 1);
+        const matches = (data || []).filter(row => {
+          const opts = RRule.parseString(row.rrule);
+          opts.dtstart = new Date(`${row.start_date}T${row.start_time}`);
+          const rule = new RRule(opts);
+          return rule.between(d0, nextDay, true).length > 0;
+        }).slice(0,3);
+        setOtherSameDay(matches);
+      } catch (e) {
+        console.error(e);
+        setOtherSameDay([]);
+      }
+    })();
+  }, [date, slug]);
 
   // Expand RRULE into occurrence dates
   useEffect(() => {
@@ -117,11 +271,26 @@ export default function RecurringEventPage() {
   const prevDate = idx > 0 ? isoDates[idx-1] : null;
   const nextDate = idx >= 0 && idx < isoDates.length-1 ? isoDates[idx+1] : null;
 
+  const formattedDate = date
+    ? parseLocalYMD(date).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '';
+  const rawDesc = series.description || '';
+  const metaDesc = rawDesc.length > 155 ? rawDesc.slice(0, 152) + '…' : rawDesc;
+
   return (
     <>
       <Helmet>
-        <title>{series.name} | Our Philly</title>
-        <meta name="description" content={series.description || ''} />
+        <title>
+          {date
+            ? `${series.name} on ${formattedDate} | Our Philly`
+            : `${series.name} | Our Philly`}
+        </title>
+        <meta name="description" content={metaDesc} />
+        <link rel="canonical" href={window.location.href} />
       </Helmet>
 
       <div className="flex flex-col min-h-screen bg-white">
@@ -219,14 +388,22 @@ export default function RecurringEventPage() {
             </div>
 
             {/* Right side: capped-height image */}
-            <div>
-              <img
-                src={series.image_url}
-                alt={series.name}
-                className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
-              />
-            </div>
+          <div>
+            <img
+              src={series.image_url}
+              alt={series.name}
+              className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
+            />
           </div>
+        </div>
+
+        {series.latitude && series.longitude && (
+          <div className="max-w-4xl mx-auto mt-8 px-4">
+            <div ref={mapContainerRef} className="w-full h-72 rounded-xl overflow-hidden shadow-lg" />
+          </div>
+        )}
+
+        {/* Upcoming Dates */}
 
           {/* Upcoming Dates */}
           <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">
@@ -268,14 +445,140 @@ export default function RecurringEventPage() {
                     </Link>
                   );
                 })}
-              </div>
-            )}
           </div>
+        )}
+        </div>
+
+        {date && otherSameDay.length > 0 && (
+          <div className="max-w-5xl mx-auto mt-12 px-4 pb-12">
+            <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+              Other Recurring Events on This Day
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {otherSameDay.map(ev => (
+                <Link
+                  key={ev.id}
+                  to={`/series/${ev.slug}/${date}`}
+                  className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
+                >
+                  <div className="relative h-40 bg-gray-100">
+                    <img
+                      src={ev.image_url}
+                      alt={ev.name}
+                      className="w-full h-full object-cover object-center"
+                    />
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col justify-between text-center">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+                      {ev.name}
+                    </h3>
+                    {ev.start_time && (
+                      <span className="text-sm text-gray-600">@ {formatTime(ev.start_time)}</span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {selectedTags.length > 0 && (
+          <>
+            <hr className="my-8 border-gray-200" />
+            <TaggedGroupsScroller tags={tagsList.filter(t => selectedTags.includes(t.id))} />
+          </>
+        )}
+
+        <hr className="my-8 border-gray-200" />
+        <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Upcoming" />
+
+        {allTags.length > 0 && (
+          <div className="my-8 text-center">
+            <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
+            <div className="flex flex-wrap justify-center gap-3">
+              {allTags.map((tag, i) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`bg-purple-100 text-purple-800 px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
+                >
+                  #{tag.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="border-t border-gray-200 mt-8 pt-6 px-4 pb-10 max-w-screen-xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl text-center font-[Barrio] text-gray-800 mb-8">
+            More Upcoming Community Submissions
+          </h2>
+          {loadingMore ? (
+            <p className="text-center text-gray-500">Loading…</p>
+          ) : moreEvents.length === 0 ? (
+            <p className="text-center text-gray-600">No upcoming submissions.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {moreEvents.map(ev => {
+                const dt = parseLocalYMD(ev.start_date);
+                const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
+                const prefix =
+                  diff === 0 ? 'Today' :
+                  diff === 1 ? 'Tomorrow' :
+                  dt.toLocaleDateString('en-US',{ weekday:'long' });
+                const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
+                return (
+                  <Link
+                    key={ev.id}
+                    to={`/big-board/${ev.slug}`}
+                    className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
+                  >
+                    <div className="relative h-40 bg-gray-100">
+                      <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
+                        COMMUNITY SUBMISSION
+                      </div>
+                      {ev.imageUrl ? (
+                        <img src={ev.imageUrl} alt={ev.title} className="w-full h-full object-cover object-center" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
+                      )}
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col justify-between text-center">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">{ev.title}</h3>
+                      <span className="text-sm text-gray-600">{prefix}, {md}</span>
+                      {!!moreTagMap[ev.id]?.length && (
+                        <div className="mt-2 flex flex-wrap justify-center space-x-1">
+                          {moreTagMap[ev.id].map((tag, i) => (
+                            <Link
+                              key={tag.slug}
+                              to={`/tags/${tag.slug}`}
+                              className="bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition"
+                            >
+                              #{tag.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
+
         </main>
 
         <Footer />
-        <FloatingAddButton />
-        <PostFlyerModal />
+        <FloatingAddButton onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }} />
+        <PostFlyerModal
+          isOpen={showFlyerModal}
+          onClose={() => setShowFlyerModal(false)}
+          startStep={modalStartStep}
+          initialFile={initialFlyer}
+        />
       </div>
     </>
   );
