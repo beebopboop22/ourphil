@@ -93,7 +93,7 @@ export default function TaggedEventsScroller({
           aeIds.length
             ? supabase
                 .from('all_events')
-                .select(`id, slug, name, start_date, image`)
+                .select(`id, slug, name, start_date, image, venue_id(slug)`)
                 .in('id', aeIds)
             : { data: [] },
           geIds.length
@@ -163,12 +163,14 @@ export default function TaggedEventsScroller({
         // all_events
         (aeRes.data || []).forEach(ev => {
           const start = parseLocalYMD(ev.start_date);
+          const venueSlug = ev.venue_id?.slug;
           merged.push({
             id: ev.id,
             title: ev.name,
             imageUrl: ev.image || '',
-            start, end: start,
-            href: `/${ev.slug}`,
+            start,
+            end: start,
+            href: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
           });
         });
 
