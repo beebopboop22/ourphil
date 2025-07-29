@@ -6,6 +6,11 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import { Helmet } from 'react-helmet';
+import { RRule } from 'rrule';
+import PostFlyerModal from './PostFlyerModal';
+import FloatingAddButton from './FloatingAddButton';
+import SubmitEventSection from './SubmitEventSection';
+import TaggedEventScroller from './TaggedEventsScroller';
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -34,6 +39,14 @@ export default function MainEventsDetail() {
   const [venueData, setVenueData] = useState(null);
   const [relatedEvents, setRelatedEvents] = useState([]);
   const [communityEvents, setCommunityEvents] = useState([]);
+  const [sameDayEvents, setSameDayEvents] = useState([]);
+  const [eventTags, setEventTags] = useState([]);
+  const [tagsList, setTagsList] = useState([]);
+
+  // post flyer modal state
+  const [showFlyerModal, setShowFlyerModal] = useState(false);
+  const [modalStartStep, setModalStartStep] = useState(1);
+  const [initialFlyer, setInitialFlyer] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Admin / edit state
@@ -49,6 +62,33 @@ export default function MainEventsDetail() {
     address: '',
   });
   const [saving, setSaving] = useState(false);
+
+  const pillStyles = [
+    'bg-red-100 text-red-800',
+    'bg-orange-100 text-orange-800',
+    'bg-amber-100 text-amber-800',
+    'bg-yellow-100 text-yellow-800',
+    'bg-lime-100 text-lime-800',
+    'bg-green-100 text-green-800',
+    'bg-emerald-100 text-emerald-800',
+    'bg-teal-100 text-teal-800',
+    'bg-cyan-100 text-cyan-800',
+    'bg-sky-100 text-sky-800',
+    'bg-blue-100 text-blue-800',
+    'bg-indigo-100 text-indigo-800',
+    'bg-violet-100 text-violet-800',
+    'bg-purple-100 text-purple-800',
+    'bg-fuchsia-100 text-fuchsia-800',
+    'bg-pink-100 text-pink-800',
+    'bg-rose-100 text-rose-800',
+    'bg-gray-100 text-gray-800',
+    'bg-slate-100 text-slate-800',
+    'bg-zinc-100 text-zinc-800',
+    'bg-neutral-100 text-neutral-800',
+    'bg-stone-100 text-stone-800',
+    'bg-lime-200 text-lime-900',
+    'bg-orange-200 text-orange-900',
+  ];
 
   // Share fallback
   const copyLinkFallback = url => navigator.clipboard.writeText(url).catch(console.error);
@@ -139,6 +179,61 @@ export default function MainEventsDetail() {
       }
     })();
   }, [slug]);
+
+  // Load tags for this event
+  useEffect(() => {
+    if (!event) return;
+    supabase
+      .from('taggings')
+      .select('tags(name,slug)')
+      .eq('taggable_type', 'all_events')
+      .eq('taggable_id', event.id)
+      .then(({ data, error }) => {
+        if (error) console.error(error);
+        else setEventTags((data || []).map(r => r.tags));
+      });
+  }, [event]);
+
+  // Load all tags for explore section
+  useEffect(() => {
+    supabase
+      .from('tags')
+      .select('id,name,slug')
+      .then(({ data, error }) => {
+        if (error) console.error(error);
+        else setTagsList(data || []);
+      });
+  }, []);
+
+  // Load recurring events on the same day
+  useEffect(() => {
+    if (!event?.start_date) return;
+    const start = parseLocalYMD(event.start_date);
+    const dayStart = new Date(start); dayStart.setHours(0,0,0,0);
+    const dayEnd = new Date(start); dayEnd.setHours(23,59,59,999);
+    (async () => {
+      try {
+        const { data: list } = await supabase
+          .from('recurring_events')
+          .select('id,name,slug,image_url,start_date,start_time,end_date,rrule')
+          .eq('is_active', true);
+        const matches = [];
+        (list || []).forEach(ev => {
+          const opts = RRule.parseString(ev.rrule);
+          opts.dtstart = new Date(`${ev.start_date}T${ev.start_time}`);
+          if (ev.end_date) opts.until = new Date(`${ev.end_date}T23:59:59`);
+          const rule = new RRule(opts);
+          if (rule.between(dayStart, dayEnd, true).length) {
+            matches.push(ev);
+          }
+        });
+        setSameDayEvents(matches);
+      } catch (e) {
+        console.error(e);
+        setSameDayEvents([]);
+      }
+    })();
+  }, [event]);
 
   // Populate form on edit
   useEffect(() => {
@@ -238,6 +333,20 @@ export default function MainEventsDetail() {
     sd.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
   const timeText = event.start_time ? formatTime(event.start_time) : '';
   const endTimeText = event.end_time ? formatTime(event.end_time) : '';
+  const weekdayName = sd.toLocaleDateString('en-US',{ weekday:'long' });
+  const metaKeywords = eventTags.map(t => t.name).join(', ');
+
+  const gcalLink = (() => {
+    const start = event.start_date.replace(/-/g, '');
+    const end = (event.end_date || event.start_date).replace(/-/g, '');
+    const url = window.location.href;
+    return (
+      'https://www.google.com/calendar/render?action=TEMPLATE' +
+      `&text=${encodeURIComponent(event.name)}` +
+      `&dates=${start}/${end}` +
+      `&details=${encodeURIComponent('Details: ' + url)}`
+    );
+  })();
 
   // Which address to_SEARCH for Google Maps:
   const resolvedAddress = event.address?.trim() || venueData?.address?.trim();
@@ -249,6 +358,14 @@ export default function MainEventsDetail() {
       <Helmet>
         <title>{`${event.name} | Our Philly Concierge`}</title>
         <meta name="description" content={(event.description||'').slice(0,155)} />
+        <meta name="keywords" content={metaKeywords} />
+        <link rel="canonical" href={window.location.href} />
+        <meta property="og:title" content={`${event.name} | Our Philly Concierge`} />
+        <meta property="og:description" content={(event.description||'').slice(0,155)} />
+        <meta property="og:type" content="article" />
+        <meta property="og:url" content={window.location.href} />
+        {event.image && <meta property="og:image" content={event.image} />}
+        <meta name="twitter:card" content="summary_large_image" />
       </Helmet>
 
       <div className="flex flex-col min-h-screen bg-white">
@@ -407,25 +524,6 @@ export default function MainEventsDetail() {
                     </div>
                   )}
 
-                  {relatedEvents.length > 0 && venueData && (
-                    <div className="mb-6">
-                      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                        More at {venueData.name}
-                      </h2>
-                      <ul className="list-disc list-inside space-y-1">
-                        {relatedEvents.map(re => (
-                          <li key={re.id}>
-                            <Link
-                              to={`/${venueData.slug}/${re.slug}`}
-                              className="text-indigo-600 hover:underline"
-                            >
-                              {re.name} — {parseLocalYMD(re.start_date).toLocaleDateString()}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
 
                   <button
                     onClick={handleShare}
@@ -433,6 +531,15 @@ export default function MainEventsDetail() {
                   >
                     Share
                   </button>
+
+                  <a
+                    href={gcalLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full bg-indigo-600 text-white py-3 rounded-lg shadow hover:bg-indigo-700 transition mb-4 text-center"
+                  >
+                    Add to Google Calendar
+                  </a>
 
                   {isAdmin && (
                     <div className="space-y-3">
@@ -465,8 +572,97 @@ export default function MainEventsDetail() {
               ) : (
                 <div className="w-full h-[240px] bg-gray-200 rounded-lg" />
               )}
-            </div>
           </div>
+          </div>
+
+          {relatedEvents.length > 0 && venueData && (
+            <section className="max-w-4xl mx-auto mt-12 px-4">
+              <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+                More at {venueData.name}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {relatedEvents.slice(0, 6).map(re => {
+                  const dt = parseLocalYMD(re.start_date);
+                  const md = dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                  return (
+                    <Link
+                      key={re.id}
+                      to={`/${venueData.slug}/${re.slug}`}
+                      className="bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-[1.02] overflow-hidden flex flex-col"
+                    >
+                      <div className="relative h-40 bg-gray-100">
+                        {re.image ? (
+                          <img
+                            src={re.image}
+                            alt={re.name}
+                            className="w-full h-full object-cover object-center"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            No Image
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 flex-1 flex flex-col justify-center text-center">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+                          {re.name}
+                        </h3>
+                        <span className="text-sm text-gray-600">{md}</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+          </section>
+            )}
+            <TaggedEventScroller tags={['music']} header="#Music Coming Soon" />
+          {sameDayEvents.length > 0 && (
+            <section className="max-w-4xl mx-auto mt-12 px-4">
+                <h2 class="text-2xl text-center font-semibold text-gray-800 mb-6">
+                  Every {weekdayName} in Philly
+                </h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {sameDayEvents.map(ev => (
+                  <Link
+                    key={ev.id}
+                    to={`/series/${ev.slug}/${event.start_date}`}
+                    className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
+                  >
+                    <div className="relative h-40 bg-gray-100">
+                      <img
+                        src={ev.image_url}
+                        alt={ev.name}
+                        className="w-full h-full object-cover object-center"
+                      />
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col justify-center text-center">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+                        {ev.name}
+                      </h3>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+
+          {tagsList.length > 0 && (
+            <div className="my-8 text-center">
+              <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
+              <div className="flex flex-wrap justify-center gap-3">
+                {tagsList.map((tag, i) => (
+                  <Link
+                    key={tag.slug}
+                    to={`/tags/${tag.slug}`}
+                    className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
+                  >
+                    #{tag.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Community Submissions */}
           <section className="border-t border-gray-200 mt-12 pt-8 px-4 pb-12 max-w-4xl mx-auto">
@@ -524,9 +720,13 @@ export default function MainEventsDetail() {
               </div>
             )}
           </section>
+
+          <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
         </main>
 
         <Footer/>
+        <FloatingAddButton onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }} />
+        <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
       </div>
     </>
   );
