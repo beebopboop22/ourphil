@@ -43,6 +43,7 @@ import ScrollToTop from './ScrollToTop'
 import TagPage from './TagPage.jsx'
 import ContactPage from './ContactPage.jsx'
 import RecurringPage from './RecurringEventPage.jsx'
+import WeekendRoundup from './WeekendRoundup.jsx'
 
 
 
@@ -98,6 +99,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/social-video" element={<SocialVideoCarousel />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
+          <Route path="/weekend-roundup" element={<WeekendRoundup />} />
           <Route path="/:venue" element={<VenuePage />} />
           <Route path="/:venue/:slug" element={<MainEventsDetail />} />
           <Route path="/groups/:slug/events/:eventId" element={<GroupEventDetailPage />} />
