@@ -229,6 +229,122 @@ function FallingPills() {
   )
 }
 
+// ── “What’s Ahead” Editorial Snippet ──────────────────────
+function WhatsAheadSnippet() {
+  const [items, setItems] = useState([])
+  const pillStyles = [
+    'bg-green-100 text-indigo-800',
+    'bg-teal-100 text-teal-800',
+    'bg-pink-100 text-pink-800',
+    'bg-blue-100 text-blue-800',
+    'bg-orange-100 text-orange-800',
+    'bg-yellow-100 text-yellow-800',
+    'bg-purple-100 text-purple-800',
+    'bg-red-100 text-red-800',
+  ]
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select('id, "E Name", Dates, slug')
+          .order('Dates', { ascending: true })
+
+        if (error) throw error
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0)
+
+        const upcoming = (data || [])
+          .map(e => ({ id: e.id, slug: e.slug, name: e['E Name'], date: parseDate(e.Dates) }))
+          .filter(ev => ev.date && ev.date >= today)
+          .slice(0, 5)
+
+        const ids = upcoming.map(e => String(e.id))
+        const { data: tagRows, error: tagErr } = await supabase
+          .from('taggings')
+          .select('taggable_id, tags(name,slug)')
+          .eq('taggable_type', 'events')
+          .in('taggable_id', ids)
+
+        if (tagErr) throw tagErr
+
+        const tagMap = {}
+        ;(tagRows || []).forEach(({ taggable_id, tags }) => {
+          tagMap[taggable_id] = tagMap[taggable_id] || []
+          tagMap[taggable_id].push(tags)
+        })
+
+        const templates = [
+          "Don't miss {name} on {date}!",
+          "It's back: {name} on {date}!",
+          "That time of year for {name}, coming {date}!",
+          "Mark your calendar for {name} on {date}!",
+          "Save the date: {name} {date}!",
+          "Can you believe {name} returns {date}!",
+          "Another Philly tradition: {name} on {date}!",
+          "Clear your schedule—{name} hits {date}!",
+          "Get ready for {name} on {date}!",
+          "All eyes on {name}, {date}!",
+          "It's nearly time for {name} {date}!",
+          "Up next: {name} on {date}!",
+          "Warm up for {name} {date}!",
+          "Yes, it's {name} season on {date}!",
+          "The beloved {name} arrives {date}!",
+          "Make plans for {name} {date}!",
+          "Our favorite, {name}, returns {date}!",
+          "Don't forget {name} on {date}!",
+          "Look forward to {name} on {date}!",
+          "{name} lights up the city {date}!"
+        ]
+
+        const pick = () => templates[Math.floor(Math.random() * templates.length)]
+
+        const textItems = upcoming.map(ev => {
+          const dateStr = ev.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+          const phrase = pick().replace('{date}', dateStr)
+          const [before, after] = phrase.split('{name}')
+          return { ...ev, before, after, tags: tagMap[ev.id] || [] }
+        })
+
+        setItems(textItems)
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+  }, [])
+
+  if (!items.length) return null
+
+  return (
+    <div className="max-w-screen-md mx-auto my-8 p-6 bg-white border border-gray-200 shadow rounded-lg">
+      <h3 className="font-[Barrio] text-2xl text-indigo-900 text-center mb-1">What&apos;s Ahead: Philly Traditions</h3>
+      <p className="text-center text-sm text-gray-500 mb-4">by Our Philly Concierge</p>
+      <ul className="space-y-2 text-gray-700 leading-relaxed">
+        {items.map(item => (
+          <li key={item.id}>
+            {item.before}
+            <Link to={`/events/${item.slug}`} className="font-semibold text-indigo-700 hover:underline">
+              {item.name}
+            </Link>
+            {item.tags.slice(0, 2).map((tag, i) => (
+              <Link
+                key={tag.slug}
+                to={`/tags/${tag.slug}`}
+                className={`ml-1 inline-block ${pillStyles[i % pillStyles.length]} text-xs px-2 py-0.5 rounded-full`}
+              >
+                #{tag.name}
+              </Link>
+            ))}
+            {item.after}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 
 // ── MainEvents Component ───────────────────────────────
 export default function MainEvents() {
@@ -973,7 +1089,9 @@ if (loading) {
                 <TriviaTonightBanner />
               </div>
             </div>
-      
+
+            <WhatsAheadSnippet />
+
             {/* ─── Pills + Date Picker + Event Count ─── */}
             <div className="container mx-auto px-4 mt-12">
               <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
