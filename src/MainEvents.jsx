@@ -29,11 +29,8 @@ import EventsMap from './EventsMap';
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
 import { AuthContext } from './AuthProvider';
-import {
-  getMyEventFavorites,
-  addEventFavorite,
-  removeEventFavorite,
-} from './utils/eventFavorites';
+import EventFavorite from './EventFavorite.jsx'
+import useEventFavorite from './utils/useEventFavorite.js'
 
 
 
@@ -71,6 +68,11 @@ endOfWeek.setDate(endOfWeek.getDate() + 6)
 
 function formatShortDate(d) {
   return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+}
+
+function FavoriteState({ event_id, source_table, children }) {
+  const state = useEventFavorite({ event_id, source_table });
+  return children(state);
 }
 
 // 🟡 Sidebar "Bulletin" (duplicate design, no desc)
@@ -239,9 +241,7 @@ function FallingPills() {
 function WhatsAheadSnippet() {
   const { user } = useContext(AuthContext)
   const [items, setItems] = useState([])
-  const [favMap, setFavMap] = useState({})
   const [favCounts, setFavCounts] = useState({})
-  const [busyFav, setBusyFav] = useState(false)
   const pillStyles = [
     'bg-green-100 text-indigo-800',
     'bg-teal-100 text-teal-800',
@@ -342,43 +342,7 @@ function WhatsAheadSnippet() {
     })()
   }, [items])
 
-  // Load user favorites
-  useEffect(() => {
-    if (!items.length || !user) {
-      setFavMap({})
-      return
-    }
-    getMyEventFavorites()
-      .then(rows => {
-        const map = {}
-        rows.forEach(r => {
-          map[r.event_id] = r.id
-        })
-        setFavMap(map)
-      })
-      .catch(console.error)
-  }, [user, items])
-
-  const toggleFav = async (id, e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!user) return
-    setBusyFav(true)
-    if (favMap[id]) {
-      await removeEventFavorite(favMap[id])
-      setFavMap(m => {
-        const next = { ...m }
-        delete next[id]
-        return next
-      })
-      setFavCounts(c => ({ ...c, [id]: (c[id] || 1) - 1 }))
-    } else {
-      const { id: newId } = await addEventFavorite(id)
-      setFavMap(m => ({ ...m, [id]: newId }))
-      setFavCounts(c => ({ ...c, [id]: (c[id] || 0) + 1 }))
-    }
-    setBusyFav(false)
-  }
+  // No per-user favorites loading now; handled in EventFavorite component
 
   if (!items.length) return null
 
@@ -388,7 +352,6 @@ function WhatsAheadSnippet() {
       <p className="text-center text-sm text-gray-500 mb-4">by Our Philly Concierge</p>
       <ul className="space-y-2 text-gray-700 leading-relaxed">
         {items.map(item => {
-          const isFav = Boolean(favMap[item.id])
           const count = favCounts[item.id] || 0
           return (
             <li key={item.id} className="flex justify-between items-start">
@@ -408,17 +371,15 @@ function WhatsAheadSnippet() {
                 ))}
                 {item.after}
               </span>
-              <span className="ml-2 flex items-center space-x-1">
-                <button
-                  onClick={e => toggleFav(item.id, e)}
-                  disabled={busyFav}
-                  className="text-lg"
-                  aria-label={isFav ? 'Remove favorite' : 'Add favorite'}
-                >
-                  {isFav ? '❤️' : '🤍'}
-                </button>
-                <span className="font-[Barrio] text-lg text-gray-800">{count}</span>
-              </span>
+              <EventFavorite
+                event_id={item.id}
+                source_table="events"
+                count={count}
+                onCountChange={delta =>
+                  setFavCounts(c => ({ ...c, [item.id]: (c[item.id] || 0) + delta }))
+                }
+                className="ml-2"
+              />
             </li>
           )
         })}
@@ -1297,11 +1258,26 @@ if (loading) {
 const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
 
           return (
-            <Wrapper
-              key={evt.id}
-              {...linkProps}
-              className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col"
+            <FavoriteState
+              event_id={evt.isRecurring ? String(evt.id).split('::')[0] : evt.id}
+              source_table={
+                evt.isBigBoard
+                  ? 'big_board_events'
+                  : evt.isTradition
+                    ? 'events'
+                    : evt.isGroupEvent
+                      ? 'group_events'
+                      : evt.isRecurring
+                        ? 'recurring_events'
+                        : 'all_events'
+              }
             >
+            {({ isFavorite, toggleFavorite, loading }) => (
+              <Wrapper
+                key={evt.id}
+                {...linkProps}
+                className={`block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`}
+              >
               {/* IMAGE + BUBBLE + BADGES */}
               <div className="relative w-full h-48">
                 <img
@@ -1312,6 +1288,11 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
                   {bubbleLabel}{bubbleTime}
                 </div>
+                {isFavorite && (
+                  <div className="absolute top-2 right-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded">
+                    In the plans!
+                  </div>
+                )}
 
                 {/* Group Event comes first */}
                 {evt.isGroupEvent && (
@@ -1376,8 +1357,17 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                     </span>
                   )}
                 </div>
+                <button
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); toggleFavorite(); }}
+                  disabled={loading}
+                  className={`mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                >
+                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                </button>
               </div>
-            </Wrapper>
+              </Wrapper>
+            )}
+            </FavoriteState>
           );
         })}
       </div>
