@@ -12,11 +12,7 @@ import HeroLanding from './HeroLanding';
 import TaggedGroupsScroller from './TaggedGroupsScroller';
 import TaggedEventScroller from './TaggedEventsScroller';
 import SubmitEventSection from './SubmitEventSection';
-import {
-  getMyEventFavorites,
-  addEventFavorite,
-  removeEventFavorite,
-} from './utils/eventFavorites';
+import useEventFavorite from './utils/useEventFavorite';
 
 export default function EventDetailPage() {
   const { slug } = useParams();
@@ -25,8 +21,12 @@ export default function EventDetailPage() {
   // ─── State ───────────────────────────────────────────────────────────
   const [event, setEvent] = useState(null);
   const [favCount, setFavCount] = useState(0);
-  const [myFavId, setMyFavId] = useState(null);
-  const [toggling, setToggling] = useState(false);
+
+  const {
+    isFavorite,
+    toggleFavorite,
+    loading: toggling,
+  } = useEventFavorite({ event_id: event?.id, source_table: 'events' })
 
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
@@ -172,14 +172,6 @@ export default function EventDetailPage() {
         if (!error) setFavCount(count || 0);
       });
 
-    // my favorite
-    if (user) {
-      getMyEventFavorites().then(rows => {
-        const mine = rows.find(r => r.event_id === event.id);
-        setMyFavId(mine?.id || null);
-      });
-    }
-
     // upcoming community submissions
     (async () => {
       const today = new Date().toISOString().slice(0,10);
@@ -240,17 +232,9 @@ export default function EventDetailPage() {
   // ─── Favorite toggle ─────────────────────────────────────────────────
   const toggleFav = async () => {
     if (!user || !event) return;
-    setToggling(true);
-    if (myFavId) {
-      await removeEventFavorite(myFavId);
-      setMyFavId(null);
-      setFavCount(c => c - 1);
-    } else {
-      const newRow = await addEventFavorite(event.id);
-      setMyFavId(newRow.id);
-      setFavCount(c => c + 1);
-    }
-    setToggling(false);
+    const wasFav = isFavorite;
+    await toggleFavorite();
+    setFavCount(c => (wasFav ? c - 1 : c + 1));
   };
 
   // ─── Reviews ─────────────────────────────────────────────────────────
@@ -360,7 +344,7 @@ export default function EventDetailPage() {
             disabled={toggling}
             className="absolute top-6 left-6 z-10 text-4xl"
           >
-            {myFavId ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
+            {isFavorite ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
           </button>
           <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white text-center">
             <h1 className="text-6xl font-[Barrio] mb-4">{event['E Name']}</h1>
@@ -415,17 +399,14 @@ export default function EventDetailPage() {
                 <p className="text-gray-700">{event.longDescription}</p>
               </div>
             )}
-            <div className="mb-6 flex items-center space-x-3 bg-gray-50 border rounded-lg p-3">
+            <div className="mb-6">
               <button
                 onClick={toggleFav}
                 disabled={toggling}
-                className="text-2xl"
+                className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
               >
-                {myFavId ? '❤️' : '🤍'}
+                {isFavorite ? 'In the Plans' : 'Add to Plans'}
               </button>
-              <span className="text-gray-700">
-                {favCount} people have favorited this
-              </span>
             </div>
           </div>
           <div>

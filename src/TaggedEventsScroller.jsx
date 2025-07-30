@@ -3,6 +3,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
+import useEventFavorite from './utils/useEventFavorite.js';
 
 export default function TaggedEventsScroller({
   tags = [],             // array of tag slugs to pull events from
@@ -39,6 +40,11 @@ export default function TaggedEventsScroller({
     if (diff > 1 && diff < 7)  return { text: `This ${weekday}!`, color: 'bg-[#ba3d36]', pulse: false };
     if (diff >= 7 && diff < 14) return { text: `Next ${weekday}!`, color: 'bg-[#ba3d36]', pulse: false };
     return { text: weekday, color: 'bg-[#ba3d36]', pulse: false };
+  }
+
+  function FavoriteState({ event_id, source_table, children }) {
+    const state = useEventFavorite({ event_id, source_table })
+    return children(state)
   }
 
   useEffect(() => {
@@ -138,8 +144,10 @@ export default function TaggedEventsScroller({
             id: e.id,
             title: e['E Name'],
             imageUrl: e['E Image'] || '',
-            start, end,
+            start,
+            end,
             href: `/events/${e.slug}`,
+            source_table: 'events',
           });
         });
 
@@ -155,8 +163,10 @@ export default function TaggedEventsScroller({
             id: ev.id,
             title: ev.title,
             imageUrl: url,
-            start, end,
+            start,
+            end,
             href: `/big-board/${ev.slug}`,
+            source_table: 'big_board_events',
           });
         });
 
@@ -171,6 +181,7 @@ export default function TaggedEventsScroller({
             start,
             end: start,
             href: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+            source_table: 'all_events',
           });
         });
 
@@ -181,7 +192,7 @@ export default function TaggedEventsScroller({
 
           let url = '';
           if (ev.image_url?.startsWith('http')) {
-            url = ev.image_url; 
+            url = ev.image_url;
           } else if (ev.image_url) {
             url = supabase
               .storage.from('big-board')
@@ -194,10 +205,12 @@ export default function TaggedEventsScroller({
             id: ev.id,
             title: ev.title,
             imageUrl: url,
-            start, end,
+            start,
+            end,
             href: groupSlug
               ? `/groups/${groupSlug}/events/${ev.slug}`
               : '/',
+            source_table: 'group_events',
           });
         });
 
@@ -242,32 +255,44 @@ export default function TaggedEventsScroller({
                   evt.start <= new Date() && new Date() <= evt.end
                 );
                 return (
-                  <Link
-                    key={`${evt.id}-${evt.start}`}
-                    to={evt.href}
-                    className="relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg"
+                  <FavoriteState
+                    key={`${evt.source_table}-${evt.id}-${evt.start}`}
+                    event_id={evt.id}
+                    source_table={evt.source_table}
                   >
-                    <img
-                      src={evt.imageUrl}
-                      alt={evt.title}
-                      className="absolute inset-0 w-full h-full object-cover" 
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
-                    <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
-                      {evt.title}
-                    </h3>
-                    <span
-                      className={`
-                        absolute bottom-6 left-1/2 transform -translate-x-1/2
-                        ${color} text-white text-base font-bold px-6 py-1 rounded-full
-                        whitespace-nowrap min-w-[6rem]
-                        ${pulse ? 'animate-pulse' : ''}
-                        z-20
-                      `}
-                    >
-                      {text}
-                    </span>
-                  </Link>
+                    {({ isFavorite }) => (
+                      <Link
+                        to={evt.href}
+                        className={`relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`}
+                      >
+                        <img
+                          src={evt.imageUrl}
+                          alt={evt.title}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                        {isFavorite && (
+                          <div className="absolute top-2 right-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded z-20">
+                            In the plans!
+                          </div>
+                        )}
+                        <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
+                          {evt.title}
+                        </h3>
+                        <span
+                          className={`
+                            absolute bottom-6 left-1/2 transform -translate-x-1/2
+                            ${color} text-white text-base font-bold px-6 py-1 rounded-full
+                            whitespace-nowrap min-w-[6rem]
+                            ${pulse ? 'animate-pulse' : ''}
+                            z-20
+                          `}
+                        >
+                          {text}
+                        </span>
+                      </Link>
+                    )}
+                  </FavoriteState>
                 );
               })}
             </div>

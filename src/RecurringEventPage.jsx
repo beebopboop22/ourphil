@@ -10,6 +10,7 @@ import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
+import useEventFavorite from './utils/useEventFavorite';
 
 export default function RecurringEventPage() {
   const { slug, date } = useParams();
@@ -37,6 +38,12 @@ export default function RecurringEventPage() {
   // Modal state for "add events"
   const [showFlyerModal, setShowFlyerModal] = useState(false);
   const [modalStartStep, setModalStartStep] = useState(1);
+
+  const {
+    isFavorite,
+    toggleFavorite,
+    loading: favLoading,
+  } = useEventFavorite({ event_id: series?.id, source_table: 'recurring_events' });
   const [initialFlyer, setInitialFlyer] = useState(null);
 
   const pillStyles = [
@@ -352,6 +359,15 @@ export default function RecurringEventPage() {
                   <p className="text-gray-700">{series.description}</p>
                 </div>
               )}
+              <div className="mb-6">
+                <button
+                  onClick={toggleFavorite}
+                  disabled={favLoading}
+                  className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                >
+                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                </button>
+              </div>
 
               {series.link && (
                 <a
