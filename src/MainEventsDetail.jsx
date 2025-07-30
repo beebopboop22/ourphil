@@ -11,6 +11,7 @@ import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
 import TaggedEventScroller from './TaggedEventsScroller';
+import useEventFavorite from './utils/useEventFavorite';
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -62,6 +63,13 @@ export default function MainEventsDetail() {
     address: '',
   });
   const [saving, setSaving] = useState(false);
+
+  const [favCount, setFavCount] = useState(0);
+  const {
+    isFavorite,
+    toggleFavorite,
+    loading: toggling,
+  } = useEventFavorite({ event_id: event?.id, source_table: 'all_events' });
 
   const pillStyles = [
     'bg-red-100 text-red-800',
@@ -192,6 +200,15 @@ export default function MainEventsDetail() {
         if (error) console.error(error);
         else setEventTags((data || []).map(r => r.tags));
       });
+
+    supabase
+      .from('event_favorites')
+      .select('id', { count: 'exact', head: true })
+      .eq('source_table', 'all_events')
+      .eq('event_int_id', event.id)
+      .then(({ count, error }) => {
+        if (!error) setFavCount(count || 0)
+      })
   }, [event]);
 
   // Load all tags for explore section
@@ -379,7 +396,14 @@ export default function MainEventsDetail() {
           />
 
           {/* Overlap Card */}
-          <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform">
+          <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform relative">
+            <button
+              onClick={toggleFavorite}
+              disabled={toggling}
+              className="absolute left-6 top-6 text-3xl"
+            >
+              {isFavorite ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
+            </button>
             <div className="text-center space-y-4">
               <h1 className="text-4xl font-bold">{event.name}</h1>
               <p className="text-lg font-medium">
@@ -523,7 +547,12 @@ export default function MainEventsDetail() {
                       <p className="text-gray-700 leading-relaxed">{event.description}</p>
                     </div>
                   )}
-
+                  <div className="mb-6 flex items-center space-x-3 bg-gray-50 border rounded-lg p-3">
+                    <button onClick={toggleFavorite} disabled={toggling} className="text-2xl">
+                      {isFavorite ? '❤️' : '🤍'}
+                    </button>
+                    <span className="text-gray-700">{favCount} people have favorited this</span>
+                  </div>
 
                   <button
                     onClick={handleShare}
