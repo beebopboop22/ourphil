@@ -9,6 +9,7 @@ import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
+import EventFavorite from './EventFavorite.jsx';
 
 export default function BigBoardEventPage() {
   const { slug } = useParams();
@@ -407,6 +408,11 @@ export default function BigBoardEventPage() {
                 className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
               >→</button>
             )}
+            <EventFavorite
+              event_id={event.id}
+              source_table="big_board_events"
+              className="absolute left-6 top-6 text-3xl"
+            />
             <div className="text-center space-y-4">
               <h1 className="text-4xl font-bold">{event.title}</h1>
               <p className="text-lg font-medium">
