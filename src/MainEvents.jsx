@@ -29,11 +29,7 @@ import EventsMap from './EventsMap';
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
 import { AuthContext } from './AuthProvider';
-import {
-  getMyEventFavorites,
-  addEventFavorite,
-  removeEventFavorite,
-} from './utils/eventFavorites';
+import EventFavorite from './EventFavorite.jsx'
 
 
 
@@ -239,9 +235,7 @@ function FallingPills() {
 function WhatsAheadSnippet() {
   const { user } = useContext(AuthContext)
   const [items, setItems] = useState([])
-  const [favMap, setFavMap] = useState({})
   const [favCounts, setFavCounts] = useState({})
-  const [busyFav, setBusyFav] = useState(false)
   const pillStyles = [
     'bg-green-100 text-indigo-800',
     'bg-teal-100 text-teal-800',
@@ -342,43 +336,7 @@ function WhatsAheadSnippet() {
     })()
   }, [items])
 
-  // Load user favorites
-  useEffect(() => {
-    if (!items.length || !user) {
-      setFavMap({})
-      return
-    }
-    getMyEventFavorites()
-      .then(rows => {
-        const map = {}
-        rows.forEach(r => {
-          map[r.event_id] = r.id
-        })
-        setFavMap(map)
-      })
-      .catch(console.error)
-  }, [user, items])
-
-  const toggleFav = async (id, e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!user) return
-    setBusyFav(true)
-    if (favMap[id]) {
-      await removeEventFavorite(favMap[id])
-      setFavMap(m => {
-        const next = { ...m }
-        delete next[id]
-        return next
-      })
-      setFavCounts(c => ({ ...c, [id]: (c[id] || 1) - 1 }))
-    } else {
-      const { id: newId } = await addEventFavorite(id)
-      setFavMap(m => ({ ...m, [id]: newId }))
-      setFavCounts(c => ({ ...c, [id]: (c[id] || 0) + 1 }))
-    }
-    setBusyFav(false)
-  }
+  // No per-user favorites loading now; handled in EventFavorite component
 
   if (!items.length) return null
 
@@ -388,7 +346,6 @@ function WhatsAheadSnippet() {
       <p className="text-center text-sm text-gray-500 mb-4">by Our Philly Concierge</p>
       <ul className="space-y-2 text-gray-700 leading-relaxed">
         {items.map(item => {
-          const isFav = Boolean(favMap[item.id])
           const count = favCounts[item.id] || 0
           return (
             <li key={item.id} className="flex justify-between items-start">
@@ -408,17 +365,15 @@ function WhatsAheadSnippet() {
                 ))}
                 {item.after}
               </span>
-              <span className="ml-2 flex items-center space-x-1">
-                <button
-                  onClick={e => toggleFav(item.id, e)}
-                  disabled={busyFav}
-                  className="text-lg"
-                  aria-label={isFav ? 'Remove favorite' : 'Add favorite'}
-                >
-                  {isFav ? '❤️' : '🤍'}
-                </button>
-                <span className="font-[Barrio] text-lg text-gray-800">{count}</span>
-              </span>
+              <EventFavorite
+                event_id={item.id}
+                source_table="events"
+                count={count}
+                onCountChange={delta =>
+                  setFavCounts(c => ({ ...c, [item.id]: (c[item.id] || 0) + delta }))
+                }
+                className="ml-2"
+              />
             </li>
           )
         })}
@@ -1375,6 +1330,23 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                       +{extra} more
                     </span>
                   )}
+                </div>
+                <div className="mt-4 w-full bg-gray-100 border-t px-3 py-2 flex justify-center">
+                  {(() => {
+                    const source_table = evt.isBigBoard
+                      ? 'big_board_events'
+                      : evt.isTradition
+                        ? 'events'
+                        : evt.isGroupEvent
+                          ? 'group_events'
+                          : evt.isRecurring
+                            ? 'recurring_events'
+                            : 'all_events';
+                    const favId = evt.isRecurring ? String(evt.id).split('::')[0] : evt.id;
+                    return (
+                      <EventFavorite event_id={favId} source_table={source_table} />
+                    );
+                  })()}
                 </div>
               </div>
             </Wrapper>

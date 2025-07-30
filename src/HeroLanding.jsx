@@ -3,19 +3,13 @@ import React, { useEffect, useState, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
-import {
-  getMyEventFavorites,
-  addEventFavorite,
-  removeEventFavorite,
-} from './utils/eventFavorites';
+import EventFavorite from './EventFavorite.jsx';
 
 export default function HeroLanding() {
   const { user } = useContext(AuthContext);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [favMap, setFavMap] = useState({});
   const [favCounts, setFavCounts] = useState({});
-  const [busyFav, setBusyFav] = useState(false);
 
   const parseDate = datesStr => {
     if (!datesStr) return null;
@@ -93,35 +87,7 @@ export default function HeroLanding() {
     })();
   }, [events]);
 
-  useEffect(() => {
-    if (!user) {
-      setFavMap({});
-      return;
-    }
-    getMyEventFavorites()
-      .then(rows => {
-        const map = {};
-        rows.forEach(r => { map[r.event_id] = r.id });
-        setFavMap(map);
-      })
-      .catch(console.error);
-  }, [user, events]);
-
-  const toggleFav = async (id, e) => {
-    e.preventDefault(); e.stopPropagation();
-    if (!user) return;
-    setBusyFav(true);
-    if (favMap[id]) {
-      await removeEventFavorite(favMap[id]);
-      setFavMap(m => { const c = { ...m }; delete c[id]; return c; });
-      setFavCounts(c => ({ ...c, [id]: (c[id] || 1) - 1 }));
-    } else {
-      const { id: newId } = await addEventFavorite(id);
-      setFavMap(m => ({ ...m, [id]: newId }));
-      setFavCounts(c => ({ ...c, [id]: (c[id] || 0) + 1 }));
-    }
-    setBusyFav(false);
-  };
+  // Favorites handled individually in EventFavorite component
 
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
@@ -150,7 +116,6 @@ export default function HeroLanding() {
               {events.map(evt => {
                 const { text, color, pulse } = getBubble(evt.start, evt.isActive);
                 const count = favCounts[evt.id] || 0;
-                const isFav = Boolean(favMap[evt.id]);
                 const showWeekendBadge =
                   isThisWeekend(evt.start) && [5, 6, 0].includes(evt.start.getDay());
 
@@ -173,14 +138,15 @@ export default function HeroLanding() {
                       </span>
                     )}
 
-                    <button
-                      onClick={e => toggleFav(evt.id, e)}
-                      disabled={busyFav}
-                      className="absolute top-3 right-3 text-2xl text-white z-20"
-                      aria-label={isFav ? 'Remove favorite' : 'Add favorite'}
-                    >
-                      {isFav ? '❤️' : '🤍'}
-                    </button>
+                    <EventFavorite
+                      event_id={evt.id}
+                      source_table="events"
+                      count={count}
+                      onCountChange={delta =>
+                        setFavCounts(c => ({ ...c, [evt.id]: (c[evt.id] || 0) + delta }))
+                      }
+                      className="absolute top-3 right-3 z-20 text-2xl text-white"
+                    />
                     {count > 0 && (
                       <span className="absolute top-10 right-3 text-sm font-semibold text-white z-20">
                         {count}
