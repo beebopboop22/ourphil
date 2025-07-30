@@ -7,6 +7,7 @@ import Navbar from './Navbar'
 import Footer from './Footer'
 import GroupProgressBar from './GroupProgressBar'
 import { AuthContext } from './AuthProvider'
+import EventFavorite from './EventFavorite.jsx'
 
 const pillStyles = [
   'bg-red-100 text-red-800',
@@ -268,6 +269,11 @@ if (ev.image_url) {
 
       {/* overlap detail card */}
       <div className="max-w-3xl mx-auto bg-white shadow-xl rounded-xl -mt-24 relative z-10">
+        <EventFavorite
+          event_id={evt.id}
+          source_table="group_events"
+          className="absolute left-6 top-6 text-3xl"
+        />
 
         {/* created by */}
         <div className="w-full bg-blue-50 px-6 py-3 text-center text-blue-700 font-semibold rounded-t-xl">

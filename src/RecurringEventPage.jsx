@@ -10,6 +10,7 @@ import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
+import EventFavorite from './EventFavorite.jsx';
 
 export default function RecurringEventPage() {
   const { slug, date } = useParams();
@@ -285,6 +286,12 @@ export default function RecurringEventPage() {
                 ←
               </button>
             )}
+
+            <EventFavorite
+              event_id={series.id}
+              source_table="recurring_events"
+              className="absolute left-6 top-6 text-3xl z-20"
+            />
 
             <div className="bg-white shadow-xl rounded-xl p-8 relative z-10 text-center">
               <h1 className="text-4xl font-bold">{series.name}</h1>
