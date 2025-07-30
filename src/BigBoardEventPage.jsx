@@ -10,6 +10,7 @@ import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
 import useEventFavorite from './utils/useEventFavorite';
+import CommentsSection from './CommentsSection';
 
 export default function BigBoardEventPage() {
   const { slug } = useParams();
@@ -714,6 +715,11 @@ export default function BigBoardEventPage() {
               />
             </div>
           </div>
+
+          <CommentsSection
+            source_table="big_board_events"
+            event_id={event.id}
+          />
 
           {/* More Upcoming Community Submissions */}
           <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">

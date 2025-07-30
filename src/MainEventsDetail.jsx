@@ -12,6 +12,7 @@ import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
 import TaggedEventScroller from './TaggedEventsScroller';
 import useEventFavorite from './utils/useEventFavorite';
+import CommentsSection from './CommentsSection';
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -606,6 +607,11 @@ export default function MainEventsDetail() {
               )}
           </div>
           </div>
+
+          <CommentsSection
+            source_table="all_events"
+            event_id={event.id}
+          />
 
           {relatedEvents.length > 0 && venueData && (
             <section className="max-w-4xl mx-auto mt-12 px-4">
