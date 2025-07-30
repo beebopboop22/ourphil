@@ -964,15 +964,22 @@ if (selectedOption === 'today' && !showAllToday) {
   
     // group IDs by their table
     const idsByType = allPagedEvents.reduce((acc, evt) => {
-      const table = evt.isBigBoard
-        ? 'big_board_events'
-        : evt.isTradition
-        ? 'events'
-        : evt.isGroupEvent
-        ? 'group_events'
-        : 'all_events';
+      let table;
+      let id = String(evt.id);
+      if (evt.isBigBoard) {
+        table = 'big_board_events';
+      } else if (evt.isTradition) {
+        table = 'events';
+      } else if (evt.isGroupEvent) {
+        table = 'group_events';
+      } else if (evt.isRecurring) {
+        table = 'recurring_events';
+        id = id.split('::')[0];
+      } else {
+        table = 'all_events';
+      }
       acc[table] = acc[table] || [];
-      acc[table].push(String(evt.id));
+      acc[table].push(id);
       return acc;
     }, {});
   
@@ -1281,7 +1288,8 @@ if (loading) {
                     : { to: '/' };
 
 
-          const tags = tagMap[evt.id] || [];
+          const tagKey = evt.isRecurring ? String(evt.id).split('::')[0] : evt.id;
+          const tags = tagMap[tagKey] || [];
           const shown = tags.slice(0,2);
           const extra = tags.length - shown.length;
 
