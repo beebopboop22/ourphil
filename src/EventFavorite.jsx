@@ -13,7 +13,7 @@ export default function EventFavorite({ event_id, source_table, count, onCountCh
   }
 
   return (
-    <span className={`flex items-center space-x-1 ${className}`}>
+    <span className={`inline-flex items-center space-x-1 ${className}`}>
       <button
         onClick={handle}
         disabled={loading}
