@@ -6,11 +6,7 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import RecentActivity from './RecentActivity';
 
-import {
-  getMyEventFavorites,
-  addEventFavorite,
-  removeEventFavorite,
-} from './utils/eventFavorites';
+import EventFavorite from './EventFavorite.jsx';
 
 // Helpers
 const parseDate = (datesStr) => {
@@ -45,9 +41,7 @@ export default function Bulletin({ previewCount = Infinity }) {
   const { user } = useContext(AuthContext);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [favMap, setFavMap] = useState({});
   const [favCounts, setFavCounts] = useState({});
-  const [busyFav, setBusyFav] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -178,36 +172,7 @@ export default function Bulletin({ previewCount = Infinity }) {
     })();
   }, [events]);
 
-  // Load user favorites
-  useEffect(() => {
-    if (!user) {
-      setFavMap({});
-      return;
-    }
-    getMyEventFavorites()
-      .then((rows) => {
-        const m = {};
-        rows.forEach((r) => (m[r.event_id] = r.id));
-        setFavMap(m);
-      })
-      .catch(console.error);
-  }, [user, events]);
-
-  // Toggle heart
-  const toggleFav = async (id, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!user) return;
-    setBusyFav(true);
-    if (favMap[id]) {
-      await removeEventFavorite(favMap[id]);
-      delete favMap[id];
-    } else {
-      const newFav = await addEventFavorite(id);
-      favMap[id] = newFav.id;
-    }
-    setBusyFav(false);
-  };
+  // No per-user favorites fetch; handled in EventFavorite component
 
   if (loading) return <div className="text-center py-12">Loading bulletin…</div>;
 
@@ -318,13 +283,15 @@ export default function Bulletin({ previewCount = Infinity }) {
                     {evt.updateText}
                   </p>
                   {!String(evt.id).startsWith('fixed') && (
-                    <button
-                      onClick={(e) => toggleFav(evt.id, e)}
-                      disabled={busyFav}
-                      className="favorite-button no-print text-xl"
-                    >
-                      {favMap[evt.id] ? '❤️' : '🤍'} {favCounts[evt.id] || 0}
-                    </button>
+                    <EventFavorite
+                      event_id={evt.id}
+                      source_table="events"
+                      count={favCounts[evt.id] || 0}
+                      onCountChange={delta =>
+                        setFavCounts(c => ({ ...c, [evt.id]: (c[evt.id] || 0) + delta }))
+                      }
+                      className="favorite-button no-print"
+                    />
                   )}
                 </div>
                 {evt['E Description'] && (
