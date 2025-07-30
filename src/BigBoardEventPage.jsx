@@ -9,6 +9,7 @@ import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
+import useEventFavorite from './utils/useEventFavorite';
 
 export default function BigBoardEventPage() {
   const { slug } = useParams();
@@ -44,6 +45,12 @@ export default function BigBoardEventPage() {
     longitude: null,
   });
   const [saving, setSaving] = useState(false);
+
+  const {
+    isFavorite,
+    toggleFavorite,
+    loading: favLoading,
+  } = useEventFavorite({ event_id: event?.id, source_table: 'big_board_events' });
 
   // Tag state
   const pillStyles = [
@@ -596,6 +603,15 @@ export default function BigBoardEventPage() {
                       <p className="text-gray-700">{event.description}</p>
                     </div>
                   )}
+                  <div className="mb-6">
+                    <button
+                      onClick={toggleFavorite}
+                      disabled={favLoading}
+                      className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                    >
+                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                    </button>
+                  </div>
                   {event.link && (
                     <div className="mb-6">
                       <a
