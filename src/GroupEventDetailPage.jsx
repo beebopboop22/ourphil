@@ -8,6 +8,7 @@ import Footer from './Footer'
 import GroupProgressBar from './GroupProgressBar'
 import { AuthContext } from './AuthProvider'
 import EventFavorite from './EventFavorite.jsx'
+import CommentsSection from './CommentsSection'
 
 const pillStyles = [
   'bg-red-100 text-red-800',
@@ -462,6 +463,11 @@ if (ev.image_url) {
           </div>
         </div>
       </div>
+
+      <CommentsSection
+        source_table="group_events"
+        event_id={evt.id}
+      />
 
       {/* full-width community subs */}
       <section className="w-full bg-neutral-100 py-12">

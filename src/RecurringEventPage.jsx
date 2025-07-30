@@ -11,6 +11,7 @@ import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
+import CommentsSection from './CommentsSection';
 
 export default function RecurringEventPage() {
   const { slug, date } = useParams();
@@ -386,20 +387,25 @@ export default function RecurringEventPage() {
               >
                 Share
               </button>
-            </div>
-
-            {/* Right side: capped-height image */}
-            <div>
-              <img
-                src={series.image_url}
-                alt={series.name}
-                className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
-              />
-            </div>
           </div>
 
-          {/* Upcoming Dates */}
-          <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">
+          {/* Right side: capped-height image */}
+          <div>
+            <img
+              src={series.image_url}
+              alt={series.name}
+              className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
+            />
+          </div>
+        </div>
+
+        <CommentsSection
+          source_table="recurring_events"
+          event_id={series.id}
+        />
+
+        {/* Upcoming Dates */}
+        <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">
             <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
               Upcoming Dates
             </h2>
