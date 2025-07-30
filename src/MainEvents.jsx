@@ -345,32 +345,32 @@ function WhatsAheadSnippet() {
   // No per-user favorites loading now; handled in EventFavorite component
 
   if (!items.length) return null
+  const relativeLabel = date => {
+    const today0 = new Date();
+    today0.setHours(0,0,0,0);
+    const diff = Math.round((date - today0) / 86400000);
+    const day = date.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+    if (diff === 0) return "today";
+    if (diff === 1) return "tomorrow";
+    if (diff < 7) return `this ${day}`;
+    if (diff < 14) return `next ${day}`;
+    return `on ${day}`;
+  };
+
 
   return (
-    <div className="max-w-screen-md mx-auto my-8 p-6 bg-white border border-gray-200 shadow rounded-lg">
-      <h3 className="font-[Barrio] text-2xl text-indigo-900 text-center mb-1">What&apos;s Ahead: Philly Traditions</h3>
-      <p className="text-center text-sm text-gray-500 mb-4">by Our Philly Concierge</p>
-      <ul className="space-y-2 text-gray-700 leading-relaxed">
-        {items.map(item => {
-          const count = favCounts[item.id] || 0
+    <div className="max-w-screen-md mx-auto my-8 p-6 bg-indigo-50 border-l-4 border-indigo-400 shadow-inner rounded">
+      <h3 className="font-[Barrio] text-2xl text-indigo-900 text-left mb-1">What&apos;s Ahead: Philly Traditions</h3>
+      <p className="text-left text-sm text-gray-500 mb-4">by Our Philly Concierge</p>
+      <p className="text-gray-700 leading-relaxed">
+        <span className="font-semibold">AROUND THE CORNER:</span>{' '}
+        {items.map((item, idx) => {
+          const count = favCounts[item.id] || 0;
+          const dateStr = item.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+          const rel = relativeLabel(item.date);
           return (
-            <li key={item.id} className="flex justify-between items-start">
-              <span>
-                {item.before}
-                <Link to={`/events/${item.slug}`} className="font-semibold text-indigo-700 hover:underline">
-                  {item.name}
-                </Link>
-                {item.tags.slice(0, 2).map((tag, i) => (
-                  <Link
-                    key={tag.slug}
-                    to={`/tags/${tag.slug}`}
-                    className={`ml-1 inline-block ${pillStyles[i % pillStyles.length]} text-xs px-2 py-0.5 rounded-full`}
-                  >
-                    #{tag.name}
-                  </Link>
-                ))}
-                {item.after}
-              </span>
+            <React.Fragment key={item.id}>
+              {idx > 0 && (idx === items.length - 1 ? ' and ' : ', ')}
               <EventFavorite
                 event_id={item.id}
                 source_table="events"
@@ -378,12 +378,26 @@ function WhatsAheadSnippet() {
                 onCountChange={delta =>
                   setFavCounts(c => ({ ...c, [item.id]: (c[item.id] || 0) + delta }))
                 }
-                className="ml-2"
+                className="mx-1"
               />
-            </li>
-          )
+              <Link to={`/events/${item.slug}`} className="font-semibold text-indigo-700 hover:underline">
+                {item.name}
+              </Link>
+              {item.tags.slice(0, 2).map((tag, i) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`ml-1 inline-block ${pillStyles[i % pillStyles.length]} text-xs px-2 py-0.5 rounded-full`}
+                >
+                  #{tag.name}
+                </Link>
+              ))}{' '}
+              {rel}, {dateStr}
+            </React.Fragment>
+          );
         })}
-      </ul>
+        !
+      </p>
     </div>
   )
 }
