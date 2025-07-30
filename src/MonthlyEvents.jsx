@@ -2,20 +2,14 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
-import {
-  getMyEventFavorites,
-  addEventFavorite,
-  removeEventFavorite,
-} from './utils/eventFavorites';
+import EventFavorite from './EventFavorite.jsx';
 import { Link } from 'react-router-dom';
 
 const MonthlyEvents = () => {
   const { user } = useContext(AuthContext);
 
   const [events, setEvents] = useState([]);
-  const [favMap, setFavMap] = useState({});      // event_id → favorite record id
   const [favCounts, setFavCounts] = useState({}); // event_id → total count
-  const [busyFav, setBusyFav] = useState(false);
 
   // parse a "Dates" string into a JS Date
   const parseDate = (datesStr) => {
@@ -95,43 +89,7 @@ const MonthlyEvents = () => {
   }, [events]);
 
   // 3) load this user’s favorites
-  useEffect(() => {
-    if (!user) {
-      setFavMap({});
-      return;
-    }
-    getMyEventFavorites()
-      .then(rows => {
-        const m = {};
-        rows.forEach(r => { m[r.event_id] = r.id; });
-        setFavMap(m);
-      })
-      .catch(console.error);
-  }, [user, events]);
-
-  // 4) toggle heart
-  const toggleFav = async (eventId, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!user) return;
-    setBusyFav(true);
-
-    if (favMap[eventId]) {
-      await removeEventFavorite(favMap[eventId]);
-      setFavMap(m => {
-        const next = { ...m };
-        delete next[eventId];
-        return next;
-      });
-      setFavCounts(c => ({ ...c, [eventId]: (c[eventId]||1) - 1 }));
-    } else {
-      const data = await addEventFavorite(eventId);
-      setFavMap(m => ({ ...m, [eventId]: data[0].id }));
-      setFavCounts(c => ({ ...c, [eventId]: (c[eventId]||0) + 1 }));
-    }
-
-    setBusyFav(false);
-  };
+  // Favorites handled in EventFavorite component
 
   if (!events.length) return null;
 
@@ -147,7 +105,6 @@ const MonthlyEvents = () => {
       <div className="overflow-x-auto scrollbar-hide">
         <div className="flex gap-4 pb-2">
           {events.map(evt => {
-            const isFav = Boolean(favMap[evt.id]);
             const count = favCounts[evt.id] || 0;
 
             return (
@@ -184,17 +141,15 @@ const MonthlyEvents = () => {
                   </p>
                 </div>
 
-                <div className="bg-gray-100 border-t px-3 py-2 flex items-center justify-center space-x-3">
-                  <button
-                    onClick={e => toggleFav(evt.id, e)}
-                    disabled={busyFav}
-                    className="text-xl"
-                  >
-                    {isFav ? '❤️' : '🤍'}
-                  </button>
-                  <span className="font-[Barrio] text-lg text-gray-800">
-                    {count}
-                  </span>
+                <div className="bg-gray-100 border-t px-3 py-2 flex items-center justify-center">
+                  <EventFavorite
+                    event_id={evt.id}
+                    source_table="events"
+                    count={count}
+                    onCountChange={delta =>
+                      setFavCounts(c => ({ ...c, [evt.id]: (c[evt.id] || 0) + delta }))
+                    }
+                  />
                 </div>
               </Link>
             );
