@@ -920,23 +920,23 @@ useEffect(() => {
   const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
 
   const allFilteredEvents = [
-    ...groupEvents,
-    ...bigBoardEvents,
-    ...sportsEvents,
-    ...recurringOccs,
-    ...traditionEvents,
-    ...events
-  ];
-  
-  // Big Board first, then Traditions, then All Events
-const allPagedEvents = [
-    ...bigBoardEvents,
-    ...sportsEvents,
-    ...recurringOccs,  
-    ...traditionEvents,
-    ...groupEvents, 
-    ...events
-  ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+      ...events,
+      ...bigBoardEvents,
+      ...sportsEvents,
+      ...recurringOccs,
+      ...traditionEvents,
+      ...groupEvents
+    ];
+
+    // Events first, then others
+  const allPagedEvents = [
+      ...events,
+      ...bigBoardEvents,
+      ...sportsEvents,
+      ...recurringOccs,
+      ...traditionEvents,
+      ...groupEvents
+    ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
 
   const fullCount = allPagedEvents.length
 
@@ -1131,18 +1131,25 @@ if (loading) {
           ? headerDateStr
           : selectedOption
       } in Philadelphia.`;
+  const metaKeywords = allTags.slice(0, 10).map(t => t.name).join(', ');
+  const canonicalUrl = typeof window !== 'undefined' ? window.location.href : '';
 
   
 
       return (
         <>
           <Helmet>
-            <title>Build Your Philly Digest | Our Philly</title>
+            <title>{pageTitle} | Our Philly</title>
             <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-            <meta
-              name="description"
-              content="Subscribe to your personalized Philly digest—get a daily roundup of the best events, traditions, and community happenings delivered straight to your inbox."
-            />
+            <link rel="canonical" href={canonicalUrl} />
+            <meta name="description" content={metaDescription} />
+            <meta name="keywords" content={metaKeywords} />
+            <meta property="og:title" content={`${pageTitle} | Our Philly`} />
+            <meta property="og:description" content={metaDescription} />
+            <meta property="og:type" content="website" />
+            <meta property="og:url" content={canonicalUrl} />
+            <meta property="og:image" content="https://your-image-url.png" />
+            <meta name="twitter:card" content="summary_large_image" />
           </Helmet>
       
           <div className="flex flex-col min-h-screen overflow-x-visible">
@@ -1297,11 +1304,11 @@ if (loading) {
 const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
 
           return (
-            <Wrapper
-              key={evt.id}
-              {...linkProps}
-              className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col"
-            >
+              <Wrapper
+                key={evt.id}
+                {...linkProps}
+                className={`block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col ${evt.isTradition ? 'ring-2 ring-yellow-400' : ''} ${evt.isRecurring ? 'ring-2 ring-purple-400' : ''} ${evt.isBigBoard ? 'ring-2 ring-indigo-400' : ''}`}
+              >
               {/* IMAGE + BUBBLE + BADGES */}
               <div className="relative w-full h-48">
                 <img
@@ -1326,8 +1333,13 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                   </div>
                 )}
                 {evt.isTradition && (
-                  <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
-                    Tradition
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-r from-yellow-400 via-yellow-500 to-orange-500 text-white text-xs uppercase text-center py-1">
+                    Philly Tradition
+                  </div>
+                )}
+                {evt.isRecurring && (
+                  <div className="absolute inset-x-0 bottom-0 bg-purple-600 text-white text-xs uppercase text-center py-1">
+                    Recurring Event
                   </div>
                 )}
               </div>
