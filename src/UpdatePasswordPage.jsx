@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet';
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('');
@@ -33,6 +34,11 @@ export default function UpdatePasswordPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-4">
+      <Helmet>
+        <title>Reset Password | Our Philly</title>
+        <meta name="description" content="Choose a new password for your Our Philly account." />
+        <link rel="canonical" href="https://ourphilly.org/update-password" />
+      </Helmet>
       <div className="bg-white p-6 rounded-xl shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold mb-4">Reset Your Password</h1>
         {!ready ? (

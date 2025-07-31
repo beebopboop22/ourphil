@@ -166,6 +166,8 @@ export default function EventsMap({ events, height = '500px' }) {
               <img
                 src={mascotUrl}
                 alt=""
+                role="presentation"
+                loading="lazy"
                 className="w-6 h-6 md:w-8 md:h-8 cursor-pointer"
                 style={{ transform: 'translateY(-50%)' }}
               />

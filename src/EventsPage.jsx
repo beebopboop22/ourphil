@@ -33,7 +33,7 @@ export default function EventsPage() {
           content="Your one-stop guide to Philadelphia’s upcoming traditions, seasonal events, sports games, and concerts."
         />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ourphilly.com/events" />
+        <meta property="og:url" content="https://ourphilly.org/events" />
         <meta property="og:image" content="https://your-image-url.png" />
         <meta name="twitter:card" content="summary_large_image" />
       </Helmet>

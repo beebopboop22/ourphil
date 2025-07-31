@@ -115,7 +115,7 @@ export default function TriviaTonightBanner() {
           rel="noopener noreferrer"
           className="flex items-center space-x-4"
         >
-          <img src={game.homeImage} alt="" className="w-12 sm:w-16 rounded object-cover" />
+          <img src={game.homeImage} alt="Team logo" loading="lazy" className="w-12 sm:w-16 rounded object-cover" />
           <div className="flex flex-col text-left">
             <span className="text-xs font-semibold text-gray-500 uppercase">
               Next Game, {game.dayName}

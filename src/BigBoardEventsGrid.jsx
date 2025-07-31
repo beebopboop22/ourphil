@@ -177,6 +177,8 @@ export default function BigBoardEventsGrid() {
                     <img
                       src={iconUrl}
                       alt=""
+                      role="presentation"
+                      loading="lazy"
                       className="absolute bottom-3 right-3 w-8 h-8 z-30"
                     />
                   </div>

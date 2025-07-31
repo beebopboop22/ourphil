@@ -273,7 +273,8 @@ export default function Bulletin({ previewCount = Infinity }) {
               evt['E Image'] && (
                 <img
                   src={evt['E Image']}
-                  alt=""
+                  alt={evt['E Name'] || 'Event image'}
+                  loading="lazy"
                   className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                 />
               ),

@@ -88,7 +88,7 @@ const SeasonalEventDetailPage = () => {
     <div className="min-h-screen bg-neutral-50 pt-20">
      <Helmet>
   <title>{`${event.name} – Our Philly – ${tagText}`}</title>
-  <link rel="canonical" href={`https://ourphilly.com/seasonal/${event.slug}`} />
+  <link rel="canonical" href={`https://ourphilly.org/seasonal/${event.slug}`} />
 
   {/* Basic meta */}
   <meta name="description"       content={event.description} />
@@ -96,7 +96,7 @@ const SeasonalEventDetailPage = () => {
   <meta property="og:title"      content={event.name} />
   <meta property="og:description"content={event.description} />
   <meta property="og:image"      content={event.image_url} />
-  <meta property="og:url"        content={`https://ourphilly.com/seasonal/${event.slug}`} />
+  <meta property="og:url"        content={`https://ourphilly.org/seasonal/${event.slug}`} />
   <meta property="article:published_time" content={event.created_at} />
 </Helmet>
 
@@ -127,7 +127,7 @@ const SeasonalEventDetailPage = () => {
     "organizer": {
       "@type": "Organization",
       "name": "Our Philly",
-      "url": "https://ourphilly.com"
+      "url": "https://ourphilly.org"
     }
 })}
 </script>

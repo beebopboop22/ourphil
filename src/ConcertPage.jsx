@@ -48,11 +48,11 @@ const ConcertsPage = () => {
           name="keywords" 
           content="Philadelphia concerts, Philly live music, Philly shows, music venues, Philly events" 
         />
-        <link rel="canonical" href="https://ourphilly.com/concerts" />
+        <link rel="canonical" href="https://ourphilly.org/concerts" />
         <meta property="og:title" content="Philly Concerts – Our Philly" />
         <meta property="og:description" content="Find upcoming concerts and live music in Philadelphia." />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ourphilly.com/concerts" />
+        <meta property="og:url" content="https://ourphilly.org/concerts" />
         <meta property="og:image" content="https://your-image-url.png" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Philly Concerts – Our Philly" />

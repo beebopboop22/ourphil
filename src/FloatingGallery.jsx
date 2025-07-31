@@ -20,7 +20,8 @@ export default function FloatingGallery({ images }) {
           <img
             key={i}
             src={src}
-            alt=""
+            alt="Gallery image"
+            loading="lazy"
             style={{
               position: 'absolute',
               top,

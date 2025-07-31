@@ -154,7 +154,7 @@ export default function GroupDetailPage() {
         <meta name="description" content={metaDesc} />
         <meta property="og:title" content={`${group.Name} | Our Philly`} />
         <meta property="og:description" content={metaDesc} />
-        <meta property="og:url" content={window.location.href} />
+        <meta property="og:url" content={`https://ourphilly.org${window.location.pathname}`} />
         <meta property="og:image" content={group.imag} />
       </Helmet>
 

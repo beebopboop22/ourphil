@@ -57,7 +57,7 @@ export default function GroupTypePage() {
 
   const pageTitle = `${tag} Groups – Our Philly`;
   const pageDesc = `Explore Philadelphia’s best ${tag.toLowerCase()} groups—connect, heart, and plug into your community.`;
-  const pageUrl = `https://ourphilly.com/groups/type/${tagSlug}`;
+  const pageUrl = `https://ourphilly.org/groups/type/${tagSlug}`;
   const ogImage = groups[0]?.imag || '/favicon.ico';
 
   return (
