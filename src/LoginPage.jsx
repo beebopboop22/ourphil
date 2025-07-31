@@ -92,7 +92,7 @@ export default function LoginPage() {
         <meta property="og:description" content="Access your Our Philly account to manage favorites, post reviews, and claim your community group." />
         <meta property="og:url" content={window.location.href} />
         <meta property="og:image" content="https://your-default-image.png" />
-        <link rel="canonical" href="https://ourphilly.com/login" />
+        <link rel="canonical" href="https://ourphilly.org/login" />
         <link rel="icon" href="/favicon.ico" />
       </Helmet>
       <Navbar />

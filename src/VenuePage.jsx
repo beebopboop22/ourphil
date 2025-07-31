@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { Link, useParams } from 'react-router-dom';
+import { Helmet } from 'react-helmet';
 
 // 🟡 Inline Sidebar "Bulletin" (duplicate design, no desc)
 function UpcomingSidebarBulletin({ previewCount = 10 }) {
@@ -153,6 +154,11 @@ export default function VenuePage() {
 
   return (
     <div className="flex flex-col min-h-screen">
+      <Helmet>
+        <title>{venueData ? `${venueData.name} Events | Our Philly` : 'Venue | Our Philly'}</title>
+        <meta name="description" content={venueData ? `Upcoming events at ${venueData.name} in Philadelphia.` : 'Venue events in Philadelphia.'} />
+        <link rel="canonical" href={`https://ourphilly.org/venue/${venue}`} />
+      </Helmet>
       <Navbar />
 
       {/* Venue Hero - edge-to-edge image with overlay */}

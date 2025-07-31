@@ -1,5 +1,5 @@
 // src/MainEvents.jsx
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, lazy, Suspense } from 'react';
 import { supabase } from './supabaseClient';
 import { Helmet } from 'react-helmet';
 
@@ -25,7 +25,7 @@ import NewsletterSection from './NewsletterSection';
 import { Share2 } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
-import EventsMap from './EventsMap';
+const EventsMap = lazy(() => import('./EventsMap'));
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
 import { AuthContext } from './AuthProvider';

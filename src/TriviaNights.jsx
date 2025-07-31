@@ -80,7 +80,8 @@ export default function TriviaNights() {
         <img
           src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//OurPhilly-CityHeart-1.png"
           alt=""
-          aria-hidden="true"
+          role="presentation"
+          loading="lazy"
           className="absolute inset-0 w-full h-full object-contain opacity-5 pointer-events-none select-none"
         />
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import GroupsList from './GroupsList';
 import MonthlyEvents from './MonthlyEvents';
@@ -11,7 +11,7 @@ import FeaturedGroups from './FeaturedGroups';
 import FilteredGroupSection from './FilteredGroupSection';
 import Voicemail from './Voicemail';
 import GroupsPage from './GroupsPage';
-import MapboxMap from './MapboxMap';
+const MapboxMap = lazy(() => import('./MapboxMap'));
 import PetfinderGrid from './PetfinderGrid';
 import SeptaAlertBanner from './SeptaAlertBanner';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -115,13 +115,13 @@ function App() {
         <meta property="og:title" content="Our Philly" />
         <meta property="og:description" content="Philadelphia's weirdest, warmest community guide." />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ourphilly.com/" />
+        <meta property="og:url" content="https://ourphilly.org/" />
         <meta property="og:image" content="https://your-image-url.png" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Our Philly" />
         <meta name="twitter:description" content="Philadelphia's weirdest, warmest community guide." />
         <meta name="twitter:image" content="https://your-image-url.png" />
-        <link rel="canonical" href="https://ourphilly.com/" />
+        <link rel="canonical" href="https://ourphilly.org/" />
       </Helmet>
   
      

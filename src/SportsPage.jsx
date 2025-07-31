@@ -62,11 +62,11 @@ const SportsPage = () => {
           name="keywords" 
           content="Philadelphia sports, Eagles tickets, Phillies games, Flyers schedule, 76ers games, Union tickets, Philly sports schedule" 
         />
-        <link rel="canonical" href="https://ourphilly.com/sports" />
+        <link rel="canonical" href="https://ourphilly.org/sports" />
         <meta property="og:title" content="Philly Sports – Our Philly" />
         <meta property="og:description" content="See every upcoming home game for Philly sports teams and score tickets." />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ourphilly.com/sports" />
+        <meta property="og:url" content="https://ourphilly.org/sports" />
         <meta property="og:image" content="https://your-image-url.png" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Philly Sports – Our Philly" />

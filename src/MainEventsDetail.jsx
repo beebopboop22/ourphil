@@ -377,11 +377,11 @@ export default function MainEventsDetail() {
         <title>{`${event.name} | Our Philly Concierge`}</title>
         <meta name="description" content={(event.description||'').slice(0,155)} />
         <meta name="keywords" content={metaKeywords} />
-        <link rel="canonical" href={window.location.href} />
+        <link rel="canonical" href={`https://ourphilly.org${window.location.pathname}`} />
         <meta property="og:title" content={`${event.name} | Our Philly Concierge`} />
         <meta property="og:description" content={(event.description||'').slice(0,155)} />
         <meta property="og:type" content="article" />
-        <meta property="og:url" content={window.location.href} />
+        <meta property="og:url" content={`https://ourphilly.org${window.location.pathname}`} />
         {event.image && <meta property="og:image" content={event.image} />}
         <meta name="twitter:card" content="summary_large_image" />
       </Helmet>

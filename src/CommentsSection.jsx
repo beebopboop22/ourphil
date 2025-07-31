@@ -112,7 +112,7 @@ export default function CommentsSection({ source_table, event_id }) {
               <div key={c.id} className="bg-white rounded-xl shadow p-4">
                 <div className="flex items-start gap-3">
                   {prof.image ? (
-                    <img src={prof.image} alt="" className="w-8 h-8 rounded-full object-cover" />
+                    <img src={prof.image} alt="User avatar" loading="lazy" className="w-8 h-8 rounded-full object-cover" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-gray-300" />
                   )}

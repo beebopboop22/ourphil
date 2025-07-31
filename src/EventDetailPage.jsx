@@ -328,7 +328,36 @@ export default function EventDetailPage() {
       <Helmet>
         <title>{`${event['E Name']} – ${displayDate} – Our Philly`}</title>
         <meta name="description" content={event['E Description']} />
+        <link rel="canonical" href={`https://ourphilly.org/events/${slug}`} />
       </Helmet>
+      {/* JSON-LD structured data */}
+      <script type="application/ld+json">
+        {JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Event',
+          name: event['E Name'],
+          startDate: event['E Start Date'],
+          endDate: event['E End Date'] || event['E Start Date'],
+          description: event['E Description'],
+          image: [event['E Image']],
+          eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+          location: {
+            '@type': 'Place',
+            name: event['E Address'] || 'Philadelphia',
+            address: {
+              '@type': 'PostalAddress',
+              addressLocality: 'Philadelphia',
+              addressRegion: 'PA',
+              addressCountry: 'US',
+            },
+          },
+          organizer: {
+            '@type': 'Organization',
+            name: 'Our Philly',
+            url: 'https://ourphilly.org',
+          },
+        })}
+      </script>
 
       <Navbar />
 

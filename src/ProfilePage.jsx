@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import { Helmet } from 'react-helmet';
 import SavedEventCard from './SavedEventCard.jsx';
 import useProfile from './utils/useProfile';
 import useProfileTags from './utils/useProfileTags';
@@ -403,6 +404,11 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 pb-12 pt-20">
+      <Helmet>
+        <title>Your Profile | Our Philly</title>
+        <meta name="description" content="Manage your saved events and account settings." />
+        <link rel="canonical" href="https://ourphilly.org/profile" />
+      </Helmet>
       <Navbar />
 
       <header className="bg-gradient-to-r from-indigo-700 to-purple-600 text-white">

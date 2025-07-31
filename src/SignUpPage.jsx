@@ -137,6 +137,8 @@ export default function SignUpPage() {
         <img
           src={heartUrl}
           alt=""
+          role="presentation"
+          loading="lazy"
           className="absolute bottom-0 transform -translate-x-1/2 w-full opacity-20 pointer-events-none z-0"
         />
 

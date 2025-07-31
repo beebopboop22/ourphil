@@ -94,6 +94,8 @@ export default function HeroLanding() {
       <img
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1%20copy-min.png"
         alt=""
+        role="presentation"
+        loading="lazy"
         className="absolute top-0 w-1/4 h-full object-contain pointer-events-none"
       />
 

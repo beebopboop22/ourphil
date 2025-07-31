@@ -8,6 +8,7 @@ import { AuthContext } from './AuthProvider'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import CityHolidayAlert from './CityHolidayAlert'
+import { Helmet } from 'react-helmet'
 
 export default function BigBoardPage() {
   const { user } = useContext(AuthContext)
@@ -191,6 +192,11 @@ export default function BigBoardPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
+      <Helmet>
+        <title>Community Bulletin Board | Our Philly</title>
+        <meta name="description" content="Browse and post community flyers and events on the Big Board." />
+        <link rel="canonical" href="https://ourphilly.org/big-board" />
+      </Helmet>
       <Navbar />
 
       <main
@@ -274,13 +280,16 @@ export default function BigBoardPage() {
             <img
               src={pinUrl}
               alt=""
+              role="presentation"
+              loading="lazy"
               className="absolute -top-4 left-1/2 w-16 h-12 transform -translate-x-1/2 rotate-6 z-20 pointer-events-none"
             />
 
             {/* Background image */}
             <img
               src={url}
-              alt=""
+              alt={ev?.title || 'Flyer image'}
+              loading="lazy"
               className="absolute inset-0 w-full h-full object-cover"
             />
 
@@ -450,7 +459,8 @@ export default function BigBoardPage() {
             >‹</button>
             <motion.img
               src={resolveImageUrl(posts[lightboxIndex].image_url)}
-              alt=""
+              alt={posts[lightboxIndex].title || 'Flyer image'}
+              loading="lazy"
               className="max-w-full max-h-full rounded-lg"
               initial={{scale:0.8}} animate={{scale:1}} exit={{scale:0.8}}
               onClick={e=>e.stopPropagation()}

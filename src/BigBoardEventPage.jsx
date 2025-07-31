@@ -1,5 +1,5 @@
 // src/BigBoardEventPage.jsx
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext, useRef, lazy, Suspense } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -10,7 +10,7 @@ import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
 import useEventFavorite from './utils/useEventFavorite';
-import CommentsSection from './CommentsSection';
+const CommentsSection = lazy(() => import('./CommentsSection'));
 
 export default function BigBoardEventPage() {
   const { slug } = useParams();
@@ -388,8 +388,36 @@ export default function BigBoardEventPage() {
       <Helmet>
         <title>{`${event.title} | Community Event on ${formattedDate} | Our Philly`}</title>
         <meta name="description" content={metaDesc} />
-        <link rel="canonical" href={window.location.href} />
+        <link rel="canonical" href={`https://ourphilly.org/big-board/${event.slug}`} />
       </Helmet>
+      {/* JSON-LD structured data */}
+      <script type="application/ld+json">
+        {JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Event',
+          name: event.title,
+          startDate: event.start_date,
+          endDate: event.end_date || event.start_date,
+          description: metaDesc,
+          image: [event.imageUrl],
+          eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+          location: {
+            '@type': 'Place',
+            name: event.address || 'Philadelphia',
+            address: {
+              '@type': 'PostalAddress',
+              addressLocality: 'Philadelphia',
+              addressRegion: 'PA',
+              addressCountry: 'US',
+            },
+          },
+          organizer: {
+            '@type': 'Organization',
+            name: 'Our Philly',
+            url: 'https://ourphilly.org',
+          },
+        })}
+      </script>
 
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar />
@@ -716,10 +744,12 @@ export default function BigBoardEventPage() {
             </div>
           </div>
 
-          <CommentsSection
-            source_table="big_board_events"
-            event_id={event.id}
-          />
+          <Suspense fallback={<div>Loading comments…</div>}>
+            <CommentsSection
+              source_table="big_board_events"
+              event_id={event.id}
+            />
+          </Suspense>
 
           {/* More Upcoming Community Submissions */}
           <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">
