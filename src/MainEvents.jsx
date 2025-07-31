@@ -487,6 +487,7 @@ const [tagMap, setTagMap] = useState({});
   const [events, setEvents] = useState([]);
   const [bigBoardEvents, setBigBoardEvents] = useState([]);
   const [traditionEvents, setTraditionEvents] = useState([]);   // NEW
+  const [profileMap, setProfileMap] = useState({});
   const [loading, setLoading] = useState(true);
   // Community‐submitted group events
 const [groupEvents, setGroupEvents] = useState([]);
@@ -602,7 +603,8 @@ const [groupEvents, setGroupEvents] = useState([]);
           latitude,
           longitude,
           big_board_posts!big_board_posts_event_id_fkey (
-            image_url
+            image_url,
+            user_id
           )
         `)
         .order('start_date', { ascending: true });
@@ -640,7 +642,7 @@ const [groupEvents, setGroupEvents] = useState([]);
 
 
     Promise.all([fetchAllEvents, fetchBigBoard, fetchTraditions, fetchGroupEvents, fetchRecurring ])
-    .then(([allEventsRes, bigBoardRes, tradRes, geRes, recRes]) => {
+    .then(async ([allEventsRes, bigBoardRes, tradRes, geRes, recRes]) => {
 
         
         // ----- ALL_EVENTS FILTERING -----
@@ -699,7 +701,8 @@ bigData = bigData.map(ev => {
     return {
       ...ev,
       imageUrl: publicUrl,
-  
+      submitter: ev.big_board_posts?.[0]?.user_id,
+
       // ← NEW TAGS HERE:
       isBigBoard: true,
       isTradition: false
@@ -732,6 +735,41 @@ if (selectedOption === 'weekend') {
 }
 
 setBigBoardEvents(bigFiltered);
+
+// Fetch profiles for submitters
+const submitterIds = Array.from(new Set(bigData.map(ev => ev.big_board_posts?.[0]?.user_id).filter(Boolean)));
+if (submitterIds.length > 0) {
+  const { data: profs } = await supabase
+    .from('profiles')
+    .select('id,username,image_url')
+    .in('id', submitterIds);
+  const map = {};
+  profs?.forEach(p => {
+    let img = p.image_url || '';
+    if (img && !img.startsWith('http')) {
+      const { data: { publicUrl } } = supabase
+        .storage
+        .from('profile-images')
+        .getPublicUrl(img);
+      img = publicUrl;
+    }
+    map[p.id] = { username: p.username, image: img, cultures: [] };
+  });
+  const { data: rows } = await supabase
+    .from('profile_tags')
+    .select('profile_id, culture_tags(id,name,emoji)')
+    .in('profile_id', submitterIds)
+    .eq('tag_type', 'culture');
+  rows?.forEach(r => {
+    if (!map[r.profile_id]) map[r.profile_id] = { username: '', image: '', cultures: [] };
+    if (r.culture_tags?.emoji) {
+      map[r.profile_id].cultures.push({ emoji: r.culture_tags.emoji, name: r.culture_tags.name });
+    }
+  });
+  setProfileMap(map);
+} else {
+  setProfileMap({});
+}
 
 const tradData = tradRes.data || [];
 const tradFiltered = tradData
@@ -1254,6 +1292,8 @@ if (loading) {
           const shown = tags.slice(0,2);
           const extra = tags.length - shown.length;
 
+          const prof = profileMap[evt.submitter] || {};
+
           // only pass ones with coords
 const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
 
@@ -1365,6 +1405,27 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                   {isFavorite ? 'In the Plans' : 'Add to Plans'}
                 </button>
               </div>
+              {evt.isBigBoard && (
+                <div className="bg-purple-700 text-white text-xs text-center py-2">
+                  <div className="uppercase font-bold text-[10px]">SUBMITTED BY</div>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    {prof.image ? (
+                      <img src={prof.image} alt="" className="w-6 h-6 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-gray-300" />
+                    )}
+                    <span className="font-semibold text-xs">{prof.username}</span>
+                    {prof.cultures?.map(c => (
+                      <span key={c.emoji} className="relative group">
+                        {c.emoji}
+                        <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                          {c.name}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               </Wrapper>
             )}
             </FavoriteState>
