@@ -9,6 +9,7 @@ export const config = {
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.184.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { RRule } from "npm:rrule@2.8.1";
 
 // ─── Env ─────────────────────────────────────────────────────
 const SUPABASE_URL         = Deno.env.get("SUPABASE_URL")!;
@@ -81,7 +82,138 @@ serve(async (_req) => {
       .from("tags")
       .select("id,name,slug")
       .order("name", { ascending: true });
-    const unsubscribed = allTags.filter(t => !tags.some(st => st.id === t.id));
+  const unsubscribed = allTags.filter(t => !tags.some(st => st.id === t.id));
+
+    // ── Load user's saved events (My Plans) ───────────────
+    const { data: favRows = [] } = await supabase
+      .from('event_favorites')
+      .select('event_id,event_int_id,event_uuid,source_table')
+      .eq('user_id', userId);
+    const favByTable: Record<string, string[]> = {};
+    favRows.forEach(r => {
+      const tbl = r.source_table;
+      let id;
+      if (tbl === 'all_events')      id = r.event_int_id;
+      else if (tbl === 'events')     id = r.event_id;
+      else                           id = r.event_uuid;
+      if (!id) return;
+      favByTable[tbl] = favByTable[tbl] || [];
+      favByTable[tbl].push(id);
+    });
+
+    const today0 = new Date();
+    today0.setHours(0,0,0,0);
+
+    async function loadFav(
+      table: string,
+      selectCols: string,
+      normalize: (r: any) => { title: string; slug: string; rawDate: string | null }
+    ) {
+      const ids = favByTable[table] || [];
+      if (!ids.length) return [] as any[];
+      const { data } = await supabase
+        .from(table)
+        .select(selectCols)
+        .in('id', ids);
+      return (data || []).map(normalize);
+    }
+
+    const favBB = await loadFav(
+      'big_board_events',
+      'id,title,slug,start_date',
+      r => ({ title: r.title, slug: `big-board/${r.slug}`, rawDate: r.start_date })
+    );
+    const favAE = await loadFav(
+      'all_events',
+      'id,name AS title,slug,start_date,venues:venue_id(slug)',
+      r => ({ title: r.title, slug: `${r.venues.slug}/${r.slug}`, rawDate: r.start_date })
+    );
+    const favEv = await loadFav(
+      'events',
+      'id,slug,"E Name" AS title,Dates',
+      r => {
+        const [m,d,y] = r.Dates.split('/').map(Number);
+        const iso = new Date(y, m-1, d).toISOString().split('T')[0];
+        return { title: r.title, slug: `events/${r.slug}`, rawDate: iso };
+      }
+    );
+    const favGE = await loadFav(
+      'group_events',
+      'id,title,start_date,groups:group_id(slug)',
+      r => ({
+        title: r.title,
+        slug: r.groups?.slug ? `groups/${r.groups.slug}/events/${r.id}` : '',
+        rawDate: r.start_date
+      })
+    );
+    const favRecRaw = favByTable['recurring_events'] || [];
+    let favRec: any[] = [];
+    if (favRecRaw.length) {
+      const { data: recRows = [] } = await supabase
+        .from('recurring_events')
+        .select('id,name AS title,slug,start_date,start_time,end_date,rrule')
+        .in('id', favRecRaw);
+      favRec = (recRows || []).map(r => {
+        try {
+          const opts = RRule.parseString(r.rrule);
+          opts.dtstart = new Date(`${r.start_date}T${r.start_time}`);
+          if (r.end_date) opts.until = new Date(`${r.end_date}T23:59:59`);
+          const rule = new RRule(opts);
+          const next = rule.after(today0, true);
+          if (!next) return null;
+          const iso = next.toISOString().split('T')[0];
+          return { title: r.title, slug: `series/${r.slug}/${iso}`, rawDate: iso };
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+    }
+
+    const plans = [...favBB, ...favAE, ...favEv, ...favGE, ...favRec]
+      .filter(e => e.rawDate && e.slug)
+      .filter(e => e.rawDate >= today)
+      .sort((a,b) => (a.rawDate! < b.rawDate! ? -1 : 1))
+      .slice(0,10)
+      .map(e => {
+        const dt = new Date(e.rawDate!);
+        const disp = dt.toLocaleDateString('en-US', {
+          weekday: 'long', month: 'long', day: 'numeric'
+        });
+        const url = `https://ourphilly.org/${e.slug}`;
+        const gcal =
+          `https://www.google.com/calendar/render?action=TEMPLATE` +
+          `&text=${encodeURIComponent(e.title)}` +
+          `&dates=${e.rawDate!.replace(/-/g,'')}/${e.rawDate!.replace(/-/g,'')}` +
+          `&details=${encodeURIComponent('Details: '+url)}`;
+        return { title: e.title, date: disp, url, gcal };
+      });
+
+    // ── Load upcoming traditions ───────────────────────────
+    const { data: trRows = [] } = await supabase
+      .from('events')
+      .select('"E Name" AS title, slug, Dates')
+      .order('Dates', { ascending: true });
+    const traditions = (trRows || [])
+      .map(r => {
+        const [m,d,y] = r.Dates.split('/').map(Number);
+        const iso = new Date(y, m-1, d).toISOString().split('T')[0];
+        return { title: r.title, slug: `events/${r.slug}`, rawDate: iso };
+      })
+      .filter(r => r.rawDate >= today)
+      .slice(0,5)
+      .map(e => {
+        const dt = new Date(e.rawDate);
+        const disp = dt.toLocaleDateString('en-US', {
+          weekday: 'long', month: 'long', day: 'numeric'
+        });
+        const url = `https://ourphilly.org/${e.slug}`;
+        const gcal =
+          `https://www.google.com/calendar/render?action=TEMPLATE` +
+          `&text=${encodeURIComponent(e.title)}` +
+          `&dates=${e.rawDate.replace(/-/g,'')}/${e.rawDate.replace(/-/g,'')}` +
+          `&details=${encodeURIComponent('Details: '+url)}`;
+        return { title: e.title, date: disp, url, gcal };
+      });
 
     // build each tag section
     const sections = await Promise.all(
@@ -140,8 +272,38 @@ serve(async (_req) => {
             return { title: r.title, slug: `events/${r.slug}`, rawDate: iso };
           }
         );
+        const ge = await load(
+          "group_events",
+          "id,title,start_date,groups:group_id(slug)",
+          "start_date",
+          r => ({
+            title: r.title,
+            slug: r.groups?.slug ? `groups/${r.groups.slug}/events/${r.id}` : '',
+            rawDate: r.start_date,
+          })
+        );
+        const recIds = byTable["recurring_events"] || [];
+        let re: any[] = [];
+        if (recIds.length) {
+          const { data: recRows = [] } = await supabase
+            .from("recurring_events")
+            .select("id,name AS title,slug,start_date,start_time,end_date,rrule")
+            .in("id", recIds);
+          re = (recRows || []).map(r => {
+            try {
+              const opts = RRule.parseString(r.rrule);
+              opts.dtstart = new Date(`${r.start_date}T${r.start_time}`);
+              if (r.end_date) opts.until = new Date(`${r.end_date}T23:59:59`);
+              const rule = new RRule(opts);
+              const next = rule.after(today0, true);
+              if (!next) return null;
+              const iso = next.toISOString().split("T")[0];
+              return { title: r.title, slug: `series/${r.slug}/${iso}`, rawDate: iso };
+            } catch { return null; }
+          }).filter(Boolean);
+        }
 
-        const merged = [...bb, ...ae, ...ev]
+        const merged = [...bb, ...ae, ...ev, ...ge, ...re]
           .sort((a,b) => a.rawDate.localeCompare(b.rawDate))
           .slice(0,10)
           .map(e => {
@@ -189,6 +351,38 @@ serve(async (_req) => {
       <p style="font-size:.9rem;color:#555;margin:0;">
         Already subscribed? Forward this to a friend so they don’t miss out!
       </p>
+    </section>
+
+    <section style="padding:1rem;background:#fff;border-top:4px solid #eee;">
+      <h2 style="margin:0 0 .5rem;color:#0D9488;">My Plans</h2>
+      ${plans.length
+        ? '<ul style="padding-left:1.2rem;margin:0 0 1rem;">' +
+          plans.map(e => `
+            <li style="margin-bottom:.6rem;line-height:1.4;">
+              <strong>${e.title}</strong> — ${e.date}<br/>
+              <a href="${e.url}">View event →</a> &nbsp;|&nbsp;
+              <a href="${e.gcal}">Add to calendar</a>
+            </li>
+          `).join('') +
+          '</ul>'
+        : `<p style="font-style:italic;color:#666;margin:0 0 1rem;">You haven’t saved any events yet. Add some on <a href="https://ourphilly.org">Our Philly</a>!</p>`
+      }
+    </section>
+
+    <section style="padding:1rem;background:#fff;border-top:4px solid #eee;">
+      <h2 style="margin:0 0 .5rem;color:#3B82F6;">What’s Ahead: Philly Traditions</h2>
+      ${traditions.length
+        ? '<ul style="padding-left:1.2rem;margin:0 0 1rem;">' +
+          traditions.map(e => `
+            <li style="margin-bottom:.6rem;line-height:1.4;">
+              <strong>${e.title}</strong> — ${e.date}<br/>
+              <a href="${e.url}">View event →</a> &nbsp;|&nbsp;
+              <a href="${e.gcal}">Add to calendar</a>
+            </li>
+          `).join('') +
+          '</ul>'
+        : `<p style="font-style:italic;color:#666;margin:0 0 1rem;">No upcoming traditions.</p>`
+      }
     </section>
 
     <!-- your active tags -->
