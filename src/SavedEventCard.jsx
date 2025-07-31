@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import EventFavorite from './EventFavorite.jsx'
+import useEventFavorite from './utils/useEventFavorite'
 
 function parseISODateLocal(str) {
   if (!str) return null
@@ -62,6 +62,14 @@ export default function SavedEventCard({ event }) {
     : ''
   const bubbleTime = start_time ? ` ${formatTime(start_time)}` : ''
 
+  const { isFavorite, toggleFavorite, loading } = useEventFavorite({ event_id: id, source_table })
+
+  const handleFav = async e => {
+    e.preventDefault()
+    e.stopPropagation()
+    await toggleFavorite()
+  }
+
   return (
     <Link
       to={link}
@@ -78,8 +86,14 @@ export default function SavedEventCard({ event }) {
         {isRecurring
           ? address && <p className="text-sm text-gray-600">at {address}</p>
           : venues?.name && <p className="text-sm text-gray-600">at {venues.name}</p>}
-        <div className="mt-4 w-full bg-gray-100 border-t px-3 py-2 flex justify-center">
-          <EventFavorite event_id={id} source_table={source_table} />
+        <div className="mt-4 w-full bg-gray-100 border-t px-3 py-2">
+          <button
+            onClick={handleFav}
+            disabled={loading}
+            className={`w-full border border-indigo-600 rounded-md py-1 text-sm font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+          >
+            {isFavorite ? 'In the Plans' : 'Add to Plans'}
+          </button>
         </div>
       </div>
     </Link>
