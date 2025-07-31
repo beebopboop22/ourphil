@@ -9,6 +9,7 @@ import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
+import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 const CommentsSection = lazy(() => import('./CommentsSection'));
 
@@ -72,6 +73,11 @@ export default function BigBoardEventPage() {
 
   // Post flyer modal
   const [showFlyerModal, setShowFlyerModal] = useState(false);
+  const [modalStartStep, setModalStartStep] = useState(1);
+  const [initialFlyer, setInitialFlyer] = useState(null);
+
+  // Event poster info
+  const [poster, setPoster] = useState(null);
 
   // Helpers
   function parseLocalYMD(str) {
@@ -160,6 +166,42 @@ export default function BigBoardEventPage() {
         .eq('start_date', event.start_date)
         .order('start_time',{ ascending: true });
       setSiblings(data || []);
+    })();
+  }, [event]);
+
+  // Fetch event poster profile
+  useEffect(() => {
+    if (!event?.owner_id) return;
+    (async () => {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('username,image_url')
+          .eq('id', event.owner_id)
+          .single();
+        let img = prof?.image_url || '';
+        if (img && !img.startsWith('http')) {
+          const { data: { publicUrl } } = supabase
+            .storage
+            .from('profile-images')
+            .getPublicUrl(img);
+          img = publicUrl;
+        }
+        const { data: tags } = await supabase
+          .from('profile_tags')
+          .select('culture_tags(name,emoji)')
+          .eq('profile_id', event.owner_id)
+          .eq('tag_type', 'culture');
+        const cultures = [];
+        tags?.forEach(t => {
+          if (t.culture_tags?.emoji) {
+            cultures.push({ emoji: t.culture_tags.emoji, name: t.culture_tags.name });
+          }
+        });
+        setPoster({ username: prof?.username || 'User', image: img, cultures });
+      } catch (e) {
+        console.error(e);
+      }
     })();
   }, [event]);
 
@@ -474,6 +516,25 @@ export default function BigBoardEventPage() {
               </div>
             </div>
           </div>
+
+          {poster && (
+            <div className="max-w-4xl mx-auto mt-6 px-4">
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg py-3 flex items-center justify-center gap-3">
+                <span className="text-3xl sm:text-4xl font-[Barrio]">Posted by</span>
+                {poster.image ? (
+                  <img src={poster.image} alt="avatar" className="w-12 h-12 rounded-full object-cover" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gray-300" />
+                )}
+                <span className="text-3xl sm:text-4xl font-[Barrio]">{poster.username}</span>
+                {poster.cultures?.map(c => (
+                  <span key={c.emoji} title={c.name} className="text-3xl">
+                    {c.emoji}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Description, form / details, and image */}
           <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -811,11 +872,28 @@ export default function BigBoardEventPage() {
               </div>
             )}
           </div>
+
+          <SubmitEventSection onNext={file => {
+            setInitialFlyer(file);
+            setModalStartStep(2);
+            setShowFlyerModal(true);
+          }} />
         </main>
 
         <Footer />
-        <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
-        <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
+        <FloatingAddButton
+          onClick={() => {
+            setModalStartStep(1);
+            setInitialFlyer(null);
+            setShowFlyerModal(true);
+          }}
+        />
+        <PostFlyerModal
+          isOpen={showFlyerModal}
+          onClose={() => setShowFlyerModal(false)}
+          startStep={modalStartStep}
+          initialFile={initialFlyer}
+        />
       </div>
     </>
   );
