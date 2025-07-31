@@ -1,7 +1,8 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from './AuthProvider';
 import useEventComments from './utils/useEventComments';
+import { supabase } from './supabaseClient';
 
 export default function CommentsSection({ source_table, event_id }) {
   const { user } = useContext(AuthContext);
@@ -17,6 +18,7 @@ export default function CommentsSection({ source_table, event_id }) {
   const [expanded, setExpanded] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editContent, setEditContent] = useState('');
+  const [profiles, setProfiles] = useState({});
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -59,6 +61,41 @@ export default function CommentsSection({ source_table, event_id }) {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  useEffect(() => {
+    const ids = Array.from(new Set(comments.map(c => c.user_id)));
+    if (ids.length === 0) { setProfiles({}); return; }
+    (async () => {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id,username,image_url')
+        .in('id', ids);
+      const map = {};
+      profs?.forEach(p => {
+        let img = p.image_url || '';
+        if (img && !img.startsWith('http')) {
+          const { data: { publicUrl } } = supabase
+            .storage
+            .from('profile-images')
+            .getPublicUrl(img);
+          img = publicUrl;
+        }
+        map[p.id] = { username: p.username, image: img, cultures: [] };
+      });
+      const { data: rows } = await supabase
+        .from('profile_tags')
+        .select('profile_id, culture_tags(id,name,emoji)')
+        .in('profile_id', ids)
+        .eq('tag_type', 'culture');
+      rows?.forEach(r => {
+        if (!map[r.profile_id]) map[r.profile_id] = { username: '', image: '', cultures: [] };
+        if (r.culture_tags?.emoji) {
+          map[r.profile_id].cultures.push({ emoji: r.culture_tags.emoji, name: r.culture_tags.name });
+        }
+      });
+      setProfiles(map);
+    })();
+  }, [comments]);
+
   return (
     <section className="max-w-4xl mx-auto mt-12 px-4" ref={listRef}>
       <h2 className="text-2xl font-semibold text-gray-800 mb-6">Comments</h2>
@@ -70,10 +107,29 @@ export default function CommentsSection({ source_table, event_id }) {
             const isLong = c.content.length > 300;
             const isExpanded = expanded[c.id];
             const canModify = user?.id === c.user_id;
+            const prof = profiles[c.user_id] || {};
             return (
               <div key={c.id} className="bg-white rounded-xl shadow p-4">
-                {editingId === c.id ? (
-                  <form onSubmit={handleEditSubmit} className="space-y-2">
+                <div className="flex items-start gap-3">
+                  {prof.image ? (
+                    <img src={prof.image} alt="" className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-300" />
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-1 mb-1">
+                      <span className="font-semibold text-sm">{prof.username}</span>
+                      {prof.cultures?.map(c => (
+                        <span key={c.emoji} className="relative group">
+                          {c.emoji}
+                          <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                            {c.name}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                    {editingId === c.id ? (
+                      <form onSubmit={handleEditSubmit} className="space-y-2">
                     <textarea
                       value={editContent}
                       onChange={e => setEditContent(e.target.value)}
@@ -131,6 +187,8 @@ export default function CommentsSection({ source_table, event_id }) {
                   </>
                 )}
               </div>
+            </div>
+          </div>
             );
           })}
         </div>
