@@ -23,6 +23,15 @@ function parseDate(datesStr) {
   return new Date(y, m - 1, d)
 }
 
+function formatTime(t) {
+  if (!t) return ''
+  const [h, m] = t.split(':')
+  let hour = parseInt(h, 10)
+  const ampm = hour >= 12 ? 'p.m.' : 'a.m.'
+  hour = hour % 12 || 12
+  return `${hour}:${m.padStart(2,'0')} ${ampm}`
+}
+
 // ── Helper to render “Today/Tomorrow/This …” labels ───────────────
 function getDateLabel(date) {
   const today = new Date()
@@ -37,8 +46,65 @@ function getDateLabel(date) {
   return date.toLocaleDateString('en-US',{ weekday: 'long' })
 }
 
+function EventCard({ evt, profileMap }) {
+  const today = new Date(); today.setHours(0,0,0,0)
+  const now = new Date()
+  const startDate = evt.isTradition ? evt.start : parseISODateLocal(evt.start_date)
+  const isToday = startDate && startDate.getTime() === today.getTime()
+  const diffDays = startDate ? Math.ceil((startDate - now) / (1000*60*60*24)) : 0
+  const bubbleLabel = isToday
+    ? 'Today'
+    : diffDays === 1
+      ? 'Tomorrow'
+      : startDate
+        ? startDate.toLocaleDateString('en-US',{ month:'short', day:'numeric' })
+        : ''
+  const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : ''
+
+  return (
+    <Link to={evt.href} className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col">
+      <div className="relative w-full h-48">
+        {evt.imageUrl && <img src={evt.imageUrl} alt={evt.title} className="w-full h-full object-cover" />}
+        <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
+          {bubbleLabel}{bubbleTime}
+        </div>
+        {evt.isGroupEvent && (
+          <div className="absolute inset-x-0 bottom-0 bg-green-600 text-white text-xs uppercase text-center py-1">Group Event</div>
+        )}
+        {evt.isBigBoard && (
+          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">Submission</div>
+        )}
+        {evt.isTradition && (
+          <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">Tradition</div>
+        )}
+      </div>
+      <div className="p-4 flex flex-col flex-1 justify-between items-center text-center">
+        <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">{evt.title}</h3>
+        {evt.venues?.name && <p className="text-sm text-gray-600">at {evt.venues.name}</p>}
+      </div>
+      {evt.isBigBoard && (
+        <div className="w-full bg-blue-50 text-blue-900 py-2 text-center">
+          <div className="text-[0.55rem] uppercase font-semibold tracking-wide">SUBMITTED BY</div>
+          <div className="mt-1 flex justify-center gap-1 text-xs font-semibold">
+            <span>{profileMap[evt.owner_id]?.username}</span>
+            {profileMap[evt.owner_id]?.cultures?.map(c => (
+              <span key={c.emoji} className="relative group">
+                {c.emoji}
+                <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                  {c.name}
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </Link>
+  )
+}
+
 export default function TagPage() {
-  const { slug } = useParams()
+  const params = useParams()
+  const slug = (params.slug || '').replace(/^#/, '')
 
   // ── State hooks ────────────────────────────────────────────────
   const [tag, setTag] = useState(null)
@@ -48,6 +114,7 @@ export default function TagPage() {
   const [groupEvents, setGroupEvents] = useState([])
   const [allEvents, setAllEvents] = useState([])
   const [recSeries, setRecSeries] = useState([])
+  const [profileMap, setProfileMap] = useState({})
   const [allTags, setAllTags] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -127,7 +194,7 @@ export default function TagPage() {
         byType.big_board_events?.length
           ? supabase
               .from('big_board_events')
-              .select('id,title,slug,start_date,end_date,big_board_posts!big_board_posts_event_id_fkey(image_url)')
+              .select('id,title,slug,start_date,end_date,big_board_posts!big_board_posts_event_id_fkey(image_url,user_id)')
               .in('id', byType.big_board_events)
           : { data: [] },
         byType.group_events?.length
@@ -164,35 +231,51 @@ export default function TagPage() {
       // 5) shape and store data
       setGroups(gRes.data || [])
 
-      setTraditions((trRes.data || []).map(e => ({
-        id: e.id,
-        title: e['E Name'],
-        imageUrl: e['E Image'] || '',
-        start: parseDate(e.Dates),
-        end: parseDate(e['End Date']) || parseDate(e.Dates),
-        href: `/events/${e.slug}`,
-      })))
+      setTraditions((trRes.data || []).map(e => {
+        const start = parseDate(e.Dates)
+        const end   = parseDate(e['End Date']) || start
+        return {
+          id: e.id,
+          title: e['E Name'],
+          imageUrl: e['E Image'] || '',
+          start,
+          end,
+          start_date: start ? start.toISOString().slice(0,10) : null,
+          end_date: end ? end.toISOString().slice(0,10) : null,
+          slug: e.slug,
+          href: `/events/${e.slug}`,
+          isTradition: true,
+        }
+      }))
 
       setBigBoard((bbRes.data || []).map(ev => {
         const key = ev.big_board_posts?.[0]?.image_url
+        const owner = ev.big_board_posts?.[0]?.user_id
         const url = key
           ? supabase.storage
               .from('big-board')
               .getPublicUrl(key).data.publicUrl
           : ''
+        const start = parseISODateLocal(ev.start_date)
+        const end   = parseISODateLocal(ev.end_date || ev.start_date)
         return {
           id: ev.id,
           title: ev.title,
           imageUrl: url,
-          start: parseISODateLocal(ev.start_date),
-          end: parseISODateLocal(ev.end_date),
+          start,
+          end,
+          start_date: ev.start_date,
+          end_date: ev.end_date || ev.start_date,
+          slug: ev.slug,
+          owner_id: owner,
           href: `/big-board/${ev.slug}`,
+          isBigBoard: true,
         }
       }))
 
       setGroupEvents((geRes.data || []).map(ev => {
         const start = parseISODateLocal(ev.start_date)
-        const end   = parseISODateLocal(ev.end_date)
+        const end   = parseISODateLocal(ev.end_date || ev.start_date)
         let imgUrl = ''
         if (ev.image_url) {
           imgUrl = ev.image_url.startsWith('http')
@@ -206,24 +289,74 @@ export default function TagPage() {
           id: ev.id,
           title: ev.title,
           imageUrl: imgUrl,
-          start, end,
+          start,
+          end,
+          start_date: ev.start_date,
+          end_date: ev.end_date || ev.start_date,
+          group_slug: slug,
           href: `/groups/${slug}/events/${ev.id}`,
+          isGroupEvent: true,
         }
       }))
 
-      setAllEvents((aeRes.data || []).map(ev => ({
-        id: ev.id,
-        title: ev.name,
-        imageUrl: ev.image || '',
-        start: parseISODateLocal(ev.start_date),
-        href: `/${ev.venue_id.slug}/${ev.slug}`,
-      })))
+      setAllEvents((aeRes.data || []).map(ev => {
+        const start = parseISODateLocal(ev.start_date)
+        const venueSlug = ev.venue_id?.slug || null
+        return {
+          id: ev.id,
+          title: ev.name,
+          imageUrl: ev.image || '',
+          start,
+          start_date: ev.start_date,
+          slug: ev.slug,
+          venues: ev.venue_id
+            ? { name: ev.venue_id.name, slug: venueSlug }
+            : null,
+          href: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+        }
+      }))
 
       setRecSeries(recRes.data || [])
       setLoading(false)
     }
     load()
   }, [slug])
+
+  // Load profile info for big-board submitters
+  useEffect(() => {
+    const ids = Array.from(new Set(bigBoard.map(e => e.owner_id).filter(Boolean)))
+    if (!ids.length) { setProfileMap({}); return }
+    ;(async () => {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id,username,image_url')
+        .in('id', ids)
+      const map = {}
+      for (const p of profs || []) {
+        let img = p.image_url || ''
+        if (img && !img.startsWith('http')) {
+          const { data: { publicUrl } } = supabase
+            .storage
+            .from('profile-images')
+            .getPublicUrl(img)
+          img = publicUrl
+        }
+        map[p.id] = { username: p.username, image: img, cultures: [] }
+      }
+      const { data: rows } = await supabase
+        .from('profile_tags')
+        .select('profile_id, culture_tags(id,name,emoji)')
+        .in('profile_id', ids)
+        .eq('tag_type', 'culture')
+      rows?.forEach(r => {
+        if (!map[r.profile_id]) map[r.profile_id] = { username: '', image: '', cultures: [] }
+        if (r.culture_tags?.emoji) {
+          map[r.profile_id].cultures.push({ emoji: r.culture_tags.emoji, name: r.culture_tags.name })
+        }
+      })
+      setProfileMap(map)
+    })()
+  }, [bigBoard])
 
   // ── load all tags for bottom nav ───────────────────────────────
   useEffect(() => {
@@ -234,8 +367,12 @@ export default function TagPage() {
   // ── derive recurring instances ─────────────────────────────────
   const recEventsList = useMemo(() => {
     return recSeries.flatMap(series => {
+      if (!series.start_date) return []
       const opts = RRule.parseString(series.rrule)
-      opts.dtstart = new Date(`${series.start_date}T${series.start_time}`)
+      const startTime = series.start_time || '00:00:00'
+      const dtstart = new Date(`${series.start_date}T${startTime}`)
+      if (isNaN(dtstart)) return []
+      opts.dtstart = dtstart
       if (series.end_date) opts.until = new Date(`${series.end_date}T23:59:59`)
       return new RRule(opts)
         .all()
@@ -246,7 +383,12 @@ export default function TagPage() {
           title: series.name,
           imageUrl: series.image_url,
           start: d,
+          start_date: d.toISOString().slice(0,10),
+          start_time: series.start_time,
+          slug: series.slug,
+          address: series.address,
           href: `/series/${series.slug}/${d.toISOString().slice(0,10)}`,
+          isRecurring: true,
         }))
     })
   }, [recSeries])
@@ -283,40 +425,43 @@ export default function TagPage() {
       <div className="min-h-screen bg-neutral-50">
         <Navbar/>
 
-        {/* ── Thin Strip Hero ────────────────────────────── */}
-        <div className="bg-white border-b py-2 mt-20">
-          <div className="max-w-screen-xl mx-auto px-4 flex flex-wrap items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-800">#{tag.name}</h1>
-            <div className="flex items-center space-x-2">
+        {/* ── Hero ─────────────────────────────────────────── */}
+        <div className="mt-20 bg-gradient-to-r from-red-50 to-indigo-50 border-b">
+          <div className="max-w-screen-xl mx-auto px-4 py-10 text-center">
+            <h1 className="text-4xl font-[barrio] text-gray-800 mb-4">#{tag.name}</h1>
+            {tag.description && (
+              <p className="max-w-2xl mx-auto text-gray-700 mb-6">{tag.description}</p>
+            )}
+            <div className="flex flex-wrap justify-center gap-3">
               <button
                 onClick={() => setView('events')}
-                className={`px-3 py-1 rounded-full text-sm font-semibold transition ${
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
                   view === 'events'
                     ? 'bg-[#bf3d35] text-white'
-                    : 'bg-gray-200 text-gray-700'
+                    : 'bg-white border border-[#bf3d35] text-[#bf3d35]'
                 }`}
               >
                 Events
               </button>
               <button
                 onClick={() => setView('groups')}
-                className={`px-3 py-1 rounded-full text-sm font-semibold transition ${
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
                   view === 'groups'
                     ? 'bg-[#29313f] text-white'
-                    : 'bg-gray-200 text-gray-700'
+                    : 'bg-white border border-[#29313f] text-[#29313f]'
                 }`}
               >
                 Groups
               </button>
               <button
                 onClick={() => setShowFlyerModal(true)}
-                className="px-3 py-1 rounded-full text-sm bg-white border border-[#bf3d35] text-[#bf3d35] hover:bg-[#bf3d35] hover:text-white transition"
+                className="px-4 py-2 rounded-full text-sm bg-[#bf3d35] text-white hover:opacity-90 transition"
               >
                 Submit Event
               </button>
               <button
                 onClick={() => setShowSubmitGroupModal(true)}
-                className="px-3 py-1 rounded-full text-sm bg-white border border-[#29313f] text-[#29313f] hover:bg-[#29313f] hover:text-white transition"
+                className="px-4 py-2 rounded-full text-sm bg-[#29313f] text-white hover:opacity-90 transition"
               >
                 Submit Group
               </button>
@@ -331,34 +476,9 @@ export default function TagPage() {
               Upcoming #{tag.name} events
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {displayedEvents.map(evt => {
-                const label = getDateLabel(evt.start)
-                return (
-                  <Link
-                    key={evt.id + evt.start}
-                    to={evt.href}
-                    className="relative block bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden"
-                  >
-                    <div className="absolute top-2 left-2 bg-gray-900/80 text-white italic text-xs px-2 py-1 rounded z-10">
-                      {label}
-                    </div>
-                    <div className="h-40 bg-gray-200">
-                      {evt.imageUrl && (
-                        <img
-                          src={evt.imageUrl}
-                          alt={evt.title}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                    </div>
-                    <div className="p-3 text-center">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {evt.title}
-                      </p>
-                    </div>
-                  </Link>
-                )
-              })}
+              {displayedEvents.map(evt => (
+                <EventCard key={evt.id + evt.start} evt={evt} profileMap={profileMap} />
+              ))}
             </div>
             {!showAllEvents && upcoming.length > 16 && (
               <div className="text-center mt-6">
