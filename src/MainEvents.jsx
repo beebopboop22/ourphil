@@ -489,12 +489,49 @@ const [tagMap, setTagMap] = useState({});
   const [traditionEvents, setTraditionEvents] = useState([]);   // NEW
   const [loading, setLoading] = useState(true);
   // Community‐submitted group events
-const [groupEvents, setGroupEvents] = useState([]);
+  const [groupEvents, setGroupEvents] = useState([]);
+  const [profileMap, setProfileMap] = useState({});
 
   // Pagination state
   const [page, setPage] = useState(1);
   const [showAllToday, setShowAllToday] = useState(false);
   const EVENTS_PER_PAGE = 24;
+
+  // Load profile info for big-board submitters
+  useEffect(() => {
+    const ids = Array.from(new Set(bigBoardEvents.map(e => e.owner_id).filter(Boolean)));
+    if (ids.length === 0) { setProfileMap({}); return; }
+    (async () => {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id,username,image_url')
+        .in('id', ids);
+      const map = {};
+      profs?.forEach(p => {
+        let img = p.image_url || '';
+        if (img && !img.startsWith('http')) {
+          const { data: { publicUrl } } = supabase
+            .storage
+            .from('profile-images')
+            .getPublicUrl(img);
+          img = publicUrl;
+        }
+        map[p.id] = { username: p.username, image: img, cultures: [] };
+      });
+      const { data: rows } = await supabase
+        .from('profile_tags')
+        .select('profile_id, culture_tags(id,name,emoji)')
+        .in('profile_id', ids)
+        .eq('tag_type', 'culture');
+      rows?.forEach(r => {
+        if (!map[r.profile_id]) map[r.profile_id] = { username: '', image: '', cultures: [] };
+        if (r.culture_tags?.emoji) {
+          map[r.profile_id].cultures.push({ emoji: r.culture_tags.emoji, name: r.culture_tags.name });
+        }
+      });
+      setProfileMap(map);
+    })();
+  }, [bigBoardEvents]);
 
   
 
@@ -602,7 +639,8 @@ const [groupEvents, setGroupEvents] = useState([]);
           latitude,
           longitude,
           big_board_posts!big_board_posts_event_id_fkey (
-            image_url
+            image_url,
+            user_id
           )
         `)
         .order('start_date', { ascending: true });
@@ -686,6 +724,7 @@ let bigData = bigBoardRes.data || [];
 // Resolve each storage key into a public URL *and* tag source
 bigData = bigData.map(ev => {
     const key = ev.big_board_posts?.[0]?.image_url;
+    const owner = ev.big_board_posts?.[0]?.user_id;
     let publicUrl = '';
     if (key) {
       const {
@@ -699,7 +738,8 @@ bigData = bigData.map(ev => {
     return {
       ...ev,
       imageUrl: publicUrl,
-  
+      owner_id: owner,
+
       // ← NEW TAGS HERE:
       isBigBoard: true,
       isTradition: false
@@ -1365,6 +1405,22 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                   {isFavorite ? 'In the Plans' : 'Add to Plans'}
                 </button>
               </div>
+              {evt.isBigBoard && (
+                <div className="w-full bg-blue-50 text-blue-900 py-2 text-center">
+                  <div className="text-[0.55rem] uppercase font-semibold tracking-wide">SUBMITTED BY</div>
+                  <div className="mt-1 flex justify-center gap-1 text-xs font-semibold">
+                    <span>{profileMap[evt.owner_id]?.username}</span>
+                    {profileMap[evt.owner_id]?.cultures?.map(c => (
+                      <span key={c.emoji} className="relative group">
+                        {c.emoji}
+                        <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                          {c.name}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               </Wrapper>
             )}
             </FavoriteState>
