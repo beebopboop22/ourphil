@@ -519,16 +519,16 @@ export default function BigBoardEventPage() {
 
           {poster && (
             <div className="max-w-4xl mx-auto mt-6 px-4">
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg py-3 flex items-center justify-center gap-3">
-                <span className="text-3xl sm:text-4xl font-[Barrio]">Posted by</span>
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg py-3 flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 text-center">
+                <span className="text-2xl sm:text-3xl font-[Barrio] whitespace-nowrap">Posted by</span>
                 {poster.image ? (
                   <img src={poster.image} alt="avatar" className="w-12 h-12 rounded-full object-cover" />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-gray-300" />
                 )}
-                <span className="text-3xl sm:text-4xl font-[Barrio]">{poster.username}</span>
+                <span className="text-2xl sm:text-3xl font-[Barrio] break-words">{poster.username}</span>
                 {poster.cultures?.map(c => (
-                  <span key={c.emoji} title={c.name} className="text-3xl">
+                  <span key={c.emoji} title={c.name} className="text-2xl sm:text-3xl">
                     {c.emoji}
                   </span>
                 ))}
