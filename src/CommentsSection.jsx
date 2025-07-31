@@ -1,7 +1,8 @@
-import React, { useState, useRef, useContext } from 'react';
-import { Link } from 'react-router-dom';
-import { AuthContext } from './AuthProvider';
-import useEventComments from './utils/useEventComments';
+import React, { useState, useRef, useContext, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { AuthContext } from './AuthProvider'
+import { supabase } from './supabaseClient'
+import useEventComments from './utils/useEventComments'
 
 export default function CommentsSection({ source_table, event_id }) {
   const { user } = useContext(AuthContext);
@@ -17,6 +18,42 @@ export default function CommentsSection({ source_table, event_id }) {
   const [expanded, setExpanded] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editContent, setEditContent] = useState('');
+  const [profiles, setProfiles] = useState({})
+
+  // load commenter profiles and cultures
+  useEffect(() => {
+    const load = async () => {
+      const ids = Array.from(new Set(comments.map(c => c.user_id)))
+      if (ids.length === 0) { setProfiles({}); return }
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id,username,image_url')
+        .in('id', ids)
+      const map = {}
+      profs?.forEach(p => {
+        let url = ''
+        if (p.image_url) {
+          if (/^https?:/.test(p.image_url)) url = p.image_url
+          else url = supabase.storage.from('profile-images').getPublicUrl(p.image_url).data.publicUrl
+        }
+        map[p.id] = { username: p.username, image: url, cultures: [] }
+      })
+      const { data: tagRows } = await supabase
+        .from('profile_tags')
+        .select('profile_id,culture_tags(emoji)')
+        .in('profile_id', ids)
+        .eq('tag_type', 'culture')
+      tagRows?.forEach(r => {
+        const emoji = r.culture_tags?.emoji
+        if (!emoji) return
+        map[r.profile_id] = map[r.profile_id] || { cultures: [] }
+        map[r.profile_id].cultures = map[r.profile_id].cultures || []
+        map[r.profile_id].cultures.push(emoji)
+      })
+      setProfiles(map)
+    }
+    load()
+  }, [comments])
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -98,6 +135,26 @@ export default function CommentsSection({ source_table, event_id }) {
                   </form>
                 ) : (
                   <>
+                    <div className="flex items-center space-x-2 mb-2">
+                      {profiles[c.user_id]?.image ? (
+                        <img
+                          src={profiles[c.user_id].image}
+                          alt="avatar"
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gray-200" />
+                      )}
+                      <span className="text-sm font-semibold">
+                        {profiles[c.user_id]?.username || 'User'}
+                      </span>
+                      {profiles[c.user_id]?.cultures?.length > 0 && (
+                        <span className="text-xl">
+                          {profiles[c.user_id].cultures.join(' ')}
+                        </span>
+                      )}
+                    </div>
+
                     <p className={isExpanded ? 'mb-2' : 'mb-2 line-clamp-3'}>{c.content}</p>
                     {isLong && (
                       <button
