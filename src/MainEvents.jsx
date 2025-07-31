@@ -456,6 +456,7 @@ useEffect(() => {
 
   // at the top of MainEvents()
 const [tagMap, setTagMap] = useState({});
+const [profileMap, setProfileMap] = useState({});
 
 
   const [showFlyerModal, setShowFlyerModal] = useState(false);
@@ -602,7 +603,8 @@ const [groupEvents, setGroupEvents] = useState([]);
           latitude,
           longitude,
           big_board_posts!big_board_posts_event_id_fkey (
-            image_url
+            image_url,
+            user_id
           )
         `)
         .order('start_date', { ascending: true });
@@ -699,7 +701,8 @@ bigData = bigData.map(ev => {
     return {
       ...ev,
       imageUrl: publicUrl,
-  
+      owner_id: ev.big_board_posts?.[0]?.user_id || null,
+
       // ← NEW TAGS HERE:
       isBigBoard: true,
       isTradition: false
@@ -732,6 +735,43 @@ if (selectedOption === 'weekend') {
 }
 
 setBigBoardEvents(bigFiltered);
+
+      const profileIds = Array.from(new Set(bigFiltered.map(ev => ev.owner_id).filter(Boolean)));
+      if (profileIds.length) {
+        Promise.all([
+          supabase
+            .from('profiles')
+            .select('id,username,image_url')
+            .in('id', profileIds),
+          supabase
+            .from('profile_tags')
+            .select('profile_id, culture_tags(id,name,emoji)')
+            .in('profile_id', profileIds)
+            .eq('tag_type','culture')
+        ]).then(([profRes, tagRes]) => {
+          const map = {};
+          (profRes.data || []).forEach(p => {
+            let img = p.image_url || '';
+            if (img && !img.startsWith('http')) {
+              const { data: { publicUrl } } = supabase
+                .storage
+                .from('profile-images')
+                .getPublicUrl(img);
+              img = publicUrl;
+            }
+            map[p.id] = { username: p.username, image: img, cultures: [] };
+          });
+          (tagRes.data || []).forEach(r => {
+            if (!map[r.profile_id]) map[r.profile_id] = { username: '', image: '', cultures: [] };
+            if (r.culture_tags?.emoji) {
+              map[r.profile_id].cultures.push({ emoji: r.culture_tags.emoji, name: r.culture_tags.name });
+            }
+          });
+          setProfileMap(map);
+        });
+      } else {
+        setProfileMap({});
+      }
 
 const tradData = tradRes.data || [];
 const tradFiltered = tradData
@@ -1254,6 +1294,8 @@ if (loading) {
           const shown = tags.slice(0,2);
           const extra = tags.length - shown.length;
 
+          const prof = profileMap[evt.owner_id] || {};
+
           // only pass ones with coords
 const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
 
@@ -1302,8 +1344,22 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 )}
 
                 {evt.isBigBoard && (
-                  <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
-                    Submission
+                  <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-[0.65rem] flex items-center justify-center gap-1 py-1">
+                    <span className="uppercase font-bold">REPORTED BY</span>
+                    {prof.image ? (
+                      <img src={prof.image} alt="" className="w-4 h-4 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-gray-300" />
+                    )}
+                    <span className="font-semibold">{prof.username}</span>
+                    {prof.cultures?.map(c => (
+                      <span key={c.emoji} className="relative group">
+                        {c.emoji}
+                        <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                          {c.name}
+                        </span>
+                      </span>
+                    ))}
                   </div>
                 )}
                 {evt.isTradition && (
