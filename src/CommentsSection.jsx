@@ -98,6 +98,22 @@ export default function CommentsSection({ source_table, event_id }) {
                   </form>
                 ) : (
                   <>
+                    <div className="flex items-center space-x-2 mb-2">
+                      {c.profileImage ? (
+                        <img
+                          src={c.profileImage}
+                          alt="avatar"
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gray-200" />
+                      )}
+                      <span className="text-sm font-semibold">{c.username || 'User'}</span>
+                      {c.cultures?.length > 0 && (
+                        <span className="text-xl">{c.cultures.join(' ')}</span>
+                      )}
+                    </div>
+
                     <p className={isExpanded ? 'mb-2' : 'mb-2 line-clamp-3'}>{c.content}</p>
                     {isLong && (
                       <button
