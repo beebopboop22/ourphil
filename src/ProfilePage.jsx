@@ -1,8 +1,11 @@
 // src/ProfilePage.jsx
-import React, { useContext, useEffect, useState } from 'react'
+import React, { useContext, useEffect, useState, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import { AuthContext } from './AuthProvider'
+import useProfile from './utils/useProfile'
+import useProfileTags from './utils/useProfileTags'
+import imageCompression from 'browser-image-compression'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import SavedEventsScroller from './SavedEventsScroller.jsx'
@@ -11,6 +14,9 @@ import { RRule } from 'rrule'
 export default function ProfilePage() {
   const { user } = useContext(AuthContext)
   const navigate = useNavigate()
+
+  const { profile, updateProfile } = useProfile()
+  const { tags: cultureTags, saveTags } = useProfileTags('culture')
 
   // ── Tag subscriptions ────────────────────────────────────
   const [allTags, setAllTags] = useState([])
@@ -26,6 +32,28 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState('upcoming')
   const [savedEvents, setSavedEvents] = useState([])
   const [loadingSaved, setLoadingSaved] = useState(false)
+
+  // ── Profile info ─────────────────────────────────────────
+  const [username, setUsername] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+  const [cultures, setCultures] = useState([])
+  const [editingName, setEditingName] = useState(false)
+  const [savingName, setSavingName] = useState(false)
+  const [changingPic, setChangingPic] = useState(false)
+  const [showCultureModal, setShowCultureModal] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  // keep local state in sync with profile hooks
+  useEffect(() => {
+    if (profile) {
+      setUsername(profile.username || '')
+      setImageUrl(profile.image_url || '')
+    }
+  }, [profile])
+
+  useEffect(() => {
+    setCultures(cultureTags || [])
+  }, [cultureTags])
 
   // ── Styles for tag pills ─────────────────────────────────
   const pillStyles = [
@@ -43,6 +71,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user) return
     setEmail(user.email)
+
 
     // all tags
     supabase
@@ -82,6 +111,12 @@ export default function ProfilePage() {
     }
   }
 
+  // ── Toast helper ─────────────────────────────────────────
+  const showToast = (msg, type='success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
   // ── Account actions ─────────────────────────────────────
   const updateEmail = async () => {
     setUpdating(true)
@@ -111,6 +146,136 @@ export default function ProfilePage() {
       await supabase.auth.signOut()
       navigate('/')
     }
+  }
+
+  const saveUsername = async () => {
+    if (!user) return
+    setSavingName(true)
+    const { error } = await updateProfile({ username })
+    if (error) showToast(error.message, 'error')
+    else {
+      showToast('Username updated!')
+      setEditingName(false)
+    }
+    setSavingName(false)
+  }
+
+  const fileInputRef = useRef(null)
+  const handlePicClick = () => fileInputRef.current?.click()
+  const handleFileChange = async e => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+    setChangingPic(true)
+    try {
+      const options = { maxSizeMB: 0.5, maxWidthOrHeight: 256, useWebWorker: true }
+      const compressed = await imageCompression(file, options)
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const path = `${user.id}/${Date.now()}.${ext}`
+      const { error: uploadErr } = await supabase.storage
+        .from('profile-images')
+        .upload(path, compressed, { upsert: true, contentType: file.type })
+      if (uploadErr) throw uploadErr
+      const { data: { publicUrl } } = supabase.storage
+        .from('profile-images')
+        .getPublicUrl(path)
+      const { error: updateErr } = await updateProfile({ image_url: publicUrl })
+      if (updateErr) throw updateErr
+      setImageUrl(publicUrl)
+      showToast('Picture updated!')
+    } catch (err) {
+      console.error(err)
+      showToast(err.message, 'error')
+    }
+    setChangingPic(false)
+  }
+
+  const CultureModal = () => {
+    const [search, setSearch] = useState('')
+    const [options, setOptions] = useState([])
+    const [selected, setSelected] = useState(new Set(cultures.map(c => c.id)))
+    const [loadingOpts, setLoadingOpts] = useState(false)
+    const [saving, setSaving] = useState(false)
+
+    useEffect(() => {
+      if (!showCultureModal) return
+      setLoadingOpts(true)
+      supabase
+        .from('culture_tags')
+        .select('*')
+        .order('name', { ascending: true })
+        .then(({ data, error }) => {
+          if (!error) setOptions(data || [])
+          setLoadingOpts(false)
+        })
+    }, [showCultureModal])
+
+    const toggle = id => {
+      setSelected(prev => {
+        const set = new Set(prev)
+        set.has(id) ? set.delete(id) : set.add(id)
+        return set
+      })
+    }
+
+    const handleSave = async () => {
+      if (!user) return
+      setSaving(true)
+      const ids = Array.from(selected)
+      const { error } = await saveTags(ids)
+      if (error) showToast(error.message, 'error')
+      else {
+        const newCult = options.filter(o => selected.has(o.id))
+        setCultures(newCult)
+        showToast('Cultures updated!')
+        setShowCultureModal(false)
+      }
+      setSaving(false)
+    }
+
+    if (!showCultureModal) return null
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex flex-col">
+        <div className="bg-white flex-1 overflow-y-auto p-4">
+          <div className="flex mb-4">
+            <input
+              className="flex-1 border rounded px-2 py-1"
+              placeholder="Search…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            <button onClick={() => setShowCultureModal(false)} className="ml-2">✕</button>
+          </div>
+          {loadingOpts ? (
+            <p className="text-center text-gray-500">Loading…</p>
+          ) : (
+            <div className="space-y-2">
+              {options
+                .filter(o => o.name.toLowerCase().includes(search.toLowerCase()))
+                .map(o => (
+                  <label key={o.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(o.id)}
+                      onChange={() => toggle(o.id)}
+                    />
+                    <span className="text-xl">{o.emoji}</span>
+                    <span>{o.name}</span>
+                  </label>
+                ))}
+            </div>
+          )}
+        </div>
+        <div className="p-4 bg-white border-t">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-indigo-600 text-white py-2 rounded disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // ── Load saved events when showing Upcoming tab ──────────
@@ -302,8 +467,72 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-neutral-50 pb-12">
       <Navbar />
+      {cultures.length > 0 && (
+        <div className="flex justify-center text-3xl mt-4">
+          {cultures.map(c => (
+            <span key={c.id} className="mx-1">{c.emoji}</span>
+          ))}
+        </div>
+      )}
 
-      <div className="max-w-screen-md mx-auto px-4 py-12 mt-12">
+      <div className="max-w-screen-md mx-auto px-4 py-12 mt-6">
+        <div className="flex flex-col items-center mb-8">
+          <div className="relative">
+            {imageUrl ? (
+              <img src={imageUrl} alt="avatar" className="w-24 h-24 rounded-full object-cover" />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-gray-200" />
+            )}
+            <button
+              onClick={handlePicClick}
+              disabled={changingPic}
+              className="absolute bottom-0 right-0 text-xs bg-white px-2 py-1 rounded shadow"
+            >
+              {changingPic ? 'Uploading…' : 'Change Picture'}
+            </button>
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+          {editingName ? (
+            <div className="mt-2 flex items-center space-x-2">
+              <input
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                className="border rounded px-2 py-1"
+              />
+              <button
+                onClick={saveUsername}
+                disabled={savingName}
+                className="bg-indigo-600 text-white px-2 py-1 rounded text-sm"
+              >
+                Save
+              </button>
+              <button onClick={() => setEditingName(false)} className="text-sm">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <h2
+              onClick={() => setEditingName(true)}
+              className="mt-2 text-2xl font-semibold cursor-pointer"
+            >
+              {username || 'Set username'}
+            </h2>
+          )}
+          <p className="text-sm text-gray-600">{email}</p>
+          <button
+            onClick={() => setShowCultureModal(true)}
+            className="text-sm text-indigo-600 underline mt-2"
+          >
+            Select Cultures
+          </button>
+        </div>
+
         <div className="flex justify-center gap-6 mb-8">
           <button
             onClick={() => setActiveTab('upcoming')}
@@ -405,6 +634,14 @@ export default function ProfilePage() {
         )}
       </div>
 
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 text-white px-4 py-2 rounded ${toast.type==='error' ? 'bg-red-600' : 'bg-green-600'}`}
+        >
+          {toast.msg}
+        </div>
+      )}
+      <CultureModal />
       <Footer />
     </div>
   )
