@@ -6,6 +6,7 @@ import SavedEventCard from './SavedEventCard.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useFollow from './utils/useFollow';
+import { FacebookIcon, InstagramIcon, TikTokIcon, GlobeIcon } from './SocialIcons';
 
 export default function PublicProfilePage() {
   const { slug } = useParams();
@@ -18,7 +19,7 @@ export default function PublicProfilePage() {
     if (!slug) return;
     supabase
       .from('profiles')
-      .select('id,username,image_url,slug')
+      .select('id,username,image_url,slug,facebook_url,instagram_url,tiktok_url,website_url')
       .eq('slug', slug)
       .single()
       .then(({ data }) => {
@@ -134,6 +135,28 @@ export default function PublicProfilePage() {
               {isFollowing ? 'Unfollow' : 'Follow'}
             </button>
           )}
+          <div className="flex gap-4 text-2xl mt-2">
+            {profile.facebook_url && (
+              <a href={profile.facebook_url} target="_blank" rel="noopener" className="hover:text-white/80">
+                <FacebookIcon />
+              </a>
+            )}
+            {profile.instagram_url && (
+              <a href={profile.instagram_url} target="_blank" rel="noopener" className="hover:text-white/80">
+                <InstagramIcon />
+              </a>
+            )}
+            {profile.tiktok_url && (
+              <a href={profile.tiktok_url} target="_blank" rel="noopener" className="hover:text-white/80">
+                <TikTokIcon />
+              </a>
+            )}
+            {profile.website_url && (
+              <a href={profile.website_url} target="_blank" rel="noopener" className="hover:text-white/80">
+                <GlobeIcon />
+              </a>
+            )}
+          </div>
         </div>
       </header>
       <div className="max-w-screen-md mx-auto px-4 py-12">
