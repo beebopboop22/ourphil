@@ -1,7 +1,7 @@
 // /src/AdminClaimRequests.jsx
 
 import React, { useEffect, useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -110,6 +110,11 @@ const AdminClaimRequests = () => {
         <h1 className="text-4xl font-[Barrio] text-gray-800 mb-8 text-center">
           Group Claim Requests
         </h1>
+        <div className="mb-6 text-center">
+          <Link to="/admin" className="text-indigo-600 hover:underline">
+            ← Back to Dashboard
+          </Link>
+        </div>
 
         {loadingData ? (
           <div className="text-center py-20">Loading requests...</div>
