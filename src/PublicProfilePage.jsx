@@ -6,6 +6,8 @@ import SavedEventCard from './SavedEventCard.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useFollow from './utils/useFollow';
+import { FaFacebookF, FaInstagram, FaGlobe } from 'react-icons/fa';
+import { SiTiktok } from 'react-icons/si';
 
 export default function PublicProfilePage() {
   const { slug } = useParams();
@@ -18,7 +20,7 @@ export default function PublicProfilePage() {
     if (!slug) return;
     supabase
       .from('profiles')
-      .select('id,username,image_url,slug')
+      .select('id,username,image_url,slug,facebook_url,instagram_url,tiktok_url,website_url')
       .eq('slug', slug)
       .single()
       .then(({ data }) => {
@@ -125,6 +127,28 @@ export default function PublicProfilePage() {
             <div className="w-32 h-32 rounded-full bg-gray-300" />
           )}
           <h1 className="text-3xl font-bold">{profile.username || profile.slug}</h1>
+          <div className="flex gap-4 text-xl">
+            {profile.facebook_url && (
+              <a href={profile.facebook_url} target="_blank" rel="noopener">
+                <FaFacebookF />
+              </a>
+            )}
+            {profile.instagram_url && (
+              <a href={profile.instagram_url} target="_blank" rel="noopener">
+                <FaInstagram />
+              </a>
+            )}
+            {profile.tiktok_url && (
+              <a href={profile.tiktok_url} target="_blank" rel="noopener">
+                <SiTiktok />
+              </a>
+            )}
+            {profile.website_url && (
+              <a href={profile.website_url} target="_blank" rel="noopener">
+                <FaGlobe />
+              </a>
+            )}
+          </div>
           {user && user.id !== profile.id && (
             <button
               onClick={toggleFollow}
