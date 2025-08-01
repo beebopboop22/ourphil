@@ -1,5 +1,6 @@
 // src/AdminGroupUpdates.jsx
 import React, { useEffect, useState, useContext } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -110,6 +111,11 @@ export default function AdminGroupUpdates() {
 
       <main className="flex-grow max-w-screen-xl mx-auto px-4 py-10">
         <h1 className="text-4xl font-[Barrio] text-center mb-8">Admin: Group Updates</h1>
+        <div className="mb-6 text-center">
+          <Link to="/admin" className="text-indigo-600 hover:underline">
+            ← Back to Dashboard
+          </Link>
+        </div>
 
         {loadingData ? (
           <p className="text-center">Loading updates…</p>

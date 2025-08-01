@@ -1,5 +1,6 @@
 // src/AdminUsers.jsx
 import React, { useEffect, useState, useContext } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import Navbar from './Navbar';
@@ -69,6 +70,11 @@ export default function AdminUsers() {
         <h1 className="text-4xl font-[Barrio] text-gray-800 mb-8 text-center">
           User Management
         </h1>
+        <div className="mb-6 text-center">
+          <Link to="/admin" className="text-indigo-600 hover:underline">
+            ← Back to Dashboard
+          </Link>
+        </div>
 
         {loading ? (
           <p className="text-center">Loading users…</p>
