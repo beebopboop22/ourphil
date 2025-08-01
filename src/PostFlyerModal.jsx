@@ -98,7 +98,7 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
     skipNextFetch.current = false;
   }
 
-  // ── Debounced Mapbox “suggest” ───────────────
+  // ── Debounced Mapbox "suggest" ───────────────
   useEffect(() => {
     // if we just picked a suggestion, skip this fetch cycle
     if (skipNextFetch.current) {
@@ -143,7 +143,7 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
       .then(json => {
         const feature = json.features?.[0];
         if (feature) {
-          const name = feature.properties.name_preferred || feature.properties.name;
+          const name    = feature.properties.name_preferred || feature.properties.name;
           const context = feature.properties.place_formatted;
           setAddress(`${name}, ${context}`);
           const [lng_, lat_] = feature.geometry.coordinates;
