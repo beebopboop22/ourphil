@@ -104,6 +104,8 @@ export default function ProfilePage() {
   const [showCultureModal, setShowCultureModal] = useState(false);
   const [savedEvents, setSavedEvents] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
+  const [followingEvents, setFollowingEvents] = useState([]);
+  const [loadingFollowing, setLoadingFollowing] = useState(false);
   const [toast, setToast] = useState('');
   const fileRef = useRef(null);
 
@@ -290,6 +292,85 @@ export default function ProfilePage() {
       setLoadingSaved(false);
     })();
   }, [user]);
+
+  useEffect(() => {
+    if (activeTab !== 'following' || !user) return;
+    setLoadingFollowing(true);
+    (async () => {
+      const { data: rows, error } = await supabase
+        .from('user_follows')
+        .select('followed_id')
+        .eq('follower_id', user.id);
+      if (error) { setFollowingEvents([]); setLoadingFollowing(false); return; }
+      const ids = rows.map(r => r.followed_id);
+      if (!ids.length) { setFollowingEvents([]); setLoadingFollowing(false); return; }
+
+      const today = new Date().toISOString().slice(0,10);
+      const all = [];
+
+      const { data: posts } = await supabase
+        .from('big_board_posts')
+        .select('event_id,image_url,user_id')
+        .in('user_id', ids);
+      const bbIds = posts?.map(p => p.event_id) || [];
+      const imgMap = {};
+      posts?.forEach(p => { imgMap[p.event_id] = p.image_url; });
+      if (bbIds.length) {
+        const { data } = await supabase
+          .from('big_board_events')
+          .select('id,slug,title,start_date,start_time')
+          .in('id', bbIds)
+          .gte('start_date', today);
+        data?.forEach(ev => {
+          const path = imgMap[ev.id];
+          let img = '';
+          if (path) {
+            const { data: { publicUrl } } = supabase.storage
+              .from('big-board')
+              .getPublicUrl(path);
+            img = publicUrl;
+          }
+          all.push({
+            id: ev.id,
+            slug: ev.slug,
+            title: ev.title,
+            start_date: ev.start_date,
+            start_time: ev.start_time,
+            image: img,
+            source_table: 'big_board_events',
+          });
+        });
+      }
+
+      const { data: ge } = await supabase
+        .from('group_events')
+        .select('id,slug,title,start_date,start_time,groups(slug,imag)')
+        .in('user_id', ids)
+        .gte('start_date', today);
+      ge?.forEach(ev => {
+        all.push({
+          id: ev.id,
+          slug: ev.slug,
+          title: ev.title,
+          start_date: ev.start_date,
+          start_time: ev.start_time,
+          image: ev.groups?.imag || ev.groups?.[0]?.imag || '',
+          group: ev.groups ? { slug: ev.groups.slug } : ev.groups?.[0] ? { slug: ev.groups[0].slug } : null,
+          source_table: 'group_events',
+        });
+      });
+
+      const parseISO = str => { const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); };
+      const todayObj = new Date(); todayObj.setHours(0,0,0,0);
+      const upcoming = all
+        .map(ev => ({ ...ev, _d: parseISO(ev.start_date) }))
+        .filter(ev => ev._d && ev._d >= todayObj)
+        .sort((a,b) => a._d - b._d)
+        .map(({ _d, ...rest }) => rest);
+      setFollowingEvents(upcoming);
+      setLoadingFollowing(false);
+    })();
+  }, [activeTab, user]);
 
   const handleFileChange = async e => {
     const file = e.target.files?.[0];
@@ -487,6 +568,12 @@ export default function ProfilePage() {
             Upcoming
           </button>
           <button
+            onClick={() => setActiveTab('following')}
+            className={`pb-1 ${activeTab === 'following' ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold' : 'text-gray-600'}`}
+          >
+            Following
+          </button>
+          <button
             onClick={() => setActiveTab('settings')}
             className={`pb-1 ${activeTab === 'settings' ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold' : 'text-gray-600'}`}
           >
@@ -568,6 +655,22 @@ export default function ProfilePage() {
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 {savedEvents.map(ev => (
+                  <SavedEventCard key={`${ev.source_table}-${ev.id}`} event={ev} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'following' && (
+          <section>
+            {loadingFollowing ? (
+              <div className="py-20 text-center text-gray-500">Loading…</div>
+            ) : followingEvents.length === 0 ? (
+              <div className="py-20 text-center text-gray-500">No upcoming events.</div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {followingEvents.map(ev => (
                   <SavedEventCard key={`${ev.source_table}-${ev.id}`} event={ev} />
                 ))}
               </div>
