@@ -5,6 +5,7 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
+import useFollow from './utils/useFollow';
 import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
@@ -78,6 +79,11 @@ export default function BigBoardEventPage() {
 
   // Event poster info
   const [poster, setPoster] = useState(null);
+  const {
+    isFollowing: isPosterFollowing,
+    toggleFollow: togglePosterFollow,
+    loading: followLoading,
+  } = useFollow(event?.owner_id);
 
   // Helpers
   function parseLocalYMD(str) {
@@ -176,7 +182,7 @@ export default function BigBoardEventPage() {
       try {
         const { data: prof } = await supabase
           .from('profiles')
-          .select('username,image_url')
+          .select('username,image_url,slug')
           .eq('id', event.owner_id)
           .single();
         let img = prof?.image_url || '';
@@ -198,7 +204,13 @@ export default function BigBoardEventPage() {
             cultures.push({ emoji: t.culture_tags.emoji, name: t.culture_tags.name });
           }
         });
-        setPoster({ username: prof?.username || 'User', image: img, cultures });
+        setPoster({
+          id: event.owner_id,
+          username: prof?.username || 'User',
+          image: img,
+          slug: prof?.slug || null,
+          cultures,
+        });
       } catch (e) {
         console.error(e);
       }
@@ -521,17 +533,28 @@ export default function BigBoardEventPage() {
             <div className="max-w-4xl mx-auto mt-6 px-4">
               <div className="bg-indigo-50 border border-indigo-200 rounded-lg py-3 flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 text-center">
                 <span className="text-2xl sm:text-3xl font-[Barrio] whitespace-nowrap">Posted by</span>
-                {poster.image ? (
-                  <img src={poster.image} alt="avatar" className="w-12 h-12 rounded-full object-cover" />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-gray-300" />
-                )}
-                <span className="text-2xl sm:text-3xl font-[Barrio] break-words">{poster.username}</span>
+                <Link to={`/u/${poster.slug}`} className="flex items-center gap-2">
+                  {poster.image ? (
+                    <img src={poster.image} alt="avatar" className="w-12 h-12 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-gray-300" />
+                  )}
+                  <span className="text-2xl sm:text-3xl font-[Barrio] break-words">{poster.username}</span>
+                </Link>
                 {poster.cultures?.map(c => (
                   <span key={c.emoji} title={c.name} className="text-2xl sm:text-3xl">
                     {c.emoji}
                   </span>
                 ))}
+                {user && user.id !== poster.id && (
+                  <button
+                    onClick={togglePosterFollow}
+                    disabled={followLoading}
+                    className="border border-indigo-700 rounded px-2 py-0.5 text-sm hover:bg-indigo-700 hover:text-white transition"
+                  >
+                    {isPosterFollowing ? 'Unfollow' : 'Follow'}
+                  </button>
+                )}
               </div>
             </div>
           )}
