@@ -10,6 +10,7 @@ import useProfile from './utils/useProfile';
 import useProfileTags from './utils/useProfileTags';
 import { RRule } from 'rrule';
 import { Link, useNavigate } from 'react-router-dom';
+import { FacebookIcon, InstagramIcon, TikTokIcon, GlobeIcon } from './SocialIcons';
 
 function CultureModal({ initial = [], onSave, onClose }) {
   const [tags, setTags] = useState([]);
@@ -109,6 +110,10 @@ export default function ProfilePage() {
   const [followingEvents, setFollowingEvents] = useState([]);
   const [loadingFollowing, setLoadingFollowing] = useState(false);
   const [toast, setToast] = useState('');
+  const [facebookUrl, setFacebookUrl] = useState(profile?.facebook_url || '');
+  const [instagramUrl, setInstagramUrl] = useState(profile?.instagram_url || '');
+  const [tiktokUrl, setTiktokUrl] = useState(profile?.tiktok_url || '');
+  const [websiteUrl, setWebsiteUrl] = useState(profile?.website_url || '');
   const fileRef = useRef(null);
 
   // Load tags and subscriptions on mount
@@ -134,6 +139,10 @@ export default function ProfilePage() {
   useEffect(() => {
     setUsername(profile?.username || profile?.slug || '');
     setImageUrl(profile?.image_url || '');
+    setFacebookUrl(profile?.facebook_url || '');
+    setInstagramUrl(profile?.instagram_url || '');
+    setTiktokUrl(profile?.tiktok_url || '');
+    setWebsiteUrl(profile?.website_url || '');
   }, [profile]);
 
   useEffect(() => {
@@ -449,6 +458,17 @@ export default function ProfilePage() {
     }
   };
 
+  const saveSocialLinks = async () => {
+    const { error } = await updateProfile({
+      facebook_url: facebookUrl,
+      instagram_url: instagramUrl,
+      tiktok_url: tiktokUrl,
+      website_url: websiteUrl,
+    });
+    if (error) setToast(error.message);
+    else setToast('Social links saved!');
+  };
+
   const toggleSub = async tagId => {
     if (!user) return;
     if (subs.has(tagId)) {
@@ -599,6 +619,28 @@ export default function ProfilePage() {
                 edit your cultures!
               </button>
             </div>
+            <div className="mt-2 flex justify-center sm:justify-start gap-4 text-2xl">
+              {facebookUrl && (
+                <a href={facebookUrl} target="_blank" rel="noopener" className="hover:text-indigo-700">
+                  <FacebookIcon />
+                </a>
+              )}
+              {instagramUrl && (
+                <a href={instagramUrl} target="_blank" rel="noopener" className="hover:text-indigo-700">
+                  <InstagramIcon />
+                </a>
+              )}
+              {tiktokUrl && (
+                <a href={tiktokUrl} target="_blank" rel="noopener" className="hover:text-indigo-700">
+                  <TikTokIcon />
+                </a>
+              )}
+              {websiteUrl && (
+                <a href={websiteUrl} target="_blank" rel="noopener" className="hover:text-indigo-700">
+                  <GlobeIcon />
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -668,6 +710,42 @@ export default function ProfilePage() {
                     className="w-full border rounded p-2"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Facebook URL</label>
+                  <input
+                    type="url"
+                    value={facebookUrl}
+                    onChange={e => setFacebookUrl(e.target.value)}
+                    className="w-full border rounded p-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Instagram URL</label>
+                  <input
+                    type="url"
+                    value={instagramUrl}
+                    onChange={e => setInstagramUrl(e.target.value)}
+                    className="w-full border rounded p-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">TikTok URL</label>
+                  <input
+                    type="url"
+                    value={tiktokUrl}
+                    onChange={e => setTiktokUrl(e.target.value)}
+                    className="w-full border rounded p-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Website URL</label>
+                  <input
+                    type="url"
+                    value={websiteUrl}
+                    onChange={e => setWebsiteUrl(e.target.value)}
+                    className="w-full border rounded p-2"
+                  />
+                </div>
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={updateEmail}
@@ -688,6 +766,12 @@ export default function ProfilePage() {
                     className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
                   >
                     {deleting ? 'Deleting…' : 'Delete My Account'}
+                  </button>
+                  <button
+                    onClick={saveSocialLinks}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition"
+                  >
+                    Save Social Links
                   </button>
                 </div>
                 {status && <p className="text-sm text-gray-700">{status}</p>}
