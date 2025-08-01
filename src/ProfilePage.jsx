@@ -96,7 +96,7 @@ export default function ProfilePage() {
   // Tabs
   const [activeTab, setActiveTab] = useState('upcoming');
 
-  const [username, setUsername] = useState(profile?.username || '');
+  const [username, setUsername] = useState(profile?.username || profile?.slug || '');
   const [imageUrl, setImageUrl] = useState(profile?.image_url || '');
   const [cultures, setCultures] = useState(cultureTags);
   const [editingName, setEditingName] = useState(false);
@@ -104,6 +104,8 @@ export default function ProfilePage() {
   const [showCultureModal, setShowCultureModal] = useState(false);
   const [savedEvents, setSavedEvents] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
+  const [followingEvents, setFollowingEvents] = useState([]);
+  const [loadingFollowing, setLoadingFollowing] = useState(false);
   const [toast, setToast] = useState('');
   const fileRef = useRef(null);
 
@@ -128,7 +130,7 @@ export default function ProfilePage() {
   }, [activeTab, user]);
 
   useEffect(() => {
-    setUsername(profile?.username || '');
+    setUsername(profile?.username || profile?.slug || '');
     setImageUrl(profile?.image_url || '');
   }, [profile]);
 
@@ -291,6 +293,79 @@ export default function ProfilePage() {
     })();
   }, [user]);
 
+  useEffect(() => {
+    if (activeTab !== 'following' || !user) return;
+    setLoadingFollowing(true);
+    (async () => {
+      const { data: rows, error } = await supabase
+        .from('user_follows')
+        .select('followed_id')
+        .eq('follower_id', user.id);
+      if (error) { setFollowingEvents([]); setLoadingFollowing(false); return; }
+      const ids = rows.map(r => r.followed_id);
+      if (!ids.length) { setFollowingEvents([]); setLoadingFollowing(false); return; }
+
+      const today = new Date().toISOString().slice(0,10);
+      const all = [];
+
+      const { data: bbPosts } = await supabase
+        .from('big_board_posts')
+        .select(
+          'image_url,big_board_events!big_board_posts_event_id_fkey(id,slug,title,start_date,start_time)'
+        )
+        .in('user_id', ids)
+        .gte('big_board_events.start_date', today);
+      bbPosts?.forEach(post => {
+        const ev = post.big_board_events?.[0];
+        if (!ev) return;
+        let img = '';
+        if (post.image_url) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from('big-board').getPublicUrl(post.image_url);
+          img = publicUrl;
+        }
+        all.push({
+          id: ev.id,
+          slug: ev.slug,
+          title: ev.title,
+          start_date: ev.start_date,
+          start_time: ev.start_time,
+          image: img,
+          source_table: 'big_board_events',
+        });
+      });
+
+      const { data: ge } = await supabase
+        .from('group_events')
+        .select('id,slug,title,start_date,start_time,groups(slug,imag)')
+        .in('user_id', ids)
+        .gte('start_date', today);
+      ge?.forEach(ev => {
+        all.push({
+          id: ev.id,
+          slug: ev.slug,
+          title: ev.title,
+          start_date: ev.start_date,
+          start_time: ev.start_time,
+          image: ev.groups?.imag || ev.groups?.[0]?.imag || '',
+          group: ev.groups ? { slug: ev.groups.slug } : ev.groups?.[0] ? { slug: ev.groups[0].slug } : null,
+          source_table: 'group_events',
+        });
+      });
+
+      const parseISO = str => { const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); };
+      const todayObj = new Date(); todayObj.setHours(0,0,0,0);
+      const upcoming = all
+        .map(ev => ({ ...ev, _d: parseISO(ev.start_date) }))
+        .filter(ev => ev._d && ev._d >= todayObj)
+        .sort((a,b) => a._d - b._d)
+        .map(({ _d, ...rest }) => rest);
+      setFollowingEvents(upcoming);
+      setLoadingFollowing(false);
+    })();
+  }, [activeTab, user]);
+
   const handleFileChange = async e => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -451,12 +526,20 @@ export default function ProfilePage() {
                 </button>
               </div>
             ) : (
-              <h2
-                className="text-3xl font-bold cursor-pointer"
-                onClick={() => setEditingName(true)}
-              >
-                {username || 'Set username'}
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 justify-center sm:justify-start">
+                <h2 className="text-3xl font-bold">{username || profile?.slug || 'Username'}</h2>
+                <button
+                  onClick={() => setEditingName(true)}
+                  className="text-sm underline"
+                >
+                  Edit username
+                </button>
+                {profile?.slug && (
+                  <Link to={`/u/${profile.slug}`} className="text-sm underline">
+                    View public profile
+                  </Link>
+                )}
+              </div>
             )}
             <div className="mt-2 flex flex-wrap justify-center sm:justify-start items-center gap-1">
               {cultures.map(c => (
@@ -471,7 +554,7 @@ export default function ProfilePage() {
                 onClick={() => setShowCultureModal(true)}
                 className="ml-2 text-sm underline"
               >
-                Edit
+                edit your cultures!
               </button>
             </div>
           </div>
@@ -485,6 +568,12 @@ export default function ProfilePage() {
             className={`pb-1 ${activeTab === 'upcoming' ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold' : 'text-gray-600'}`}
           >
             Upcoming
+          </button>
+          <button
+            onClick={() => setActiveTab('following')}
+            className={`pb-1 ${activeTab === 'following' ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold' : 'text-gray-600'}`}
+          >
+            Following
           </button>
           <button
             onClick={() => setActiveTab('settings')}
@@ -568,6 +657,22 @@ export default function ProfilePage() {
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 {savedEvents.map(ev => (
+                  <SavedEventCard key={`${ev.source_table}-${ev.id}`} event={ev} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'following' && (
+          <section>
+            {loadingFollowing ? (
+              <div className="py-20 text-center text-gray-500">Loading…</div>
+            ) : followingEvents.length === 0 ? (
+              <div className="py-20 text-center text-gray-500">No upcoming events.</div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {followingEvents.map(ev => (
                   <SavedEventCard key={`${ev.source_table}-${ev.id}`} event={ev} />
                 ))}
               </div>
