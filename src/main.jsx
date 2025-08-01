@@ -32,6 +32,7 @@ import AdminReviews from './AdminReviews';
 import AdminGroupUpdates from './AdminGroupUpdates.jsx';
 import AdminDashboard from './AdminDashboard.jsx';
 import AdminActivity from './AdminActivity.jsx';
+import AdminComments from './AdminComments.jsx';
 import SocialVideoCarousel from './SocialVideoCarousel.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
@@ -93,6 +94,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/reviews" element={<AdminReviews />} />
           <Route path="/admin/updates" element={<AdminGroupUpdates />} />
+          <Route path="/admin/comments" element={<AdminComments />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/activity" element={<AdminActivity />} />
           <Route path="/social-video" element={<SocialVideoCarousel />} />

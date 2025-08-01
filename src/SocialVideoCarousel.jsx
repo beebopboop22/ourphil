@@ -8,8 +8,11 @@ import { Link } from 'react-router-dom'
 const parseDate = datesStr => {
   if (!datesStr) return null
   const [first] = datesStr.split(/through|–|-/)
-  const [m, d, y] = first.trim().split('/')
-  return new Date(+y, +m - 1, +d)
+  const parts = first.trim().split('/')
+  if (parts.length !== 3) return null
+  const [m, d, y] = parts.map(Number)
+  const dt = new Date(y, m - 1, d)
+  return isNaN(dt) ? null : dt
 }
 const parseISODateLocal = str => {
   const [y, m, d] = str.split('-').map(Number)

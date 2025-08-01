@@ -15,7 +15,11 @@ const MonthlyEvents = () => {
   const parseDate = (datesStr) => {
     if (!datesStr) return null;
     const [first] = datesStr.split(/through|–|-/);
-    return new Date(first.trim());
+    const parts = first.trim().split('/');
+    if (parts.length !== 3) return null;
+    const [m, d, y] = parts.map(Number);
+    const dt = new Date(y, m - 1, d);
+    return isNaN(dt) ? null : dt;
   };
 
   // format start/end into "Apr 1 – Apr 30" or "May 5"
@@ -52,7 +56,9 @@ const MonthlyEvents = () => {
       const enhanced = data
         .map(e => {
           const start = parseDate(e.Dates);
+          if (!start) return null;
           const end = parseDate(e['End Date']) || start;
+          if (!end) return null;
           return {
             ...e,
             start,
@@ -61,7 +67,7 @@ const MonthlyEvents = () => {
             displayDate: formatDisplayDate(start, end),
           };
         })
-        .filter(e => e.end >= today)
+        .filter(e => e && e.end >= today)
         .slice(0, 12);
 
       setEvents(enhanced);

@@ -12,7 +12,11 @@ import EventFavorite from './EventFavorite.jsx';
 const parseDate = (datesStr) => {
   if (!datesStr) return null;
   const [first] = datesStr.split(/through|–|-/);
-  return new Date(first.trim());
+  const parts = first.trim().split('/');
+  if (parts.length !== 3) return null;
+  const [m, d, y] = parts.map(Number);
+  const dt = new Date(y, m - 1, d);
+  return isNaN(dt) ? null : dt;
 };
 const formatShortDate = (d) =>
   d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -61,7 +65,9 @@ export default function Bulletin({ previewCount = Infinity }) {
         const dynamic = data
           .map((e) => {
             const start = parseDate(e.Dates);
+            if (!start) return null;
             const end = parseDate(e['End Date']) || start;
+            if (!end) return null;
             const sd = new Date(start);
             sd.setHours(0, 0, 0, 0);
             const ed = new Date(end);
@@ -91,7 +97,7 @@ export default function Bulletin({ previewCount = Infinity }) {
 
             return { ...e, start: sd, end: ed, updateText };
           })
-          .filter((evt) => evt.end >= today0)
+          .filter((evt) => evt && evt.end >= today0)
           .slice(0, 15);
 
         // Prepare special fixed entries
