@@ -56,8 +56,11 @@ function formatTime(timeStr) {
 function parseDate(datesStr) {
   if (!datesStr) return null;
   const [first] = datesStr.split(/through|–|-/);
-  const [m, d, y] = first.trim().split('/').map(Number);
-  return new Date(y, m - 1, d);
+  const parts = first.trim().split('/');
+  if (parts.length !== 3) return null;
+  const [m, d, y] = parts.map(Number);
+  const dt = new Date(y, m - 1, d);
+  return isNaN(dt) ? null : dt;
 }
 
 // inside your component render:
@@ -93,7 +96,9 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
         const dynamic = data
           .map((e) => {
             const start = parseDate(e.Dates);
+            if (!start) return null;
             const end = parseDate(e['End Date']) || start;
+            if (!end) return null;
             const sd = new Date(start); sd.setHours(0, 0, 0, 0);
             const ed = new Date(end);   ed.setHours(0, 0, 0, 0);
             const single = !e['End Date'] || e['End Date'].trim() === e.Dates.trim();
@@ -115,7 +120,7 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
             }
             return { ...e, start: sd, end: ed, updateText };
           })
-          .filter((evt) => evt.end >= today0 && !!evt.updateText)
+          .filter((evt) => evt && evt.end >= today0 && !!evt.updateText)
           .slice(0, previewCount);
 
         setEvents(dynamic);
@@ -777,7 +782,9 @@ const tradData = tradRes.data || [];
 const tradFiltered = tradData
   .map(ev => {
     const start = parseDate(ev.Dates);
+    if (!start) return null;
     const end   = parseDate(ev['End Date']) || start;
+    if (!end) return null;
     return {
       id:          ev.id,
       title:       ev['E Name'],
@@ -791,6 +798,7 @@ const tradFiltered = tradData
     };
   })
   .filter(evt => {
+    if (!evt) return false;
     // discard anything longer than 10 days
     const dur = Math.floor((evt.end - evt.start) / (1000 * 60 * 60 * 24));
     if (dur > 10) return false;

@@ -14,8 +14,11 @@ export default function HeroLanding() {
   const parseDate = datesStr => {
     if (!datesStr) return null;
     const [first] = datesStr.split(/through|–|-/);
-    const [m, d, y] = first.trim().split('/');
-    return new Date(+y, +m - 1, +d);
+    const parts = first.trim().split('/');
+    if (parts.length !== 3) return null;
+    const [m, d, y] = parts.map(Number);
+    const dt = new Date(y, m - 1, d);
+    return isNaN(dt) ? null : dt;
   };
 
   const getBubble = (start, isActive) => {
@@ -53,7 +56,9 @@ export default function HeroLanding() {
       const enhanced = data
         .map(e => {
           const start = parseDate(e.Dates);
+          if (!start) return null;
           const end   = e['End Date'] ? parseDate(e['End Date']) : start;
+          if (!end) return null;
           return {
             ...e,
             start,
@@ -61,7 +66,7 @@ export default function HeroLanding() {
             isActive: start <= today && today <= end,
           };
         })
-        .filter(e => e.end >= today)
+        .filter(e => e && e.end >= today)
         .sort((a, b) =>
           a.isActive === b.isActive
             ? a.start - b.start

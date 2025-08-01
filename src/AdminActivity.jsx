@@ -1,5 +1,6 @@
 // src/AdminActivity.jsx
 import React, { useEffect, useState, useContext } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import Navbar from './Navbar';
@@ -67,6 +68,11 @@ export default function AdminActivity() {
       <Navbar />
       <main className="flex-grow max-w-screen-xl mx-auto p-6">
         <h1 className="text-4xl font-[Barrio] mb-8 text-center">Activity Feed</h1>
+        <div className="mb-6 text-center">
+          <Link to="/admin" className="text-indigo-600 hover:underline">
+            ← Back to Dashboard
+          </Link>
+        </div>
         {loading ? (
           <p className="text-center">Loading…</p>
         ) : (
