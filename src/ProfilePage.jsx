@@ -783,6 +783,9 @@ export default function ProfilePage() {
 
         {activeTab === 'upcoming' && (
           <section>
+            <div className="flex justify-end mb-4">
+              <button onClick={() => navigate(`/u/${profile?.slug}/plans-card`)} className="px-3 py-1 text-sm border rounded">View upcoming plans card</button>
+            </div>
             {loadingSaved ? (
               <div className="py-20 text-center text-gray-500">Loading…</div>
             ) : savedEvents.length === 0 ? (
