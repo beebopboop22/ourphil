@@ -35,6 +35,36 @@ function formatTime(t) {
   return `${hour}:${m.padStart(2,'0')} ${ampm}`
 }
 
+function isTagActive(tag) {
+  const today = new Date()
+  today.setHours(0,0,0,0)
+  if (tag.rrule) {
+    try {
+      const opts = RRule.parseString(tag.rrule)
+      if (tag.season_start) opts.dtstart = parseISODateLocal(tag.season_start)
+      const rule = new RRule(opts)
+      const searchStart = new Date(today)
+      searchStart.setDate(searchStart.getDate() - 8)
+      const next = rule.after(searchStart, true)
+      if (!next) return false
+      const start = new Date(next)
+      start.setDate(start.getDate() - 7)
+      const end = new Date(next)
+      end.setDate(end.getDate() + 1)
+      return today >= start && today < end
+    } catch (err) {
+      console.error('rrule parse', err)
+      return false
+    }
+  }
+  if (tag.season_start && tag.season_end) {
+    const start = parseISODateLocal(tag.season_start)
+    const end = parseISODateLocal(tag.season_end)
+    return start && end && today >= start && today <= end
+  }
+  return true
+}
+
 // ── Helper to render “Today/Tomorrow/This …” labels ───────────────
 function getDateLabel(date) {
   const today = new Date()
@@ -120,6 +150,7 @@ export default function TagPage() {
   const [profileMap, setProfileMap] = useState({})
   const [allTags, setAllTags] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isActive, setIsActive] = useState(true)
 
   // modal toggles
   const [showFlyerModal, setShowFlyerModal] = useState(false)
@@ -167,6 +198,7 @@ export default function TagPage() {
         return
       }
       setTag(t)
+      setIsActive(isTagActive(t))
 
       // 2) fetch taggings
       const { data: taggings } = await supabase
@@ -442,6 +474,11 @@ export default function TagPage() {
             )}
             {tag.description && (
               <p className="max-w-2xl mx-auto text-gray-700 mb-6">{tag.description}</p>
+            )}
+            {(tag.rrule || (tag.season_start && tag.season_end)) && !isActive && (
+              <div className="max-w-2xl mx-auto bg-yellow-100 text-yellow-800 p-4 rounded-lg border border-yellow-200 mb-6">
+                {tag.name} events will be highlighted on the home page as the event approaches. Add {'#' + slug} events anytime, and they'll appear in the calendar as normal. The "limited-time tag" above just means that when the event is coming up, it'll be brought front and center on the home screen.
+              </div>
             )}
             <div className="flex flex-wrap justify-center gap-3">
               <button
