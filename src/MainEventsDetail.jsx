@@ -13,6 +13,7 @@ import SubmitEventSection from './SubmitEventSection';
 import TaggedEventScroller from './TaggedEventsScroller';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
+import ReviewPhotoGrid from './ReviewPhotoGrid';
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -44,6 +45,7 @@ export default function MainEventsDetail() {
   const [sameDayEvents, setSameDayEvents] = useState([]);
   const [eventTags, setEventTags] = useState([]);
   const [tagsList, setTagsList] = useState([]);
+  const [reviewPhotos, setReviewPhotos] = useState([]);
 
   // post flyer modal state
   const [showFlyerModal, setShowFlyerModal] = useState(false);
@@ -107,6 +109,32 @@ export default function MainEventsDetail() {
     if (navigator.share) navigator.share({ title, url }).catch(console.error);
     else copyLinkFallback(url);
   };
+
+  useEffect(() => {
+    if (!event) return;
+    supabase
+      .from('reviews')
+      .select('photo_urls')
+      .eq('event_id', event.id)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          setReviewPhotos([]);
+        } else {
+          const urls = (data || []).flatMap(r => {
+            let arr = Array.isArray(r.photo_urls) ? r.photo_urls : [];
+            if (!Array.isArray(r.photo_urls) && r.photo_urls) {
+              try {
+                const p = JSON.parse(r.photo_urls);
+                if (Array.isArray(p)) arr = p;
+              } catch {}
+            }
+            return arr;
+          });
+          setReviewPhotos(urls.slice(0, 24));
+        }
+      });
+  }, [event]);
 
   // Fetch everything
   useEffect(() => {
@@ -424,6 +452,10 @@ export default function MainEventsDetail() {
               </p>
             </div>
           </div>
+
+          {reviewPhotos.length > 0 && (
+            <ReviewPhotoGrid photos={reviewPhotos} />
+          )}
 
           {/* Content */}
           <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
