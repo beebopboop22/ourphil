@@ -213,6 +213,7 @@ export default function UpcomingPlansCard() {
       const { toBlob } = await import('https://esm.sh/html-to-image');
       const blob = await toBlob(card, {
         pixelRatio: 2,
+        cacheBust: true,
         // Exclude elements (like the close and share buttons) marked with data-no-export
         filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
       });
@@ -299,10 +300,10 @@ export default function UpcomingPlansCard() {
         )}
         <button
           onClick={handleShare}
-          className="self-end mt-4 text-sm px-4 py-2 bg-indigo-600 text-white rounded"
+          className="w-full mt-4 text-sm py-2 bg-indigo-600 text-white rounded"
           data-no-export
         >
-          Share
+          SHARE YOUR PLAN CARD
         </button>
       </div>
     </div>
