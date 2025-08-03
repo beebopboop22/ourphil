@@ -3,6 +3,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 
 export default function TaggedEventsScroller({
   tags = [],             // array of tag slugs to pull events from
@@ -11,6 +12,7 @@ export default function TaggedEventsScroller({
   const { user } = useContext(AuthContext);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tagMeta, setTagMeta] = useState({ isSeasonal: false, description: '' });
 
   // only re-run when the **content** of tags changes
   const tagsKey = useMemo(
@@ -48,10 +50,18 @@ export default function TaggedEventsScroller({
         // 1) lookup tag IDs
         const { data: tagRows, error: tagErr } = await supabase
           .from('tags')
-          .select('id')
+          .select('id, is_seasonal, description')
           .in('slug', tags);
         if (tagErr) throw tagErr;
         const tagIds = (tagRows || []).map(t => t.id);
+        if (tagRows && tagRows.length) {
+          setTagMeta({
+            isSeasonal: tagRows.some(t => t.is_seasonal),
+            description: tagRows[0]?.description || '',
+          });
+        } else {
+          setTagMeta({ isSeasonal: false, description: '' });
+        }
         if (!tagIds.length) {
           setItems([]);
           return;
@@ -226,9 +236,19 @@ export default function TaggedEventsScroller({
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
       <div className="relative max-w-screen-xl mx-auto text-center z-20">
-        <h2 className="text-2xl sm:text-4xl font-[barrio] font-bold text-gray-700 mb-6">
-          {header}
-        </h2>
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <h2 className="text-2xl sm:text-4xl font-[barrio] font-bold text-gray-700">
+            {header}
+          </h2>
+          {tagMeta.isSeasonal && (
+            <Sparkles className="w-6 h-6 text-yellow-500" />
+          )}
+        </div>
+        {tagMeta.isSeasonal && tagMeta.description && (
+          <div className="max-w-2xl mx-auto bg-yellow-50 border border-yellow-200 text-yellow-900 p-4 rounded-lg mb-8">
+            {tagMeta.description}
+          </div>
+        )}
         {loading ? (
           <p>Loading…</p>
         ) : !items.length ? (

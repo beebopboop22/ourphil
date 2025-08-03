@@ -1471,8 +1471,9 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
       
             {/* ─── Recent Activity ─── */}
             <RecentActivity />
-            <TaggedEventScroller tags={['arts']}  header="#Arts Coming Soon"/>
-            <TaggedEventScroller tags={['nomnomslurp']}  header="#NomNomSlurp Next Up"/>
+            <TaggedEventScroller tags={['arts']} header="#Arts Coming Soon"/>
+            <TaggedEventScroller tags={['peco-multicultural']} header="#PECO Multicultural"/>
+            <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Next Up"/>
             <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
 
             {/* ─── Hero Banner ─── */}
