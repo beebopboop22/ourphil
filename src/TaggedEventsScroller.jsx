@@ -1,16 +1,16 @@
 // src/TaggedEventsScroller.jsx
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
+import { Clock } from 'lucide-react';
 
 export default function TaggedEventsScroller({
   tags = [],             // array of tag slugs to pull events from
   header = 'Upcoming Events',
 }) {
-  const { user } = useContext(AuthContext);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tagMeta, setTagMeta] = useState({ isSeasonal: false, description: '' });
 
   // only re-run when the **content** of tags changes
   const tagsKey = useMemo(
@@ -48,10 +48,18 @@ export default function TaggedEventsScroller({
         // 1) lookup tag IDs
         const { data: tagRows, error: tagErr } = await supabase
           .from('tags')
-          .select('id')
+          .select('id, is_seasonal, description')
           .in('slug', tags);
         if (tagErr) throw tagErr;
         const tagIds = (tagRows || []).map(t => t.id);
+        if (tagRows && tagRows.length) {
+          setTagMeta({
+            isSeasonal: tagRows.some(t => t.is_seasonal),
+            description: tagRows[0]?.description || '',
+          });
+        } else {
+          setTagMeta({ isSeasonal: false, description: '' });
+        }
         if (!tagIds.length) {
           setItems([]);
           return;
@@ -223,12 +231,29 @@ export default function TaggedEventsScroller({
     })();
   }, [tagsKey]);
 
+  const sectionClass = tagMeta.isSeasonal
+    ? 'relative w-full bg-gradient-to-r from-yellow-50 to-yellow-100 border-y-4 border-yellow-300 py-16 px-4 overflow-hidden'
+    : 'relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden';
+
   return (
-    <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
+    <section className={sectionClass}>
       <div className="relative max-w-screen-xl mx-auto text-center z-20">
-        <h2 className="text-2xl sm:text-4xl font-[barrio] font-bold text-gray-700 mb-6">
-          {header}
-        </h2>
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <h2 className="text-2xl sm:text-4xl font-[barrio] font-bold text-gray-700">
+            {header}
+          </h2>
+          {tagMeta.isSeasonal && (
+            <div className="flex items-center gap-1 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold">
+              <Clock className="w-4 h-4" />
+              Limited-Time Tag
+            </div>
+          )}
+        </div>
+        {tagMeta.isSeasonal && tagMeta.description && (
+          <div className="max-w-2xl mx-auto bg-white border-2 border-yellow-300 text-gray-800 p-4 rounded-lg shadow mb-8">
+            {tagMeta.description}
+          </div>
+        )}
         {loading ? (
           <p>Loading…</p>
         ) : !items.length ? (
@@ -245,12 +270,14 @@ export default function TaggedEventsScroller({
                   <Link
                     key={`${evt.id}-${evt.start}`}
                     to={evt.href}
-                    className="relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg"
+                    className={`relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg ${
+                      tagMeta.isSeasonal ? 'ring-4 ring-yellow-300' : ''
+                    }`}
                   >
                     <img
                       src={evt.imageUrl}
                       alt={evt.title}
-                      className="absolute inset-0 w-full h-full object-cover" 
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
                     <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
