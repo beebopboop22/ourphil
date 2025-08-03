@@ -206,17 +206,47 @@ export default function UpcomingPlansCard() {
     load();
   }, [slug]);
 
+  const embedImages = async node => {
+    const imgs = Array.from(node.getElementsByTagName('img'));
+    const originals = [];
+    await Promise.all(
+      imgs.map(async img => {
+        if (img.src.startsWith('data:')) return;
+        originals.push([img, img.src]);
+        try {
+          const res = await fetch(img.src);
+          const blob = await res.blob();
+          const reader = new FileReader();
+          const dataUrl = await new Promise(resolve => {
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+          img.src = dataUrl;
+        } catch (e) {
+          console.warn('embed image', e);
+        }
+      })
+    );
+    return () => {
+      originals.forEach(([img, src]) => {
+        img.src = src;
+      });
+    };
+  };
+
   const handleShare = async () => {
     const card = document.getElementById('plans-card');
     if (!card) return;
     try {
       const { toBlob } = await import('https://esm.sh/html-to-image');
+      const cleanup = await embedImages(card);
       const blob = await toBlob(card, {
         pixelRatio: 2,
         cacheBust: true,
         // Exclude elements (like the close and share buttons) marked with data-no-export
         filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
       });
+      cleanup();
       if (!blob) throw new Error('image generation failed');
       const file = new File([blob], 'plans.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
