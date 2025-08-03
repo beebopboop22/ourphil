@@ -9,6 +9,7 @@ import SubmitGroupModal from './SubmitGroupModal'
 import PostFlyerModal from './PostFlyerModal'
 import { Helmet } from 'react-helmet'
 import { RRule } from 'rrule'
+import { Clock } from 'lucide-react'
 
 // ── Helpers to parse dates ────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -431,6 +432,14 @@ export default function TagPage() {
         <div className="mt-20 bg-gradient-to-r from-red-50 to-indigo-50 border-b">
           <div className="max-w-screen-xl mx-auto px-4 py-10 text-center">
             <h1 className="text-4xl font-[barrio] text-gray-800 mb-4">#{tag.name}</h1>
+            {tag.is_seasonal && (
+              <div className="flex justify-center mb-4">
+                <div className="flex items-center gap-1 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold">
+                  <Clock className="w-4 h-4" />
+                  Limited-Time Tag
+                </div>
+              </div>
+            )}
             {tag.description && (
               <p className="max-w-2xl mx-auto text-gray-700 mb-6">{tag.description}</p>
             )}
