@@ -35,6 +35,7 @@ function formatTime(t) {
   return `${hour}:${m.padStart(2,'0')} ${ampm}`
 }
 
+
 // ── Helper to render “Today/Tomorrow/This …” labels ───────────────
 function getDateLabel(date) {
   const today = new Date()
