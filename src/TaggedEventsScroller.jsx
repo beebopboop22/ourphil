@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Link } from 'react-router-dom';
 import { Clock } from 'lucide-react';
+import { RRule } from 'rrule';
 
 export default function TaggedEventsScroller({
   tags = [],             // array of tag slugs to pull events from
@@ -15,6 +16,7 @@ export default function TaggedEventsScroller({
     description: '',
     name: '',
   });
+  const [active, setActive] = useState(true);
 
   // only re-run when the **content** of tags changes
   const tagsKey = useMemo(
@@ -34,6 +36,31 @@ export default function TaggedEventsScroller({
     const [y, m, d] = str.split('-').map(Number);
     return new Date(y, m - 1, d);
   }
+  function isTagActive(tag) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (tag.rrule) {
+      try {
+        const opts = RRule.parseString(tag.rrule);
+        if (tag.start_date) opts.dtstart = parseLocalYMD(tag.start_date);
+        const rule = new RRule(opts);
+        const searchStart = new Date(today); searchStart.setDate(searchStart.getDate() - 8);
+        const next = rule.after(searchStart, true);
+        if (!next) return false;
+        const start = new Date(next); start.setDate(start.getDate() - 7);
+        const end = new Date(next); end.setDate(end.getDate() + 1);
+        return today >= start && today < end;
+      } catch (err) {
+        console.error('rrule parse', err);
+        return false;
+      }
+    }
+    if (tag.start_date && tag.end_date) {
+      const start = parseLocalYMD(tag.start_date);
+      const end = parseLocalYMD(tag.end_date);
+      return start && end && today >= start && today <= end;
+    }
+    return true;
+  }
   function getBubble(start, isActive) {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     if (isActive) return { text: 'Today', color: 'bg-green-500', pulse: false };
@@ -52,18 +79,26 @@ export default function TaggedEventsScroller({
         // 1) lookup tag IDs
         const { data: tagRows, error: tagErr } = await supabase
           .from('tags')
-          .select('id, name, is_seasonal, description')
+          .select('id, name, is_seasonal, description, start_date, end_date, rrule')
           .in('slug', tags);
         if (tagErr) throw tagErr;
         const tagIds = (tagRows || []).map(t => t.id);
         if (tagRows && tagRows.length) {
+          const seasonal = tagRows.some(t => t.is_seasonal || t.rrule || (t.start_date && t.end_date));
+          const activeNow = seasonal ? tagRows.some(t => isTagActive(t)) : true;
           setTagMeta({
-            isSeasonal: tagRows.some(t => t.is_seasonal),
+            isSeasonal: seasonal,
             description: tagRows[0]?.description || '',
             name: tagRows[0]?.name || '',
           });
+          setActive(activeNow);
+          if (seasonal && !activeNow) {
+            setItems([]);
+            return;
+          }
         } else {
           setTagMeta({ isSeasonal: false, description: '', name: '' });
+          setActive(true);
         }
         if (!tagIds.length) {
           setItems([]);
@@ -235,6 +270,8 @@ export default function TaggedEventsScroller({
       }
     })();
   }, [tagsKey]);
+
+  if (tagMeta.isSeasonal && !active) return null;
 
   const sectionClass = tagMeta.isSeasonal
     ? 'relative w-full bg-gradient-to-r from-purple-50 to-pink-100 border-y-4 border-purple-300 py-16 px-4 overflow-hidden'
