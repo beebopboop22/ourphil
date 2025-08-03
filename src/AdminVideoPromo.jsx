@@ -99,23 +99,23 @@ export default function AdminVideoPromo() {
         playsInline
       />
       <div className="absolute inset-0 bg-black/50" />
-      <div className="relative z-10 pt-20 max-w-2xl mx-auto px-4">
-        <h1 className="text-center text-5xl font-[Barrio] mb-4">UPCOMING PHILLY TRADITIONS</h1>
+      <div className="relative z-10 pt-24 max-w-2xl mx-auto px-4">
+        <h1 className="text-center text-4xl font-[Barrio] mb-4">UPCOMING PHILLY TRADITIONS</h1>
         {events.map(ev => (
           <div
             key={ev.id}
-            className="flex items-center gap-4 py-3 border-b border-white/30 last:border-none"
+            className="flex w-full items-center justify-center gap-3 py-2 border-b border-white/30 last:border-none"
           >
             {ev.image && (
               <img
                 src={ev.image}
                 alt=""
-                className="w-24 h-16 object-cover rounded"
+                className="w-20 h-12 object-cover rounded"
               />
             )}
-            <div>
-              <div className="text-xl font-semibold text-gray-100">{ev.name}</div>
-              <div className="text-base text-gray-300">{ev.displayDate}</div>
+            <div className="text-left">
+              <div className="text-lg font-semibold text-gray-100">{ev.name}</div>
+              <div className="text-sm text-gray-300">{ev.displayDate}</div>
             </div>
           </div>
         ))}
