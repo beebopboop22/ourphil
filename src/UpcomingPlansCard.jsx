@@ -213,7 +213,8 @@ export default function UpcomingPlansCard() {
       const { toBlob } = await import('https://esm.sh/html-to-image');
       const blob = await toBlob(card, {
         pixelRatio: 2,
-        filter: node => !node.dataset?.noExport,
+        // Exclude elements (like the close and share buttons) marked with data-no-export
+        filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
       });
       if (!blob) throw new Error('image generation failed');
       const file = new File([blob], 'plans.png', { type: 'image/png' });
@@ -255,7 +256,7 @@ export default function UpcomingPlansCard() {
           ×
         </button>
         <header className="flex items-center justify-center gap-2 mb-3">
-          <img src={logoUrl} alt="Our Philly" className="h-8" />
+          <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
           <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
         </header>
         <div className="flex flex-col items-center mb-2">
@@ -264,6 +265,7 @@ export default function UpcomingPlansCard() {
               src={profile.image_url}
               alt="avatar"
               className="w-12 h-12 rounded-full object-cover mb-1"
+              crossOrigin="anonymous"
             />
           )}
           <span className="text-sm font-semibold">{profile.username || profile.slug}</span>
@@ -279,7 +281,12 @@ export default function UpcomingPlansCard() {
               {events.map(ev => (
                 <li key={`${ev.source_table}-${ev.id}`} className="flex items-center gap-4 py-4">
                   {ev.image && (
-                    <img src={ev.image} alt="" className="w-24 h-16 object-cover rounded" />
+                    <img
+                      src={ev.image}
+                      alt=""
+                      className="w-24 h-16 object-cover rounded"
+                      crossOrigin="anonymous"
+                    />
                   )}
                   <div className="min-w-0">
                     <div className="text-base font-semibold truncate">{ev.title}</div>
