@@ -13,6 +13,7 @@ import TaggedGroupsScroller from './TaggedGroupsScroller';
 import TaggedEventScroller from './TaggedEventsScroller';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
+import ReviewPhotoGrid from './ReviewPhotoGrid';
 
 export default function EventDetailPage() {
   const { slug } = useParams();
@@ -49,6 +50,9 @@ export default function EventDetailPage() {
   const [tagMap, setTagMap] = useState({});
   const [eventTags, setEventTags] = useState([]);
   const [allTags, setAllTags] = useState([]);
+  const reviewPhotoUrls = React.useMemo(() =>
+    reviews.flatMap(r => r.photo_urls || []),
+  [reviews]);
 
   const pillStyles = [
     'bg-red-100 text-red-800',
@@ -412,8 +416,11 @@ export default function EventDetailPage() {
                 ))}
               </div>
             )}
-          </div>
         </div>
+        </div>
+        {reviewPhotoUrls.length > 0 && (
+          <ReviewPhotoGrid photos={reviewPhotoUrls} />
+        )}
         {/* Description & Image */}
         <div className="max-w-4xl mx-auto mt-8 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div>
