@@ -47,6 +47,7 @@ import ScrollToTop from './ScrollToTop'
 import TagPage from './TagPage.jsx'
 import ContactPage from './ContactPage.jsx'
 import RecurringPage from './RecurringEventPage.jsx'
+import GroupMatchWizard from './GroupMatchWizard.jsx'
 
 
 
@@ -72,6 +73,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/trivia" element={<TriviaNights />} />
           <Route path="/voicemail" element={<VoicemailPage />} />
           <Route path="/groups" element={<GroupsPage />} />
+          <Route path="/groups/match" element={<GroupMatchWizard />} />
           <Route path="/volunteer" element={<VolunteerGroups />} />
           <Route path="/concerts" element={<ConcertPage />} />
           <Route path="/groups/:slug" element={<GroupDetailPage />} />
