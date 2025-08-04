@@ -1,7 +1,10 @@
 // src/Footer.jsx
-import React from 'react';
+import React, { useContext } from 'react';
+import { Link } from 'react-router-dom';
+import { AuthContext } from './AuthProvider';
 
 const Footer = () => {
+  const { user } = useContext(AuthContext);
   const year = new Date().getFullYear();
   const heartUrl =
     'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/OurPhilly-CityHeart-1.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvT3VyUGhpbGx5LUNpdHlIZWFydC0xLnBuZyIsImlhdCI6MTc0NTYxMjg5OSwiZXhwIjozMzI4MTYxMjg5OX0.NniulJ-CMLkbor5PBSay30rMbFwtGFosxvhAkBKGFbU';
@@ -28,8 +31,21 @@ const Footer = () => {
           <p className="text-sm text-gray-400 mb-4">
             Making community more accessible in the city.
           </p>
+        {user ? (
+          <p className="text-sm text-gray-400 mb-4">
+            <Link to="/profile" className="text-indigo-400 hover:underline">View My Plans</Link> and share your plans card.
+          </p>
+        ) : (
+          <p className="text-sm text-gray-400 mb-4">
+            <Link to="/signup" className="text-indigo-400 hover:underline">Sign up</Link> to save events and get a weekly digest.
+          </p>
+        )}
 
-          <p className="text-xs text-gray-500">&copy; {year} Our Philly. All rights reserved.</p>
+        <p className="text-sm text-gray-400 mb-4">
+          <Link to="/faq" className="text-indigo-400 hover:underline">FAQ</Link>
+        </p>
+
+        <p className="text-xs text-gray-500">&copy; {year} Our Philly. All rights reserved.</p>
         </div>
 
         {/* empty spacer to align heart */}

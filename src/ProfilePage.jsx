@@ -647,6 +647,11 @@ export default function ProfilePage() {
       </header>
 
       <div className="max-w-screen-md mx-auto px-4 py-12 space-y-12">
+        {activeTab === 'upcoming' && (
+          <div className="bg-indigo-50 text-indigo-800 p-3 rounded text-center">
+            Tip: share your Plans card with friends using the share button.
+          </div>
+        )}
         <div className="flex justify-center gap-6 mb-8">
           <button
             onClick={() => setActiveTab('upcoming')}
