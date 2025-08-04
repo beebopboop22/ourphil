@@ -4,6 +4,12 @@ import { supabase } from './supabaseClient';
 import { Link } from 'react-router-dom';
 import { Clock } from 'lucide-react';
 import { RRule } from 'rrule';
+import useEventFavorite from './utils/useEventFavorite';
+
+function FavoriteState({ event_id, source_table, children }) {
+  const state = useEventFavorite({ event_id, source_table });
+  return children(state);
+}
 
 export default function TaggedEventsScroller({
   tags = [],             // array of tag slugs to pull events from
@@ -184,6 +190,7 @@ export default function TaggedEventsScroller({
           const end   = e['End Date'] ? parseDate(e['End Date']) : start;
           merged.push({
             id: e.id,
+            source_table: 'events',
             title: e['E Name'],
             imageUrl: e['E Image'] || '',
             start, end,
@@ -201,6 +208,7 @@ export default function TaggedEventsScroller({
           const end   = ev.end_date ? parseLocalYMD(ev.end_date) : start;
           merged.push({
             id: ev.id,
+            source_table: 'big_board_events',
             title: ev.title,
             imageUrl: url,
             start, end,
@@ -214,6 +222,7 @@ export default function TaggedEventsScroller({
           const venueSlug = ev.venue_id?.slug;
           merged.push({
             id: ev.id,
+            source_table: 'all_events',
             title: ev.name,
             imageUrl: ev.image || '',
             start,
@@ -229,7 +238,7 @@ export default function TaggedEventsScroller({
 
           let url = '';
           if (ev.image_url?.startsWith('http')) {
-            url = ev.image_url; 
+            url = ev.image_url;
           } else if (ev.image_url) {
             url = supabase
               .storage.from('big-board')
@@ -240,6 +249,7 @@ export default function TaggedEventsScroller({
           const groupSlug = groupMap[ev.group_id];
           merged.push({
             id: ev.id,
+            source_table: 'group_events',
             title: ev.title,
             imageUrl: url,
             start, end,
@@ -309,44 +319,74 @@ export default function TaggedEventsScroller({
                   evt.start <= new Date() && new Date() <= evt.end
                 );
                 return (
-                  <Link
+                  <FavoriteState
                     key={`${evt.id}-${evt.start}`}
-                    to={evt.href}
-                    className={`relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg ${
-                      tagMeta.isSeasonal ? 'ring-4 ring-purple-300' : ''
-                    }`}
+                    event_id={evt.id}
+                    source_table={evt.source_table}
                   >
-                    <img
-                      src={evt.imageUrl}
-                      alt={evt.title}
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
-                    {tagMeta.isSeasonal && tagMeta.name && (
-                      <div className="absolute top-4 left-4 z-30 text-[10px] sm:text-xs font-medium text-gray-800">
-                        <span className="flex items-center gap-1">
-                          <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full whitespace-nowrap">
-                            {tagMeta.name}
+                    {({ isFavorite, toggleFavorite, loading }) => (
+                      <div className="flex-shrink-0 w-[260px]">
+                        <Link
+                          to={evt.href}
+                          className={`relative block w-full h-[380px] rounded-2xl overflow-hidden shadow-lg ${
+                            tagMeta.isSeasonal
+                              ? isFavorite
+                                ? 'ring-4 ring-indigo-600'
+                                : 'ring-4 ring-purple-300'
+                              : isFavorite
+                                ? 'ring-2 ring-indigo-600'
+                                : ''
+                          }`}
+                        >
+                          <img
+                            src={evt.imageUrl}
+                            alt={evt.title}
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                          {tagMeta.isSeasonal && tagMeta.name && (
+                            <div className="absolute top-4 left-4 z-30 text-[10px] sm:text-xs font-medium text-gray-800">
+                              <span className="flex items-center gap-1">
+                                <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full whitespace-nowrap">
+                                  {tagMeta.name}
+                                </span>
+                                <span className="bg-white/80 px-2 py-1 rounded-full">Series</span>
+                              </span>
+                            </div>
+                          )}
+                          <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
+                            {evt.title}
+                          </h3>
+                          <span
+                            className={`
+                              absolute bottom-6 left-1/2 transform -translate-x-1/2
+                              ${color} text-white text-base font-bold px-6 py-1 rounded-full
+                              whitespace-nowrap min-w-[6rem]
+                              ${pulse ? 'animate-pulse' : ''}
+                              z-20
+                            `}
+                          >
+                            {text}
                           </span>
-                          <span className="bg-white/80 px-2 py-1 rounded-full">Series</span>
-                        </span>
+                        </Link>
+                        <button
+                          onClick={e => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleFavorite();
+                          }}
+                          disabled={loading}
+                          className={`mt-2 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${
+                            isFavorite
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                          }`}
+                        >
+                          {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                        </button>
                       </div>
                     )}
-                    <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
-                      {evt.title}
-                    </h3>
-                    <span
-                      className={`
-                        absolute bottom-6 left-1/2 transform -translate-x-1/2
-                        ${color} text-white text-base font-bold px-6 py-1 rounded-full
-                        whitespace-nowrap min-w-[6rem]
-                        ${pulse ? 'animate-pulse' : ''}
-                        z-20
-                      `}
-                    >
-                      {text}
-                    </span>
-                  </Link>
+                  </FavoriteState>
                 );
               })}
             </div>
