@@ -1,6 +1,6 @@
 // src/EventDetailPage.jsx
 import React, { useEffect, useState, useContext } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -18,6 +18,7 @@ import ReviewPhotoGrid from './ReviewPhotoGrid';
 export default function EventDetailPage() {
   const { slug } = useParams();
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   // ─── State ───────────────────────────────────────────────────────────
   const [event, setEvent] = useState(null);
@@ -235,7 +236,11 @@ export default function EventDetailPage() {
 
   // ─── Favorite toggle ─────────────────────────────────────────────────
   const toggleFav = async () => {
-    if (!user || !event) return;
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!event) return;
     const wasFav = isFavorite;
     await toggleFavorite();
     setFavCount(c => (wasFav ? c - 1 : c + 1));
@@ -418,6 +423,11 @@ export default function EventDetailPage() {
             )}
         </div>
         </div>
+        {!user && (
+          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+            <Link to="/login" className="underline font-semibold">Log in</Link> to add to your Plans
+          </div>
+        )}
         {reviewPhotoUrls.length > 0 && (
           <ReviewPhotoGrid photos={reviewPhotoUrls} />
         )}

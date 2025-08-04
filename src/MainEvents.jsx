@@ -1,5 +1,5 @@
 // src/MainEvents.jsx
-import React, { useState, useEffect, useContext, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { Helmet } from 'react-helmet';
 
@@ -28,9 +28,8 @@ import TaggedEventScroller from './TaggedEventsScroller';
 const EventsMap = lazy(() => import('./EventsMap'));
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
-import { AuthContext } from './AuthProvider';
-import EventFavorite from './EventFavorite.jsx'
 import useEventFavorite from './utils/useEventFavorite.js'
+import { AuthContext } from './AuthProvider'
 
 
 
@@ -242,162 +241,11 @@ function FallingPills() {
   )
 }
 
-// ── “What’s Ahead” Editorial Snippet ──────────────────────
-function WhatsAheadSnippet() {
-  const { user } = useContext(AuthContext)
-  const [items, setItems] = useState([])
-  const [favCounts, setFavCounts] = useState({})
-  const pillStyles = [
-    'bg-green-100 text-indigo-800',
-    'bg-teal-100 text-teal-800',
-    'bg-pink-100 text-pink-800',
-    'bg-blue-100 text-blue-800',
-    'bg-orange-100 text-orange-800',
-    'bg-yellow-100 text-yellow-800',
-    'bg-purple-100 text-purple-800',
-    'bg-red-100 text-red-800',
-  ]
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('events')
-          .select('id, "E Name", Dates, slug')
-          .order('Dates', { ascending: true })
-
-        if (error) throw error
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0)
-
-        const upcoming = (data || [])
-          .map(e => ({ id: e.id, slug: e.slug, name: e['E Name'], date: parseDate(e.Dates) }))
-          .filter(ev => ev.date && ev.date >= today)
-          .slice(0, 5)
-
-        const ids = upcoming.map(e => String(e.id))
-        const { data: tagRows, error: tagErr } = await supabase
-          .from('taggings')
-          .select('taggable_id, tags(name,slug)')
-          .eq('taggable_type', 'events')
-          .in('taggable_id', ids)
-
-        if (tagErr) throw tagErr
-
-        const tagMap = {}
-        ;(tagRows || []).forEach(({ taggable_id, tags }) => {
-          tagMap[taggable_id] = tagMap[taggable_id] || []
-          tagMap[taggable_id].push(tags)
-        })
-
-        const templates = [
-          "Don't miss {name} on {date}!",
-          "It's back: {name} on {date}!",
-          "That time of year for {name}, coming {date}!",
-          "Mark your calendar for {name} on {date}!",
-          "Save the date: {name} {date}!",
-          "Can you believe {name} returns {date}!",
-          "Another Philly tradition: {name} on {date}!",
-          "Clear your schedule—{name} hits {date}!",
-          "Get ready for {name} on {date}!",
-          "All eyes on {name}, {date}!",
-          "It's nearly time for {name} {date}!",
-          "Up next: {name} on {date}!",
-          "Warm up for {name} {date}!",
-          "Yes, it's {name} season on {date}!",
-          "The beloved {name} arrives {date}!",
-          "Make plans for {name} {date}!",
-          "Our favorite, {name}, returns {date}!",
-          "Don't forget {name} on {date}!",
-          "Look forward to {name} on {date}!",
-          "{name} lights up the city {date}!"
-        ]
-
-        const pick = () => templates[Math.floor(Math.random() * templates.length)]
-
-        const textItems = upcoming.map(ev => {
-          const dateStr = ev.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
-          const phrase = pick().replace('{date}', dateStr)
-          const [before, after] = phrase.split('{name}')
-          return { ...ev, before, after, tags: tagMap[ev.id] || [] }
-        })
-
-        setItems(textItems)
-      } catch (err) {
-        console.error(err)
-      }
-    })()
-  }, [])
-
-  // Load favorite counts once items are ready
-  useEffect(() => {
-    if (!items.length) return
-    ;(async () => {
-      const ids = items.map(i => i.id)
-      const { data } = await supabase
-        .from('event_favorites')
-        .select('event_id')
-        .in('event_id', ids)
-      const counts = {}
-      ;(data || []).forEach(r => {
-        counts[r.event_id] = (counts[r.event_id] || 0) + 1
-      })
-      setFavCounts(counts)
-    })()
-  }, [items])
-
-  // No per-user favorites loading now; handled in EventFavorite component
-
-  if (!items.length) return null
-
-  return (
-    <div className="max-w-screen-md mx-auto my-8 p-6 bg-white border border-gray-200 shadow rounded-lg">
-      <h3 className="font-[Barrio] text-2xl text-indigo-900 text-center mb-1">What&apos;s Ahead: Philly Traditions</h3>
-      <p className="text-center text-sm text-gray-500 mb-4">by Our Philly Concierge</p>
-      <ul className="space-y-2 text-gray-700 leading-relaxed">
-        {items.map(item => {
-          const count = favCounts[item.id] || 0
-          return (
-            <li key={item.id} className="flex justify-between items-start">
-              <span>
-                {item.before}
-                <Link to={`/events/${item.slug}`} className="font-semibold text-indigo-700 hover:underline">
-                  {item.name}
-                </Link>
-                {item.tags.slice(0, 2).map((tag, i) => (
-                  <Link
-                    key={tag.slug}
-                    to={`/tags/${tag.slug}`}
-                    className={`ml-1 inline-block ${pillStyles[i % pillStyles.length]} text-xs px-2 py-0.5 rounded-full`}
-                  >
-                    #{tag.name}
-                  </Link>
-                ))}
-                {item.after}
-              </span>
-              <EventFavorite
-                event_id={item.id}
-                source_table="events"
-                count={count}
-                onCountChange={delta =>
-                  setFavCounts(c => ({ ...c, [item.id]: (c[item.id] || 0) + delta }))
-                }
-                className="ml-2"
-              />
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
-}
-
-
 // ── MainEvents Component ───────────────────────────────
 export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
 
    // Recurring‐series state
  const [recurringRaw, setRecurringRaw]   = useState([]);
@@ -1188,8 +1036,6 @@ if (loading) {
               </div>
             </div>
 
-            <WhatsAheadSnippet />
-
             {/* ─── Pills + Date Picker + Event Count ─── */}
             <div className="container mx-auto px-4 mt-12">
               <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
@@ -1406,7 +1252,7 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                   )}
                 </div>
                 <button
-                  onClick={e => { e.preventDefault(); e.stopPropagation(); toggleFavorite(); }}
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); if (!user) { navigate('/login'); return; } toggleFavorite(); }}
                   disabled={loading}
                   className={`mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
                 >

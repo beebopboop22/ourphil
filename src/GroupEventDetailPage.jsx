@@ -267,9 +267,14 @@ if (ev.image_url) {
             `url("https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//Group%20Event%20Banner.png")`
         }}
       />
+      {!user && (
+        <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+          <Link to="/login" className="underline font-semibold">Log in</Link> to add to your Plans
+        </div>
+      )}
 
       {/* overlap detail card */}
-      <div className="max-w-3xl mx-auto bg-white shadow-xl rounded-xl -mt-24 relative z-10">
+      <div className={`max-w-3xl mx-auto bg-white shadow-xl rounded-xl relative z-10 ${user ? '-mt-24' : ''}`}>
         <EventFavorite
           event_id={evt.id}
           source_table="group_events"

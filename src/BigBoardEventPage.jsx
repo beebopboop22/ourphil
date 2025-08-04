@@ -55,6 +55,14 @@ export default function BigBoardEventPage() {
     loading: favLoading,
   } = useEventFavorite({ event_id: event?.id, source_table: 'big_board_events' });
 
+  const handleFavorite = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    await toggleFavorite();
+  };
+
   // Tag state
   const pillStyles = [
     'bg-red-100 text-red-800',
@@ -483,8 +491,14 @@ export default function BigBoardEventPage() {
             style={{ backgroundImage: `url(${event.imageUrl})` }}
           />
 
+          {!user && (
+            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+              <Link to="/login" className="underline font-semibold">Log in</Link> to add to your Plans
+            </div>
+          )}
+
           {/* Overlapping centered card */}
-          <div className="relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform z-10">
+          <div className={`relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 transform z-10 ${user ? '-mt-24' : ''}`}>
             {prev && (
               <button
                 onClick={() => navigate(`/big-board/${prev.slug}`)}
@@ -718,7 +732,7 @@ export default function BigBoardEventPage() {
                   )}
                   <div className="mb-6">
                     <button
-                      onClick={toggleFavorite}
+                      onClick={handleFavorite}
                       disabled={favLoading}
                       className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
                     >

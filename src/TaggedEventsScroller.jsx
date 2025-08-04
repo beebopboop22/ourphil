@@ -1,10 +1,11 @@
 // src/TaggedEventsScroller.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { supabase } from './supabaseClient';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Clock } from 'lucide-react';
 import { RRule } from 'rrule';
 import useEventFavorite from './utils/useEventFavorite';
+import { AuthContext } from './AuthProvider';
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -23,6 +24,8 @@ export default function TaggedEventsScroller({
     name: '',
   });
   const [active, setActive] = useState(true);
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   // only re-run when the **content** of tags changes
   const tagsKey = useMemo(
@@ -373,6 +376,10 @@ export default function TaggedEventsScroller({
                           onClick={e => {
                             e.preventDefault();
                             e.stopPropagation();
+                            if (!user) {
+                              navigate('/login');
+                              return;
+                            }
                             toggleFavorite();
                           }}
                           disabled={loading}

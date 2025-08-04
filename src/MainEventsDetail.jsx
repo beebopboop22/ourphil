@@ -74,6 +74,14 @@ export default function MainEventsDetail() {
     loading: toggling,
   } = useEventFavorite({ event_id: event?.id, source_table: 'all_events' });
 
+  const handleFavorite = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    await toggleFavorite();
+  };
+
   const pillStyles = [
     'bg-red-100 text-red-800',
     'bg-orange-100 text-orange-800',
@@ -427,7 +435,7 @@ export default function MainEventsDetail() {
           {/* Overlap Card */}
           <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform relative">
             <button
-              onClick={toggleFavorite}
+              onClick={handleFavorite}
               disabled={toggling}
               className="absolute left-6 top-6 text-3xl"
             >
@@ -582,7 +590,7 @@ export default function MainEventsDetail() {
                   )}
                   <div className="mb-6">
                     <button
-                      onClick={toggleFavorite}
+                      onClick={handleFavorite}
                       disabled={toggling}
                       className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
                     >
