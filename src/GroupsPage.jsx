@@ -8,6 +8,7 @@ import GroupsHeroSearch from './GroupsHeroSearch';
 import GroupProgressBar from './GroupProgressBar';
 import SubmitGroupModal from './SubmitGroupModal';
 import Footer from './Footer';
+import GroupMatchWizard from './GroupMatchWizard';
 
 export default function GroupsPage() {
   // Pill styles for group types
@@ -35,6 +36,9 @@ export default function GroupsPage() {
 
   // Modal state for adding groups
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+  // Modal state for match wizard
+  const [showMatchModal, setShowMatchModal] = useState(false);
 
   // Fetch groups on mount
   useEffect(() => {
@@ -84,6 +88,16 @@ export default function GroupsPage() {
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
           />
+        </div>
+
+        {/* Match Wizard Trigger */}
+        <div className="max-w-screen-xl mx-auto px-4 mb-8 flex justify-center">
+          <button
+            onClick={() => setShowMatchModal(true)}
+            className="bg-indigo-600 text-white text-xl font-[barrio] px-8 py-4 rounded shadow hover:bg-indigo-700"
+          >
+            Find Your Group Matches
+          </button>
         </div>
 
         <div className="max-w-screen-xl mx-auto px-4 mb-20">
@@ -181,6 +195,11 @@ export default function GroupsPage() {
             </>
           )}
         </div>
+
+        {/* Match Wizard Modal */}
+        {showMatchModal && (
+          <GroupMatchWizard onClose={() => setShowMatchModal(false)} />
+        )}
 
         {/* Submit Group Modal */}
         {showSubmitModal && (
