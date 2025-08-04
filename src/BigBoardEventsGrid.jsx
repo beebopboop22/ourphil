@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import PostFlyerModal from './PostFlyerModal';
+import useEventFavorite from './utils/useEventFavorite';
 
 const pillStyles = [
   'bg-green-100 text-indigo-800',
@@ -14,6 +15,11 @@ const pillStyles = [
   'bg-purple-100 text-purple-800',
   'bg-red-100 text-red-800',
 ];
+
+function FavoriteState({ event_id, source_table, children }) {
+  const state = useEventFavorite({ event_id, source_table });
+  return children(state);
+}
 
 export default function BigBoardEventsGrid() {
   const [events, setEvents] = useState([]);
@@ -150,79 +156,99 @@ export default function BigBoardEventsGrid() {
                 'bg-gray-500';
 
               return (
-                <Link
+                <FavoriteState
                   key={ev.id}
-                  to={`/big-board/${ev.slug}`}
-                  className="relative min-w-[280px] max-w-[280px] bg-white rounded-xl shadow-md hover:shadow-lg transform hover:scale-105 transition overflow-hidden"
+                  event_id={ev.id}
+                  source_table="big_board_events"
                 >
-                  {/* Day bubble */}
-                  <div
-                    className={`absolute top-3 left-3 text-white text-xs font-bold px-3 py-1 rounded-full ${bgColor} z-20`}
-                  >
-                    {label}
-                  </div>
-
-                  {/* Image + Badge */}
-                  <div className="relative h-48">
-                    <img
-                      src={ev.imageUrl}
-                      alt={ev.title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
-                      <span className="text-xs font-bold text-white uppercase">
-                        COMMUNITY SUBMISSION
-                      </span>
-                    </div>
-                    <img
-                      src={iconUrl}
-                      alt=""
-                      role="presentation"
-                      loading="lazy"
-                      className="absolute bottom-3 right-3 w-8 h-8 z-30"
-                    />
-                  </div>
-
-                  {/* Title */}
-                  <div className="p-4 text-center">
-                    <h3 className="text-lg font-semibold text-indigo-800">
-                      {ev.title}
-                    </h3>
-
-                    {/* TAGS footer */}
-                    {(() => {
-                      const tags = tagMap[ev.id] || [];
-                      if (tags.length === 0) return null;
-                      const primary = tags[0];
-                      const extraCount = tags.length - 1;
-                      return (
-                        <div className="mt-2 flex items-center justify-center space-x-2">
-                          <span className="text-xs font-bold text-gray-500 uppercase flex-shrink-0">
-                            TAGS:
-                          </span>
-                          <Link
-                            to={`/tags/${primary.slug}`}
-                            className={`
-                              ${pillStyles[0]}
-                              text-xs font-semibold
-                              px-2 py-1
-                              rounded-full
-                              flex-shrink-0
-                              hover:opacity-80 transition
-                            `}
-                          >
-                            #{primary.name}
-                          </Link>
-                          {extraCount > 0 && (
-                            <span className="text-xs text-gray-600 flex-shrink-0">
-                              +{extraCount} more
-                            </span>
-                          )}
+                  {({ isFavorite, toggleFavorite, loading }) => (
+                    <div className="flex-shrink-0">
+                      <Link
+                        to={`/big-board/${ev.slug}`}
+                        className={`relative min-w-[280px] max-w-[280px] bg-white rounded-xl shadow-md hover:shadow-lg transform hover:scale-105 transition overflow-hidden ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`}
+                      >
+                        {/* Day bubble */}
+                        <div
+                          className={`absolute top-3 left-3 text-white text-xs font-bold px-3 py-1 rounded-full ${bgColor} z-20`}
+                        >
+                          {label}
                         </div>
-                      );
-                    })()}
-                  </div>
-                </Link>
+
+                        {/* Image + Badge */}
+                        <div className="relative h-48">
+                          <img
+                            src={ev.imageUrl}
+                            alt={ev.title}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
+                            <span className="text-xs font-bold text-white uppercase">
+                              COMMUNITY SUBMISSION
+                            </span>
+                          </div>
+                          <img
+                            src={iconUrl}
+                            alt=""
+                            role="presentation"
+                            loading="lazy"
+                            className="absolute bottom-3 right-3 w-8 h-8 z-30"
+                          />
+                        </div>
+
+                        {/* Title */}
+                        <div className="p-4 text-center">
+                          <h3 className="text-lg font-semibold text-indigo-800">
+                            {ev.title}
+                          </h3>
+
+                          {/* TAGS footer */}
+                          {(() => {
+                            const tags = tagMap[ev.id] || [];
+                            if (tags.length === 0) return null;
+                            const primary = tags[0];
+                            const extraCount = tags.length - 1;
+                            return (
+                              <div className="mt-2 flex items-center justify-center space-x-2">
+                                <span className="text-xs font-bold text-gray-500 uppercase flex-shrink-0">
+                                  TAGS:
+                                </span>
+                                <Link
+                                  to={`/tags/${primary.slug}`}
+                                  className={`
+                                    ${pillStyles[0]}
+                                    text-xs font-semibold
+                                    px-2 py-1
+                                    rounded-full
+                                    flex-shrink-0
+                                    hover:opacity-80 transition
+                                  `}
+                                >
+                                  #{primary.name}
+                                </Link>
+                                {extraCount > 0 && (
+                                  <span className="text-xs text-gray-600 flex-shrink-0">
+                                    +{extraCount} more
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </Link>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleFavorite();
+                        }}
+                        disabled={loading}
+                        className={`mt-2 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                      >
+                        {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                      </button>
+                    </div>
+                  )}
+                </FavoriteState>
               );
             })}
           </div>
