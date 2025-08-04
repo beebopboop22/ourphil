@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import GroupsList from './GroupsList';
 import MonthlyEvents from './MonthlyEvents';
@@ -38,6 +38,7 @@ import NewsletterBar from './NewsletterBar';
 import RecentActivity from './RecentActivity';
 import BigBoardEventsGrid from './BigBoardEventsGrid';
 import CityHolidayAlert from './CityHolidayAlert';
+import { AuthContext } from './AuthProvider';
 import MoreEventsBanner from './MoreEventsBanner';
 
 
@@ -45,6 +46,7 @@ import MoreEventsBanner from './MoreEventsBanner';
 
 
 function App() {
+  const { user } = useContext(AuthContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [allTypes, setAllTypes] = useState([]);
@@ -139,6 +141,11 @@ function App() {
     <h1 className="text-5xl sm:text-6xl md:text-8xl font-[Barrio] font-black text-black">
             DIG INTO PHILLY
           </h1>
+          {!user && (
+            <p className="mt-3 text-lg text-gray-700">
+              Save events, follow hosts, get a weekly digest.
+            </p>
+          )}
 
           <div className="mt-4 border-b border-gray-200 pb-4">
             <nav className="inline-flex items-center text-sm uppercase font-bold text-indigo-600">

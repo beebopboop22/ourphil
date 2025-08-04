@@ -29,7 +29,11 @@ export default function useEventFavorite({ event_id, source_table }) {
   }, [user, event_id, source_table])
 
   const toggleFavorite = async () => {
-    if (!user || !event_id || !source_table) return
+    if (!user) {
+      alert('Sign up or log in to save events to your Plans.')
+      return
+    }
+    if (!event_id || !source_table) return
     setLoading(true)
     let column = 'event_id'
     if (source_table === 'all_events') column = 'event_int_id'

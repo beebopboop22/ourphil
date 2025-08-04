@@ -160,6 +160,12 @@ export default function GroupDetailPage() {
 
       <Navbar />
       <GroupProgressBar />
+      {!user && (
+        <div className="bg-indigo-50 text-center text-sm py-2">
+          <Link to="/signup" className="text-indigo-600 font-semibold">Sign up</Link> or{' '}
+          <Link to="/login" className="text-indigo-600 font-semibold">log in</Link> to follow this group and save events to your Plans.
+        </div>
+      )}
 
       {/* ── Header: Cover Banner & Avatar ───────────────────────────────── */}
       <div className="relative">
