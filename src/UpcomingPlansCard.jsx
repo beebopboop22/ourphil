@@ -214,7 +214,10 @@ export default function UpcomingPlansCard() {
         if (img.src.startsWith('data:')) return;
         originals.push([img, img.src]);
         try {
-          const res = await fetch(img.src);
+          const res = await fetch(img.src, { mode: 'cors' });
+          if (!res.ok) {
+            throw new Error(`Failed to fetch ${img.src}: ${res.status}`);
+          }
           const blob = await res.blob();
           const reader = new FileReader();
           const dataUrl = await new Promise(resolve => {
