@@ -483,8 +483,14 @@ export default function BigBoardEventPage() {
             style={{ backgroundImage: `url(${event.imageUrl})` }}
           />
 
+          {!user && (
+            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+              <Link to="/login" className="underline font-semibold">Log in</Link> to add to your Plans
+            </div>
+          )}
+
           {/* Overlapping centered card */}
-          <div className="relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform z-10">
+          <div className={`relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 transform z-10 ${user ? '-mt-24' : ''}`}>
             {prev && (
               <button
                 onClick={() => navigate(`/big-board/${prev.slug}`)}

@@ -1,7 +1,7 @@
 // src/SeasonalEventDetailPage.jsx
 
 import React, { useEffect, useState, useContext } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -170,6 +170,12 @@ const SeasonalEventDetailPage = () => {
           <span className="text-5xl font-[Barrio]">{favCount}</span>
         </div>
       </div>
+
+      {!user && (
+        <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+          <Link to="/login" className="underline font-semibold">Log in</Link> to add to your Plans
+        </div>
+      )}
 
       <SeasonalEventsGrid />
 
