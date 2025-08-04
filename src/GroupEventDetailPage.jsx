@@ -463,6 +463,11 @@ if (ev.image_url) {
           </div>
         </div>
       </div>
+      {!user && (
+        <div className="bg-indigo-50 text-center text-sm py-2">
+          <Link to="/login" className="text-indigo-600 font-semibold">Log in</Link> to add to your Plans.
+        </div>
+      )}
 
       <CommentsSection
         source_table="group_events"

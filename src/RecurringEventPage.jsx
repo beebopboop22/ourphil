@@ -326,15 +326,20 @@ export default function RecurringEventPage() {
             </div>
 
             {/* Next arrow */}
-            {nextDate && (
-              <button
-                onClick={() => navigate(`/series/${slug}/${nextDate}`)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 p-3 bg-gray-100 hover:bg-gray-200 rounded-full shadow z-20"
-              >
-                →
-              </button>
-            )}
+          {nextDate && (
+            <button
+              onClick={() => navigate(`/series/${slug}/${nextDate}`)}
+              className="absolute right-0 top-1/2 -translate-y-1/2 p-3 bg-gray-100 hover:bg-gray-200 rounded-full shadow z-20"
+            >
+              →
+            </button>
+          )}
           </div>
+          {!user && (
+            <div className="bg-indigo-50 text-center text-sm py-2">
+              <Link to="/login" className="text-indigo-600 font-semibold">Log in</Link> to add to your Plans.
+            </div>
+          )}
 
           {/* Main content grid */}
           <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">

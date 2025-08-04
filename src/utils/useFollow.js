@@ -21,7 +21,11 @@ export default function useFollow(profileId) {
   }, [user, profileId]);
 
   const toggleFollow = async () => {
-    if (!user || !profileId) return;
+    if (!user) {
+      alert('Sign up or log in to follow hosts.');
+      return;
+    }
+    if (!profileId) return;
     setLoading(true);
     if (followId) {
       await supabase.from('user_follows').delete().eq('id', followId);
