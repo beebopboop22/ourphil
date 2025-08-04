@@ -282,8 +282,14 @@ export default function RecurringEventPage() {
             style={{ backgroundImage: `url(${series.image_url})` }}
           />
 
+          {!user && (
+            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+              <Link to="/login" className="underline font-semibold">Log in</Link> to add to your Plans
+            </div>
+          )}
+
           {/* Overlapping center card with arrows */}
-          <div className="relative max-w-4xl mx-auto -mt-24 px-4">
+          <div className={`relative max-w-4xl mx-auto px-4 ${user ? '-mt-24' : ''}`}>
             {/* Prev arrow */}
             {prevDate && (
               <button
