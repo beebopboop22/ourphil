@@ -146,10 +146,26 @@ export default function SignUpPage() {
           Sign up for your Digest
         </h1>
         <p className="relative z-10 mb-8 text-center text-gray-700">
-          Subscribe to hashtags to get your custom once-a-week events newsletter
+          Plan your Philly life: save events, comment, and even host your own.
+          Subscribe to hashtags for a custom once-a-week roundup.
         </p>
 
-        <form onSubmit={handleSignUp} className="relative z-10 space-y-6 bg-white p-6 rounded-lg shadow-lg">
+        <div className="relative z-10 mb-8 bg-indigo-50 p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-3 text-center">Why create an account?</h2>
+          <ul className="list-disc list-inside space-y-1 text-gray-700 text-left">
+            <li>Save events to build your personal Plans list</li>
+            <li>Follow hosts & tags for a weekly email digest</li>
+            <li>Leave comments and reviews on events</li>
+            <li>Post your own events or flyers</li>
+          </ul>
+          <div className="text-center mt-4">
+            <a href="#signup-form" className="inline-block bg-indigo-600 text-white px-4 py-2 rounded">
+              Create Account
+            </a>
+          </div>
+        </div>
+
+        <form id="signup-form" onSubmit={handleSignUp} className="relative z-10 space-y-6 bg-white p-6 rounded-lg shadow-lg">
           {/* Email */}
           <div>
             <label className="block text-sm font-medium mb-1">Email</label>

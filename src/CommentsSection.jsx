@@ -215,10 +215,14 @@ export default function CommentsSection({ source_table, event_id }) {
           </form>
         ) : (
           <p className="text-sm text-center">
-            <Link to="/login" className="text-indigo-600 hover:underline">
-              Log in
+            <Link to="/signup" className="text-indigo-600 hover:underline">
+              Sign up
             </Link>{' '}
-            to leave a comment
+            or{' '}
+            <Link to="/login" className="text-indigo-600 hover:underline">
+              log in
+            </Link>{' '}
+            to join the conversation
           </p>
         )}
       </div>

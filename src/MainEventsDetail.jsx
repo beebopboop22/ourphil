@@ -416,6 +416,12 @@ export default function MainEventsDetail() {
 
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar/>
+        {!user && (
+          <div className="bg-indigo-50 text-center text-sm py-2">
+            <Link to="/signup" className="text-indigo-600 font-semibold">Sign up</Link> or{' '}
+            <Link to="/login" className="text-indigo-600 font-semibold">log in</Link> to save this event to your Plans.
+          </div>
+        )}
 
         <main className="flex-grow">
           {/* Hero */}
