@@ -50,6 +50,15 @@ export default function NewsletterSection() {
         Join Our Newsletter
       </h2>
 
+      <p className="text-center text-gray-700 mb-4">
+        Follow the tags you love and get a custom daily digest of Philly events.
+      </p>
+      <img
+        src="https://via.placeholder.com/600x300?text=Digest+Preview"
+        alt="Digest preview"
+        className="mx-auto rounded-lg shadow mb-6"
+      />
+
       {/* inject the form */}
       <div dangerouslySetInnerHTML={{ __html: embed }} />
 

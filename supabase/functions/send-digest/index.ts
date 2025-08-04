@@ -333,13 +333,13 @@ serve(async (_req) => {
         <img src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/ourphilly.png"
              width="140" alt="Our Philly" />
       </a>
-      <h1 style="margin:.5rem 0;font-size:1.5rem;">Your Weekly Community Digest</h1>
+      <h1 style="margin:.5rem 0;font-size:1.5rem;">Your Daily Community Digest</h1>
     </header>
 
     <section style="padding:1rem;background:#fff6f4;text-align:center;">
       <p style="max-width:600px;margin:0 auto 1rem;line-height:1.5;">
         Welcome to <strong>Our Philly</strong> — the only place you need to find every event
-        happening across Philadelphia. Pick the topics you love, and we’ll send you a weekly
+        happening across Philadelphia. Pick the topics you love, and we’ll send you a daily
         roundup of exactly those events.
       </p>
       <a href="https://ourphilly.org/signup"
@@ -440,7 +440,7 @@ serve(async (_req) => {
 </html>
 `.trim();
 
-    await sendEmail(email, "Your Our Philly weekly digest", html);
+    await sendEmail(email, "Your Our Philly daily digest", html);
   }
 
   return new Response(JSON.stringify({ status: "sent" }), { status: 200 });

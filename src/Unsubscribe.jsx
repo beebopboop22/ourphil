@@ -60,7 +60,7 @@ export default function Unsubscribe() {
         {status === 'success' && (
           <div className="text-center">
             <h1 className="text-4xl font-[Barrio] mb-4 text-green-700">Unsubscribed</h1>
-            <p>You’ve been removed from our weekly newsletter.</p>
+            <p>You’ve been removed from our daily digest.</p>
             <Link to="/" className="text-indigo-600 hover:underline mt-4 inline-block">
               Back to Our Philly
             </Link>

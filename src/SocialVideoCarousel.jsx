@@ -172,7 +172,7 @@ export default function SocialVideoCarousel() {
         </div>
 
         <div className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg mt-20 z-10">
-          Subscribe to #tags for your weekly digest
+          Subscribe to #tags for your daily digest
         </div>
 
         <div className="h-[calc(80vh+80px)] min-h-[400px] overflow-hidden relative z-10">
