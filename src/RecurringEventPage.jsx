@@ -45,6 +45,14 @@ export default function RecurringEventPage() {
     toggleFavorite,
     loading: favLoading,
   } = useEventFavorite({ event_id: series?.id, source_table: 'recurring_events' });
+
+  const handleFavorite = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    await toggleFavorite();
+  };
   const [initialFlyer, setInitialFlyer] = useState(null);
 
   const pillStyles = [
@@ -282,8 +290,14 @@ export default function RecurringEventPage() {
             style={{ backgroundImage: `url(${series.image_url})` }}
           />
 
+          {!user && (
+            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+              <Link to="/login" className="underline font-semibold">Log in</Link> to add to your Plans
+            </div>
+          )}
+
           {/* Overlapping center card with arrows */}
-          <div className="relative max-w-4xl mx-auto -mt-24 px-4">
+          <div className={`relative max-w-4xl mx-auto px-4 ${user ? '-mt-24' : ''}`}>
             {/* Prev arrow */}
             {prevDate && (
               <button
@@ -362,7 +376,7 @@ export default function RecurringEventPage() {
               )}
               <div className="mb-6">
                 <button
-                  onClick={toggleFavorite}
+                  onClick={handleFavorite}
                   disabled={favLoading}
                   className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
                 >

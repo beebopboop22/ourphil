@@ -1,12 +1,20 @@
-import React from 'react'
+import React, { useContext } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useEventFavorite from './utils/useEventFavorite'
+import { AuthContext } from './AuthProvider'
 
 export default function EventFavorite({ event_id, source_table, count, onCountChange, className = '' }) {
+  const navigate = useNavigate()
+  const { user } = useContext(AuthContext)
   const { isFavorite, toggleFavorite, loading } = useEventFavorite({ event_id, source_table })
 
   const handle = async e => {
     if (e?.preventDefault) e.preventDefault()
     if (e?.stopPropagation) e.stopPropagation()
+    if (!user) {
+      navigate('/login')
+      return
+    }
     const wasFav = isFavorite
     await toggleFavorite()
     if (onCountChange) onCountChange(wasFav ? -1 : 1)

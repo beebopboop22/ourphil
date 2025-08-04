@@ -1,7 +1,7 @@
 // src/SeasonalEventDetailPage.jsx
 
 import React, { useEffect, useState, useContext } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -13,6 +13,7 @@ import { getMySeasonalFavorites, addSeasonalFavorite, removeSeasonalFavorite } f
 const SeasonalEventDetailPage = () => {
   const { slug } = useParams();
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const [event, setEvent] = useState(null);
   const [isFav, setIsFav] = useState(false);
@@ -60,7 +61,11 @@ const SeasonalEventDetailPage = () => {
   }, [event, user]);
 
   const toggleFavorite = async () => {
-    if (!user || !event) return;
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!event) return;
 
     if (isFav) {
       await removeSeasonalFavorite(favId);
@@ -170,6 +175,12 @@ const SeasonalEventDetailPage = () => {
           <span className="text-5xl font-[Barrio]">{favCount}</span>
         </div>
       </div>
+
+      {!user && (
+        <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+          <Link to="/login" className="underline font-semibold">Log in</Link> to add to your Plans
+        </div>
+      )}
 
       <SeasonalEventsGrid />
 
