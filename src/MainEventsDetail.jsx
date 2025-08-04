@@ -452,6 +452,11 @@ export default function MainEventsDetail() {
               </p>
             </div>
           </div>
+          {!user && (
+            <div className="bg-indigo-50 text-center text-base py-2">
+              <Link to="/login" className="text-indigo-600 font-semibold">Log in</Link> to add to your Plans.
+            </div>
+          )}
 
           {reviewPhotos.length > 0 && (
             <ReviewPhotoGrid photos={reviewPhotos} />

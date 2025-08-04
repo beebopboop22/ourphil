@@ -55,7 +55,7 @@ export default function Navbar() {
           <div className="hidden md:flex items-center space-x-8 text-base">
             {/* Primary links */}
             <ul className="flex items-center space-x-6 font-medium">
-              
+
               <li>
                 <button
                   onClick={openPostModal}
@@ -89,7 +89,7 @@ export default function Navbar() {
               {user ? (
                 <>
                   <Link to="/profile" className={linkClass('/profile')}>
-                    Profile
+                    My Plans
                   </Link>
                   <button
                     onClick={handleLogout}
@@ -133,12 +133,12 @@ export default function Navbar() {
             <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
               Claim Your Group
             </Link>
-                <Link
-                  to="/contact"
-                  className={`flex items-center space-x-1 ${linkClass('/groups')}`}
-                >
-                  <span>Contact</span>
-                </Link>
+            <Link
+              to="/contact"
+              className={`flex items-center space-x-1 ${linkClass('/groups')}`}
+            >
+              <span>Contact</span>
+            </Link>
             <button
               onClick={openPostModal}
               className="block text-left w-full"
@@ -148,7 +148,7 @@ export default function Navbar() {
             {user ? (
               <>
                 <Link to="/profile" className="block" onClick={() => setMenuOpen(false)}>
-                  Profile
+                  My Plans
                 </Link>
                 <button
                   onClick={handleLogout}

@@ -235,7 +235,11 @@ export default function EventDetailPage() {
 
   // ─── Favorite toggle ─────────────────────────────────────────────────
   const toggleFav = async () => {
-    if (!user || !event) return;
+    if (!user) {
+      alert('Sign up or log in to save events to your Plans.');
+      return;
+    }
+    if (!event) return;
     const wasFav = isFavorite;
     await toggleFavorite();
     setFavCount(c => (wasFav ? c - 1 : c + 1));
@@ -270,7 +274,7 @@ export default function EventDetailPage() {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    if (!user) return alert('Log in to leave a review.');
+    if (!user) return alert('Sign up or log in to leave a review.');
     setSubmitting(true);
     const photoUrls = [];
     for (let file of photoFiles) {
@@ -418,6 +422,11 @@ export default function EventDetailPage() {
             )}
         </div>
         </div>
+        {!user && (
+          <div className="bg-indigo-50 text-center text-base py-2">
+            <Link to="/login" className="text-indigo-600 font-semibold">Log in</Link> to add to your Plans.
+          </div>
+        )}
         {reviewPhotoUrls.length > 0 && (
           <ReviewPhotoGrid photos={reviewPhotoUrls} />
         )}
@@ -593,7 +602,8 @@ export default function EventDetailPage() {
             )
           ) : (
             <p className="mt-6 text-center text-sm">
-              <Link to="/login" className="text-indigo-600 hover:underline">Log in</Link> to leave a review.
+              <Link to="/signup" className="text-indigo-600 hover:underline">Sign up</Link> or{' '}
+              <Link to="/login" className="text-indigo-600 hover:underline">log in</Link> to leave a review.
             </p>
           )}
 

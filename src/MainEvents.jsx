@@ -1167,10 +1167,10 @@ if (loading) {
       
               <div className="relative inline-block text-center z-10">
                 <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-indigo-900 mb-4">
-                  Build Your Philly Digest
+                  Make Your Philly Plans
                 </h1>
                 <p className="text-lg sm:text-xl text-gray-700 max-w-2xl mx-auto">
-                  Pick your favorite tags and get a curated daily email of Philly’s top events, traditions, and community happenings.
+                  Save events, follow creators, and build a daily digest of what’s happening around town.
                 </p>
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
                   <span className="absolute w-full h-px bg-white opacity-20" />

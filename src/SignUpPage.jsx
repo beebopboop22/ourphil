@@ -108,7 +108,7 @@ export default function SignUpPage() {
         <title>Create Account – Our Philly</title>
         <meta
           name="description"
-          content="Sign up for Our Philly to heart your favorite events and get weekly digests."
+          content="Sign up for Our Philly to heart your favorite events and get daily digests."
         />
         <link rel="canonical" href="https://ourphilly.org/signup" />
       </Helmet>
@@ -146,10 +146,21 @@ export default function SignUpPage() {
           Sign up for your Digest
         </h1>
         <p className="relative z-10 mb-8 text-center text-gray-700">
-          Subscribe to hashtags to get your custom once-a-week events newsletter
+          Plan your Philly life: save events, comment, and even host your own.
+          Subscribe to tags for a custom daily digest.
         </p>
 
-        <form onSubmit={handleSignUp} className="relative z-10 space-y-6 bg-white p-6 rounded-lg shadow-lg">
+        <div className="relative z-10 mb-8 bg-indigo-50 p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-3 text-center">Why create an account?</h2>
+          <ul className="list-disc list-inside space-y-1 text-gray-700 text-left">
+            <li>Save events to build your personal Plans list</li>
+            <li>Follow creators & tags for a daily email digest</li>
+            <li>Leave comments and reviews on events</li>
+            <li>Post your own events or flyers</li>
+          </ul>
+        </div>
+
+        <form id="signup-form" onSubmit={handleSignUp} className="relative z-10 space-y-6 bg-white p-6 rounded-lg shadow-lg">
           {/* Email */}
           <div>
             <label className="block text-sm font-medium mb-1">Email</label>

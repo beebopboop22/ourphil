@@ -528,6 +528,11 @@ export default function BigBoardEventPage() {
               </div>
             </div>
           </div>
+          {!user && (
+            <div className="bg-indigo-50 text-center text-base py-2">
+              <Link to="/login" className="text-indigo-600 font-semibold">Log in</Link> to add to your Plans.
+            </div>
+          )}
 
           {poster && (
             <div className="max-w-4xl mx-auto mt-6 px-4">
