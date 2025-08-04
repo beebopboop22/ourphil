@@ -8,6 +8,7 @@ import GroupsHeroSearch from './GroupsHeroSearch';
 import GroupProgressBar from './GroupProgressBar';
 import SubmitGroupModal from './SubmitGroupModal';
 import Footer from './Footer';
+import useProfile from './utils/useProfile';
 
 export default function GroupsPage() {
   // Pill styles for group types
@@ -36,6 +37,10 @@ export default function GroupsPage() {
   // Modal state for adding groups
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
+  // Logged in user profile for cached matches
+  const { profile } = useProfile();
+  const matchIds = profile?.cached_group_matches || [];
+
   // Fetch groups on mount
   useEffect(() => {
     async function fetchGroups() {
@@ -56,7 +61,15 @@ export default function GroupsPage() {
   }, [groups, searchTerm]);
 
   // Determine groups to display
-  const displayedGroups = filtered.slice(0, page * itemsPerPage);
+  const displayedGroups = filtered
+    .filter(g => !matchIds.includes(g.id))
+    .slice(0, page * itemsPerPage);
+
+  // Groups cached as matches on the profile
+  const cachedMatches = useMemo(
+    () => groups.filter(g => matchIds.includes(g.id)),
+    [groups, matchIds]
+  );
 
   // Handler for See More
   const handleSeeMore = () => setPage(prev => prev + 1);
@@ -86,6 +99,13 @@ export default function GroupsPage() {
           />
         </div>
 
+        {/* Wizard Link */}
+        <div className="max-w-screen-xl mx-auto px-4 mb-6 flex justify-end">
+          <Link to="/groups/match" className="text-indigo-600 underline">
+            Find your group matches
+          </Link>
+        </div>
+
         <div className="max-w-screen-xl mx-auto px-4 mb-20">
           {loading ? (
             <div className="text-center py-20 text-gray-500">
@@ -93,6 +113,44 @@ export default function GroupsPage() {
             </div>
           ) : (
             <>
+              {/* Cached Matches */}
+              {cachedMatches.length > 0 && (
+                <div className="space-y-4 mb-10">
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    Recommended for you
+                  </h2>
+                  {cachedMatches.map(group => (
+                    <Link
+                      key={group.id}
+                      to={`/groups/${group.slug}`}
+                      className="w-full flex bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
+                    >
+                      <div className="w-32 h-32 flex-shrink-0 bg-gray-100">
+                        {group.imag ? (
+                          <img
+                            src={group.imag}
+                            alt={group.Name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            No Image
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 flex-1">
+                        <h2 className="text-2xl font-semibold text-gray-900">
+                          {group.Name}
+                        </h2>
+                        <p className="mt-2 text-gray-700">
+                          {group.Description || 'No description available.'}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
               {/* Add Your Group row */}
               <button
                 onClick={() => setShowSubmitModal(true)}
