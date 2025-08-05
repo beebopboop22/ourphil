@@ -8,6 +8,8 @@ import GroupsHeroSearch from './GroupsHeroSearch';
 import GroupProgressBar from './GroupProgressBar';
 import SubmitGroupModal from './SubmitGroupModal';
 import Footer from './Footer';
+import GroupMatchWizard from './GroupMatchWizard';
+import GroupMatchPromo from './GroupMatchPromo';
 
 export default function GroupsPage() {
   // Pill styles for group types
@@ -35,6 +37,14 @@ export default function GroupsPage() {
 
   // Modal state for adding groups
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+  // Modal state for match wizard
+  const [showMatchModal, setShowMatchModal] = useState(false);
+
+  const openAddGroup = () => {
+    setShowMatchModal(false);
+    setShowSubmitModal(true);
+  };
 
   // Fetch groups on mount
   useEffect(() => {
@@ -74,19 +84,29 @@ export default function GroupsPage() {
         <link rel="canonical" href="https://www.ourphilly.org/groups" />
       </Helmet>
 
-      <div className="min-h-screen bg-neutral-50 pt-20">
+      <div className="min-h-screen bg-neutral-50">
         <Navbar />
-        <GroupProgressBar />
+        <div className="pt-20">
+          {/* Match Wizard Promo Section */}
+          <div className="max-w-screen-xl mx-auto px-4 mb-6">
+            <GroupMatchPromo
+              groups={groups}
+              onStart={() => setShowMatchModal(true)}
+              onAddGroup={openAddGroup}
+            />
+          </div>
 
-        {/* Search */}
-        <div className="max-w-screen-xl mx-auto px-4 mb-6">
-          <GroupsHeroSearch
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-          />
-        </div>
+          <GroupProgressBar />
 
-        <div className="max-w-screen-xl mx-auto px-4 mb-20">
+          {/* Search */}
+          <div className="max-w-screen-xl mx-auto px-4 mb-6">
+            <GroupsHeroSearch
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+            />
+          </div>
+
+          <div className="max-w-screen-xl mx-auto px-4 mb-20">
           {loading ? (
             <div className="text-center py-20 text-gray-500">
               Loading Groups...
@@ -180,14 +200,23 @@ export default function GroupsPage() {
               )}
             </>
           )}
+          </div>
+
+          {/* Match Wizard Modal */}
+          {showMatchModal && (
+            <GroupMatchWizard
+              onClose={() => setShowMatchModal(false)}
+              onAddGroup={openAddGroup}
+            />
+          )}
+
+          {/* Submit Group Modal */}
+          {showSubmitModal && (
+            <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
+          )}
+
+          <Footer />
         </div>
-
-        {/* Submit Group Modal */}
-        {showSubmitModal && (
-          <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
-        )}
-
-        <Footer />
       </div>
     </>
   );
