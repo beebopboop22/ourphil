@@ -22,9 +22,9 @@ export default function useEventFavorite({ event_id, source_table }) {
       .eq('user_id', user.id)
       .eq('source_table', source_table)
       .eq(column, event_id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!error) setFavId(data ? data.id : null)
+      .limit(1)
+      .then(({ data }) => {
+        setFavId(data?.[0]?.id || null)
       })
   }, [user, event_id, source_table])
 
@@ -35,7 +35,12 @@ export default function useEventFavorite({ event_id, source_table }) {
     if (source_table === 'all_events') column = 'event_int_id'
     else if (source_table !== 'events') column = 'event_uuid'
     if (favId) {
-      await supabase.from('event_favorites').delete().eq('id', favId)
+      await supabase
+        .from('event_favorites')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('source_table', source_table)
+        .eq(column, event_id)
       setFavId(null)
     } else {
       const { data } = await supabase
