@@ -54,7 +54,7 @@ export default function SavedEventsScroller({ events = [] }) {
                 : source_table === 'group_events'
                   ? `/groups/${group?.slug}/events/${id}`
                   : source_table === 'recurring_events'
-                    ? `/series/${slug}`
+                    ? `/series/${slug}/${start_date}`
                     : source_table === 'all_events'
                       ? `/${venues?.slug || ''}/${slug}`
                       : '/'
