@@ -796,9 +796,17 @@ export default function ProfilePage() {
             ) : savedEvents.length === 0 ? (
               <div className="py-20 text-center text-gray-500">No upcoming events saved.</div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
                 {savedEvents.map(ev => (
-                  <SavedEventCard key={`${ev.source_table}-${ev.id}`} event={ev} />
+                  <SavedEventCard
+                    key={`${ev.source_table}-${ev.id}`}
+                    event={ev}
+                    onRemove={() =>
+                      setSavedEvents(prev =>
+                        prev.filter(e => !(e.id === ev.id && e.source_table === ev.source_table))
+                      )
+                    }
+                  />
                 ))}
               </div>
             )}
@@ -812,7 +820,7 @@ export default function ProfilePage() {
             ) : myEvents.length === 0 ? (
               <div className="py-20 text-center text-gray-500">You have not created an event. Create an event.</div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
                 {myEvents.map(ev => (
                   <SavedEventCard key={`${ev.source_table}-${ev.id}`} event={ev} />
                 ))}
@@ -828,7 +836,7 @@ export default function ProfilePage() {
             ) : followingEvents.length === 0 ? (
               <div className="py-20 text-center text-gray-500">No upcoming events.</div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
                 {followingEvents.map(ev => (
                   <SavedEventCard key={`${ev.source_table}-${ev.id}`} event={ev} />
                 ))}
