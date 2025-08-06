@@ -15,16 +15,31 @@ function parseMMDDYYYY(str) {
   return new Date(y, m - 1, d)
 }
 
-function formatTime(t) {
-  if (!t) return ''
-  const [h, m] = t.split(':')
-  let hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? 'p.m.' : 'a.m.'
-  hour = hour % 12 || 12
-  return `${hour}:${m.padStart(2, '0')} ${ampm}`
+function formatDisplayDate(date, startTime) {
+  if (!date) return ''
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((date - today) / (1000 * 60 * 60 * 24))
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'long' })
+  let prefix
+  if (diffDays === 0) prefix = 'Today'
+  else if (diffDays === 1) prefix = 'Tomorrow'
+  else if (diffDays > 1 && diffDays < 7) prefix = `This ${weekday}`
+  else prefix = weekday
+  const datePart = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  let timePart = ''
+  if (startTime) {
+    const [h = 0, m = 0] = startTime.split(':').map(Number)
+    const dt = new Date()
+    dt.setHours(h, m)
+    timePart = dt
+      .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      .toLowerCase()
+  }
+  return `${prefix}, ${datePart}${timePart ? `, ${timePart}` : ''}`
 }
 
-export default function SavedEventCard({ event }) {
+export default function SavedEventCard({ event, onRemove }) {
   const {
     id,
     slug,
@@ -57,17 +72,16 @@ export default function SavedEventCard({ event }) {
   const d = source_table === 'events'
     ? parseMMDDYYYY(start_date)
     : parseISODateLocal(start_date)
-  const bubbleLabel = d
-    ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : ''
-  const bubbleTime = start_time ? ` ${formatTime(start_time)}` : ''
+  const bubbleText = d ? formatDisplayDate(d, start_time) : ''
 
   const { isFavorite, toggleFavorite, loading } = useEventFavorite({ event_id: id, source_table })
 
   const handleFav = async e => {
     e.preventDefault()
     e.stopPropagation()
+    const wasFavorite = isFavorite
     await toggleFavorite()
+    if (wasFavorite && onRemove) onRemove()
   }
 
   return (
@@ -77,9 +91,11 @@ export default function SavedEventCard({ event }) {
     >
       <div className="relative w-full h-48">
         {img && <img src={img} alt={title} className="w-full h-full object-cover" />}
-        <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
-          {bubbleLabel}{bubbleTime}
-        </div>
+        {bubbleText && (
+          <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-3 py-1.5 rounded-full text-sm font-semibold text-gray-800">
+            {bubbleText}
+          </div>
+        )}
       </div>
       <div className="p-4 flex flex-col flex-1 justify-between items-center text-center">
         <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">{title}</h3>
