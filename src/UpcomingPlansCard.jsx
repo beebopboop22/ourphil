@@ -268,6 +268,88 @@ export default function UpcomingPlansCard() {
     }
   };
 
+  const loadImage = src =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+
+  const drawSlide = async (ctx, ev, width, height, username) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    try {
+      const logo = await loadImage(logoUrl);
+      const logoW = 80;
+      const logoH = (logo.height / logo.width) * logoW;
+      ctx.drawImage(logo, width / 2 - logoW / 2, 20, logoW, logoH);
+    } catch (e) {
+      console.warn('logo load', e);
+    }
+
+    ctx.fillStyle = '#000';
+    ctx.font = '20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(username, width / 2, 110);
+
+    if (ev.image) {
+      try {
+        const img = await loadImage(ev.image);
+        const imgH = height * 0.6;
+        ctx.drawImage(img, 0, 120, width, imgH);
+      } catch (e) {
+        console.warn('event img', e);
+      }
+    }
+
+    ctx.fillStyle = '#000';
+    ctx.font = '24px bold sans-serif';
+    ctx.fillText(ev.title, width / 2, height - 90);
+    ctx.font = '18px sans-serif';
+    ctx.fillText(ev.displayDate, width / 2, height - 60);
+  };
+
+  const handleVideoDownload = async () => {
+    if (!profile || events.length === 0) return;
+    const width = 600;
+    const height = 600;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const stream = canvas.captureStream();
+    const chunks = [];
+    const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    rec.ondataavailable = e => chunks.push(e.data);
+
+    const username = profile.username || profile.slug;
+
+    rec.start();
+    for (const ev of events) {
+      await drawSlide(ctx, ev, width, height, username);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    rec.stop();
+    const blob = await new Promise(resolve => {
+      rec.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
+    });
+    const url = URL.createObjectURL(blob);
+    const win = window.open('');
+    if (win) {
+      win.document.body.innerHTML = `<video controls autoplay src="${url}" style="width:100%"></video>` +
+        `<a href="${url}" download="plans.webm" style="display:block;margin-top:1rem">Download video</a>`;
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'plans.webm';
+      link.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
+
   if (loading) {
     return <div className="min-h-screen bg-neutral-50 flex items-center justify-center">Loading…</div>;
   }
@@ -337,6 +419,13 @@ export default function UpcomingPlansCard() {
           data-no-export
         >
           SHARE YOUR PLAN CARD
+        </button>
+        <button
+          onClick={handleVideoDownload}
+          className="w-full mt-2 text-sm py-2 bg-green-600 text-white rounded"
+          data-no-export
+        >
+          DOWNLOAD VIDEO POST
         </button>
       </div>
     </div>
