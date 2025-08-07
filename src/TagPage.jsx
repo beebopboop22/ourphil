@@ -1,6 +1,6 @@
 // src/TagPage.jsx
-import React, { useEffect, useState, useMemo } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import React, { useEffect, useState, useMemo, useContext } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import Footer from './Footer'
@@ -10,6 +10,8 @@ import PostFlyerModal from './PostFlyerModal'
 import { Helmet } from 'react-helmet'
 import { RRule } from 'rrule'
 import { Clock } from 'lucide-react'
+import useEventFavorite from './utils/useEventFavorite'
+import { AuthContext } from './AuthProvider'
 
 // ── Helpers to parse dates ────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -50,7 +52,18 @@ function getDateLabel(date) {
   return date.toLocaleDateString('en-US',{ weekday: 'long' })
 }
 
-function EventCard({ evt, profileMap }) {
+const pillStyles = [
+  'bg-green-100 text-indigo-800',
+  'bg-teal-100 text-teal-800',
+  'bg-pink-100 text-pink-800',
+  'bg-blue-100 text-blue-800',
+  'bg-orange-100 text-orange-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-purple-100 text-purple-800',
+  'bg-red-100 text-red-800',
+]
+
+function EventCard({ evt, profileMap, tag }) {
   const today = new Date(); today.setHours(0,0,0,0)
   const now = new Date()
   const startDate = evt.isTradition ? evt.start : parseISODateLocal(evt.start_date)
@@ -65,13 +78,34 @@ function EventCard({ evt, profileMap }) {
         : ''
   const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : ''
 
+  const navigate = useNavigate()
+  const { user } = useContext(AuthContext)
+  const { isFavorite, toggleFavorite, loading } = useEventFavorite({
+    event_id: evt.isRecurring ? String(evt.id).split('::')[0] : evt.id,
+    source_table: evt.isBigBoard
+      ? 'big_board_events'
+      : evt.isTradition
+        ? 'events'
+        : evt.isGroupEvent
+          ? 'group_events'
+          : evt.isRecurring
+            ? 'recurring_events'
+            : 'all_events',
+  })
+
   return (
-    <Link to={evt.href} className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col">
+    <Link
+      to={evt.href}
+      className={`block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`}
+    >
       <div className="relative w-full h-48">
         {evt.imageUrl && <img src={evt.imageUrl} alt={evt.title} className="w-full h-full object-cover" />}
         <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
           {bubbleLabel}{bubbleTime}
         </div>
+        {isFavorite && (
+          <div className="absolute top-2 right-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded">In the plans!</div>
+        )}
         {evt.isGroupEvent && (
           <div className="absolute inset-x-0 bottom-0 bg-green-600 text-white text-xs uppercase text-center py-1">Group Event</div>
         )}
@@ -83,8 +117,29 @@ function EventCard({ evt, profileMap }) {
         )}
       </div>
       <div className="p-4 flex flex-col flex-1 justify-between items-center text-center">
-        <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">{evt.title}</h3>
-        {evt.venues?.name && <p className="text-sm text-gray-600">at {evt.venues.name}</p>}
+        <div>
+          <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">{evt.title}</h3>
+          {evt.isRecurring ? (
+            evt.address && <p className="text-sm text-gray-600">at {evt.address}</p>
+          ) : (
+            evt.venues?.name && <p className="text-sm text-gray-600">at {evt.venues.name}</p>
+          )}
+        </div>
+        <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
+          <Link
+            to={`/tags/${tag.slug}`}
+            className={`${pillStyles[0]} text-[0.6rem] sm:text-sm px-2 sm:px-3 py-1 sm:py-2 rounded-full font-semibold`}
+          >
+            #{tag.name}
+          </Link>
+        </div>
+        <button
+          onClick={e => { e.preventDefault(); e.stopPropagation(); if (!user) { navigate('/login'); return; } toggleFavorite(); }}
+          disabled={loading}
+          className={`mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+        >
+          {isFavorite ? 'In the Plans' : 'Add to Plans'}
+        </button>
       </div>
       {evt.isBigBoard && (
         <div className="w-full bg-blue-50 text-blue-900 py-2 text-center">
@@ -489,7 +544,7 @@ export default function TagPage() {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {displayedEvents.map(evt => (
-                <EventCard key={evt.id + evt.start} evt={evt} profileMap={profileMap} />
+                <EventCard key={evt.id + evt.start} evt={evt} profileMap={profileMap} tag={tag} />
               ))}
             </div>
             {!showAllEvents && upcoming.length > 16 && (
