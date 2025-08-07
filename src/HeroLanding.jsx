@@ -2,11 +2,17 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
-import { Link } from 'react-router-dom';
-import EventFavorite from './EventFavorite.jsx';
+import { Link, useNavigate } from 'react-router-dom';
+import useEventFavorite from './utils/useEventFavorite';
+
+function FavoriteState({ event_id, source_table, children }) {
+  const state = useEventFavorite({ event_id, source_table });
+  return children(state);
+}
 
 export default function HeroLanding() {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [favCounts, setFavCounts] = useState({});
@@ -92,8 +98,6 @@ export default function HeroLanding() {
     })();
   }, [events]);
 
-  // Favorites handled individually in EventFavorite component
-
   return (
     <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
       <img
@@ -108,7 +112,7 @@ export default function HeroLanding() {
         {/* inline header + button */}
         <div className="flex   justify-between mb-6">
           <h2 className="text-2xl font-[barrio] sm:text-4xl font-medium font-bold text-gray-700">
-            Upcoming Festivals, Fairs, Markets
+            Upcoming Festivals, Fairs, and Philly Traditions
           </h2>
          
         </div>
@@ -127,54 +131,84 @@ export default function HeroLanding() {
                   isThisWeekend(evt.start) && [5, 6, 0].includes(evt.start.getDay());
 
                 return (
-                  <Link
+                  <FavoriteState
                     key={evt.id}
-                    to={`/events/${evt.slug}`}
-                    className="relative w-[260px] h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg"
+                    event_id={evt.id}
+                    source_table="events"
                   >
-                    <img
-                      src={evt['E Image']}
-                      alt={evt['E Name']}
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                    {({ isFavorite, toggleFavorite, loading }) => {
+                      const handleToggle = async e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!user) {
+                          navigate('/login');
+                          return;
+                        }
+                        const wasFav = isFavorite;
+                        await toggleFavorite();
+                        setFavCounts(c => ({
+                          ...c,
+                          [evt.id]: (c[evt.id] || 0) + (wasFav ? -1 : 1),
+                        }));
+                      };
+                      return (
+                        <div className="w-[260px] flex-shrink-0">
+                          <Link
+                            to={`/events/${evt.slug}`}
+                            className="relative block h-[380px] rounded-2xl overflow-hidden shadow-lg"
+                          >
+                            <img
+                              src={evt['E Image']}
+                              alt={evt['E Name']}
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
 
-                    {showWeekendBadge && (
-                      <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full z-20">
-                        Weekend Pick
-                      </span>
-                    )}
+                            {showWeekendBadge && (
+                              <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full z-20">
+                                Weekend Pick
+                              </span>
+                            )}
 
-                    <EventFavorite
-                      event_id={evt.id}
-                      source_table="events"
-                      count={count}
-                      onCountChange={delta =>
-                        setFavCounts(c => ({ ...c, [evt.id]: (c[evt.id] || 0) + delta }))
-                      }
-                      className="absolute top-3 right-3 z-20 text-2xl text-white"
-                    />
-                    {count > 0 && (
-                      <span className="absolute top-10 right-3 text-sm font-semibold text-white z-20">
-                        {count}
-                      </span>
-                    )}
+                            <button
+                              onClick={handleToggle}
+                              disabled={loading}
+                              className="absolute top-3 right-3 z-20 text-2xl text-white"
+                              aria-label={isFavorite ? 'Remove favorite' : 'Add favorite'}
+                            >
+                              {isFavorite ? '❤️' : '🤍'}
+                            </button>
+                            {count > 0 && (
+                              <span className="absolute top-10 right-3 text-sm font-semibold text-white z-20">
+                                {count}
+                              </span>
+                            )}
 
-                    <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-[Barrio] font-bold z-20 leading-tight">
-                      {evt['E Name']}
-                    </h3>
+                            <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-[Barrio] font-bold z-20 leading-tight">
+                              {evt['E Name']}
+                            </h3>
 
-                    <span
-                      className={`
-                        absolute bottom-6 left-1/2 transform -translate-x-1/2
-                        ${color} text-white text-base font-bold px-6 py-1 rounded-full
-                        whitespace-nowrap min-w-[6rem]
-                        ${pulse ? 'animate-pulse' : ''} z-20
-                      `}
-                    >
-                      {text}
-                    </span>
-                  </Link>
+                            <span
+                              className={`absolute bottom-6 left-1/2 transform -translate-x-1/2 ${color} text-white text-base font-bold px-6 py-1 rounded-full whitespace-nowrap min-w-[6rem] ${pulse ? 'animate-pulse' : ''} z-20`}
+                            >
+                              {text}
+                            </span>
+                          </Link>
+                          <button
+                            onClick={handleToggle}
+                            disabled={loading}
+                            className={`mt-2 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${
+                              isFavorite
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                            }`}
+                          >
+                            {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                          </button>
+                        </div>
+                      );
+                    }}
+                  </FavoriteState>
                 );
               })}
             </div>
