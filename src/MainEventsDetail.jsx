@@ -461,6 +461,12 @@ export default function MainEventsDetail() {
             </div>
           </div>
 
+          {!user && (
+            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
+            </div>
+          )}
+
           {reviewPhotos.length > 0 && (
             <ReviewPhotoGrid photos={reviewPhotos} />
           )}
