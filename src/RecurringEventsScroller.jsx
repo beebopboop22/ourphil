@@ -1,8 +1,10 @@
 // src/RecurringEventsScroller.jsx
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import { RRule } from 'rrule'
 import { supabase } from './supabaseClient'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import useEventFavorite from './utils/useEventFavorite'
+import { AuthContext } from './AuthProvider'
 
 const TYPE_OPTIONS = [
   { key: null,       label: 'All',      icon: null },
@@ -10,6 +12,11 @@ const TYPE_OPTIONS = [
   { key: 'karaoke',  label: 'Karaoke',  icon: 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//karaoke.png' },
   { key: 'games',    label: 'Games',    icon: 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//bingo.png' },
 ]
+
+function FavoriteState({ event_id, source_table, children }) {
+  const state = useEventFavorite({ event_id, source_table })
+  return children(state)
+}
 
 export default function RecurringEventsScroller({
   windowStart,
@@ -19,6 +26,8 @@ export default function RecurringEventsScroller({
   const [occs, setOccs] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedType, setSelectedType] = useState(null)
+  const { user } = useContext(AuthContext)
+  const navigate = useNavigate()
 
   function parseISO(d) {
     const [y, m, dd] = d.split('-').map(Number)
@@ -67,14 +76,15 @@ export default function RecurringEventsScroller({
           opts.dtstart = new Date(`${s.start_date}T${s.start_time}`)
           const rule = new RRule(opts)
           return rule.between(windowStart, windowEnd, true).map((dt) => ({
-            id:    `${s.id}::${dt.toISOString().slice(0, 10)}`,
-            title: s.name,
-            slug:  s.slug,
-            image: s.image_url,
-            date:  dt.toISOString().slice(0, 10),
-            time:  s.start_time,
-            type:  s.event_type,
-            href:  `/series/${s.slug}/${dt.toISOString().slice(0, 10)}`,
+            id:       `${s.id}::${dt.toISOString().slice(0, 10)}`,
+            seriesId: s.id,
+            title:    s.name,
+            slug:     s.slug,
+            image:    s.image_url,
+            date:     dt.toISOString().slice(0, 10),
+            time:     s.start_time,
+            type:     s.event_type,
+            href:     `/series/${s.slug}/${dt.toISOString().slice(0, 10)}`,
           }))
         })
 
@@ -130,28 +140,50 @@ export default function RecurringEventsScroller({
               const bubbleText = time ? `${day} ${time}` : day
 
               return (
-                <Link
-                  key={evt.id}
-                  to={evt.href}
-                  className="relative w-[220px] sm:w-[260px] h-[340px] sm:h-[380px] flex-shrink-0 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition"
-                >
-                  <img
-                    src={evt.image}
-                    alt={evt.title}
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                <FavoriteState key={evt.id} event_id={evt.seriesId} source_table="recurring_events">
+                  {({ isFavorite, toggleFavorite, loading }) => (
+                    <div className="w-[220px] sm:w-[260px] flex-shrink-0 flex flex-col">
+                      <Link
+                        to={evt.href}
+                        className={`relative w-full h-[340px] sm:h-[380px] rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`}
+                      >
+                        <img
+                          src={evt.image}
+                          alt={evt.title}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                        {isFavorite && (
+                          <div className="absolute top-3 right-3 bg-indigo-600 text-white text-xs px-2 py-1 rounded z-20">
+                            In the plans!
+                          </div>
+                        )}
 
-                  <h3 className="absolute bottom-20 left-3 sm:left-4 right-3 sm:right-4 text-center text-white text-xl sm:text-2xl font-[Barrio] font-bold z-20 leading-tight">
-                    {evt.title}
-                  </h3>
+                        <h3 className="absolute bottom-20 left-3 sm:left-4 right-3 sm:right-4 text-center text-white text-xl sm:text-2xl font-[Barrio] font-bold z-20 leading-tight">
+                          {evt.title}
+                        </h3>
 
-                  <span
-                    className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-xs sm:text-sm font-semibold px-4 py-1 rounded-full whitespace-nowrap min-w-max z-20"
-                  >
-                    {bubbleText}
-                  </span>
-                </Link>
+                        <span
+                          className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-xs sm:text-sm font-semibold px-4 py-1 rounded-full whitespace-nowrap min-w-max z-20"
+                        >
+                          {bubbleText}
+                        </span>
+                      </Link>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          if (!user) { navigate('/login'); return }
+                          toggleFavorite()
+                        }}
+                        disabled={loading}
+                        className={`mt-2 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                      >
+                        {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                      </button>
+                    </div>
+                  )}
+                </FavoriteState>
               )
             })}
           </div>
