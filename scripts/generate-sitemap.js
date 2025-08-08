@@ -23,6 +23,7 @@ const staticPages = [
   { path: '/',        priority: '1.0', changefreq: 'daily'   },
   { path: '/groups',  priority: '0.6', changefreq: 'weekly'  },
   { path: '/contact', priority: '0.6', changefreq: 'monthly' },
+  { path: '/traditions-faq', priority: '0.6', changefreq: 'monthly' },
 ]
 
 async function buildSitemap() {

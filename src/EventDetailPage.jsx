@@ -466,6 +466,13 @@ export default function EventDetailPage() {
           </div>
         </div>
 
+        {/* Traditions FAQ notice */}
+        <div className="max-w-4xl mx-auto mt-10 px-4">
+          <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-center rounded-md p-4">
+            <a href="/traditions-faq" onClick={() => window.gtag && window.gtag('event', 'cta_click', { event_category: 'traditions_faq', event_label: 'events_page_notice' })} className="font-medium underline">Do you manage this Philly tradition? Read our FAQ for traditions hosts</a>
+          </div>
+        </div>
+
         {/* Reviews */}
         <section className="max-w-4xl mx-auto py-10 px-4">
           <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-8">Reviews</h2>
