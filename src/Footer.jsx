@@ -32,8 +32,18 @@ const Footer = () => {
           <p className="text-xs text-gray-500">&copy; {year} Our Philly. All rights reserved.</p>
         </div>
 
+        {/* Help nav */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-3">Help</h3>
+          <ul className="space-y-2">
+            <li>
+              <a href="/traditions-faq" className="text-sm text-gray-400 hover:text-white">Traditions Hosts FAQ</a>
+            </li>
+          </ul>
+        </div>
+
         {/* empty spacer to align heart */}
-        <div className="col-span-1 md:col-span-2" />
+        <div className="col-span-1 md:col-span-1" />
       </div>
     </footer>
   );
