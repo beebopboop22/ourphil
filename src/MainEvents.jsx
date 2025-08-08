@@ -962,6 +962,12 @@ if (loading) {
     : base
 }
 
+// derive tradition names and slugs for display
+const traditionNamesAndSlugs = traditionEvents.map(ev => ({
+  name: ev.title,
+  slug: ev.slug,
+}));
+
 
 
     let pageTitle;
@@ -1098,6 +1104,17 @@ if (loading) {
   <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
     {headerText}
   </h2>
+
+  {traditionNamesAndSlugs.length > 0 && (
+    <p className="mb-4 text-[#28313e]">
+      The traditions? {traditionNamesAndSlugs.map((t, idx) => (
+        <React.Fragment key={t.slug}>
+          <Link to={`/events/${t.slug}`}>{t.name}</Link>
+          {idx < traditionNamesAndSlugs.length - 1 ? ', ' : ''}
+        </React.Fragment>
+      ))}
+    </p>
+  )}
 
   {!loading && (
     <>
