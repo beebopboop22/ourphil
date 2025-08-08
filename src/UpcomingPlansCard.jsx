@@ -5,11 +5,21 @@ import { RRule } from 'rrule';
 
 const logoUrl = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png';
 
-function parseEventsDate(str) {
-  if (!str) return null;
-  const [first] = str.split(/through|–|-/);
-  const [m, d, y] = first.trim().split('/').map(Number);
-  return new Date(y, m - 1, d);
+function parseEventsDateRange(startStr, explicitEnd) {
+  if (!startStr) return { start: null, end: null };
+  const [startPart, rangeEnd] = startStr.split(/through|–|-/);
+  const [m1, d1, y1] = startPart.trim().split('/').map(Number);
+  const start = new Date(y1, m1 - 1, d1);
+  let end = start;
+  if (explicitEnd) {
+    const [m2, d2, y2] = explicitEnd.split('/').map(Number);
+    end = new Date(y2, m2 - 1, d2);
+  } else if (rangeEnd) {
+    const parts = rangeEnd.trim().split('/').map(Number);
+    if (parts.length === 3) end = new Date(parts[2], parts[0] - 1, parts[1]);
+    else end = new Date(y1, parts[0] - 1, parts[1]);
+  }
+  return { start, end };
 }
 
 function parseISODateLocal(str) {
@@ -98,7 +108,7 @@ export default function UpcomingPlansCard() {
       if (idsByTable.events?.length) {
         const { data } = await supabase
           .from('events')
-          .select('id,slug,"E Name","E Image",Dates')
+          .select('id,slug,"E Name","E Image",Dates,"End Date"')
           .in('id', idsByTable.events);
         data?.forEach(e => {
           all.push({
@@ -107,6 +117,7 @@ export default function UpcomingPlansCard() {
             title: e['E Name'],
             image: e['E Image'],
             start_date: e.Dates,
+            end_date: e['End Date'],
             source_table: 'events',
           });
         });
@@ -188,17 +199,19 @@ export default function UpcomingPlansCard() {
       today.setHours(0, 0, 0, 0);
       const upcoming = all
         .map(ev => {
-          const d =
-            ev.source_table === 'events'
-              ? parseEventsDate(ev.start_date)
-              : parseISODateLocal(ev.start_date);
+          if (ev.source_table === 'events') {
+            const { start, end } = parseEventsDateRange(ev.start_date, ev.end_date);
+            const display = formatDisplayDate(start, ev.start_time);
+            return { ...ev, _date: start, _end: end, displayDate: display };
+          }
+          const d = parseISODateLocal(ev.start_date);
           const display = formatDisplayDate(d, ev.start_time);
-          return { ...ev, _date: d, displayDate: display };
+          return { ...ev, _date: d, _end: d, displayDate: display };
         })
-        .filter(ev => ev._date && ev._date >= today)
+        .filter(ev => ev._date && ev._end && ev._end >= today)
         .sort((a, b) => a._date - b._date)
         .slice(0, 5)
-        .map(({ _date, ...rest }) => rest);
+        .map(({ _date, _end, ...rest }) => rest);
 
       setEvents(upcoming);
       setLoading(false);

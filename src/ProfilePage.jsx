@@ -187,7 +187,7 @@ export default function ProfilePage() {
       if (idsByTable.events?.length) {
         const { data } = await supabase
           .from('events')
-          .select('id,slug,"E Name","E Image",Dates')
+          .select('id,slug,"E Name","E Image",Dates,"End Date"')
           .in('id', idsByTable.events);
         data?.forEach(e => {
           all.push({
@@ -196,6 +196,7 @@ export default function ProfilePage() {
             title: e['E Name'],
             image: e['E Image'],
             start_date: e.Dates,
+            end_date: e['End Date'],
             source_table: 'events',
           });
         });
@@ -276,11 +277,21 @@ export default function ProfilePage() {
       }
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const parseEventsDate = str => {
-        if (!str) return null;
-        const [first] = str.split(/through|–|-/);
-        const [m, d, y] = first.trim().split('/').map(Number);
-        return new Date(y, m - 1, d);
+      const parseEventsDateRange = (startStr, explicitEnd) => {
+        if (!startStr) return { start: null, end: null };
+        const [startPart, rangeEnd] = startStr.split(/through|–|-/);
+        const [m1, d1, y1] = startPart.trim().split('/').map(Number);
+        const start = new Date(y1, m1 - 1, d1);
+        let end = start;
+        if (explicitEnd) {
+          const [m2, d2, y2] = explicitEnd.split('/').map(Number);
+          end = new Date(y2, m2 - 1, d2);
+        } else if (rangeEnd) {
+          const parts = rangeEnd.trim().split('/').map(Number);
+          if (parts.length === 3) end = new Date(parts[2], parts[0] - 1, parts[1]);
+          else end = new Date(y1, parts[0] - 1, parts[1]);
+        }
+        return { start, end };
       };
       const parseISODateLocal = str => {
         if (!str) return null;
@@ -289,18 +300,21 @@ export default function ProfilePage() {
       };
       const upcoming = all
         .map(ev => {
-          const d = ev.source_table === 'events'
-            ? parseEventsDate(ev.start_date)
-            : parseISODateLocal(ev.start_date);
-          return { ...ev, _date: d };
+          if (ev.source_table === 'events') {
+            const { start, end } = parseEventsDateRange(ev.start_date, ev.end_date);
+            return { ...ev, _date: start, _end: end };
+          }
+          const d = parseISODateLocal(ev.start_date);
+          return { ...ev, _date: d, _end: d };
         })
         .filter(ev => {
-          if (!ev._date) return false;
+          if (!ev._date || !ev._end) return false;
           ev._date.setHours(0, 0, 0, 0);
-          return ev._date >= today;
+          ev._end.setHours(0, 0, 0, 0);
+          return ev._end >= today;
         });
       upcoming.sort((a, b) => a._date - b._date);
-      setSavedEvents(upcoming.map(({ _date, ...rest }) => rest));
+      setSavedEvents(upcoming.map(({ _date, _end, ...rest }) => rest));
       setLoadingSaved(false);
     })();
   }, [user]);
