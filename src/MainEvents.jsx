@@ -25,6 +25,7 @@ import NewsletterSection from './NewsletterSection';
 import { Share2 } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
+import UpcomingTraditionsScroller from './UpcomingTraditionsScroller';
 const EventsMap = lazy(() => import('./EventsMap'));
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
@@ -995,11 +996,11 @@ if (loading) {
       return (
         <>
           <Helmet>
-            <title>Build Your Philly Digest | Our Philly</title>
+            <title>Make Your Philly Plans | Our Philly</title>
             <link rel="icon" type="image/x-icon" href="/favicon.ico" />
             <meta
               name="description"
-              content="Subscribe to your personalized Philly digest—get a daily roundup of the best events, traditions, and community happenings delivered straight to your inbox."
+              content="Discover events and add them to your plans, subscribe to tags for daily e-mail roundups of what's coming, and more."
             />
           </Helmet>
       
@@ -1010,16 +1011,16 @@ if (loading) {
             </div>
       
             {/* Hero */}
-            <div className="relative w-full max-w-screen-3xl mx-auto pt-14 text-center overflow-hidden">
+            <div className="relative w-full max-w-screen-3xl mx-auto pt-14 text-center overflow-hidden bg-gray-50">
               {/* falling pills background */}
               <FallingPills  />
       
               <div className="relative inline-block text-center z-10">
                 <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-indigo-900 mb-4">
-                  Build Your Philly Digest
+                  Make Your Philly Plans
                 </h1>
                 <p className="text-lg sm:text-xl text-gray-700 max-w-2xl mx-auto">
-                  Pick your favorite tags and get a curated daily email of Philly’s top events, traditions, and community happenings.
+                  Discover events and add them to your plans, subscribe to tags for daily e-mail roundups of what's coming, and more.
                 </p>
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
                   <span className="absolute w-full h-px bg-white opacity-20" />
@@ -1031,10 +1032,15 @@ if (loading) {
                 </div>
               </div>
       
-              <div className="max-w-screen-xl mx-auto px-4 py-2 z-10">
+              <div className="max-w-screen-xl mx-auto px-4 py-2 z-10 text-left">
                 <TrendingTags />
+                <UpcomingTraditionsScroller />
                 <TriviaTonightBanner />
               </div>
+            </div>
+
+            <div className="mt-12 text-center">
+              <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
             </div>
 
             {/* ─── Pills + Date Picker + Event Count ─── */}
