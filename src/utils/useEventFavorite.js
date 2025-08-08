@@ -1,3 +1,4 @@
+/* global window, CustomEvent */
 import { useState, useEffect, useContext } from 'react'
 import { supabase } from '../supabaseClient'
 import { AuthContext } from '../AuthProvider'
@@ -8,7 +9,7 @@ export default function useEventFavorite({ event_id, source_table }) {
   const [loading, setLoading] = useState(false)
 
   // Check if user has favorited
-  useEffect(() => {
+  const fetchFavorite = () => {
     if (!user || !event_id || !source_table) {
       setFavId(null)
       return
@@ -26,6 +27,25 @@ export default function useEventFavorite({ event_id, source_table }) {
       .then(({ data }) => {
         setFavId(data?.[0]?.id || null)
       })
+  }
+
+  useEffect(fetchFavorite, [user, event_id, source_table])
+
+  // Listen for favorite toggles elsewhere in the app
+  useEffect(() => {
+    const handler = e => {
+      if (
+        e.detail?.event_id === event_id &&
+        e.detail?.source_table === source_table &&
+        e.detail?.user_id === user?.id
+      ) {
+        setFavId(e.detail?.favId || null)
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('favorite-changed', handler)
+      return () => window.removeEventListener('favorite-changed', handler)
+    }
   }, [user, event_id, source_table])
 
   const toggleFavorite = async () => {
@@ -34,6 +54,7 @@ export default function useEventFavorite({ event_id, source_table }) {
     let column = 'event_id'
     if (source_table === 'all_events') column = 'event_int_id'
     else if (source_table !== 'events') column = 'event_uuid'
+    let newFavId = null
     if (favId) {
       await supabase
         .from('event_favorites')
@@ -48,7 +69,17 @@ export default function useEventFavorite({ event_id, source_table }) {
         .insert([{ user_id: user.id, source_table, [column]: event_id }])
         .select('id')
         .single()
-      if (data) setFavId(data.id)
+      if (data) {
+        newFavId = data.id
+        setFavId(data.id)
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('favorite-changed', {
+          detail: { event_id, source_table, favId: newFavId, user_id: user.id }
+        })
+      )
     }
     setLoading(false)
   }
