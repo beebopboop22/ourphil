@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import { Link, useNavigate } from 'react-router-dom';
 import useEventFavorite from './utils/useEventFavorite';
+import { FaStar } from 'react-icons/fa';
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -154,6 +155,11 @@ export default function HeroLanding() {
                                 In the plans!
                               </div>
                             )}
+
+                            <div className="absolute bottom-3 right-3 border-2 border-yellow-400 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full z-20 flex items-center gap-1">
+                              <FaStar className="text-yellow-500" />
+                              Tradition
+                            </div>
 
                             <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-[Barrio] font-bold z-20 leading-tight">
                               {evt['E Name']}

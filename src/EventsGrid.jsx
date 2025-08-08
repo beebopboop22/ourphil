@@ -1,6 +1,7 @@
 // src/EventsGrid.jsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import { FaStar } from 'react-icons/fa';
 
 const EventsGrid = ({ neighborhood }) => {
   const [events, setEvents] = useState([]);
@@ -101,6 +102,12 @@ const EventsGrid = ({ neighborhood }) => {
                     <div className="absolute top-3 left-3 bg-black text-white text-sm font-bold px-3 py-1 rounded-full">
                       {tag}
                     </div>
+                    {evt.isTradition && (
+                      <div className="absolute top-3 right-3 border-2 border-yellow-400 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                        <FaStar className="text-yellow-500" />
+                        Tradition
+                      </div>
+                    )}
                   </div>
                   <div className="p-8 flex flex-col justify-center flex-grow">
                     <h3 className="text-2xl md:text-3xl font-bold text-indigo-800 mb-4 line-clamp-2 text-center">
