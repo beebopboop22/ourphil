@@ -5,11 +5,18 @@ import { RRule } from 'rrule';
 
 const logoUrl = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png';
 
-function parseEventsDate(str) {
-  if (!str) return null;
-  const [first] = str.split(/through|–|-/);
-  const [m, d, y] = first.trim().split('/').map(Number);
-  return new Date(y, m - 1, d);
+function parseEventsDateRange(str) {
+  if (!str) return { start: null, end: null };
+  const [startStr, endStr] = str.split(/through|–|-/);
+  const [m1, d1, y1] = startStr.trim().split('/').map(Number);
+  const start = new Date(y1, m1 - 1, d1);
+  let end = start;
+  if (endStr) {
+    const parts = endStr.trim().split('/').map(Number);
+    if (parts.length === 3) end = new Date(parts[2], parts[0] - 1, parts[1]);
+    else end = new Date(y1, parts[0] - 1, parts[1]);
+  }
+  return { start, end };
 }
 
 function parseISODateLocal(str) {
@@ -188,17 +195,19 @@ export default function UpcomingPlansCard() {
       today.setHours(0, 0, 0, 0);
       const upcoming = all
         .map(ev => {
-          const d =
-            ev.source_table === 'events'
-              ? parseEventsDate(ev.start_date)
-              : parseISODateLocal(ev.start_date);
+          if (ev.source_table === 'events') {
+            const { start, end } = parseEventsDateRange(ev.start_date);
+            const display = formatDisplayDate(start, ev.start_time);
+            return { ...ev, _date: start, _end: end, displayDate: display };
+          }
+          const d = parseISODateLocal(ev.start_date);
           const display = formatDisplayDate(d, ev.start_time);
-          return { ...ev, _date: d, displayDate: display };
+          return { ...ev, _date: d, _end: d, displayDate: display };
         })
-        .filter(ev => ev._date && ev._date >= today)
+        .filter(ev => ev._date && ev._end && ev._end >= today)
         .sort((a, b) => a._date - b._date)
         .slice(0, 5)
-        .map(({ _date, ...rest }) => rest);
+        .map(({ _date, _end, ...rest }) => rest);
 
       setEvents(upcoming);
       setLoading(false);

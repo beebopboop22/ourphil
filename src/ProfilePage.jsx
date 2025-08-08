@@ -276,11 +276,18 @@ export default function ProfilePage() {
       }
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const parseEventsDate = str => {
-        if (!str) return null;
-        const [first] = str.split(/through|–|-/);
-        const [m, d, y] = first.trim().split('/').map(Number);
-        return new Date(y, m - 1, d);
+      const parseEventsDateRange = str => {
+        if (!str) return { start: null, end: null };
+        const [startStr, endStr] = str.split(/through|–|-/);
+        const [m1, d1, y1] = startStr.trim().split('/').map(Number);
+        const start = new Date(y1, m1 - 1, d1);
+        let end = start;
+        if (endStr) {
+          const parts = endStr.trim().split('/').map(Number);
+          if (parts.length === 3) end = new Date(parts[2], parts[0] - 1, parts[1]);
+          else end = new Date(y1, parts[0] - 1, parts[1]);
+        }
+        return { start, end };
       };
       const parseISODateLocal = str => {
         if (!str) return null;
@@ -289,18 +296,21 @@ export default function ProfilePage() {
       };
       const upcoming = all
         .map(ev => {
-          const d = ev.source_table === 'events'
-            ? parseEventsDate(ev.start_date)
-            : parseISODateLocal(ev.start_date);
-          return { ...ev, _date: d };
+          if (ev.source_table === 'events') {
+            const { start, end } = parseEventsDateRange(ev.start_date);
+            return { ...ev, _date: start, _end: end };
+          }
+          const d = parseISODateLocal(ev.start_date);
+          return { ...ev, _date: d, _end: d };
         })
         .filter(ev => {
-          if (!ev._date) return false;
+          if (!ev._date || !ev._end) return false;
           ev._date.setHours(0, 0, 0, 0);
-          return ev._date >= today;
+          ev._end.setHours(0, 0, 0, 0);
+          return ev._end >= today;
         });
       upcoming.sort((a, b) => a._date - b._date);
-      setSavedEvents(upcoming.map(({ _date, ...rest }) => rest));
+      setSavedEvents(upcoming.map(({ _date, _end, ...rest }) => rest));
       setLoadingSaved(false);
     })();
   }, [user]);
