@@ -40,7 +40,7 @@ export default function TrendingTags() {
   if (!tags.length) return null
 
   return (
-    <div className="container mx-auto px-2 py-3 bg-white rounded-lg shadow-sm">
+    <div className="container mx-auto px-2 py-3 bg-gray-50 rounded-lg shadow-sm">
       <div className="flex items-center">
         {/* fixed label */}
         <span className="text-sm sm:text-xl font-bold text-gray-700 mr-4 flex-shrink-0">
