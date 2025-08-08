@@ -30,6 +30,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
 import useEventFavorite from './utils/useEventFavorite.js'
 import { AuthContext } from './AuthProvider'
+import { FaStar } from 'react-icons/fa';
 
 
 
@@ -788,10 +789,10 @@ useEffect(() => {
   // Big Board first, then Traditions, then All Events
 const allPagedEvents = [
     ...bigBoardEvents,
-    ...sportsEvents,
-    ...recurringOccs,  
     ...traditionEvents,
-    ...groupEvents, 
+    ...sportsEvents,
+    ...recurringOccs,
+    ...groupEvents,
     ...events
   ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
 
@@ -1201,7 +1202,8 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                   </div>
                 )}
                 {evt.isTradition && (
-                  <div className="absolute inset-x-0 bottom-0 bg-yellow-500 text-white text-xs uppercase text-center py-1">
+                  <div className="absolute inset-x-0 bottom-0 border-2 border-yellow-400 bg-yellow-100 text-yellow-800 text-xs uppercase font-semibold text-center py-1 flex items-center justify-center gap-1">
+                    <FaStar className="text-yellow-500" />
                     Tradition
                   </div>
                 )}
