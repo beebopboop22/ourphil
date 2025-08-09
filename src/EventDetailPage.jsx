@@ -9,7 +9,9 @@ import { Helmet } from 'react-helmet';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import HeroLanding from './HeroLanding';
-import TaggedGroupsScroller from './TaggedGroupsScroller';
+import GroupMatchPromo from './GroupMatchPromo';
+import GroupMatchWizard from './GroupMatchWizard';
+import SubmitGroupModal from './SubmitGroupModal';
 import TaggedEventScroller from './TaggedEventsScroller';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
@@ -51,6 +53,13 @@ export default function EventDetailPage() {
   const [tagMap, setTagMap] = useState({});
   const [eventTags, setEventTags] = useState([]);
   const [allTags, setAllTags] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const openAddGroup = () => {
+    setShowMatchModal(false);
+    setShowSubmitModal(true);
+  };
   const reviewPhotoUrls = React.useMemo(() =>
     reviews.flatMap(r => r.photo_urls || []),
   [reviews]);
@@ -163,6 +172,14 @@ export default function EventDetailPage() {
         if (error) console.error('tags load error', error);
         else setAllTags(data || []);
       });
+  }, []);
+
+  useEffect(() => {
+    async function fetchGroups() {
+      const { data, error } = await supabase.from('groups').select('*');
+      if (!error) setGroups(data || []);
+    }
+    fetchGroups();
   }, []);
 
   useEffect(() => {
@@ -402,6 +419,13 @@ export default function EventDetailPage() {
                 </a>
               )}
               <button
+                onClick={toggleFav}
+                disabled={toggling}
+                className={`border border-indigo-600 px-4 py-2 rounded font-semibold transition-colors ${isFavorite ? 'bg-white text-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+              >
+                {isFavorite ? 'In the Plans' : 'Add to Plans'}
+              </button>
+              <button
                 onClick={handleShare}
                 className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
               >
@@ -431,17 +455,52 @@ export default function EventDetailPage() {
         {reviewPhotoUrls.length > 0 && (
           <ReviewPhotoGrid photos={reviewPhotoUrls} />
         )}
+
+        {/* Traditions FAQ notice */}
+        <div className="max-w-4xl mx-auto mt-8 px-4">
+          <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-center rounded-md p-4">
+            <a
+              href="/traditions-faq"
+              onClick={() =>
+                window.gtag &&
+                window.gtag('event', 'cta_click', {
+                  event_category: 'traditions_faq',
+                  event_label: 'events_page_notice',
+                })
+              }
+              className="font-medium underline"
+            >
+              Do you manage this Philly tradition? Read our FAQ for traditions hosts
+            </a>
+          </div>
+        </div>
+
+        {/* What to Expect */}
+        {event['E Description'] && (
+          <>
+            <div className="max-w-4xl mx-auto mt-8 px-4">
+              <div className="flex items-start gap-4">
+                <img
+                  src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
+                  alt="Our Philly concierge"
+                  className="w-12 h-12 mt-1"
+                />
+                <div>
+                  <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-2">What to Expect</h2>
+                  <p className="text-gray-700 text-lg">{event['E Description']}</p>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-gray-200 w-3/4 mx-auto mt-6" />
+          </>
+        )}
+
         {/* Description & Image */}
         <div className="max-w-4xl mx-auto mt-8 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div>
-            {event['E Description'] && (
-              <div className="mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">What to expect</h2>
-                <p className="text-gray-700">{event['E Description']}</p>
-              </div>
-            )}
             {event.longDescription && (
               <div className="mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">About this Philly Tradition</h2>
                 <p className="text-gray-700">{event.longDescription}</p>
               </div>
             )}
@@ -466,16 +525,9 @@ export default function EventDetailPage() {
           </div>
         </div>
 
-        {/* Traditions FAQ notice */}
-        <div className="max-w-4xl mx-auto mt-10 px-4">
-          <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-center rounded-md p-4">
-            <a href="/traditions-faq" onClick={() => window.gtag && window.gtag('event', 'cta_click', { event_category: 'traditions_faq', event_label: 'events_page_notice' })} className="font-medium underline">Do you manage this Philly tradition? Read our FAQ for traditions hosts</a>
-          </div>
-        </div>
-
         {/* Reviews */}
         <section className="max-w-4xl mx-auto py-10 px-4">
-          <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-8">Reviews</h2>
+          <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-8">Photos, Photos, Photos</h2>
           {loadingReviews ? (
             <p>Loading reviews…</p>
           ) : reviews.length === 0 ? (
@@ -636,30 +688,19 @@ export default function EventDetailPage() {
 
         <hr className="my-8 border-gray-200" />
 
-        <TaggedGroupsScroller tags={eventTags} />
+        <div className="max-w-screen-xl mx-auto px-4">
+          <GroupMatchPromo
+            groups={groups}
+            onStart={() => setShowMatchModal(true)}
+            onAddGroup={openAddGroup}
+          />
+        </div>
 
         <hr className="my-8 border-gray-200" />
 
         <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Upcoming" />
 
         <hr className="my-8 border-gray-200" />
-
-        {allTags.length > 0 && (
-          <div className="my-8 text-center">
-            <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
-            <div className="flex flex-wrap justify-center gap-3">
-              {allTags.map((tag, i) => (
-                <Link
-                  key={tag.slug}
-                  to={`/tags/${tag.slug}`}
-                  className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
-                >
-                  #{tag.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* More Upcoming Community Submissions */}
         <div className="border-t border-gray-200 mt-8 pt-6 px-4 pb-10 max-w-screen-xl mx-auto">
@@ -723,7 +764,35 @@ export default function EventDetailPage() {
             </div>
           )}
         </div>
+
+        {allTags.length > 0 && (
+          <div className="my-8 text-center">
+            <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
+            <div className="flex flex-wrap justify-center gap-3">
+              {allTags.map((tag, i) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
+                >
+                  #{tag.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
+
+        {showMatchModal && (
+          <GroupMatchWizard
+            onClose={() => setShowMatchModal(false)}
+            onAddGroup={openAddGroup}
+          />
+        )}
+        {showSubmitModal && (
+          <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
+        )}
       </main>
 
       <Footer />
