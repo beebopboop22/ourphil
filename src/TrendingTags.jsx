@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { Link } from 'react-router-dom'
+import { RRule } from 'rrule'
 
 const pillStyles = [
   'bg-green-100 text-indigo-800',
@@ -16,49 +17,111 @@ const pillStyles = [
 
 export default function TrendingTags() {
   const [tags, setTags] = useState([])
+  const [seasonalTags, setSeasonalTags] = useState([])
   const [loading, setLoading] = useState(true)
 
+  function parseLocalYMD(str) {
+    if (!str) return null
+    const [y, m, d] = str.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+  function isTagActive(tag) {
+    const today = new Date(); today.setHours(0,0,0,0)
+    if (tag.rrule) {
+      try {
+        const opts = RRule.parseString(tag.rrule)
+        if (tag.season_start) opts.dtstart = parseLocalYMD(tag.season_start)
+        const rule = new RRule(opts)
+        const searchStart = new Date(today); searchStart.setDate(searchStart.getDate() - 8)
+        const next = rule.after(searchStart, true)
+        if (!next) return false
+        const start = new Date(next); start.setDate(start.getDate() - 7)
+        const end = new Date(next); end.setDate(end.getDate() + 1)
+        return today >= start && today < end
+      } catch {
+        return false
+      }
+    }
+    if (tag.season_start && tag.season_end) {
+      const start = parseLocalYMD(tag.season_start)
+      const end = parseLocalYMD(tag.season_end)
+      return start && end && today >= start && today <= end
+    }
+    return true
+  }
+
   useEffect(() => {
-    supabase
-      .from('tags')
-      .select('name, slug')
-      .limit(10)
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('Error loading trending tags:', error)
-          setTags([])
-        } else {
-          setTags(data)
-        }
+    (async () => {
+      try {
+        const [trendRes, seasonRes] = await Promise.all([
+          supabase.from('tags').select('name, slug').limit(10),
+          supabase
+            .from('tags')
+            .select('name, slug, rrule, season_start, season_end')
+            .eq('is_seasonal', true),
+        ])
+
+        if (trendRes.error) throw trendRes.error
+        setTags(trendRes.data || [])
+
+        if (seasonRes.error) throw seasonRes.error
+        const activeSeasonal = (seasonRes.data || []).filter(isTagActive)
+        setSeasonalTags(activeSeasonal)
+      } catch (err) {
+        console.error('Error loading tags:', err)
+        setTags([])
+        setSeasonalTags([])
+      } finally {
         setLoading(false)
-      })
+      }
+    })()
   }, [])
 
   if (loading) {
     return <p className="text-center py-2 text-gray-500">Loading trending tags…</p>
   }
-  if (!tags.length) return null
+  if (!tags.length && !seasonalTags.length) return null
 
   return (
     <div className="container mx-auto px-2 py-3 bg-gray-50 rounded-lg shadow-sm">
-      <div className="flex items-center">
-        {/* fixed label */}
-        <span className="text-sm sm:text-xl font-bold text-gray-700 mr-4 flex-shrink-0">
-          TRENDING TAGS:
-        </span>
+      <div className="flex flex-col space-y-2">
+        {tags.length > 0 && (
+          <div className="flex items-center">
+            <span className="text-sm sm:text-xl font-bold text-gray-700 mr-4 flex-shrink-0">
+              TRENDING TAGS:
+            </span>
+            <div className="flex-1 flex overflow-x-auto whitespace-nowrap">
+              {tags.map((tag, i) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`${pillStyles[i % pillStyles.length]} text-sm sm:text-xl font-semibold px-3 sm:px-4 py-1 mr-3 rounded-full flex-shrink-0 hover:opacity-80 transition`}
+                >
+                  #{tag.name.toLowerCase()}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {/* scrollable pills */}
-        <div className="flex-1 flex overflow-x-auto whitespace-nowrap">
-          {tags.map((tag, i) => (
-            <Link
-              key={tag.slug}
-              to={`/tags/${tag.slug}`}
-              className={`${pillStyles[i % pillStyles.length]} text-sm sm:text-xl font-semibold px-3 sm:px-4 py-1 mr-3 rounded-full flex-shrink-0 hover:opacity-80 transition`}
-            >
-              #{tag.name.toLowerCase()}
-            </Link>
-          ))}
-        </div>
+        {seasonalTags.length > 0 && (
+          <div className="flex items-center">
+            <span className="text-sm sm:text-xl font-bold text-gray-700 mr-4 flex-shrink-0">
+              SEASONAL TAGS:
+            </span>
+            <div className="flex-1 flex overflow-x-auto whitespace-nowrap">
+              {seasonalTags.map(tag => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className="bg-gradient-to-r from-yellow-200 via-yellow-300 to-yellow-400 text-yellow-900 font-semibold px-3 sm:px-4 py-1 mr-3 rounded-full border border-yellow-600 flex-shrink-0 hover:opacity-80 transition"
+                >
+                  #{tag.name.toLowerCase()}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
