@@ -431,17 +431,30 @@ export default function EventDetailPage() {
         {reviewPhotoUrls.length > 0 && (
           <ReviewPhotoGrid photos={reviewPhotoUrls} />
         )}
+
+        {/* What to Expect */}
+        {event['E Description'] && (
+          <div className="max-w-4xl mx-auto mt-8 px-4">
+            <div className="flex items-start gap-4">
+              <img
+                src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
+                alt="Our Philly concierge"
+                className="w-12 h-12 mt-1"
+              />
+              <div>
+                <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-2">What to Expect</h2>
+                <p className="text-gray-700 text-lg">{event['E Description']}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Description & Image */}
         <div className="max-w-4xl mx-auto mt-8 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div>
-            {event['E Description'] && (
-              <div className="mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">What to expect</h2>
-                <p className="text-gray-700">{event['E Description']}</p>
-              </div>
-            )}
             {event.longDescription && (
               <div className="mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">About this Philly Tradition</h2>
                 <p className="text-gray-700">{event.longDescription}</p>
               </div>
             )}
@@ -475,7 +488,7 @@ export default function EventDetailPage() {
 
         {/* Reviews */}
         <section className="max-w-4xl mx-auto py-10 px-4">
-          <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-8">Reviews</h2>
+          <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-8">Photos, Photos, Photos</h2>
           {loadingReviews ? (
             <p>Loading reviews…</p>
           ) : reviews.length === 0 ? (
