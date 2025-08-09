@@ -140,10 +140,14 @@ function App() {
             DIG INTO PHILLY
           </h1>
 
-          <div className="mt-4 border-b border-gray-200 pb-4">
-            <nav className="inline-flex items-center text-sm uppercase font-bold text-indigo-600">
-              {/* Big Board */}
-              <Link to="/board" className="flex items-center space-x-1 hover:underline">
+    <p className="text-xl text-gray-700 text-center mt-2">
+      Create a free account to save events, follow hosts, and get a daily e-mail digest.
+    </p>
+
+    <div className="mt-4 border-b border-gray-200 pb-4">
+      <nav className="inline-flex items-center text-sm uppercase font-bold text-indigo-600">
+        {/* Big Board */}
+        <Link to="/board" className="flex items-center space-x-1 hover:underline">
                 <span role="img" aria-label="bulletin board">📌</span>
                 <span>Big Board</span>
                 <span className="bg-yellow-400 text-white text-[10px] font-bold px-1 rounded">NEW</span>
