@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { RRule } from 'rrule';
+import { FaTwitter, FaFacebook, FaInstagram } from 'react-icons/fa';
 
 const logoUrl = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png';
 
@@ -28,26 +29,16 @@ function parseISODateLocal(str) {
   return new Date(y, m - 1, d);
 }
 
-function formatDisplayDate(date, startTime) {
+function formatDisplayDate(date) {
   if (!date) return '';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diffDays = Math.round((date - today) / (1000 * 60 * 60 * 24));
-  const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
-  let prefix;
-  if (diffDays === 0) prefix = 'Today';
-  else if (diffDays === 1) prefix = 'Tomorrow';
-  else if (diffDays > 1 && diffDays < 7) prefix = `This ${weekday}`;
-  else prefix = weekday;
-  const datePart = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-  let timePart = '';
-  if (startTime) {
-    const [h = 0, m = 0] = startTime.split(':').map(Number);
-    const dt = new Date();
-    dt.setHours(h, m);
-    timePart = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
-  }
-  return `${prefix}, ${datePart}${timePart ? `, ${timePart}` : ''}`;
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays > 1 && diffDays < 7)
+    return date.toLocaleDateString('en-US', { weekday: 'long' });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function UpcomingPlansCard() {
@@ -201,16 +192,16 @@ export default function UpcomingPlansCard() {
         .map(ev => {
           if (ev.source_table === 'events') {
             const { start, end } = parseEventsDateRange(ev.start_date, ev.end_date);
-            const display = formatDisplayDate(start, ev.start_time);
+            const display = formatDisplayDate(start);
             return { ...ev, _date: start, _end: end, displayDate: display };
           }
           const d = parseISODateLocal(ev.start_date);
-          const display = formatDisplayDate(d, ev.start_time);
+          const display = formatDisplayDate(d);
           return { ...ev, _date: d, _end: d, displayDate: display };
         })
         .filter(ev => ev._date && ev._end && ev._end >= today)
         .sort((a, b) => a._date - b._date)
-        .slice(0, 5)
+        .slice(0, 10)
         .map(({ _date, _end, ...rest }) => rest);
 
       setEvents(upcoming);
@@ -250,7 +241,8 @@ export default function UpcomingPlansCard() {
     };
   };
 
-  const handleShare = async () => {
+  const handleShare = async network => {
+    void network;
     const card = document.getElementById('plans-card');
     if (!card) return;
     try {
@@ -289,7 +281,7 @@ export default function UpcomingPlansCard() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-900 flex items-center justify-center py-8">
+    <div className="min-h-screen bg-white flex items-center justify-center py-8">
       <div
         id="plans-card"
         className="relative bg-white w-full max-w-sm rounded-lg shadow flex flex-col px-4 pt-6 pb-4"
@@ -307,14 +299,6 @@ export default function UpcomingPlansCard() {
           <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
         </header>
         <div className="flex flex-col items-center mb-2">
-          {profile.image_url && (
-            <img
-              src={profile.image_url}
-              alt="avatar"
-              className="w-12 h-12 rounded-full object-cover mb-1"
-              crossOrigin="anonymous"
-            />
-          )}
           <span className="text-sm font-semibold">{profile.username || profile.slug}</span>
         </div>
         {events.length === 0 ? (
@@ -324,33 +308,26 @@ export default function UpcomingPlansCard() {
             <div className="text-center text-xs uppercase tracking-wide text-gray-500 border-b pb-1 mb-2">
               Upcoming plans
             </div>
-            <ul className="flex-1 divide-y overflow-hidden">
+            <ul className="flex-1 divide-y text-xs">
               {events.map(ev => (
-                <li key={`${ev.source_table}-${ev.id}`} className="flex items-center gap-4 py-4">
-                  {ev.image && (
-                    <img
-                      src={ev.image}
-                      alt=""
-                      className="w-24 h-16 object-cover rounded"
-                      crossOrigin="anonymous"
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-base font-semibold truncate">{ev.title}</div>
-                    <div className="text-sm text-gray-600">{ev.displayDate}</div>
-                  </div>
+                <li key={`${ev.source_table}-${ev.id}`} className="py-1 truncate">
+                  {ev.title} - {ev.displayDate}
                 </li>
               ))}
             </ul>
           </>
         )}
-        <button
-          onClick={handleShare}
-          className="w-full mt-4 text-sm py-2 bg-indigo-600 text-white rounded"
-          data-no-export
-        >
-          SHARE YOUR PLAN CARD
-        </button>
+        <div className="flex justify-center gap-4 mt-4" data-no-export>
+          <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
+            <FaTwitter className="text-sky-500" />
+          </button>
+          <button onClick={() => handleShare('facebook')} aria-label="Share to Facebook">
+            <FaFacebook className="text-blue-600" />
+          </button>
+          <button onClick={() => handleShare('instagram')} aria-label="Share to Instagram Stories">
+            <FaInstagram className="text-pink-500" />
+          </button>
+        </div>
       </div>
     </div>
   );
