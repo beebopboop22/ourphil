@@ -281,6 +281,7 @@ export default function UpcomingPlansCard() {
     }
   };
 
+
   if (loading) {
     return <div className="min-h-screen bg-neutral-50 flex items-center justify-center">Loading…</div>;
   }
@@ -350,6 +351,13 @@ export default function UpcomingPlansCard() {
           data-no-export
         >
           SHARE YOUR PLAN CARD
+        </button>
+        <button
+          onClick={() => navigate(`/u/${slug}/plans-video`, { state: { profile, events } })}
+          className="w-full mt-2 text-sm py-2 bg-green-600 text-white rounded"
+          data-no-export
+        >
+          DOWNLOAD VIDEO POST
         </button>
       </div>
     </div>
