@@ -19,12 +19,12 @@ import SportsEventsGrid from './SportsEventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents';
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
-import TrendingTags from './TrendingTags';
 import NewsletterSection from './NewsletterSection';
 import { Share2 } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
 import UpcomingTraditionsScroller from './UpcomingTraditionsScroller';
+import SeasonalTagsSection from './SeasonalTagsSection';
 const EventsMap = lazy(() => import('./EventsMap'));
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
@@ -1006,36 +1006,17 @@ if (loading) {
           <div className="flex flex-col min-h-screen overflow-x-visible">
             <Navbar />
       
-            <div className="mt-20">
-            </div>
+            <div className="mt-24"></div>
       
             {/* Hero */}
             <div className="relative w-full max-w-screen-3xl mx-auto pt-14 text-center overflow-hidden bg-gray-50">
               {/* falling pills background */}
               <FallingPills  />
       
-              <div className="relative inline-block text-center z-10">
-                <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-indigo-900 mb-4">
-                  Make Your Philly Plans
-                </h1>
-                <p className="text-lg sm:text-xl text-gray-700 max-w-2xl mx-auto">
-                  Discover events and add them to your plans, subscribe to tags for daily e-mail roundups of what's coming, and more.
-                </p>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
-                  <span className="absolute w-full h-px bg-white opacity-20" />
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
-                    alt="Our Philly Mascot"
-                    className="absolute right-0 w-24 h-auto -translate-y-1/3"
-                  />
+                <div className="max-w-screen-xl mx-auto px-4 py-2 z-10 text-left">
+                  <UpcomingTraditionsScroller />
                 </div>
               </div>
-      
-              <div className="max-w-screen-xl mx-auto px-4 py-2 z-10 text-left">
-                <TrendingTags />
-                <UpcomingTraditionsScroller />
-              </div>
-            </div>
 
             <div className="mt-12 text-center">
               <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
@@ -1323,7 +1304,7 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
       
             {/* ─── Recent Activity ─── */}
             <RecentActivity />
-            <TaggedEventScroller tags={['peco-multicultural']} header="#PECO Multicultural"/>
+            <SeasonalTagsSection />
             <TaggedEventScroller tags={['arts']} header="#Arts Coming Soon"/>
             <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Next Up"/>
             <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
