@@ -19,12 +19,10 @@ import SportsEventsGrid from './SportsEventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents';
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
-import TrendingTags from './TrendingTags';
 import NewsletterSection from './NewsletterSection';
 import { Share2 } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
-import UpcomingTraditionsScroller from './UpcomingTraditionsScroller';
 const EventsMap = lazy(() => import('./EventsMap'));
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
@@ -175,71 +173,6 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
       </div>
     </div>
   );
-}
-
-
-// ── Falling Pills Setup ───────────────────────────────────
-const colors = ['#22C55E','#0D9488','#DB2777','#3B82F6','#F97316','#EAB308','#8B5CF6','#EF4444']
-
-function FallingPills() {
-  const [pillConfigs, setPillConfigs] = useState([])
-
-  useEffect(() => {
-    supabase
-      .from('tags')
-      .select('id,name,slug')
-      .order('name', { ascending: true })
-      .then(({ data }) => {
-        if (!data) return
-        const configs = data.map((t, i) => ({
-          key:      t.slug,
-          name:     t.name,
-          color:    colors[i % colors.length],
-          left:     Math.random() * 100,             // anywhere across the screen
-          duration: 20 + Math.random() * 10,         // slow: 20–30s
-          delay:    -Math.random() * 20,             // start at random offsets
-        }))
-        setPillConfigs(configs)
-      })
-  }, [])
-
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-      <style>{`
-        .pill {
-          position: absolute;
-          top: -4rem;
-          padding: .6rem 1.2rem;
-          border-radius: 9999px;
-          color: #fff;
-          font-size: 1rem;
-          white-space: nowrap;
-          opacity: .1;
-          animation-name: fall;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-        }
-        @keyframes fall {
-          to { transform: translateY(120vh); }
-        }
-      `}</style>
-
-      {pillConfigs.map((p) => (
-        <span
-          key={p.key}
-          className="pill"
-          style={{
-            left:              `${p.left}%`,
-            backgroundColor:   p.color,
-            animationDuration: `${p.duration}s`,
-            animationDelay:    `${p.delay}s`,
-          }}
-        >
-          #{p.name}
-        </span>
-      ))}
-    </div>
-  )
 }
 
 // ── MainEvents Component ───────────────────────────────
@@ -1006,37 +939,8 @@ if (loading) {
           <div className="flex flex-col min-h-screen overflow-x-visible">
             <Navbar />
       
-            <div className="mt-20">
-            </div>
+            <div className="mt-24"></div>
       
-            {/* Hero */}
-            <div className="relative w-full max-w-screen-3xl mx-auto pt-14 text-center overflow-hidden bg-gray-50">
-              {/* falling pills background */}
-              <FallingPills  />
-      
-              <div className="relative inline-block text-center z-10">
-                <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-indigo-900 mb-4">
-                  Make Your Philly Plans
-                </h1>
-                <p className="text-lg sm:text-xl text-gray-700 max-w-2xl mx-auto">
-                  Discover events and add them to your plans, subscribe to tags for daily e-mail roundups of what's coming, and more.
-                </p>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
-                  <span className="absolute w-full h-px bg-white opacity-20" />
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
-                    alt="Our Philly Mascot"
-                    className="absolute right-0 w-24 h-auto -translate-y-1/3"
-                  />
-                </div>
-              </div>
-      
-              <div className="max-w-screen-xl mx-auto px-4 py-2 z-10 text-left">
-                <TrendingTags />
-                <UpcomingTraditionsScroller />
-              </div>
-            </div>
-
             <div className="mt-12 text-center">
               <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
             </div>
@@ -1323,14 +1227,26 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
       
             {/* ─── Recent Activity ─── */}
             <RecentActivity />
-            <TaggedEventScroller tags={['peco-multicultural']} header="#PECO Multicultural"/>
+            <TaggedEventScroller
+              tags={['birds']}
+              fullWidth
+              header={(
+                <>
+                  <Link
+                    to="/tags/birds"
+                    className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] rounded-full hover:bg-gray-100"
+                  >
+                    #Birds
+                  </Link>
+                  <span className="ml-4">Coming Soon</span>
+                </>
+              )}
+            />
+            <HeroLanding fullWidth />
             <TaggedEventScroller tags={['arts']} header="#Arts Coming Soon"/>
             <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Next Up"/>
             <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
 
-            {/* ─── Hero Banner ─── */}
-            <HeroLanding />
-      
             <BigBoardEventsGrid />
             <PopularGroups />
       
