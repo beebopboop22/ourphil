@@ -49,6 +49,7 @@ import ContactPage from './ContactPage.jsx'
 import TraditionsFAQ from './TraditionsFAQ.jsx'
 import GroupsFAQ from './GroupsFAQ.jsx'
 import RecurringPage from './RecurringEventPage.jsx'
+import EventTraditionsCard from './EventTraditionsCard.jsx'
 
 
 
@@ -88,6 +89,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/moments/:id" element={<MomentsExplorer />} />
           <Route path="/events" element={<MonthlyEvents />} />
           <Route path="/events/:slug" element={<EventDetailPage />} />
+          <Route path="/events/:slug/traditions-card" element={<EventTraditionsCard />} />
           <Route path="/admin/claims" element={<AdminClaimRequests />} />
           <Route path="/update-password" element={<UpdatePasswordPage />} />
           <Route path="/test-updates" element={<TestGroupUpdates />} />
