@@ -513,6 +513,14 @@ export default function EventDetailPage() {
                 {isFavorite ? 'In the Plans' : 'Add to Plans'}
               </button>
             </div>
+            <div className="mb-6">
+              <button
+                onClick={handleShare}
+                className="w-full border border-gray-300 rounded-md py-3 font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Tell Somebody
+              </button>
+            </div>
           </div>
           <div>
             {event['E Image'] && (
