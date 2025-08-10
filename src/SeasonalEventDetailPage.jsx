@@ -90,7 +90,7 @@ const SeasonalEventDetailPage = () => {
   const tagColor = isOpen ? 'bg-orange-500' : 'bg-yellow-400';
 
   return (
-    <div className="min-h-screen bg-neutral-50 pt-20">
+    <div className="min-h-screen bg-neutral-50 pt-32">
      <Helmet>
   <title>{`${event.name} – Our Philly – ${tagText}`}</title>
   <link rel="canonical" href={`https://ourphilly.org/seasonal/${event.slug}`} />

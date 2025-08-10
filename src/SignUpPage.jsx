@@ -133,7 +133,7 @@ export default function SignUpPage() {
         ))}
       </div>
 
-      <div className="relative z-10 max-w-md mx-auto py-20 px-4">
+      <div className="relative z-10 max-w-md mx-auto mt-32 py-20 px-4">
         <img
           src={heartUrl}
           alt=""

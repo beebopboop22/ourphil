@@ -357,7 +357,7 @@ export default function MainEventsDetail() {
     return (
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar/>
-        <div className="flex-grow flex items-center justify-center">
+        <div className="flex-grow flex items-center justify-center mt-32">
           <div className="text-2xl text-gray-500">Loading…</div>
         </div>
         <Footer/>
@@ -369,7 +369,7 @@ export default function MainEventsDetail() {
     return (
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar/>
-        <div className="flex-grow flex items-center justify-center">
+        <div className="flex-grow flex items-center justify-center mt-32">
           <div className="text-2xl text-red-600">Event not found.</div>
         </div>
         <Footer/>
@@ -425,7 +425,7 @@ export default function MainEventsDetail() {
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar/>
 
-        <main className="flex-grow">
+        <main className="flex-grow mt-32">
           {/* Hero */}
           <div
             className="w-full h-[40vh] bg-cover bg-center"
@@ -699,7 +699,21 @@ export default function MainEventsDetail() {
               </div>
           </section>
             )}
-            <TaggedEventScroller tags={['music']} header="#Music Coming Soon" />
+            <TaggedEventScroller
+              tags={['music']}
+              fullWidth
+              header={(
+                <>
+                  <Link
+                    to="/tags/music"
+                    className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
+                  >
+                    #Music
+                  </Link>
+                  <span className="ml-4 text-xl">Coming Soon</span>
+                </>
+              )}
+            />
           {sameDayEvents.length > 0 && (
             <section className="max-w-4xl mx-auto mt-12 px-4">
                 <h2 class="text-2xl text-center font-semibold text-gray-800 mb-6">

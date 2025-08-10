@@ -485,14 +485,14 @@ export default function TagPage() {
         <Navbar/>
 
         {/* ── Hero ─────────────────────────────────────────── */}
-        <div className="mt-20 bg-gradient-to-r from-red-50 to-indigo-50 border-b">
+        <div className="mt-32 bg-gradient-to-r from-red-50 to-indigo-50 border-b">
           <div className="max-w-screen-xl mx-auto px-4 py-10 text-center">
             <h1 className="text-4xl font-[barrio] text-gray-800 mb-4">#{tag.name}</h1>
             {tag.is_seasonal && (
               <div className="flex justify-center mb-4">
-                <div className="flex items-center gap-1 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold">
+                <div className="flex items-center gap-1 bg-[#d9e9ea] text-[#004C55] px-3 py-1 rounded-full text-xs font-semibold">
                   <Clock className="w-4 h-4" />
-                  Limited-Time Tag
+                  Seasonal Tag
                 </div>
               </div>
             )}

@@ -145,7 +145,7 @@ export default function GroupDetailPage() {
     : group.Description
 
   return (
-    <div className="min-h-screen bg-neutral-50 pt-20">
+    <div className="min-h-screen bg-neutral-50 pt-32">
       {/* ── SEO & Meta Tags ─────────────────────────────────────────────── */}
       <Helmet>
         <title>
