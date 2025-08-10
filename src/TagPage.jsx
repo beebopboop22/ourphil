@@ -7,6 +7,7 @@ import Footer from './Footer'
 import FloatingAddButton from './FloatingAddButton'
 import SubmitGroupModal from './SubmitGroupModal'
 import PostFlyerModal from './PostFlyerModal'
+import SubmitEventSection from './SubmitEventSection'
 import { Helmet } from 'react-helmet'
 import { RRule } from 'rrule'
 import { Clock } from 'lucide-react'
@@ -164,6 +165,7 @@ function EventCard({ evt, profileMap, tag }) {
 export default function TagPage() {
   const params = useParams()
   const slug = (params.slug || '').replace(/^#/, '')
+  const { user } = useContext(AuthContext)
 
   // ── State hooks ────────────────────────────────────────────────
   const [tag, setTag] = useState(null)
@@ -174,11 +176,12 @@ export default function TagPage() {
   const [allEvents, setAllEvents] = useState([])
   const [recSeries, setRecSeries] = useState([])
   const [profileMap, setProfileMap] = useState({})
-  const [allTags, setAllTags] = useState([])
   const [loading, setLoading] = useState(true)
 
   // modal toggles
   const [showFlyerModal, setShowFlyerModal] = useState(false)
+  const [modalStartStep, setModalStartStep] = useState(1)
+  const [initialFlyer, setInitialFlyer] = useState(null)
   const [showSubmitGroupModal, setShowSubmitGroupModal] = useState(false)
 
   // view toggle: 'events' or 'groups'
@@ -417,12 +420,6 @@ export default function TagPage() {
     })()
   }, [bigBoard])
 
-  // ── load all tags for bottom nav ───────────────────────────────
-  useEffect(() => {
-    supabase.from('tags').select('name,slug').order('name')
-      .then(({ data }) => setAllTags(data || []))
-  }, [])
-
   // ── derive recurring instances ─────────────────────────────────
   const recEventsList = useMemo(() => {
     return recSeries.flatMap(series => {
@@ -433,22 +430,25 @@ export default function TagPage() {
       if (isNaN(dtstart)) return []
       opts.dtstart = dtstart
       if (series.end_date) opts.until = new Date(`${series.end_date}T23:59:59`)
-      return new RRule(opts)
-        .all()
-        .filter(d => d >= new Date())
-        .slice(0, 3)
-        .map(d => ({
-          id: `${series.id}::${d.toISOString().slice(0,10)}`,
-          title: series.name,
-          imageUrl: series.image_url,
-          start: d,
-          start_date: d.toISOString().slice(0,10),
-          start_time: series.start_time,
-          slug: series.slug,
-          address: series.address,
-          href: `/series/${series.slug}/${d.toISOString().slice(0,10)}`,
-          isRecurring: true,
-        }))
+      const rule = new RRule(opts)
+      const upcoming = []
+      let next = rule.after(new Date(), true)
+      for (let i = 0; next && i < 3; i++) {
+        upcoming.push(next)
+        next = rule.after(next, false)
+      }
+      return upcoming.map(d => ({
+        id: `${series.id}::${d.toISOString().slice(0,10)}`,
+        title: series.name,
+        imageUrl: series.image_url,
+        start: d,
+        start_date: d.toISOString().slice(0,10),
+        start_time: series.start_time,
+        slug: series.slug,
+        address: series.address,
+        href: `/series/${series.slug}/${d.toISOString().slice(0,10)}`,
+        isRecurring: true,
+      }))
     })
   }, [recSeries])
 
@@ -521,7 +521,7 @@ export default function TagPage() {
                 Groups
               </button>
               <button
-                onClick={() => setShowFlyerModal(true)}
+                onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }}
                 className="px-4 py-2 rounded-full text-sm bg-[#bf3d35] text-white hover:opacity-90 transition"
               >
                 Submit Event
@@ -558,6 +558,12 @@ export default function TagPage() {
               </div>
             )}
           </section>
+        )}
+
+        {view === 'events' && !user && (
+          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> to add #{tag.name} events to your Plans
+          </div>
         )}
 
         {/* ── GROUPS GRID ─────────────────────────────────────────── */}
@@ -601,30 +607,19 @@ export default function TagPage() {
           </section>
         )}
 
-        {/* ── Browse all tags ───────────────────────────────────────── */}
-        <section className="py-12 bg-white mb-16">
-          <div className="max-w-screen-xl mx-auto px-4">
-            <h3 className="text-3xl font-bold mb-4 text-center">Browse all tags</h3>
-            <div className="overflow-x-auto py-4">
-              <div className="flex space-x-4 px-4">
-                {allTags.map(t => (
-                  <Link
-                    key={t.slug}
-                    to={`/tags/${t.slug}`}
-                    className="flex-shrink-0 bg-indigo-600 text-white px-6 py-3 text-lg font-semibold rounded-full whitespace-nowrap hover:bg-indigo-700 transition"
-                  >
-                    #{t.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
+        <SubmitEventSection
+          title={`Submit #${tag.name} events free!`}
+          onNext={file => {
+            setInitialFlyer(file)
+            setModalStartStep(2)
+            setShowFlyerModal(true)
+          }}
+        />
 
-        <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
+        <FloatingAddButton onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }} />
 
         {showFlyerModal && (
-          <PostFlyerModal isOpen onClose={() => setShowFlyerModal(false)} />
+          <PostFlyerModal isOpen onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
         )}
         {showSubmitGroupModal && (
           <SubmitGroupModal isOpen onClose={() => setShowSubmitGroupModal(false)} />

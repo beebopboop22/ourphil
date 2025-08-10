@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function SubmitEventSection({ onNext }) {
+export default function SubmitEventSection({ onNext, title = 'Submit to community calendar' }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState('');
   const totalSteps = 5;
@@ -17,7 +17,7 @@ export default function SubmitEventSection({ onNext }) {
     <div className="bg-gray-50 py-28">
       <div className="max-w-md mx-auto text-center">
         <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">
-          Submit to community calendar
+          {title}
         </h2>
         <input
           type="file"
