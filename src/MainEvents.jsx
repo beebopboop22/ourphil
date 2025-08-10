@@ -1235,47 +1235,38 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
             <TaggedEventScroller
               tags={['birds']}
               fullWidth
-              header={(
-                <>
-                  <Link
-                    to="/tags/birds"
-                    className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#FFD700] bg-[#FFD700] text-[#004C55] rounded-full"
-                  >
-                    #Birds
-                  </Link>
-                  <span className="ml-4 text-3xl sm:text-5xl font-[Barrio] text-[#004C55]">Coming Soon</span>
-                </>
-              )}
+              header={
+                <Link
+                  to="/tags/birds"
+                  className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#FFD700] bg-[#FFD700] text-[#004C55] rounded-full"
+                >
+                  #Birds
+                </Link>
+              }
             />
             <TaggedEventScroller
               tags={['arts']}
               fullWidth
-              header={(
-                <>
-                  <Link
-                    to="/tags/arts"
-                    className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
-                  >
-                    #Arts
-                  </Link>
-                  <span className="ml-4 text-3xl sm:text-5xl font-[Barrio] text-[#004C55]">Coming Soon</span>
-                </>
-              )}
+              header={
+                <Link
+                  to="/tags/arts"
+                  className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
+                >
+                  #Arts
+                </Link>
+              }
             />
             <TaggedEventScroller
               tags={['nomnomslurp']}
               fullWidth
-              header={(
-                <>
-                  <Link
-                    to="/tags/nomnomslurp"
-                    className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
-                  >
-                    #NomNomSlurp
-                  </Link>
-                  <span className="ml-4 text-3xl sm:text-5xl font-[Barrio] text-[#004C55]">Coming Soon</span>
-                </>
-              )}
+              header={
+                <Link
+                  to="/tags/nomnomslurp"
+                  className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
+                >
+                  #NomNomSlurp
+                </Link>
+              }
             />
             <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
 
