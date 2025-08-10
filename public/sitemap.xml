@@ -25,6 +25,12 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://ourphilly.org/groups-faq</loc>
+    <lastmod>2025-06-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://ourphilly.org/music-hall-at-world-cafe-live/the-quincy-jones-experience</loc>
     <lastmod>2025-06-17</lastmod>
     <changefreq>weekly</changefreq>
