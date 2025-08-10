@@ -47,6 +47,7 @@ import ScrollToTop from './ScrollToTop'
 import TagPage from './TagPage.jsx'
 import ContactPage from './ContactPage.jsx'
 import TraditionsFAQ from './TraditionsFAQ.jsx'
+import GroupsFAQ from './GroupsFAQ.jsx'
 import RecurringPage from './RecurringEventPage.jsx'
 
 
@@ -113,6 +114,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/tags/:slug" element={<TagPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/traditions-faq" element={<TraditionsFAQ />} />
+          <Route path="/groups-faq" element={<GroupsFAQ />} />
           <Route path="/series/:slug/:date" element={<RecurringPage />} />
 
 

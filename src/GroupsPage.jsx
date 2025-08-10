@@ -89,6 +89,12 @@ export default function GroupsPage() {
         <div className="pt-32">
           <GroupProgressBar />
 
+          <div className="max-w-screen-xl mx-auto px-4 mt-2 text-right">
+            <a href="/groups-faq" className="text-sm text-indigo-700 underline">
+              New here? Read the Groups FAQ →
+            </a>
+          </div>
+
           {/* Match Wizard Promo Section */}
           <div className="bg-indigo-50 border-b border-indigo-100">
             <div className="max-w-screen-xl mx-auto px-4 py-8">
