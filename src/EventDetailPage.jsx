@@ -513,6 +513,22 @@ export default function EventDetailPage() {
                 {isFavorite ? 'In the Plans' : 'Add to Plans'}
               </button>
             </div>
+            <div className="mb-6">
+              <button
+                onClick={handleShare}
+                className="w-full border border-gray-300 rounded-md py-3 font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Tell Somebody
+              </button>
+            </div>
+            <div className="mb-6">
+              <Link
+                to={`/events/${slug}/traditions-card`}
+                className="w-full inline-block px-6 py-3 bg-yellow-100 text-yellow-800 rounded-md border border-yellow-300 font-semibold text-center hover:bg-yellow-200"
+              >
+                Share This Traditions Card
+              </Link>
+            </div>
           </div>
           <div>
             {event['E Image'] && (
