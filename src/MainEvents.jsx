@@ -19,18 +19,17 @@ import SportsEventsGrid from './SportsEventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents';
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
-import TrendingTags from './TrendingTags';
 import NewsletterSection from './NewsletterSection';
 import { Share2 } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
-import UpcomingTraditionsScroller from './UpcomingTraditionsScroller';
 const EventsMap = lazy(() => import('./EventsMap'));
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
 import useEventFavorite from './utils/useEventFavorite.js'
 import { AuthContext } from './AuthProvider'
 import { FaStar } from 'react-icons/fa';
+import FallingPills from './FallingPills';
 
 
 
@@ -175,71 +174,6 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
       </div>
     </div>
   );
-}
-
-
-// ── Falling Pills Setup ───────────────────────────────────
-const colors = ['#22C55E','#0D9488','#DB2777','#3B82F6','#F97316','#EAB308','#8B5CF6','#EF4444']
-
-function FallingPills() {
-  const [pillConfigs, setPillConfigs] = useState([])
-
-  useEffect(() => {
-    supabase
-      .from('tags')
-      .select('id,name,slug')
-      .order('name', { ascending: true })
-      .then(({ data }) => {
-        if (!data) return
-        const configs = data.map((t, i) => ({
-          key:      t.slug,
-          name:     t.name,
-          color:    colors[i % colors.length],
-          left:     Math.random() * 100,             // anywhere across the screen
-          duration: 20 + Math.random() * 10,         // slow: 20–30s
-          delay:    -Math.random() * 20,             // start at random offsets
-        }))
-        setPillConfigs(configs)
-      })
-  }, [])
-
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-      <style>{`
-        .pill {
-          position: absolute;
-          top: -4rem;
-          padding: .6rem 1.2rem;
-          border-radius: 9999px;
-          color: #fff;
-          font-size: 1rem;
-          white-space: nowrap;
-          opacity: .1;
-          animation-name: fall;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-        }
-        @keyframes fall {
-          to { transform: translateY(120vh); }
-        }
-      `}</style>
-
-      {pillConfigs.map((p) => (
-        <span
-          key={p.key}
-          className="pill"
-          style={{
-            left:              `${p.left}%`,
-            backgroundColor:   p.color,
-            animationDuration: `${p.duration}s`,
-            animationDelay:    `${p.delay}s`,
-          }}
-        >
-          #{p.name}
-        </span>
-      ))}
-    </div>
-  )
 }
 
 // ── MainEvents Component ───────────────────────────────
@@ -1006,95 +940,69 @@ if (loading) {
           <div className="flex flex-col min-h-screen overflow-x-visible">
             <Navbar />
       
-            <div className="mt-20">
-            </div>
+            <div className="mt-32"></div>
       
-            {/* Hero */}
-            <div className="relative w-full max-w-screen-3xl mx-auto pt-14 text-center overflow-hidden bg-gray-50">
-              {/* falling pills background */}
-              <FallingPills  />
-      
-              <div className="relative inline-block text-center z-10">
-                <h1 className="text-6xl sm:text-5xl md:text-8xl font-[Barrio] font-black text-indigo-900 mb-4">
-                  Make Your Philly Plans
-                </h1>
-                <p className="text-lg sm:text-xl text-gray-700 max-w-2xl mx-auto">
-                  Discover events and add them to your plans, subscribe to tags for daily e-mail roundups of what's coming, and more.
-                </p>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
-                  <span className="absolute w-full h-px bg-white opacity-20" />
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
-                    alt="Our Philly Mascot"
-                    className="absolute right-0 w-24 h-auto -translate-y-1/3"
-                  />
-                </div>
+            <div className="relative mt-12">
+              <FallingPills />
+              <div className="relative z-10 text-center">
+                <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
               </div>
-      
-              <div className="max-w-screen-xl mx-auto px-4 py-2 z-10 text-left">
-                <TrendingTags />
-                <UpcomingTraditionsScroller />
-              </div>
-            </div>
 
-            <div className="mt-12 text-center">
-              <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
-            </div>
+              {/* ─── Pills + Date Picker + Event Count ─── */}
+              <div className="relative z-10 container mx-auto px-4 mt-12">
+                <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
+                  {/* Pills row */}
+                  <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                    {['today', 'tomorrow', 'weekend'].map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => { setSelectedOption(opt); goTo(opt); }}
+                        className={`
+                          text-sm sm:text-base
+                          px-3 sm:px-5 py-1 sm:py-2
+                          rounded-full border-2
+                          font-semibold
+                          shadow-lg
+                          transform transition-transform duration-200
+                          ${
+                            selectedOption === opt
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
+                          }
+                        `}
+                      >
+                        {opt === 'today' ? 'Today'
+                          : opt === 'tomorrow' ? 'Tomorrow'
+                          : 'This Weekend'}
+                      </button>
+                    ))}
+                  </div>
 
-            {/* ─── Pills + Date Picker + Event Count ─── */}
-            <div className="container mx-auto px-4 mt-12">
-              <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
-                {/* Pills row */}
-                <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4 w-full sm:w-auto">
-                  {['today', 'tomorrow', 'weekend'].map(opt => (
-                    <button
-                      key={opt}
-                      onClick={() => { setSelectedOption(opt); goTo(opt); }}
+                  {/* DatePicker below on mobile, inline on desktop */}
+                  <div className="relative w-full sm:w-auto">
+                    <DatePicker
+                      selected={new Date(customDate)}
+                      onChange={date => {
+                        const iso = date.toISOString().slice(0, 10)
+                        setCustomDate(iso)
+                        setSelectedOption('custom')
+                        goTo('custom', iso)
+                      }}
+                      dateFormat="yyyy-MM-dd"
+                      placeholderText="Pick a date"
                       className={`
-                        text-sm sm:text-base
-                        px-3 sm:px-5 py-1 sm:py-2
-                        rounded-full border-2
-                        font-semibold
+                        w-full sm:w-auto
+                        text-sm sm:text-base px-2 sm:px-4 py-1 sm:py-2
+                        border-2 border-indigo-600 rounded-full
                         shadow-lg
-                        transform transition-transform duration-200
-                        ${
-                          selectedOption === opt
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
-                        }
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500
+                        transition duration-200
                       `}
-                    >
-                      {opt === 'today' ? 'Today'
-                        : opt === 'tomorrow' ? 'Tomorrow'
-                        : 'This Weekend'}
-                    </button>
-                  ))}
-                </div>
-      
-                {/* DatePicker below on mobile, inline on desktop */}
-                <div className="relative w-full sm:w-auto">
-                  <DatePicker
-                    selected={new Date(customDate)}
-                    onChange={date => {
-                      const iso = date.toISOString().slice(0, 10)
-                      setCustomDate(iso)
-                      setSelectedOption('custom')
-                      goTo('custom', iso)
-                    }}
-                    dateFormat="yyyy-MM-dd"
-                    placeholderText="Pick a date"
-                    className={`
-                      w-full sm:w-auto
-                      text-sm sm:text-base px-2 sm:px-4 py-1 sm:py-2
-                      border-2 border-indigo-600 rounded-full
-                      shadow-lg
-                      focus:outline-none focus:ring-2 focus:ring-indigo-500
-                      transition duration-200
-                    `}
-                    wrapperClassName="w-full sm:w-auto"
-                    calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
-                    popperClassName="z-50"
-                  />
+                      wrapperClassName="w-full sm:w-auto"
+                      calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
+                      popperClassName="z-50"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1323,14 +1231,54 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
       
             {/* ─── Recent Activity ─── */}
             <RecentActivity />
-            <TaggedEventScroller tags={['peco-multicultural']} header="#PECO Multicultural"/>
-            <TaggedEventScroller tags={['arts']} header="#Arts Coming Soon"/>
-            <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Next Up"/>
+            <HeroLanding fullWidth />
+            <TaggedEventScroller
+              tags={['birds']}
+              fullWidth
+              header={(
+                <>
+                  <Link
+                    to="/tags/birds"
+                    className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#FFD700] bg-[#FFD700] text-[#004C55] rounded-full"
+                  >
+                    #Birds
+                  </Link>
+                  <span className="ml-4 text-3xl sm:text-5xl font-[Barrio] text-[#004C55]">Coming Soon</span>
+                </>
+              )}
+            />
+            <TaggedEventScroller
+              tags={['arts']}
+              fullWidth
+              header={(
+                <>
+                  <Link
+                    to="/tags/arts"
+                    className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
+                  >
+                    #Arts
+                  </Link>
+                  <span className="ml-4 text-3xl sm:text-5xl font-[Barrio] text-[#004C55]">Coming Soon</span>
+                </>
+              )}
+            />
+            <TaggedEventScroller
+              tags={['nomnomslurp']}
+              fullWidth
+              header={(
+                <>
+                  <Link
+                    to="/tags/nomnomslurp"
+                    className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
+                  >
+                    #NomNomSlurp
+                  </Link>
+                  <span className="ml-4 text-3xl sm:text-5xl font-[Barrio] text-[#004C55]">Coming Soon</span>
+                </>
+              )}
+            />
             <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
 
-            {/* ─── Hero Banner ─── */}
-            <HeroLanding />
-      
             <BigBoardEventsGrid />
             <PopularGroups />
       
