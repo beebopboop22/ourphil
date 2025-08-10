@@ -39,6 +39,9 @@ const Footer = () => {
             <li>
               <a href="/traditions-faq" className="text-sm text-gray-400 hover:text-white">Traditions Hosts FAQ</a>
             </li>
+            <li>
+              <a href="/groups-faq" className="text-sm text-gray-400 hover:text-white">Groups FAQ</a>
+            </li>
           </ul>
         </div>
 

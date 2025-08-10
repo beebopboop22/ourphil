@@ -284,6 +284,11 @@ export default function GroupDetailPage() {
               </button>
             )}
           </div>
+          <div className="mt-2">
+            <a href="/groups-faq" className="text-sm text-indigo-700 underline">
+              First time managing this page? Read the Groups FAQ →
+            </a>
+          </div>
 
           {/* ── Add Event Form or Prompt ─────────────────────────────────── */}
           {user ? (
