@@ -698,7 +698,21 @@ export default function EventDetailPage() {
 
         <hr className="my-8 border-gray-200" />
 
-        <TaggedEventScroller tags={['nomnomslurp']} header="#NomNomSlurp Upcoming" />
+        <TaggedEventScroller
+          tags={['nomnomslurp']}
+          fullWidth
+          header={(
+            <>
+              <Link
+                to="/tags/nomnomslurp"
+                className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
+              >
+                #NomNomSlurp
+              </Link>
+              <span className="ml-4 text-xl">Upcoming</span>
+            </>
+          )}
+        />
 
         <hr className="my-8 border-gray-200" />
 
