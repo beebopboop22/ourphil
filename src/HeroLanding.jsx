@@ -10,7 +10,7 @@ function FavoriteState({ event_id, source_table, children }) {
   return children(state);
 }
 
-export default function HeroLanding() {
+export default function HeroLanding({ fullWidth = false }) {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
@@ -84,7 +84,7 @@ export default function HeroLanding() {
   }, []);
 
   return (
-    <section className="relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden">
+    <section className={`relative w-full bg-white border-b border-gray-200 py-16 overflow-hidden ${fullWidth ? 'px-0' : 'px-4'}`}>
       <img
         src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1%20copy-min.png"
         alt=""
@@ -93,13 +93,11 @@ export default function HeroLanding() {
         className="absolute top-0 w-1/4 h-full object-contain pointer-events-none"
       />
 
-      <div className="relative max-w-screen-xl mx-auto text-center z-20">
-        {/* inline header + button */}
-        <div className="flex   justify-between mb-6">
-          <h2 className="text-2xl font-[barrio] sm:text-4xl font-medium font-bold text-gray-700">
+      <div className={`relative ${fullWidth ? 'text-center' : 'max-w-screen-xl mx-auto text-center'} z-20`}>
+        <div className="mb-6 text-center">
+          <h2 className="text-2xl font-[barrio] sm:text-4xl font-bold text-gray-700">
             Upcoming Festivals, Fairs, and Philly Traditions
           </h2>
-         
         </div>
 
         {loading ? (

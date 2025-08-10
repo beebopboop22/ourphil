@@ -15,6 +15,8 @@ function FavoriteState({ event_id, source_table, children }) {
 export default function TaggedEventsScroller({
   tags = [],             // array of tag slugs to pull events from
   header = 'Upcoming Events',
+  embedded = false,      // if true, omit outer section & header markup
+  fullWidth = false,     // if true, stretch to viewport edges
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -286,119 +288,129 @@ export default function TaggedEventsScroller({
 
   if (tagMeta.isSeasonal && !active) return null;
 
-  const sectionClass = tagMeta.isSeasonal
-    ? 'relative w-full bg-gradient-to-r from-purple-50 to-pink-100 border-y-4 border-purple-300 py-16 px-4 overflow-hidden'
-    : 'relative w-full bg-white border-b border-gray-200 py-16 px-4 overflow-hidden';
+  const baseSectionClass = tagMeta.isSeasonal
+    ? 'relative w-full bg-white border-y-4 border-[#004C55] py-16 overflow-hidden'
+    : 'relative w-full bg-white border-b border-gray-200 py-16 overflow-hidden';
+  const sectionClass = fullWidth ? `${baseSectionClass} px-0` : `${baseSectionClass} px-4`;
+  const innerClass = fullWidth
+    ? 'relative text-center z-20'
+    : 'relative max-w-screen-xl mx-auto text-center z-20';
+
+  const content = (
+    loading ? (
+      <p>Loading…</p>
+    ) : !items.length ? (
+      <p>No upcoming events.</p>
+    ) : (
+      <div className="overflow-x-auto scrollbar-hide">
+        <div className="flex gap-4">
+          {items.map(evt => {
+            const { text, color, pulse } = getBubble(
+              evt.start,
+              evt.start <= new Date() && new Date() <= evt.end
+            );
+            return (
+              <FavoriteState
+                key={`${evt.id}-${evt.start}`}
+                event_id={evt.id}
+                source_table={evt.source_table}
+              >
+                {({ isFavorite, toggleFavorite, loading }) => (
+                  <div className="flex-shrink-0 w-[260px]">
+                    <Link
+                      to={evt.href}
+                      className={`relative block w-full h-[380px] rounded-2xl overflow-hidden shadow-lg ${
+                        tagMeta.isSeasonal
+                          ? isFavorite
+                            ? 'ring-4 ring-indigo-600'
+                            : 'ring-4 ring-[#004C55]'
+                          : isFavorite
+                            ? 'ring-2 ring-indigo-600'
+                            : ''
+                      }`}
+                    >
+                      <img
+                        src={evt.imageUrl}
+                        alt={evt.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                      {tagMeta.isSeasonal && tagMeta.name && (
+                        <div className="absolute top-4 left-4 z-30 text-[10px] sm:text-xs font-medium text-gray-800">
+                          <span className="flex items-center gap-1">
+                            <span className="bg-[#004C55] text-white px-2 py-0.5 rounded-full whitespace-nowrap">
+                              {tagMeta.name}
+                            </span>
+                            <span className="bg-white/80 px-2 py-1 rounded-full">Series</span>
+                          </span>
+                        </div>
+                      )}
+                      <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
+                        {evt.title}
+                      </h3>
+                      <span
+                        className={`
+                          absolute bottom-6 left-1/2 transform -translate-x-1/2
+                          ${color} text-white text-base font-bold px-6 py-1 rounded-full
+                          whitespace-nowrap min-w-[6rem]
+                          ${pulse ? 'animate-pulse' : ''}
+                          z-20
+                        `}
+                      >
+                        {text}
+                      </span>
+                    </Link>
+                    <button
+                      onClick={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!user) {
+                          navigate('/login');
+                          return;
+                        }
+                        toggleFavorite();
+                      }}
+                      disabled={loading}
+                      className={`mt-2 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${
+                        isFavorite
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                      }`}
+                    >
+                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                    </button>
+                  </div>
+                )}
+              </FavoriteState>
+            );
+          })}
+        </div>
+      </div>
+    )
+  );
+
+  if (embedded) return content;
 
   return (
     <section className={sectionClass}>
-      <div className="relative max-w-screen-xl mx-auto text-center z-20">
+      <div className={innerClass}>
         <div className="flex items-center justify-center gap-2 mb-6">
-          <h2 className="text-2xl sm:text-4xl font-[barrio] font-bold text-gray-700">
+          <div className="text-2xl sm:text-4xl font-[barrio] font-bold text-gray-700">
             {header}
-          </h2>
+          </div>
           {tagMeta.isSeasonal && (
-            <div className="flex items-center gap-2 bg-purple-200 text-purple-900 px-4 py-1.5 rounded-full text-sm sm:text-base font-semibold">
+            <div className="flex items-center gap-2 bg-[#d9e9ea] text-[#004C55] px-4 py-1.5 rounded-full text-sm sm:text-base font-semibold">
               <Clock className="w-5 h-5" />
-              Limited-Time Tag
+              Seasonal Tag
             </div>
           )}
         </div>
         {tagMeta.isSeasonal && tagMeta.description && (
-          <div className="max-w-2xl mx-auto bg-white border-2 border-purple-300 text-gray-800 p-4 rounded-lg shadow mb-8">
+          <div className="max-w-2xl mx-auto bg-white border-2 border-[#004C55] text-gray-800 p-4 rounded-lg shadow mb-8">
             {tagMeta.description}
           </div>
         )}
-        {loading ? (
-          <p>Loading…</p>
-        ) : !items.length ? (
-          <p>No upcoming events.</p>
-        ) : (
-          <div className="overflow-x-auto scrollbar-hide">
-            <div className="flex gap-4">
-              {items.map(evt => {
-                const { text, color, pulse } = getBubble(
-                  evt.start,
-                  evt.start <= new Date() && new Date() <= evt.end
-                );
-                return (
-                  <FavoriteState
-                    key={`${evt.id}-${evt.start}`}
-                    event_id={evt.id}
-                    source_table={evt.source_table}
-                  >
-                    {({ isFavorite, toggleFavorite, loading }) => (
-                      <div className="flex-shrink-0 w-[260px]">
-                        <Link
-                          to={evt.href}
-                          className={`relative block w-full h-[380px] rounded-2xl overflow-hidden shadow-lg ${
-                            tagMeta.isSeasonal
-                              ? isFavorite
-                                ? 'ring-4 ring-indigo-600'
-                                : 'ring-4 ring-purple-300'
-                              : isFavorite
-                                ? 'ring-2 ring-indigo-600'
-                                : ''
-                          }`}
-                        >
-                          <img
-                            src={evt.imageUrl}
-                            alt={evt.title}
-                            className="absolute inset-0 w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
-                          {tagMeta.isSeasonal && tagMeta.name && (
-                            <div className="absolute top-4 left-4 z-30 text-[10px] sm:text-xs font-medium text-gray-800">
-                              <span className="flex items-center gap-1">
-                                <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full whitespace-nowrap">
-                                  {tagMeta.name}
-                                </span>
-                                <span className="bg-white/80 px-2 py-1 rounded-full">Series</span>
-                              </span>
-                            </div>
-                          )}
-                          <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
-                            {evt.title}
-                          </h3>
-                          <span
-                            className={`
-                              absolute bottom-6 left-1/2 transform -translate-x-1/2
-                              ${color} text-white text-base font-bold px-6 py-1 rounded-full
-                              whitespace-nowrap min-w-[6rem]
-                              ${pulse ? 'animate-pulse' : ''}
-                              z-20
-                            `}
-                          >
-                            {text}
-                          </span>
-                        </Link>
-                        <button
-                          onClick={e => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (!user) {
-                              navigate('/login');
-                              return;
-                            }
-                            toggleFavorite();
-                          }}
-                          disabled={loading}
-                          className={`mt-2 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${
-                            isFavorite
-                              ? 'bg-indigo-600 text-white'
-                              : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
-                          }`}
-                        >
-                          {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                        </button>
-                      </div>
-                    )}
-                  </FavoriteState>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {content}
       </div>
     </section>
   );
