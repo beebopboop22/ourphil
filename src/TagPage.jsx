@@ -490,9 +490,9 @@ export default function TagPage() {
             <h1 className="text-4xl font-[barrio] text-gray-800 mb-4">#{tag.name}</h1>
             {tag.is_seasonal && (
               <div className="flex justify-center mb-4">
-                <div className="flex items-center gap-1 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold">
+                <div className="flex items-center gap-1 bg-[#d9e9ea] text-[#004C55] px-3 py-1 rounded-full text-xs font-semibold">
                   <Clock className="w-4 h-4" />
-                  Limited-Time Tag
+                  Seasonal Tag
                 </div>
               </div>
             )}
