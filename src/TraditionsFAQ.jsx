@@ -14,7 +14,7 @@ export default function TraditionsFAQ() {
       </Helmet>
       <Navbar />
       <main className="flex-grow">
-        <section className="pt-24 pb-16 px-4 max-w-3xl mx-auto text-center">
+        <section className="pt-32 pb-16 px-4 max-w-3xl mx-auto text-center">
           <img src={heartUrl} alt="Our Philly heart logo" width="120" height="120" className="mx-auto mb-6" />
           <h1 className="text-4xl sm:text-5xl font-[Barrio] text-indigo-900 mb-4">Traditions Hosts FAQ</h1>
           <p className="text-lg text-gray-700 mb-12">For organizers of Philly’s annual traditions (e.g., Broad Street Run, Danny Rumph Classic).</p>

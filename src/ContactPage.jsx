@@ -49,7 +49,7 @@ export default function ContactPage() {
       <div className="flex flex-col min-h-screen overflow-x-visible">
         <Navbar />
 
-        <main className="container mx-auto px-4 py-12 flex-grow mt-12">
+        <main className="container mx-auto px-4 py-12 flex-grow mt-32">
           <section className="max-w-lg mx-auto bg-white shadow-md rounded-lg p-8">
             <h1 className="text-3xl font-[Barrio] text-center mb-6 text-[#28313e]">Contact Us</h1>
             <form onSubmit={handleSubmit} className="space-y-4">

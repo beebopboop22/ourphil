@@ -283,7 +283,7 @@ export default function RecurringEventPage() {
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar />
 
-        <main className="flex-grow">
+        <main className="flex-grow mt-32">
           {/* Hero banner */}
           <div
             className="w-full h-[40vh] bg-cover bg-center"

@@ -86,7 +86,7 @@ export default function GroupsPage() {
 
       <div className="min-h-screen bg-neutral-50">
         <Navbar />
-        <div className="pt-20">
+        <div className="pt-32">
           <GroupProgressBar />
 
           {/* Match Wizard Promo Section */}

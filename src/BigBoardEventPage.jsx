@@ -484,7 +484,7 @@ export default function BigBoardEventPage() {
       <div className="flex flex-col min-h-screen bg-white">
         <Navbar />
 
-        <main className="flex-grow relative">
+        <main className="flex-grow relative mt-32">
           {/* Hero banner */}
           <div
             className="w-full h-[40vh] bg-cover bg-center"

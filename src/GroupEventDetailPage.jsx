@@ -257,24 +257,25 @@ if (ev.image_url) {
         <title>{evt.title} – {group.Name}</title>
       </Helmet>
       <Navbar/>
-      <GroupProgressBar/>
+      <div className="mt-32">
+        <GroupProgressBar/>
 
-      {/* static banner */}
-      <div
-        className="w-full h-[200px] bg-cover bg-center"
-        style={{
-          backgroundImage:
-            `url("https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//Group%20Event%20Banner.png")`
-        }}
-      />
-      {!user && (
-        <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-          <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-        </div>
-      )}
+        {/* static banner */}
+        <div
+          className="w-full h-[200px] bg-cover bg-center"
+          style={{
+            backgroundImage:
+              `url("https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//Group%20Event%20Banner.png")`
+          }}
+        />
+        {!user && (
+          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
+          </div>
+        )}
 
-      {/* overlap detail card */}
-      <div className={`max-w-3xl mx-auto bg-white shadow-xl rounded-xl relative z-10 ${user ? '-mt-24' : ''}`}>
+        {/* overlap detail card */}
+        <div className={`max-w-3xl mx-auto bg-white shadow-xl rounded-xl relative z-10 ${user ? '-mt-24' : ''}`}>
         <EventFavorite
           event_id={evt.id}
           source_table="group_events"
@@ -524,6 +525,7 @@ if (ev.image_url) {
       </section>
 
       <Footer/>
+    </div>
     </>
   )
 }
