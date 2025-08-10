@@ -6,6 +6,7 @@ import SubmitGroupModal from './SubmitGroupModal';
 import PostFlyerModal from './PostFlyerModal';
 import { AuthContext } from './AuthProvider';
 import { supabase } from './supabaseClient';
+import NavTagMenu from './NavTagMenu';
 
 export default function Navbar() {
   const { user } = useContext(AuthContext);
@@ -126,6 +127,8 @@ export default function Navbar() {
             )}
           </button>
         </div>
+
+        <NavTagMenu />
 
         {/* Mobile slide-out */}
         {menuOpen && (
