@@ -229,6 +229,14 @@ export default function UpcomingPlansCard() {
             reader.readAsDataURL(blob);
           });
           img.src = dataUrl;
+          // Ensure the embedded image is fully loaded before export
+          if (img.decode) {
+            try {
+              await img.decode();
+            } catch (err) {
+              console.warn('decode image', err);
+            }
+          }
         } catch (e) {
           console.warn('embed image', e);
         }
@@ -243,7 +251,7 @@ export default function UpcomingPlansCard() {
 
   const handleShare = async network => {
     void network;
-    const card = document.getElementById('plans-card');
+    const card = document.getElementById('plans-card-wrapper');
     if (!card) return;
     try {
       const { toBlob } = await import('https://esm.sh/html-to-image');
@@ -300,9 +308,13 @@ export default function UpcomingPlansCard() {
           ×
         </button>
         <div
-          id="plans-card"
-          className="relative bg-white w-full max-w-sm rounded-lg shadow flex flex-col px-4 pt-6 pb-0"
+          id="plans-card-wrapper"
+          className="relative bg-white w-[540px] max-w-full aspect-[9/16] flex items-center justify-center"
         >
+          <div
+            id="plans-card"
+            className="relative bg-white w-full aspect-square rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
+          >
           <header className="flex items-center gap-2 mb-3">
             <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
             <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
@@ -346,6 +358,7 @@ export default function UpcomingPlansCard() {
             <FaTiktok className="text-black" />
           </button>
         </div>
+          </div>
         </div>
       </div>
     </div>
