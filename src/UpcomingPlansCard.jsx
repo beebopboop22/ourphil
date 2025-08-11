@@ -229,6 +229,14 @@ export default function UpcomingPlansCard() {
             reader.readAsDataURL(blob);
           });
           img.src = dataUrl;
+          // Ensure the embedded image is fully loaded before export
+          if (img.decode) {
+            try {
+              await img.decode();
+            } catch (err) {
+              console.warn('decode image', err);
+            }
+          }
         } catch (e) {
           console.warn('embed image', e);
         }
@@ -301,7 +309,7 @@ export default function UpcomingPlansCard() {
         </button>
         <div
           id="plans-card"
-          className="relative bg-white w-full max-w-sm rounded-lg shadow flex flex-col px-4 pt-6 pb-0"
+          className="relative bg-white w-[540px] max-w-full aspect-[9/16] rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
         >
           <header className="flex items-center gap-2 mb-3">
             <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
