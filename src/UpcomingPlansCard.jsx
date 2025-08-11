@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { RRule } from 'rrule';
 import { FaTwitter, FaFacebook, FaInstagram, FaTiktok } from 'react-icons/fa';
+import exportCardImage from './utils/exportCardImage.js';
 
 const logoUrl = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png';
 
@@ -41,9 +41,7 @@ function formatDisplayDate(date) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function UpcomingPlansCard() {
-  const { slug } = useParams();
-  const navigate = useNavigate();
+export default function UpcomingPlansCard({ slug, hideActions = false }) {
   const [profile, setProfile] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -210,62 +208,13 @@ export default function UpcomingPlansCard() {
     load();
   }, [slug]);
 
-  const embedImages = async node => {
-    const imgs = Array.from(node.getElementsByTagName('img'));
-    const originals = [];
-    await Promise.all(
-      imgs.map(async img => {
-        if (img.src.startsWith('data:')) return;
-        originals.push([img, img.src]);
-        try {
-          const res = await fetch(img.src, { mode: 'cors' });
-          if (!res.ok) {
-            throw new Error(`Failed to fetch ${img.src}: ${res.status}`);
-          }
-          const blob = await res.blob();
-          const reader = new FileReader();
-          const dataUrl = await new Promise(resolve => {
-            reader.onload = () => resolve(reader.result);
-            reader.readAsDataURL(blob);
-          });
-          img.src = dataUrl;
-          // Ensure the embedded image is fully loaded before export
-          if (img.decode) {
-            try {
-              await img.decode();
-            } catch (err) {
-              console.warn('decode image', err);
-            }
-          }
-        } catch (e) {
-          console.warn('embed image', e);
-        }
-      })
-    );
-    return () => {
-      originals.forEach(([img, src]) => {
-        img.src = src;
-      });
-    };
-  };
-
   const handleShare = async network => {
     void network;
     // Export only the inner square card so the resulting image is 1080×1080
     const card = document.getElementById('plans-card');
     if (!card) return;
     try {
-      const { toBlob } = await import('https://esm.sh/html-to-image');
-      const cleanup = await embedImages(card);
-      const blob = await toBlob(card, {
-        pixelRatio: 2,
-        width: 1080,
-        height: 1080,
-        cacheBust: true,
-        // Exclude elements (like the close and share buttons) marked with data-no-export
-        filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
-      });
-      cleanup();
+      const blob = await exportCardImage(card);
       if (!blob) throw new Error('image generation failed');
       const file = new File([blob], 'plans.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -293,31 +242,14 @@ export default function UpcomingPlansCard() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center py-8">
-      <div className="mb-4 flex justify-center" data-no-export>
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-500 hover:text-gray-700 text-sm"
-        >
-          Go Back
-        </button>
-      </div>
-      <div className="relative">
-        <button
-          onClick={() => navigate(-1)}
-          className="absolute -top-4 -right-4 text-gray-500 hover:text-gray-700"
-          aria-label="Close"
-          data-no-export
-        >
-          ×
-        </button>
-        <div
+      <div
           id="plans-card-wrapper"
           className="relative bg-white w-[540px] max-w-full aspect-[9/16] flex items-center justify-center"
+      >
+        <div
+          id="plans-card"
+          className="relative bg-white w-full aspect-square rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
         >
-          <div
-            id="plans-card"
-            className="relative bg-white w-full aspect-square rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
-          >
           <header className="flex items-center gap-2 mb-3">
             <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
             <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
@@ -347,24 +279,25 @@ export default function UpcomingPlansCard() {
           className="w-16 self-start mt-2 block"
           crossOrigin="anonymous"
         />
-        <div className="flex justify-center gap-4 mt-4 pb-4" data-no-export>
-          <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
-            <FaTwitter className="text-sky-500" />
-          </button>
-          <button onClick={() => handleShare('facebook')} aria-label="Share to Facebook">
-            <FaFacebook className="text-blue-600" />
-          </button>
-          <button onClick={() => handleShare('instagram')} aria-label="Share to Instagram Stories">
-            <FaInstagram className="text-pink-500" />
-          </button>
-          <button onClick={() => handleShare('tiktok')} aria-label="Share to TikTok">
-            <FaTiktok className="text-black" />
-          </button>
-        </div>
+        {!hideActions && (
+          <div className="flex justify-center gap-4 mt-4 pb-4" data-no-export>
+            <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
+              <FaTwitter className="text-sky-500" />
+            </button>
+            <button onClick={() => handleShare('facebook')} aria-label="Share to Facebook">
+              <FaFacebook className="text-blue-600" />
+            </button>
+            <button onClick={() => handleShare('instagram')} aria-label="Share to Instagram Stories">
+              <FaInstagram className="text-pink-500" />
+            </button>
+            <button onClick={() => handleShare('tiktok')} aria-label="Share to TikTok">
+              <FaTiktok className="text-black" />
+            </button>
+          </div>
+        )}
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
