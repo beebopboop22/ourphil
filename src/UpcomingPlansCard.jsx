@@ -251,13 +251,16 @@ export default function UpcomingPlansCard() {
 
   const handleShare = async network => {
     void network;
-    const card = document.getElementById('plans-card-wrapper');
+    // Export only the inner square card so the resulting image is 1080×1080
+    const card = document.getElementById('plans-card');
     if (!card) return;
     try {
       const { toBlob } = await import('https://esm.sh/html-to-image');
       const cleanup = await embedImages(card);
       const blob = await toBlob(card, {
         pixelRatio: 2,
+        width: 1080,
+        height: 1080,
         cacheBust: true,
         // Exclude elements (like the close and share buttons) marked with data-no-export
         filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
@@ -298,7 +301,7 @@ export default function UpcomingPlansCard() {
           Go Back
         </button>
       </div>
-      <div className="relative">
+      <div className="relative flex flex-col items-center">
         <button
           onClick={() => navigate(-1)}
           className="absolute -top-4 -right-4 text-gray-500 hover:text-gray-700"
@@ -309,11 +312,12 @@ export default function UpcomingPlansCard() {
         </button>
         <div
           id="plans-card-wrapper"
-          className="relative bg-white w-[540px] max-w-full aspect-[9/16] flex items-center justify-center"
+          className="relative bg-white flex items-center justify-center"
+          style={{ width: 'min(540px, 100vw, 100vh)', height: 'min(540px, 100vw, 100vh)' }}
         >
           <div
             id="plans-card"
-            className="relative bg-white w-full aspect-square rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
+            className="relative bg-white w-full h-full rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
           >
           <header className="flex items-center gap-2 mb-3">
             <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
@@ -344,7 +348,9 @@ export default function UpcomingPlansCard() {
           className="w-16 self-start mt-2 block"
           crossOrigin="anonymous"
         />
-        <div className="flex justify-center gap-4 mt-4 pb-4" data-no-export>
+          </div>
+        </div>
+        <div className="flex justify-center gap-4 mt-4" data-no-export>
           <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
             <FaTwitter className="text-sky-500" />
           </button>
@@ -357,8 +363,6 @@ export default function UpcomingPlansCard() {
           <button onClick={() => handleShare('tiktok')} aria-label="Share to TikTok">
             <FaTiktok className="text-black" />
           </button>
-        </div>
-          </div>
         </div>
       </div>
     </div>
