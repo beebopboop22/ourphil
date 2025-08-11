@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from './AuthProvider';
 import useEventComments from './utils/useEventComments';
 import { supabase } from './supabaseClient';
+import { FaFacebookF, FaInstagram, FaGlobe } from 'react-icons/fa';
+import { SiTiktok } from 'react-icons/si';
 
 export default function CommentsSection({ source_table, event_id }) {
   const { user } = useContext(AuthContext);
@@ -67,7 +69,7 @@ export default function CommentsSection({ source_table, event_id }) {
     (async () => {
       const { data: profs } = await supabase
         .from('profiles')
-        .select('id,username,image_url')
+        .select('id,username,image_url,facebook_url,instagram_url,tiktok_url,website_url')
         .in('id', ids);
       const map = {};
       profs?.forEach(p => {
@@ -79,7 +81,15 @@ export default function CommentsSection({ source_table, event_id }) {
             .getPublicUrl(img);
           img = publicUrl;
         }
-        map[p.id] = { username: p.username, image: img, cultures: [] };
+        map[p.id] = {
+          username: p.username,
+          image: img,
+          cultures: [],
+          facebook: p.facebook_url,
+          instagram: p.instagram_url,
+          tiktok: p.tiktok_url,
+          website: p.website_url,
+        };
       });
       const { data: rows } = await supabase
         .from('profile_tags')
@@ -110,15 +120,15 @@ export default function CommentsSection({ source_table, event_id }) {
             const prof = profiles[c.user_id] || {};
             return (
               <div key={c.id} className="bg-white rounded-xl shadow p-4">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-4">
                   {prof.image ? (
-                    <img src={prof.image} alt="User avatar" loading="lazy" className="w-8 h-8 rounded-full object-cover" />
+                    <img src={prof.image} alt="User avatar" loading="lazy" className="w-10 h-10 rounded-full object-cover" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-gray-300" />
+                    <div className="w-10 h-10 rounded-full bg-gray-300" />
                   )}
                   <div className="flex-1">
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="font-semibold text-sm">{prof.username}</span>
+                    <div className="flex items-center flex-wrap gap-2 mb-2 text-base">
+                      <span className="font-semibold">{prof.username}</span>
                       {prof.cultures?.map(c => (
                         <span key={c.emoji} className="relative group">
                           {c.emoji}
@@ -127,6 +137,28 @@ export default function CommentsSection({ source_table, event_id }) {
                           </span>
                         </span>
                       ))}
+                      <div className="flex gap-2 ml-2 text-lg">
+                        {prof.facebook && (
+                          <a href={prof.facebook} target="_blank" rel="noopener" className="hover:text-indigo-600">
+                            <FaFacebookF />
+                          </a>
+                        )}
+                        {prof.instagram && (
+                          <a href={prof.instagram} target="_blank" rel="noopener" className="hover:text-indigo-600">
+                            <FaInstagram />
+                          </a>
+                        )}
+                        {prof.tiktok && (
+                          <a href={prof.tiktok} target="_blank" rel="noopener" className="hover:text-indigo-600">
+                            <SiTiktok />
+                          </a>
+                        )}
+                        {prof.website && (
+                          <a href={prof.website} target="_blank" rel="noopener" className="hover:text-indigo-600">
+                            <FaGlobe />
+                          </a>
+                        )}
+                      </div>
                     </div>
                     {editingId === c.id ? (
                       <form onSubmit={handleEditSubmit} className="space-y-2">
@@ -154,7 +186,7 @@ export default function CommentsSection({ source_table, event_id }) {
                   </form>
                 ) : (
                   <>
-                    <p className={isExpanded ? 'mb-2' : 'mb-2 line-clamp-3'}>{c.content}</p>
+                    <p className={isExpanded ? 'mb-2 text-lg' : 'mb-2 line-clamp-3 text-lg'}>{c.content}</p>
                     {isLong && (
                       <button
                         onClick={() => toggle(c.id)}
