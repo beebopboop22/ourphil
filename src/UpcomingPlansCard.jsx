@@ -251,16 +251,19 @@ export default function UpcomingPlansCard() {
 
   const handleShare = async network => {
     void network;
-    // Export only the inner square card so the resulting image is 1080×1080
-    const card = document.getElementById('plans-card');
-    if (!card) return;
+    // Export the full 9×16 wrapper so the shared image fills mobile stories
+    const wrapper = document.getElementById('plans-card-wrapper');
+    if (!wrapper) return;
     try {
       const { toBlob } = await import('https://esm.sh/html-to-image');
-      const cleanup = await embedImages(card);
-      const blob = await toBlob(card, {
-        pixelRatio: 2,
+      const cleanup = await embedImages(wrapper);
+      const size = wrapper.offsetWidth;
+      const scale = 1080 / size;
+      const blob = await toBlob(wrapper, {
         width: 1080,
-        height: 1080,
+        height: 1920,
+        pixelRatio: 1,
+        style: { transform: `scale(${scale})`, transformOrigin: 'top left' },
         cacheBust: true,
         // Exclude elements (like the close and share buttons) marked with data-no-export
         filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
