@@ -312,11 +312,12 @@ export default function UpcomingPlansCard() {
         </button>
         <div
           id="plans-card-wrapper"
-          className="relative bg-white w-[540px] max-w-full aspect-[9/16] flex items-center justify-center"
+          className="relative bg-white flex items-center justify-center"
+          style={{ width: 'min(540px, 100vw, 100vh)', height: 'min(540px, 100vw, 100vh)' }}
         >
           <div
             id="plans-card"
-            className="relative bg-white w-full aspect-square rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
+            className="relative bg-white w-full h-full rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
           >
           <header className="flex items-center gap-2 mb-3">
             <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
