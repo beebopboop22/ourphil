@@ -257,10 +257,13 @@ export default function UpcomingPlansCard() {
     try {
       const { toBlob } = await import('https://esm.sh/html-to-image');
       const cleanup = await embedImages(card);
+      const size = card.offsetWidth;
+      const scale = 1080 / size;
       const blob = await toBlob(card, {
-        pixelRatio: 2,
         width: 1080,
         height: 1080,
+        pixelRatio: 1,
+        style: { transform: `scale(${scale})`, transformOrigin: 'top left' },
         cacheBust: true,
         // Exclude elements (like the close and share buttons) marked with data-no-export
         filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
