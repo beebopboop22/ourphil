@@ -5,6 +5,7 @@ import { RRule } from 'rrule';
 import { FaTwitter, FaFacebook, FaInstagram, FaTiktok } from 'react-icons/fa';
 
 const logoUrl = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png';
+const MAX_EVENTS = 10;
 
 function parseEventsDateRange(startStr, explicitEnd) {
   if (!startStr) return { start: null, end: null };
@@ -47,6 +48,7 @@ export default function UpcomingPlansCard() {
   const [profile, setProfile] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [includeMascot, setIncludeMascot] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -201,7 +203,7 @@ export default function UpcomingPlansCard() {
         })
         .filter(ev => ev._date && ev._end && ev._end >= today)
         .sort((a, b) => a._date - b._date)
-        .slice(0, 10)
+        .slice(0, MAX_EVENTS)
         .map(({ _date, _end, ...rest }) => rest);
 
       setEvents(upcoming);
@@ -251,11 +253,12 @@ export default function UpcomingPlansCard() {
 
   const handleShare = async network => {
     void network;
-    // Export only the inner square card so the resulting image is 1080×1080
     const card = document.getElementById('plans-card');
     if (!card) return;
     try {
       const { toBlob } = await import('https://esm.sh/html-to-image');
+      setIncludeMascot(true);
+      await new Promise(r => setTimeout(r));
       const cleanup = await embedImages(card);
       const blob = await toBlob(card, {
         pixelRatio: 2,
@@ -266,6 +269,7 @@ export default function UpcomingPlansCard() {
         filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
       });
       cleanup();
+      setIncludeMascot(false);
       if (!blob) throw new Error('image generation failed');
       const file = new File([blob], 'plans.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -281,6 +285,7 @@ export default function UpcomingPlansCard() {
     } catch (err) {
       console.error(err);
       alert('Unable to share image');
+      setIncludeMascot(false);
     }
   };
 
@@ -293,23 +298,14 @@ export default function UpcomingPlansCard() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center py-8">
-      <div className="mb-4 flex justify-center" data-no-export>
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-500 hover:text-gray-700 text-sm"
-        >
-          Go Back
-        </button>
-      </div>
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-4 px-6 py-2 text-lg font-semibold bg-blue-600 text-white rounded"
+        data-no-export
+      >
+        Go Back
+      </button>
       <div className="relative">
-        <button
-          onClick={() => navigate(-1)}
-          className="absolute -top-4 -right-4 text-gray-500 hover:text-gray-700"
-          aria-label="Close"
-          data-no-export
-        >
-          ×
-        </button>
         <div
           id="plans-card-wrapper"
           className="relative bg-white w-[540px] max-w-full aspect-[9/16] flex items-center justify-center"
@@ -318,51 +314,56 @@ export default function UpcomingPlansCard() {
             id="plans-card"
             className="relative bg-white w-full aspect-square rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
           >
-          <header className="flex items-center gap-2 mb-3">
-            <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
-            <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
-          </header>
-        <div className="flex flex-col items-center mb-2">
-          <span className="text-sm font-semibold">{profile.username || profile.slug}</span>
-        </div>
-        {events.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">No upcoming events saved.</div>
-        ) : (
-          <>
-            <div className="text-center text-xs uppercase tracking-wide text-gray-500 border-b pb-1 mb-2">
-              Upcoming plans
+            <header className="flex items-center gap-2 mb-3">
+              <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
+              <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
+            </header>
+            <div className="flex flex-col items-center mb-2">
+              <span className="text-sm font-semibold">{profile.username || profile.slug}</span>
             </div>
-            <ul className="flex-1 divide-y text-xs">
-              {events.map(ev => (
-                <li key={`${ev.source_table}-${ev.id}`} className="py-1 truncate">
-                  {ev.title} - {ev.displayDate}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        <img
-          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/meet-gritty-formatted.png"
-          alt="Mascot"
-          className="w-16 self-start mt-2 block"
-          crossOrigin="anonymous"
-        />
-        <div className="flex justify-center gap-4 mt-4 pb-4" data-no-export>
-          <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
-            <FaTwitter className="text-sky-500" />
-          </button>
-          <button onClick={() => handleShare('facebook')} aria-label="Share to Facebook">
-            <FaFacebook className="text-blue-600" />
-          </button>
-          <button onClick={() => handleShare('instagram')} aria-label="Share to Instagram Stories">
-            <FaInstagram className="text-pink-500" />
-          </button>
-          <button onClick={() => handleShare('tiktok')} aria-label="Share to TikTok">
-            <FaTiktok className="text-black" />
-          </button>
-        </div>
+            {events.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">No upcoming events saved.</div>
+            ) : (
+              <>
+                <div className="text-center text-xs uppercase tracking-wide text-gray-500 border-b pb-1 mb-2">
+                  Upcoming plans
+                </div>
+                <ul className="divide-y">
+                  {events.map(ev => (
+                    <li key={`${ev.source_table}-${ev.id}`} className="py-2">
+                      <div className="text-base font-medium leading-snug break-words">
+                        {ev.title}
+                      </div>
+                      <div className="text-sm text-gray-500">{ev.displayDate}</div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {includeMascot && (
+              <img
+                src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/meet-gritty-formatted.png"
+                alt="Mascot"
+                className="w-16 mt-auto self-start"
+                crossOrigin="anonymous"
+              />
+            )}
           </div>
         </div>
+      </div>
+      <div className="flex justify-center gap-4 mt-4" data-no-export>
+        <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
+          <FaTwitter className="text-sky-500" />
+        </button>
+        <button onClick={() => handleShare('facebook')} aria-label="Share to Facebook">
+          <FaFacebook className="text-blue-600" />
+        </button>
+        <button onClick={() => handleShare('instagram')} aria-label="Share to Instagram Stories">
+          <FaInstagram className="text-pink-500" />
+        </button>
+        <button onClick={() => handleShare('tiktok')} aria-label="Share to TikTok">
+          <FaTiktok className="text-black" />
+        </button>
       </div>
     </div>
   );
