@@ -47,6 +47,17 @@ export default function UpcomingPlansCard() {
   const [profile, setProfile] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cardSize, setCardSize] = useState(() =>
+    Math.min(window.innerWidth, window.innerHeight - 120)
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setCardSize(Math.min(window.innerWidth, window.innerHeight - 120));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -257,10 +268,10 @@ export default function UpcomingPlansCard() {
     try {
       const { toBlob } = await import('https://esm.sh/html-to-image');
       const cleanup = await embedImages(card);
+      const width = card.getBoundingClientRect().width;
+      const scale = 1080 / width;
       const blob = await toBlob(card, {
-        pixelRatio: 2,
-        width: 1080,
-        height: 1080,
+        pixelRatio: scale,
         cacheBust: true,
         // Exclude elements (like the close and share buttons) marked with data-no-export
         filter: node => !(node instanceof HTMLElement && node.dataset.noExport !== undefined),
@@ -292,32 +303,23 @@ export default function UpcomingPlansCard() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center py-8">
-      <div className="mb-4 flex justify-center" data-no-export>
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-500 hover:text-gray-700 text-sm"
-        >
-          Go Back
-        </button>
-      </div>
-      <div className="relative">
-        <button
-          onClick={() => navigate(-1)}
-          className="absolute -top-4 -right-4 text-gray-500 hover:text-gray-700"
-          aria-label="Close"
-          data-no-export
-        >
-          ×
-        </button>
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-4 px-6 py-2 text-lg font-semibold bg-blue-600 text-white rounded"
+        data-no-export
+      >
+        Go Back
+      </button>
+      <div
+        id="plans-card-wrapper"
+        className="flex items-center justify-center"
+        style={{ width: cardSize, height: cardSize }}
+      >
         <div
-          id="plans-card-wrapper"
-          className="relative bg-white w-[540px] max-w-full aspect-[9/16] flex items-center justify-center"
+          id="plans-card"
+          className="relative bg-white w-full h-full rounded-lg shadow flex flex-col px-8 pt-6 pb-4 overflow-hidden"
         >
-          <div
-            id="plans-card"
-            className="relative bg-white w-full aspect-square rounded-lg shadow flex flex-col px-8 pt-6 pb-0 overflow-hidden"
-          >
           <header className="flex items-center gap-2 mb-3">
             <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
             <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
@@ -347,22 +349,21 @@ export default function UpcomingPlansCard() {
           className="w-16 self-start mt-2 block"
           crossOrigin="anonymous"
         />
-        <div className="flex justify-center gap-4 mt-4 pb-4" data-no-export>
-          <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
-            <FaTwitter className="text-sky-500" />
-          </button>
-          <button onClick={() => handleShare('facebook')} aria-label="Share to Facebook">
-            <FaFacebook className="text-blue-600" />
-          </button>
-          <button onClick={() => handleShare('instagram')} aria-label="Share to Instagram Stories">
-            <FaInstagram className="text-pink-500" />
-          </button>
-          <button onClick={() => handleShare('tiktok')} aria-label="Share to TikTok">
-            <FaTiktok className="text-black" />
-          </button>
         </div>
-          </div>
-        </div>
+      </div>
+      <div className="flex justify-center gap-4 mt-4" data-no-export>
+        <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
+          <FaTwitter className="text-sky-500" />
+        </button>
+        <button onClick={() => handleShare('facebook')} aria-label="Share to Facebook">
+          <FaFacebook className="text-blue-600" />
+        </button>
+        <button onClick={() => handleShare('instagram')} aria-label="Share to Instagram Stories">
+          <FaInstagram className="text-pink-500" />
+        </button>
+        <button onClick={() => handleShare('tiktok')} aria-label="Share to TikTok">
+          <FaTiktok className="text-black" />
+        </button>
       </div>
     </div>
   );
