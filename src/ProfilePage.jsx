@@ -12,6 +12,9 @@ import { RRule } from 'rrule';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaFacebookF, FaInstagram, FaGlobe } from 'react-icons/fa';
 import { SiTiktok } from 'react-icons/si';
+import { createRoot } from 'react-dom/client';
+import UpcomingPlansCard from './UpcomingPlansCard.jsx';
+import exportCardImage from './utils/exportCardImage.js';
 
 function CultureModal({ initial = [], onSave, onClose }) {
   const [tags, setTags] = useState([]);
@@ -116,6 +119,49 @@ export default function ProfilePage() {
   const [tiktokUrl, setTiktokUrl] = useState(profile?.tiktok_url || '');
   const [websiteUrl, setWebsiteUrl] = useState(profile?.website_url || '');
   const fileRef = useRef(null);
+
+  const shareUpcomingPlans = async () => {
+    if (!profile?.slug) return;
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = '-10000px';
+    container.style.left = '0';
+    container.style.width = '540px';
+    container.style.height = '960px';
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    root.render(<UpcomingPlansCard slug={profile.slug} hideActions />);
+    // Wait a tick for React to render
+    await new Promise(r => setTimeout(r, 100));
+    const card = container.querySelector('#plans-card');
+    let blob;
+    try {
+      blob = await exportCardImage(card);
+    } finally {
+      root.unmount();
+      container.remove();
+    }
+    if (!blob) return;
+    const file = new File([blob], 'plans.png', { type: 'image/png' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'My Philly plans' });
+      } else if (navigator.share) {
+        const url = URL.createObjectURL(blob);
+        await navigator.share({ title: 'My Philly plans', url });
+        URL.revokeObjectURL(url);
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'plans.png';
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Load tags and subscriptions on mount
   useEffect(() => {
@@ -799,10 +845,10 @@ export default function ProfilePage() {
           <section>
             <div className="mb-4">
               <button
-                onClick={() => navigate(`/u/${profile?.slug}/plans-card`)}
+                onClick={shareUpcomingPlans}
                 className="w-full px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
               >
-                View upcoming plans card
+                Share upcoming plans
               </button>
             </div>
             {loadingSaved ? (
