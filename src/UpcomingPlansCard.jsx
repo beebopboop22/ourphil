@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { RRule } from 'rrule';
-import { FaTwitter, FaFacebook, FaInstagram } from 'react-icons/fa';
+import { FaTwitter, FaFacebook, FaInstagram, FaTiktok } from 'react-icons/fa';
 
 const logoUrl = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png';
 
@@ -281,23 +281,32 @@ export default function UpcomingPlansCard() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center py-8">
-      <div
-        id="plans-card"
-        className="relative bg-white w-full max-w-sm rounded-lg shadow flex flex-col px-4 pt-6 pb-4"
-      >
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center py-8">
+      <div className="mb-4 flex justify-center" data-no-export>
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-4 left-4 text-gray-500 hover:text-gray-700"
+          className="text-gray-500 hover:text-gray-700 text-sm"
+        >
+          Go Back
+        </button>
+      </div>
+      <div className="relative">
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute -top-4 -right-4 text-gray-500 hover:text-gray-700"
           aria-label="Close"
           data-no-export
         >
           ×
         </button>
-        <header className="flex items-center justify-center gap-2 mb-3">
-          <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
-          <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
-        </header>
+        <div
+          id="plans-card"
+          className="relative bg-white w-full max-w-sm rounded-lg shadow flex flex-col px-4 pt-6 pb-4"
+        >
+          <header className="flex items-center gap-2 mb-3">
+            <img src={logoUrl} alt="Our Philly" className="h-8" crossOrigin="anonymous" />
+            <span className="text-[10px] text-gray-600">Make your Philly plans at ourphilly.org</span>
+          </header>
         <div className="flex flex-col items-center mb-2">
           <span className="text-sm font-semibold">{profile.username || profile.slug}</span>
         </div>
@@ -317,6 +326,12 @@ export default function UpcomingPlansCard() {
             </ul>
           </>
         )}
+        <img
+          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/meet-gritty-formatted.png"
+          alt="Mascot"
+          className="w-16 self-start mt-2"
+          crossOrigin="anonymous"
+        />
         <div className="flex justify-center gap-4 mt-4" data-no-export>
           <button onClick={() => handleShare('twitter')} aria-label="Share to Twitter">
             <FaTwitter className="text-sky-500" />
@@ -327,6 +342,10 @@ export default function UpcomingPlansCard() {
           <button onClick={() => handleShare('instagram')} aria-label="Share to Instagram Stories">
             <FaInstagram className="text-pink-500" />
           </button>
+          <button onClick={() => handleShare('tiktok')} aria-label="Share to TikTok">
+            <FaTiktok className="text-black" />
+          </button>
+        </div>
         </div>
       </div>
     </div>
