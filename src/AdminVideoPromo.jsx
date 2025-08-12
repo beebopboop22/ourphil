@@ -59,7 +59,7 @@ export default function AdminVideoPromo() {
   async function loadEvents() {
     const { data, error } = await supabase
       .from('events')
-      .select('id, "E Name", Dates, "E Image"')
+      .select('id, "E Name", Dates, "E Image", "E Description"')
       .order('Dates', { ascending: true });
     if (error) {
       console.error(error);
@@ -76,6 +76,8 @@ export default function AdminVideoPromo() {
           image: e['E Image'],
           date,
           displayDate: formatDisplayDate(date, time),
+          captionDate: formatDisplayDate(date, null),
+          description: e['E Description'],
         };
       })
       .filter(ev => ev.date && ev.date >= today)
@@ -88,39 +90,51 @@ export default function AdminVideoPromo() {
   }
 
   return (
-    <div className="relative min-h-screen text-white">
-      <Navbar />
-      <video
-        className="absolute inset-0 w-full h-full object-cover"
-        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//13687405-hd_1080_1920_30fps.mp4"
-        autoPlay
-        loop
-        muted
-        playsInline
-      />
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="relative z-10 pt-24 max-w-2xl mx-auto px-4">
-        <h1 className="text-center text-4xl font-[Barrio] mb-4">UPCOMING PHILLY TRADITIONS</h1>
-        {events.map(ev => (
-          <div
-            key={ev.id}
-            className="flex w-full items-center justify-center gap-3 py-2 border-b border-white/30 last:border-none"
-          >
-            {ev.image && (
-              <img
-                src={ev.image}
-                alt=""
-                className="w-20 h-12 object-cover rounded"
-              />
-            )}
-            <div className="text-left">
-              <div className="text-lg font-semibold text-gray-100">{ev.name}</div>
-              <div className="text-sm text-gray-300">{ev.displayDate}</div>
+    <>
+      <div className="relative min-h-screen text-white">
+        <Navbar />
+        <video
+          className="absolute inset-0 w-full h-full object-cover"
+          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//13687405-hd_1080_1920_30fps.mp4"
+          autoPlay
+          loop
+          muted
+          playsInline
+        />
+        <div className="absolute inset-0 bg-black/50" />
+        <div className="relative z-10 pt-32 max-w-2xl mx-auto px-4">
+          <h1 className="text-center text-4xl font-[Barrio] mb-4">UPCOMING PHILLY TRADITIONS</h1>
+          {events.map(ev => (
+            <div
+              key={ev.id}
+              className="flex w-full items-center justify-start gap-2 py-1 border-b border-white/30 last:border-none"
+            >
+              {ev.image && (
+                <img
+                  src={ev.image}
+                  alt=""
+                  className="w-16 h-10 object-cover rounded"
+                />
+              )}
+              <div className="text-left">
+                <div className="text-sm font-semibold text-gray-100">{ev.name}</div>
+                <div className="text-xs text-gray-300">{ev.displayDate}</div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+      <div className="bg-white">
+        <div className="h-24" />
+        <div className="px-4 pb-24 text-sm text-gray-800">
+          {events.map(ev => (
+            <p key={ev.id} className="mb-2">
+              {`${ev.name} - ${ev.captionDate} - ${ev.description}`}
+            </p>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 
