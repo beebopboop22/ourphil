@@ -14,10 +14,6 @@ const parseDate = datesStr => {
   const dt = new Date(y, m - 1, d)
   return isNaN(dt) ? null : dt
 }
-const parseISODateLocal = str => {
-  const [y, m, d] = str.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
 const isThisWeekend = date => {
   const t = new Date(); t.setHours(0,0,0,0)
   const d = t.getDay()
@@ -64,18 +60,12 @@ export default function SocialVideoCarousel() {
   const containerRef          = useRef(null)
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // ─── Fetch & combine weekend events + big-board ───────────
+  // ─── Fetch weekend events from events table ───────────────
   useEffect(() => {
     ;(async () => {
       const { data: tradData = [] } = await supabase
         .from('events')
         .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
-      const { data: bbData = [] } = await supabase
-        .from('big_board_events')
-        .select(`
-          id, title, start_date, slug,
-          big_board_posts!big_board_posts_event_id_fkey(image_url)
-        `)
 
       const trad = tradData
         .map(e => ({
@@ -88,26 +78,7 @@ export default function SocialVideoCarousel() {
         }))
         .filter(evt => isThisWeekend(evt.start))
 
-      const bb = bbData
-        .map(e => {
-          const start = parseISODateLocal(e.start_date)
-          const key   = e.big_board_posts?.[0]?.image_url
-          const { data:{ publicUrl='' } } = supabase
-            .storage.from('big-board')
-            .getPublicUrl(key)
-          return {
-            key:   `bb-${e.id}`,
-            slug:  `/big-board/${e.slug}`,
-            name:  e.title,
-            start,
-            end:   start,
-            image: publicUrl,
-            isBB:  true,
-          }
-        })
-        .filter(evt => isThisWeekend(evt.start))
-
-      setEvents([...trad, ...bb].slice(0,30))
+      setEvents(trad.slice(0,30))
       setLoading(false)
     })()
   }, [])
@@ -140,7 +111,7 @@ export default function SocialVideoCarousel() {
           color: #fff;
           font-size: .875rem;
           white-space: nowrap;
-          opacity: .9;
+          opacity: .2;
           animation-name: fall;
           animation-timing-function: linear;
           animation-iteration-count: infinite;
@@ -204,16 +175,9 @@ export default function SocialVideoCarousel() {
                         {evt.name}
                       </h3>
                     </div>
-                    {evt.isBB && (
-                      <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center">
-                        <span className="text-xs font-bold text-white uppercase">
-                          COMMUNITY SUBMISSION
-                        </span>
-                      </div>
-                    )}
                   </Link>
-                )
-              })}
+               )
+             })}
             </div>
           )}
         </div>
