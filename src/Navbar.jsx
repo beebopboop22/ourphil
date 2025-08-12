@@ -8,7 +8,7 @@ import { AuthContext } from './AuthProvider';
 import { supabase } from './supabaseClient';
 import NavTagMenu from './NavTagMenu';
 
-export default function Navbar() {
+export default function Navbar({ style }) {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 w-full bg-white shadow z-50">
+      <nav className="fixed top-0 w-full bg-white shadow z-50" style={style}>
         <div className="max-w-screen-xl mx-auto flex items-center justify-between h-20 px-4">
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">

@@ -81,7 +81,7 @@ export default function AdminVideoPromo() {
         };
       })
       .filter(ev => ev.date && ev.date >= today)
-      .slice(0, 10);
+      .slice(0, 7);
     setEvents(upcoming);
   }
 
@@ -92,7 +92,8 @@ export default function AdminVideoPromo() {
   return (
     <>
       <div className="relative min-h-screen text-white">
-        <Navbar />
+        <div className="fixed top-0 w-full h-1 bg-white z-50" />
+        <Navbar style={{ top: '4px' }} />
         <video
           className="absolute inset-0 w-full h-full object-cover"
           src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//13687405-hd_1080_1920_30fps.mp4"
@@ -103,7 +104,7 @@ export default function AdminVideoPromo() {
         />
         <div className="absolute inset-0 bg-black/50" />
         <div className="relative z-10 pt-36 max-w-2xl mx-auto px-4">
-          <h1 className="text-center text-4xl font-[Barrio] mb-1">Next 10 Philly Traditions</h1>
+          <h1 className="text-center text-4xl font-[Barrio] mb-1">Upcoming Philly Traditions</h1>
           <p className="text-center text-xs mb-4">Make your Philly plans at ourphilly.org</p>
           {events.map(ev => (
             <div
