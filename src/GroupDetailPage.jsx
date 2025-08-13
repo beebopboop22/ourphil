@@ -11,6 +11,7 @@ import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites'
 import OutletsList from './OutletsList'
 import Voicemail from './Voicemail'
 import Footer from './Footer'
+import GroupNoticesSection from './GroupNoticesSection'
 
 export default function GroupDetailPage() {
   const { slug } = useParams()
@@ -350,6 +351,8 @@ export default function GroupDetailPage() {
           )}
         </div>
       </div>
+
+      <GroupNoticesSection groupId={group.id} />
 
       {/* ── Events Grid ──────────────────────────────────────────────────── */}
 <section className="mt-12 max-w-screen-xl mx-auto px-4">
