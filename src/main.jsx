@@ -103,7 +103,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/activity" element={<AdminActivity />} />
           <Route path="/admin/video-promo" element={<AdminVideoPromo />} />
-          <Route path="/social-video" element={<SocialVideoCarousel />} />
+          <Route path="/social-video-arts" element={<SocialVideoCarousel tag="arts" />} />
+          <Route path="/social-video-food" element={<SocialVideoCarousel tag="nomnomslurp" />} />
+          <Route path="/social-video-fitness" element={<SocialVideoCarousel tag="fitness" />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
           <Route path="/:venue" element={<VenuePage />} />

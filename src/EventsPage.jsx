@@ -2,7 +2,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet';
 import Navbar from './Navbar';
-import SocialVideoCarousel from './SocialVideoCarousel';  // ← our scrolling bar + red sports bar
 import HeroLanding from './HeroLanding';
 import EventsGrid from './EventsGrid';
 import BokEventsGrid from './BokEventsGrid';
