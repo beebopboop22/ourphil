@@ -14,14 +14,6 @@ const parseDate = datesStr => {
   const dt = new Date(y, m - 1, d)
   return isNaN(dt) ? null : dt
 }
-const isThisWeekend = date => {
-  const t = new Date(); t.setHours(0,0,0,0)
-  const d = t.getDay()
-  const sat = new Date(t); sat.setDate(t.getDate()+((6-d+7)%7))
-  const sun = new Date(t); sun.setDate(t.getDate()+((0-d+7)%7))
-  sat.setHours(0,0,0,0); sun.setHours(23,59,59,999)
-  return date>=sat && date<=sun
-}
 const getBubble = (start, isActive) => {
   const today = new Date(); today.setHours(0,0,0,0)
   if (isActive) return { text: 'Today' }
@@ -33,55 +25,64 @@ const getBubble = (start, isActive) => {
   return { text: wd }
 }
 
-export default function SocialVideoCarousel() {
-  // ─── Falling pills setup ────────────────────────────────
-  const [pillConfigs, setPillConfigs] = useState([])
-  const colors = ['#22C55E','#0D9488','#DB2777','#3B82F6','#F97316','#EAB308','#8B5CF6','#EF4444']
-  useEffect(() => {
-    supabase
-      .from('tags')
-      .select('id,name')
-      .order('name', { ascending: true })
-      .then(({ data }) => {
-        const configs = (data||[]).map((t,i) => ({
-          name:     t.name,
-          color:    colors[i % colors.length],
-          left:     50 + Math.random()*50,  // between 50% and 100%
-          duration: 4 + Math.random()*2,    // 4–6s fall
-          delay:    -Math.random()*6,
-        }))
-        setPillConfigs(configs)
-      })
-  }, [])
-
-  // ─── Carousel state ──────────────────────────────────────
-  const [events, setEvents]   = useState([])
+export default function SocialVideoCarousel({ tag }) {
+  const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
-  const containerRef          = useRef(null)
+  const containerRef = useRef(null)
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // ─── Fetch weekend events from events table ───────────────
+  // ─── Fetch upcoming events by tag ─────────────────────────
   useEffect(() => {
     ;(async () => {
-      const { data: tradData = [] } = await supabase
-        .from('events')
-        .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
+      try {
+        // 1) look up tag id
+        const { data: tagRow } = await supabase
+          .from('tags')
+          .select('id')
+          .eq('slug', tag)
+          .single()
 
-      const trad = tradData
-        .map(e => ({
-          key:   `ev-${e.id}`,
-          slug:  `/events/${e.slug}`,
-          name:  e['E Name'],
-          start: parseDate(e.Dates),
-          end:   e['End Date'] ? parseDate(e['End Date']) : parseDate(e.Dates),
-          image: e['E Image'] || '',
-        }))
-        .filter(evt => isThisWeekend(evt.start))
+        const tagId = tagRow?.id
+        if (!tagId) { setEvents([]); setLoading(false); return }
 
-      setEvents(trad.slice(0,30))
-      setLoading(false)
+        // 2) fetch event ids tagged with this slug
+        const { data: taggings } = await supabase
+          .from('taggings')
+          .select('taggable_id')
+          .eq('tag_id', tagId)
+          .eq('taggable_type', 'events')
+
+        const eventIds = (taggings || []).map(t => t.taggable_id)
+        if (!eventIds.length) { setEvents([]); setLoading(false); return }
+
+        // 3) fetch events and filter upcoming
+        const { data: tradData = [] } = await supabase
+          .from('events')
+          .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
+          .in('id', eventIds)
+
+        const today = new Date(); today.setHours(0,0,0,0)
+        const trad = (tradData || [])
+          .map(e => ({
+            key:   `ev-${e.id}`,
+            slug:  `/events/${e.slug}`,
+            name:  e['E Name'],
+            start: parseDate(e.Dates),
+            end:   e['End Date'] ? parseDate(e['End Date']) : parseDate(e.Dates),
+            image: e['E Image'] || '',
+          }))
+          .filter(evt => evt.start && evt.start >= today)
+          .sort((a, b) => a.start - b.start)
+
+        setEvents(trad.slice(0,15))
+        setLoading(false)
+      } catch (err) {
+        console.error(err)
+        setEvents([])
+        setLoading(false)
+      }
     })()
-  }, [])
+  }, [tag])
 
   // auto-scroll every 1.5s
   useEffect(() => {
@@ -101,87 +102,48 @@ export default function SocialVideoCarousel() {
   }, [currentIndex])
 
   return (
-    <>
-      <style>{`
-        .pill {
-          position: absolute;
-          top: -2rem;
-          padding: .4rem .8rem;
-          border-radius: 9999px;
-          color: #fff;
-          font-size: .875rem;
-          white-space: nowrap;
-          opacity: .2;
-          animation-name: fall;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-        }
-        @keyframes fall {
-          to { transform: translateY(110vh); }
-        }
-      `}</style>
+    <div className="relative flex flex-col min-h-screen overflow-hidden">
+      <Navbar />
 
-      <div className="relative flex flex-col min-h-screen overflow-hidden">
-        <Navbar />
-
-        {/* falling pills restricted to right half */}
-        <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none z-50">
-          {pillConfigs.map((p, i) => (
-            <span
-              key={i}
-              className="pill"
-              style={{
-                left:              `${p.left}%`,
-                backgroundColor:   p.color,
-                animationDuration: `${p.duration}s`,
-                animationDelay:    `${p.delay}s`,
-              }}
-            >
-              #{p.name}
-            </span>
-          ))}
-        </div>
-
-        <div className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg mt-20 z-10">
-          Subscribe to #tags for your weekly digest
-        </div>
-
-        <div className="h-[calc(80vh+80px)] min-h-[400px] overflow-hidden relative z-10">
-          {loading ? (
-            <p className="text-center py-20">Loading…</p>
-          ) : (
-            <div ref={containerRef} className="flex w-full h-full overflow-hidden">
-              {events.map(evt => {
-                const isActive = evt.start <= new Date() && new Date() <= evt.end
-                const relativeDay = getBubble(evt.start, isActive).text
-                return (
-                  <Link
-                    key={evt.key}
-                    to={evt.slug}
-                    className="relative w-full flex-shrink-0 h-full"
-                    style={{ minWidth: '100%' }}
-                  >
-                    <img
-                      src={evt.image}
-                      alt={evt.name}
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/80 to-black/30" />
-                    <div className="absolute inset-0 flex flex-col justify-center px-6 z-20">
-                      <p className="text-white uppercase font-semibold tracking-wide text-sm mb-2">
-                        {relativeDay}
-                      </p>
-                      <h3 className="font-[Barrio] text-3xl md:text-5xl text-white drop-shadow-lg font-bold leading-snug">
-                        {evt.name}
-                      </h3>
-                    </div>
-                  </Link>
-               )
-             })}
-            </div>
-          )}
-        </div>
+      <div className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg mt-32 z-10">
+        Subscribe to #tags for your weekly digest
       </div>
-    </>
+
+      <div className="h-[calc(80vh+80px)] min-h-[400px] overflow-hidden relative z-10">
+        {loading ? (
+          <p className="text-center py-20">Loading…</p>
+        ) : (
+          <div ref={containerRef} className="flex w-full h-full overflow-hidden">
+            {events.map(evt => {
+              const isActive = evt.start <= new Date() && new Date() <= evt.end
+              const relativeDay = getBubble(evt.start, isActive).text
+              return (
+                <Link
+                  key={evt.key}
+                  to={evt.slug}
+                  className="relative w-full flex-shrink-0 h-full"
+                  style={{ minWidth: '100%' }}
+                >
+                  <img
+                    src={evt.image}
+                    alt={evt.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/80 to-black/30" />
+                  <div className="absolute inset-0 flex flex-col justify-center px-6 z-20">
+                    <p className="text-white uppercase font-semibold tracking-wide text-sm mb-2">
+                      {relativeDay}
+                    </p>
+                    <h3 className="font-[Barrio] text-3xl md:text-5xl text-white drop-shadow-lg font-bold leading-snug">
+                      {evt.name}
+                    </h3>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
