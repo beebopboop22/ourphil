@@ -12,6 +12,7 @@ import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
+import { isTagActive } from './utils/tagUtils';
 const CommentsSection = lazy(() => import('./CommentsSection'));
 
 export default function BigBoardEventPage() {
@@ -151,8 +152,10 @@ export default function BigBoardEventPage() {
           .getPublicUrl(post.image_url);
 
         // load tags list & existing tags
-        const { data: tagsData } = await supabase.from('tags').select('id,name');
-        setTagsList(tagsData || []);
+        const { data: tagsData } = await supabase
+          .from('tags')
+          .select('id,name,rrule,season_start,season_end');
+        setTagsList((tagsData || []).filter(isTagActive));
         const { data: taggings = [] } = await supabase
           .from('taggings')
           .select('tag_id')

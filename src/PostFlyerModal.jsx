@@ -6,6 +6,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import imageCompression from 'browser-image-compression';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
+import { isTagActive } from './utils/tagUtils';
 
 export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initialFile = null }) {
   const { user } = useContext(AuthContext);
@@ -63,8 +64,10 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
   }, [isOpen]);
 
   async function loadTags() {
-    const { data, error } = await supabase.from('tags').select('id,name');
-    if (!error) setTagsList(data);
+    const { data, error } = await supabase
+      .from('tags')
+      .select('id,name,rrule,season_start,season_end');
+    if (!error && data) setTagsList(data.filter(isTagActive));
   }
 
   function handleFileChange(e) {

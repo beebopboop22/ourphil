@@ -6,6 +6,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 import imageCompression from 'browser-image-compression'
 import { supabase } from './supabaseClient'
 import { AuthContext } from './AuthProvider'
+import { isTagActive } from './utils/tagUtils'
 
 const pillStyles = [
   'bg-red-100 text-red-800',
@@ -51,9 +52,12 @@ export default function GroupEventModal({
   // load tags on open
   useEffect(() => {
     if (!isOpen) return
-    supabase.from('tags').select('id,name').then(({ data }) => {
-      if (data) setTagsList(data)
-    })
+    supabase
+      .from('tags')
+      .select('id,name,rrule,season_start,season_end')
+      .then(({ data }) => {
+        if (data) setTagsList(data.filter(isTagActive))
+      })
   }, [isOpen])
 
   // prevent background scroll
