@@ -19,6 +19,15 @@ const parseLocalYMD = str => {
   return isNaN(dt) ? null : dt
 }
 
+const formatDate = date => {
+  if (!date) return ''
+  return 'This ' + date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
 export default function PlansVideoCarousel({ tag = 'arts' }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -97,25 +106,25 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
           idsByType.events.length
             ? supabase
                 .from('events')
-                .select('id, slug, "E Name", Dates, "End Date", "E Image"')
+                .select('id, slug, "E Name", Dates, "End Date", "E Image", "E Description"')
                 .in('id', idsByType.events)
             : { data: [] },
           idsByType.big_board_events.length
             ? supabase
                 .from('big_board_events')
-                .select('id, title, slug, start_date, end_date, big_board_posts!big_board_posts_event_id_fkey(image_url)')
+                .select('id, title, slug, start_date, end_date, description, big_board_posts!big_board_posts_event_id_fkey(image_url)')
                 .in('id', idsByType.big_board_events)
             : { data: [] },
           idsByType.all_events.length
             ? supabase
                 .from('all_events')
-                .select('id, slug, name, start_date, image, venue_id(slug)')
+                .select('id, slug, name, start_date, image, description, venue_id(slug)')
                 .in('id', idsByType.all_events)
             : { data: [] },
           idsByType.group_events.length
             ? supabase
                 .from('group_events')
-                .select('id, title, slug, start_date, end_date, image_url, group_id')
+                .select('id, title, slug, description, start_date, end_date, image_url, group_id')
                 .in('id', idsByType.group_events)
             : { data: [] },
         ])
@@ -141,7 +150,8 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
             slug: `/events/${e.slug}`,
             name: e['E Name'],
             start, end,
-            image: e['E Image'] || ''
+            image: e['E Image'] || '',
+            description: e['E Description'] || ''
           })
         })
         ;(bbRes.data || []).forEach(ev => {
@@ -156,7 +166,8 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
             slug: `/big-board/${ev.slug}`,
             name: ev.title,
             start, end,
-            image
+            image,
+            description: ev.description || ''
           })
         })
         ;(aeRes.data || []).forEach(ev => {
@@ -168,7 +179,8 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
             name: ev.name,
             start,
             end: start,
-            image: ev.image || ''
+            image: ev.image || '',
+            description: ev.description || ''
           })
         })
         ;(geRes.data || []).forEach(ev => {
@@ -184,7 +196,8 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
               slug: `/groups/${groupSlug}/events/${ev.slug}`,
               name: ev.title,
               start, end,
-              image
+              image,
+              description: ev.description || ''
             })
           }
         })
@@ -224,7 +237,7 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
   }, [current])
 
     return (
-      <div className="relative flex flex-col min-h-screen overflow-hidden">
+      <div className="relative flex flex-col min-h-screen overflow-x-hidden">
         <Navbar />
 
         <div className="pill-container fixed inset-0 pointer-events-none z-0">
@@ -302,6 +315,18 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
             </div>
           )}
         </div>
+
+        {events.length > 0 && (
+          <div className="px-4 py-8 z-10">
+            {events.map(ev => (
+              <p key={`list-${ev.key}`} className="mb-4">
+                {ev.name}, {formatDate(ev.start)}: {ev.description}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div className="mb-96"></div>
 
         <div className="fixed bottom-0 w-full bg-gray-200 text-center py-3 font-[Barrio] text-lg text-gray-800 z-20">
           make your Philly plans at ourphilly.org
