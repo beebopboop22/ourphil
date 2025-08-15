@@ -26,6 +26,7 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
   const [current, setCurrent] = useState(0)
   const [added, setAdded] = useState(false)
   const [pillConfigs, setPillConfigs] = useState([])
+  const [navHeight, setNavHeight] = useState(0)
 
   const colors = [
     '#22C55E', // green
@@ -54,6 +55,20 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
         }))
         setPillConfigs(configs)
       })
+  }, [])
+
+  useEffect(() => {
+    const navEl = document.querySelector('nav')
+    if (!navEl) return
+    const updateHeight = () => setNavHeight(navEl.offsetHeight)
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(navEl)
+    window.addEventListener('resize', updateHeight)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateHeight)
+    }
   }, [])
 
   useEffect(() => {
@@ -229,11 +244,17 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
           ))}
         </div>
 
-        <div className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg mt-32 z-10">
+        <div
+          className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg z-10"
+          style={{ marginTop: navHeight }}
+        >
           Upcoming #arts events in Philly
         </div>
 
-        <div className="h-[calc(100vh-8rem)] flex-1 overflow-hidden relative z-10 pb-16">
+        <div
+          className="flex-1 overflow-hidden relative z-10 pb-16"
+          style={{ height: `calc(100dvh - ${navHeight}px)` }}
+        >
           {loading ? (
             <p className="text-center py-20">Loading…</p>
           ) : (
