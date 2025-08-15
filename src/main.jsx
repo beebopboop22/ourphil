@@ -36,6 +36,7 @@ import AdminActivity from './AdminActivity.jsx';
 import AdminComments from './AdminComments.jsx';
 import SocialVideoCarousel from './SocialVideoCarousel.jsx';
 import PlansVideoCarousel from './PlansVideoCarousel.jsx';
+import PlansVideoIndex from './PlansVideoIndex.jsx';
 import AdminVideoPromo from './AdminVideoPromo.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
@@ -108,6 +109,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/social-video-food" element={<SocialVideoCarousel tag="nomnomslurp" />} />
           <Route path="/social-video-fitness" element={<SocialVideoCarousel tag="fitness" />} />
           <Route path="/plans-video-arts" element={<PlansVideoCarousel tag="arts" />} />
+          <Route path="/plans-video-food" element={<PlansVideoCarousel tag="nomnomslurp" />} />
+          <Route path="/plans-video-fitness" element={<PlansVideoCarousel tag="fitness" />} />
+          <Route path="/plans-video-music" element={<PlansVideoCarousel tag="music" />} />
+          <Route path="/plans-video" element={<PlansVideoIndex />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
           <Route path="/:venue" element={<VenuePage />} />
