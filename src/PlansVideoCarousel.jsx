@@ -245,21 +245,26 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
                   style={{ minWidth: '100%' }}
                 >
                   <div
-                    className={`w-11/12 max-w-md h-full mx-auto rounded-xl overflow-hidden flex flex-col transition-all duration-500 ${
+                    className={`plans-carousel-card w-11/12 max-w-md mx-auto flex flex-col overflow-hidden rounded-xl bg-white transition-all duration-500 ${
                       idx === current && added
                         ? 'border-4 border-indigo-600'
                         : 'border border-transparent'
                     }`}
+                    style={{ maxHeight: 'calc(100dvh - var(--bottom-bar, 5rem) - env(safe-area-inset-bottom))' }}
                   >
                     {evt.image && (
-                      <img
-                        src={evt.image}
-                        alt={evt.name}
-                        className="w-full flex-grow object-cover"
-                      />
+                      <div className="shrink-0 relative w-full aspect-video">
+                        <img
+                          src={evt.image}
+                          alt={evt.name}
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      </div>
                     )}
-                    <div className="p-4 bg-white text-center">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-4 text-center">
                       <h3 className="font-bold text-xl mb-4">{evt.name}</h3>
+                    </div>
+                    <div className="shrink-0 border-t p-3 bg-white">
                       <button
                         className={`w-full border rounded-md py-2 font-semibold transition-colors ${
                           idx === current && added
@@ -297,6 +302,13 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
           }
           @keyframes fall {
             to { transform: translateY(110vh); }
+          }
+        `}</style>
+        <style>{`
+          @supports not (height: 100dvh) {
+            .plans-carousel-card {
+              max-height: calc(100vh - var(--bottom-bar, 5rem));
+            }
           }
         `}</style>
       </div>
