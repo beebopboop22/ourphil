@@ -248,7 +248,7 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
           className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg z-10"
           style={{ marginTop: navHeight }}
         >
-          Upcoming #arts events in Philly
+          Upcoming #{tag} events in Philly
         </div>
 
         <div
