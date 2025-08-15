@@ -245,7 +245,7 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
                   style={{ minWidth: '100%' }}
                 >
                   <div
-                    className={`w-11/12 max-w-md h-full mx-auto rounded-xl overflow-hidden flex flex-col transition-all duration-500 ${
+                    className={`w-11/12 max-w-md h-full max-h-md mx-auto rounded-xl overflow-hidden flex flex-col transition-all duration-500 ${
                       idx === current && added
                         ? 'border-4 border-indigo-600'
                         : 'border border-transparent'
