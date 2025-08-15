@@ -224,7 +224,7 @@ export default function SocialVideoCarousel({ tag }) {
         Subscribe to #tags for your daily digest
       </div>
 
-      <div className="h-[calc(80vh+80px)] min-h-[400px] overflow-hidden relative z-10">
+      <div className="h-[calc(100vh-8rem)] flex-1 overflow-hidden relative z-10 pb-16">
         {loading ? (
           <p className="text-center py-20">Loading…</p>
         ) : (
