@@ -37,6 +37,7 @@ import AdminComments from './AdminComments.jsx';
 import SocialVideoCarousel from './SocialVideoCarousel.jsx';
 import PlansVideoCarousel from './PlansVideoCarousel.jsx';
 import PlansVideoIndex from './PlansVideoIndex.jsx';
+import PlansVideoTraditions from './PlansVideoTraditions.jsx';
 import AdminVideoPromo from './AdminVideoPromo.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
@@ -112,6 +113,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/plans-video-food" element={<PlansVideoCarousel tag="nomnomslurp" />} />
           <Route path="/plans-video-fitness" element={<PlansVideoCarousel tag="fitness" />} />
           <Route path="/plans-video-music" element={<PlansVideoCarousel tag="music" />} />
+          <Route path="/plans-video-traditions" element={<PlansVideoTraditions />} />
+          <Route path="/plans-video-peco" element={<PlansVideoCarousel tag="peco-multicultural-series" />} />
+          <Route path="/plans-video-markets" element={<PlansVideoCarousel tag="markets" />} />
           <Route path="/plans-video" element={<PlansVideoIndex />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
