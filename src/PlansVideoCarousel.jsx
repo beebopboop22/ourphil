@@ -28,7 +28,11 @@ const formatDate = date => {
   })
 }
 
-export default function PlansVideoCarousel({ tag = 'arts' }) {
+export default function PlansVideoCarousel({
+  tag,
+  onlyEvents = false,
+  headline,
+}) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const containerRef = useRef(null)
@@ -83,6 +87,33 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
   useEffect(() => {
     ;(async () => {
       try {
+        if (!tag) {
+          const { data } = await supabase
+            .from('events')
+            .select('id, slug, "E Name", Dates, "End Date", "E Image", "E Description"')
+          const today = new Date(); today.setHours(0,0,0,0)
+          const merged = []
+          ;(data || []).forEach(e => {
+            const start = parseDate(e.Dates)
+            const end = e['End Date'] ? parseDate(e['End Date']) : start
+            if (start && start >= today) {
+              merged.push({
+                key: `ev-${e.id}`,
+                slug: `/events/${e.slug}`,
+                name: e['E Name'],
+                start,
+                end,
+                image: e['E Image'] || '',
+                description: e['E Description'] || ''
+              })
+            }
+          })
+          merged.sort((a,b) => a.start - b.start)
+          setEvents(merged.slice(0,15))
+          setLoading(false)
+          return
+        }
+
         const { data: tagRow } = await supabase
           .from('tags')
           .select('id')
@@ -91,11 +122,15 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
         const tagId = tagRow?.id
         if (!tagId) { setEvents([]); setLoading(false); return }
 
+        const allowedTypes = onlyEvents
+          ? ['events']
+          : ['events', 'big_board_events', 'all_events', 'group_events']
+
         const { data: taggings } = await supabase
           .from('taggings')
           .select('taggable_id, taggable_type')
           .eq('tag_id', tagId)
-          .in('taggable_type', ['events','big_board_events','all_events','group_events'])
+          .in('taggable_type', allowedTypes)
 
         const idsByType = { events: [], big_board_events: [], all_events: [], group_events: [] }
         ;(taggings || []).forEach(t => {
@@ -103,25 +138,25 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
         })
 
         const [eRes, bbRes, aeRes, geRes] = await Promise.all([
-          idsByType.events.length
+          allowedTypes.includes('events') && idsByType.events.length
             ? supabase
                 .from('events')
                 .select('id, slug, "E Name", Dates, "End Date", "E Image", "E Description"')
                 .in('id', idsByType.events)
             : { data: [] },
-          idsByType.big_board_events.length
+          allowedTypes.includes('big_board_events') && idsByType.big_board_events.length
             ? supabase
                 .from('big_board_events')
                 .select('id, title, slug, start_date, end_date, description, big_board_posts!big_board_posts_event_id_fkey(image_url)')
                 .in('id', idsByType.big_board_events)
             : { data: [] },
-          idsByType.all_events.length
+          allowedTypes.includes('all_events') && idsByType.all_events.length
             ? supabase
                 .from('all_events')
                 .select('id, slug, name, start_date, image, description, venue_id(slug)')
                 .in('id', idsByType.all_events)
             : { data: [] },
-          idsByType.group_events.length
+          allowedTypes.includes('group_events') && idsByType.group_events.length
             ? supabase
                 .from('group_events')
                 .select('id, title, slug, description, start_date, end_date, image_url, group_id')
@@ -142,65 +177,77 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
         }
 
         const merged = []
-        ;(eRes.data || []).forEach(e => {
-          const start = parseDate(e.Dates)
-          const end = e['End Date'] ? parseDate(e['End Date']) : start
-          merged.push({
-            key: `ev-${e.id}`,
-            slug: `/events/${e.slug}`,
-            name: e['E Name'],
-            start, end,
-            image: e['E Image'] || '',
-            description: e['E Description'] || ''
-          })
-        })
-        ;(bbRes.data || []).forEach(ev => {
-          const start = parseLocalYMD(ev.start_date)
-          const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
-          const key = ev.big_board_posts?.[0]?.image_url
-          const image = key
-            ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
-            : ''
-          merged.push({
-            key: `bb-${ev.id}`,
-            slug: `/big-board/${ev.slug}`,
-            name: ev.title,
-            start, end,
-            image,
-            description: ev.description || ''
-          })
-        })
-        ;(aeRes.data || []).forEach(ev => {
-          const start = parseLocalYMD(ev.start_date)
-          const venueSlug = ev.venue_id?.slug
-          merged.push({
-            key: `ae-${ev.id}`,
-            slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
-            name: ev.name,
-            start,
-            end: start,
-            image: ev.image || '',
-            description: ev.description || ''
-          })
-        })
-        ;(geRes.data || []).forEach(ev => {
-          const start = parseLocalYMD(ev.start_date)
-          const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
-          let image = ''
-          if (ev.image_url?.startsWith('http')) image = ev.image_url
-          else if (ev.image_url) image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
-          const groupSlug = groupMap[ev.group_id]
-          if (groupSlug) {
+        if (allowedTypes.includes('events')) {
+          ;(eRes.data || []).forEach(e => {
+            const start = parseDate(e.Dates)
+            const end = e['End Date'] ? parseDate(e['End Date']) : start
             merged.push({
-              key: `ge-${ev.id}`,
-              slug: `/groups/${groupSlug}/events/${ev.slug}`,
+              key: `ev-${e.id}`,
+              slug: `/events/${e.slug}`,
+              name: e['E Name'],
+              start,
+              end,
+              image: e['E Image'] || '',
+              description: e['E Description'] || ''
+            })
+          })
+        }
+        if (allowedTypes.includes('big_board_events')) {
+          ;(bbRes.data || []).forEach(ev => {
+            const start = parseLocalYMD(ev.start_date)
+            const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
+            const key = ev.big_board_posts?.[0]?.image_url
+            const image = key
+              ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
+              : ''
+            merged.push({
+              key: `bb-${ev.id}`,
+              slug: `/big-board/${ev.slug}`,
               name: ev.title,
-              start, end,
+              start,
+              end,
               image,
               description: ev.description || ''
             })
-          }
-        })
+          })
+        }
+        if (allowedTypes.includes('all_events')) {
+          ;(aeRes.data || []).forEach(ev => {
+            const start = parseLocalYMD(ev.start_date)
+            const venueSlug = ev.venue_id?.slug
+            merged.push({
+              key: `ae-${ev.id}`,
+              slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+              name: ev.name,
+              start,
+              end: start,
+              image: ev.image || '',
+              description: ev.description || ''
+            })
+          })
+        }
+        if (allowedTypes.includes('group_events')) {
+          ;(geRes.data || []).forEach(ev => {
+            const start = parseLocalYMD(ev.start_date)
+            const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
+            let image = ''
+            if (ev.image_url?.startsWith('http')) image = ev.image_url
+            else if (ev.image_url)
+              image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
+            const groupSlug = groupMap[ev.group_id]
+            if (groupSlug) {
+              merged.push({
+                key: `ge-${ev.id}`,
+                slug: `/groups/${groupSlug}/events/${ev.slug}`,
+                name: ev.title,
+                start,
+                end,
+                image,
+                description: ev.description || ''
+              })
+            }
+          })
+        }
 
         const today = new Date(); today.setHours(0,0,0,0)
         const upcoming = merged
@@ -214,7 +261,7 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
         setLoading(false)
       }
     })()
-  }, [tag])
+  }, [tag, onlyEvents])
 
   useEffect(() => {
     if (!events.length) return
@@ -261,7 +308,7 @@ export default function PlansVideoCarousel({ tag = 'arts' }) {
           className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg z-10"
           style={{ marginTop: navHeight }}
         >
-          Upcoming #{tag} events in Philly
+          {headline || (tag ? `Upcoming #${tag} events in Philly` : 'Upcoming events in Philly')}
         </div>
 
         <div

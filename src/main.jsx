@@ -112,6 +112,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/plans-video-food" element={<PlansVideoCarousel tag="nomnomslurp" />} />
           <Route path="/plans-video-fitness" element={<PlansVideoCarousel tag="fitness" />} />
           <Route path="/plans-video-music" element={<PlansVideoCarousel tag="music" />} />
+          <Route
+            path="/plans-video-traditions"
+            element={<PlansVideoCarousel onlyEvents headline="Upcoming Philly Traditions" />}
+          />
+          <Route path="/plans-video-peco" element={<PlansVideoCarousel tag="peco-multicultural" />} />
+          <Route path="/plans-video-markets" element={<PlansVideoCarousel tag="markets" />} />
           <Route path="/plans-video" element={<PlansVideoIndex />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
