@@ -14,15 +14,10 @@ export function isTagActive(tag) {
       const opts = RRule.parseString(tag.rrule);
       if (tag.season_start) opts.dtstart = parseLocalYMD(tag.season_start);
       const rule = new RRule(opts);
-      const searchStart = new Date(today);
-      searchStart.setDate(searchStart.getDate() - 8);
-      const next = rule.after(searchStart, true);
+      const next = rule.after(today, true);
       if (!next) return false;
-      const start = new Date(next);
-      start.setDate(start.getDate() - 7);
-      const end = new Date(next);
-      end.setDate(end.getDate() + 1);
-      return today >= start && today < end;
+      const diff = Math.floor((next - today) / (1000 * 60 * 60 * 24));
+      return diff >= 0 && diff <= 7;
     } catch {
       return false;
     }
