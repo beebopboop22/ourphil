@@ -39,6 +39,7 @@ import RecentActivity from './RecentActivity';
 import BigBoardEventsGrid from './BigBoardEventsGrid';
 import CityHolidayAlert from './CityHolidayAlert';
 import MoreEventsBanner from './MoreEventsBanner';
+import CommunityNotices from './CommunityNotices';
 
 
 
@@ -127,11 +128,12 @@ function App() {
      
       
       <div className="overflow-x-hidden  min-h-screen flex flex-col bg-white-100 pt-20 relative">
-        <Navbar /> 
-        <CityHolidayAlert />
+      <Navbar />
+      <CityHolidayAlert />
+      <CommunityNotices />
 
 
-          
+
 <div className="relative flex flex-col md:flex-row items-center justify-center mt-12 mb-1">
   {/* we need a positioning context for the line + mascot */}
   <div className="relative inline-block text-center">
@@ -143,7 +145,7 @@ function App() {
           <div className="mt-4 border-b border-gray-200 pb-4">
             <nav className="inline-flex items-center text-sm uppercase font-bold text-indigo-600">
               {/* Big Board */}
-              <Link to="/board" className="flex items-center space-x-1 hover:underline">
+              <Link to="/big-board" className="flex items-center space-x-1 hover:underline">
                 <span role="img" aria-label="bulletin board">📌</span>
                 <span>Big Board</span>
                 <span className="bg-yellow-400 text-white text-[10px] font-bold px-1 rounded">NEW</span>
