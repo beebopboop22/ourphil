@@ -21,11 +21,17 @@ const parseLocalYMD = str => {
 
 const formatDate = date => {
   if (!date) return ''
-  return 'This ' + date.toLocaleDateString('en-US', {
-    weekday: 'long',
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((date - today) / (1000 * 60 * 60 * 24))
+  const monthDay = date.toLocaleDateString('en-US', {
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
   })
+  if (diffDays === 0) return `Today, ${monthDay}`
+  if (diffDays === 1) return `Tomorrow, ${monthDay}`
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'long' })
+  return `This ${weekday}, ${monthDay}`
 }
 
 export default function PlansVideoCarousel({
@@ -343,7 +349,8 @@ export default function PlansVideoCarousel({
                       </div>
                     )}
                     <div className="min-h-0 flex-1 overflow-y-auto p-4 text-center">
-                      <h3 className="font-bold text-xl mb-4">{evt.name}</h3>
+                      <h3 className="font-bold text-xl">{evt.name}</h3>
+                      <p className="text-gray-700 mb-4">{formatDate(evt.start)}</p>
                     </div>
                     <div className="shrink-0 border-t p-3 bg-white">
                       <button
