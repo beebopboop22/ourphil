@@ -118,6 +118,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           />
           <Route path="/plans-video-peco" element={<PlansVideoCarousel tag="peco-multicultural" />} />
           <Route path="/plans-video-markets" element={<PlansVideoCarousel tag="markets" />} />
+          <Route
+            path="/plans-video/weekend-plans"
+            element={<PlansVideoCarousel weekend headline="Events This Weekend in Philly" limit={30} />}
+          />
           <Route path="/plans-video" element={<PlansVideoIndex />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
