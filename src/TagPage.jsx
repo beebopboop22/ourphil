@@ -378,6 +378,49 @@ export default function TagPage() {
         }
       }))
 
+      if (slug === 'sports') {
+        try {
+          const teamSlugs = [
+            'philadelphia-phillies',
+            'philadelphia-76ers',
+            'philadelphia-eagles',
+            'philadelphia-flyers',
+            'philadelphia-union',
+          ]
+          let all = []
+          for (const ts of teamSlugs) {
+            const res = await fetch(
+              `https://api.seatgeek.com/2/events?performers.slug=${ts}&venue.city=Philadelphia&per_page=50&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+            )
+            const json = await res.json()
+            all.push(...(json.events || []))
+          }
+          const mappedSports = all.map(e => {
+            const dt = new Date(e.datetime_local)
+            const performers = e.performers || []
+            const home = performers.find(p => p.home_team) || performers[0] || {}
+            const away = performers.find(p => p.id !== home.id) || {}
+            const title =
+              e.short_title ||
+              `${(home.name || '').replace(/^Philadelphia\s+/, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/, '')}`
+            return {
+              id: `sg-${e.id}`,
+              title,
+              imageUrl: home.image || away.image || '',
+              start: dt,
+              start_date: dt.toISOString().slice(0,10),
+              start_time: dt.toTimeString().slice(0,5),
+              venues: e.venue ? { name: e.venue.name, slug: null } : null,
+              href: `/sports/${e.id}`,
+              isSports: true,
+            }
+          })
+          setAllEvents(prev => [...prev, ...mappedSports])
+        } catch (err) {
+          console.error('Failed to load sports events', err)
+        }
+      }
+
       setRecSeries(recRes.data || [])
       setLoading(false)
     }
