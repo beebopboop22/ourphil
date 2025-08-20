@@ -81,9 +81,12 @@ function EventCard({ evt, profileMap, tag }) {
 
   const navigate = useNavigate()
   const { user } = useContext(AuthContext)
-  const { isFavorite, toggleFavorite, loading } = useEventFavorite({
-    event_id: evt.isRecurring ? String(evt.id).split('::')[0] : evt.id,
-    source_table: evt.isBigBoard
+  const rawId = evt.isRecurring ? String(evt.id).split('::')[0] : String(evt.id)
+  const isSG = rawId.startsWith('sg-') || (evt.href && evt.href.includes('seatgeek'))
+  const eventId = isSG && !rawId.startsWith('sg-') ? `sg-${rawId}` : rawId
+  const sourceTable = isSG
+    ? 'sg_events'
+    : evt.isBigBoard
       ? 'big_board_events'
       : evt.isTradition
         ? 'events'
@@ -91,7 +94,10 @@ function EventCard({ evt, profileMap, tag }) {
           ? 'group_events'
           : evt.isRecurring
             ? 'recurring_events'
-            : 'all_events',
+            : 'all_events'
+  const { isFavorite, toggleFavorite, loading } = useEventFavorite({
+    event_id: eventId,
+    source_table: sourceTable,
   })
 
   return (

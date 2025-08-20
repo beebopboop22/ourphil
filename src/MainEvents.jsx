@@ -1140,15 +1140,17 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
             <FavoriteState
               event_id={evt.isRecurring ? String(evt.id).split('::')[0] : evt.id}
               source_table={
-                evt.isBigBoard
-                  ? 'big_board_events'
-                  : evt.isTradition
-                    ? 'events'
-                    : evt.isGroupEvent
-                      ? 'group_events'
-                      : evt.isRecurring
-                        ? 'recurring_events'
-                        : 'all_events'
+                String(evt.id).startsWith('sg-')
+                  ? 'sg_events'
+                  : evt.isBigBoard
+                    ? 'big_board_events'
+                    : evt.isTradition
+                      ? 'events'
+                      : evt.isGroupEvent
+                        ? 'group_events'
+                        : evt.isRecurring
+                          ? 'recurring_events'
+                          : 'all_events'
               }
             >
             {({ isFavorite, toggleFavorite, loading }) => (
