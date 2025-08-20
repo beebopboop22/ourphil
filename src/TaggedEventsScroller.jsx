@@ -262,6 +262,41 @@ export default function TaggedEventsScroller({
           });
         });
 
+        // SeatGeek sports events when #sports is requested
+        if (tags.includes('sports')) {
+          try {
+            const teamSlugs = [
+              'philadelphia-phillies',
+              'philadelphia-76ers',
+              'philadelphia-eagles',
+              'philadelphia-flyers',
+              'philadelphia-union',
+            ];
+            let sgEvents = [];
+            for (const slug of teamSlugs) {
+              const res = await fetch(
+                `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+              );
+              const json = await res.json();
+              sgEvents.push(...(json.events || []));
+            }
+            sgEvents.forEach(e => {
+              const start = new Date(e.datetime_local);
+              merged.push({
+                id: `sg-${e.id}`,
+                source_table: 'sports',
+                title: e.short_title,
+                imageUrl: e.performers?.[0]?.image || '',
+                start,
+                end: start,
+                href: `/sports/${e.id}`,
+              });
+            });
+          } catch (err) {
+            console.error('Error loading sports events', err);
+          }
+        }
+
         // 7) filter + sort + limit
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const upcoming = merged
