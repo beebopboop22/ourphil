@@ -30,6 +30,7 @@ import useEventFavorite from './utils/useEventFavorite.js'
 import { AuthContext } from './AuthProvider'
 import { FaStar } from 'react-icons/fa';
 import FallingPills from './FallingPills';
+import CommunityNotices from './CommunityNotices';
 
 
 
@@ -1303,6 +1304,7 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
       
             {/* ─── Recent Activity ─── */}
             <RecentActivity />
+            <CommunityNotices />
             <DigIntoPhillySection />
             <HeroLanding fullWidth />
             <TaggedEventScroller

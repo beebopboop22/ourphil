@@ -40,6 +40,7 @@ import PlansVideoIndex from './PlansVideoIndex.jsx';
 import AdminVideoPromo from './AdminVideoPromo.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
+import BigBoard from './CommunityNoticesPage.jsx';
 import MainEvents from './MainEvents.jsx';
 import VenuePage from './VenuePage';
 import MainEventsDetail from './MainEventsDetail.jsx';
@@ -98,6 +99,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/outlets/:slug" element={<OutletDetailPage />} />
           <Route path="/board" element={<BigBoardPage />} />
+          <Route path="/big-board" element={<BigBoard />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/reviews" element={<AdminReviews />} />
           <Route path="/admin/updates" element={<AdminGroupUpdates />} />
