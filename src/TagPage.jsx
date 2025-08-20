@@ -82,16 +82,22 @@ function EventCard({ evt, profileMap, tag }) {
   const navigate = useNavigate()
   const { user } = useContext(AuthContext)
   const { isFavorite, toggleFavorite, loading } = useEventFavorite({
-    event_id: evt.isRecurring ? String(evt.id).split('::')[0] : evt.id,
-    source_table: evt.isBigBoard
-      ? 'big_board_events'
-      : evt.isTradition
-        ? 'events'
-        : evt.isGroupEvent
-          ? 'group_events'
-          : evt.isRecurring
-            ? 'recurring_events'
-            : 'all_events',
+    event_id: evt.isSports
+      ? null
+      : evt.isRecurring
+        ? String(evt.id).split('::')[0]
+        : evt.id,
+    source_table: evt.isSports
+      ? null
+      : evt.isBigBoard
+        ? 'big_board_events'
+        : evt.isTradition
+          ? 'events'
+          : evt.isGroupEvent
+            ? 'group_events'
+            : evt.isRecurring
+              ? 'recurring_events'
+              : 'all_events',
   })
 
   return (
@@ -134,13 +140,27 @@ function EventCard({ evt, profileMap, tag }) {
             #{tag.name}
           </Link>
         </div>
-        <button
-          onClick={e => { e.preventDefault(); e.stopPropagation(); if (!user) { navigate('/login'); return; } toggleFavorite(); }}
-          disabled={loading}
-          className={`mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-        >
-          {isFavorite ? 'In the Plans' : 'Add to Plans'}
-        </button>
+        {evt.isSports ? (
+          evt.url && (
+            <a
+              href={evt.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors text-center"
+              onClick={e => e.stopPropagation()}
+            >
+              Get Tickets
+            </a>
+          )
+        ) : (
+          <button
+            onClick={e => { e.preventDefault(); e.stopPropagation(); if (!user) { navigate('/login'); return; } toggleFavorite(); }}
+            disabled={loading}
+            className={`mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+          >
+            {isFavorite ? 'In the Plans' : 'Add to Plans'}
+          </button>
+        )}
       </div>
       {evt.isBigBoard && (
         <div className="w-full bg-blue-50 text-blue-900 py-2 text-center">
@@ -377,6 +397,49 @@ export default function TagPage() {
           href: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
         }
       }))
+
+      if (slug === 'sports') {
+        try {
+          const teamSlugs = [
+            'philadelphia-phillies',
+            'philadelphia-76ers',
+            'philadelphia-eagles',
+            'philadelphia-flyers',
+            'philadelphia-union',
+          ]
+          let all = []
+          for (const ts of teamSlugs) {
+            const res = await fetch(
+              `https://api.seatgeek.com/2/events?performers.slug=${ts}&venue.city=Philadelphia&per_page=50&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+            )
+            const json = await res.json()
+            all.push(...(json.events || []))
+          }
+          const mappedSports = all.map(e => {
+            const dt = new Date(e.datetime_local)
+            const performers = e.performers || []
+            const home = performers.find(p => p.home_team) || performers[0] || {}
+            const away = performers.find(p => p.id !== home.id) || {}
+            const title =
+              e.short_title ||
+              `${(home.name || '').replace(/^Philadelphia\s+/, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/, '')}`
+            return {
+              id: `sg-${e.id}`,
+              title,
+              imageUrl: home.image || away.image || '',
+              start: dt,
+              start_date: dt.toISOString().slice(0,10),
+              start_time: dt.toTimeString().slice(0,5),
+              venues: e.venue ? { name: e.venue.name, slug: null } : null,
+              href: `/sports/${e.id}`,
+              isSports: true,
+            }
+          })
+          setAllEvents(prev => [...prev, ...mappedSports])
+        } catch (err) {
+          console.error('Failed to load sports events', err)
+        }
+      }
 
       setRecSeries(recRes.data || [])
       setLoading(false)
