@@ -1,5 +1,6 @@
 // src/SportsEventsGrid.jsx
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const teamSlugs = [
   'philadelphia-phillies',
@@ -19,13 +20,14 @@ export default function SportsEventsGrid() {
         let allEvents = [];
         for (const slug of teamSlugs) {
           const res = await fetch(
-            `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+            `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
           );
           const data = await res.json();
           allEvents.push(...(data.events || []));
         }
-        allEvents.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
-        setEvents(allEvents);
+        const homeGames = allEvents.filter(e => e.venue?.city === 'Philadelphia');
+        homeGames.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
+        setEvents(homeGames);
       } catch (err) {
         console.error('Error fetching events:', err);
       } finally {
@@ -80,11 +82,9 @@ export default function SportsEventsGrid() {
                 'bg-gray-500';
 
               return (
-                <a
+                <Link
                   key={evt.id}
-                  href={evt.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  to={`/sports/${evt.id}`}
                   className="relative min-w-[360px] max-w-[360px] bg-white rounded-2xl shadow-lg hover:shadow-xl transition-transform hover:scale-105 overflow-hidden flex flex-col"
                 >
                   <div className="relative">
@@ -125,7 +125,7 @@ export default function SportsEventsGrid() {
                       📍 {evt.venue?.name}, {evt.venue?.city}
                     </p>
                   </div>
-                </a>
+                </Link>
               );
             })}
           </div>
