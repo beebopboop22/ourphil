@@ -321,7 +321,11 @@ export default function TaggedEventsScroller({
             return (
               <FavoriteState
                 key={`${evt.id}-${evt.start}`}
-                event_id={evt.id}
+                event_id={
+                  evt.source_table === 'sg_events' && !String(evt.id).startsWith('sg-')
+                    ? `sg-${evt.id}`
+                    : evt.id
+                }
                 source_table={evt.source_table}
               >
                 {({ isFavorite, toggleFavorite, loading }) => (
