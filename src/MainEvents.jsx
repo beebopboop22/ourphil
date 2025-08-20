@@ -280,36 +280,47 @@ const [sportsEvents, setSportsEvents]     = useState([]);    // filtered by date
 
 useEffect(() => {
   (async () => {
-    const teamSlugs = [
-      'philadelphia-phillies',
-      'philadelphia-76ers',
-      'philadelphia-eagles',
-      'philadelphia-flyers',
-      'philadelphia-union',
-    ];
-    let all = [];
-    for (const slug of teamSlugs) {
-      const res  = await fetch(
-        `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=50&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
-      );
-      const json = await res.json();
-      all.push(...(json.events || []));
-    }
-    // normalize into your shape
-    const mapped = all.map(e => {
-      const dt   = new Date(e.datetime_local);
-      const home = e.performers.find(p => p.home_team) || e.performers[0];
-      const away = e.performers.find(p => !p.home_team) || home;
-      return {
-        id:         `sg-${e.id}`,
-        title,
-        start_date: dt.toISOString().slice(0,10),
-        imageUrl:   local.image || other.image,
-        href:       e.url,
-        isSports:   true,
+    try {
+      const teamSlugs = [
+        'philadelphia-phillies',
+        'philadelphia-76ers',
+        'philadelphia-eagles',
+        'philadelphia-flyers',
+        'philadelphia-union',
+      ];
+      let all = [];
+      for (const slug of teamSlugs) {
+        const res = await fetch(
+          `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=50&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+        );
+        const json = await res.json();
+        all.push(...(json.events || []));
       }
-    });
-    setSportsEventsRaw(mapped);
+      const mapped = all.map(e => {
+        const dt = new Date(e.datetime_local);
+        const performers = e.performers || [];
+        const home = performers.find(p => p.home_team) || performers[0] || {};
+        const away = performers.find(p => p.id !== home.id) || {};
+        const title =
+          e.short_title ||
+          `${(home.name || '').replace(/^Philadelphia\s+/,'')} vs ${(away.name || '').replace(/^Philadelphia\s+/,'')}`;
+        return {
+          id: `sg-${e.id}`,
+          title,
+          start_date: dt.toISOString().slice(0,10),
+          start_time: dt.toTimeString().slice(0,5),
+          imageUrl: home.image || away.image || '',
+          href: `/sports/${e.id}`,
+          external_url: e.url,
+          isSports: true,
+          latitude: e.venue?.location?.lat,
+          longitude: e.venue?.location?.lon,
+        };
+      });
+      setSportsEventsRaw(mapped);
+    } catch (err) {
+      console.error('Error fetching sports events', err);
+    }
   })();
 }, []);
 
@@ -780,7 +791,7 @@ useEffect(() => {
 
 
   // Pagination
-  const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length;;
+  const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length + sportsEvents.length;;
   const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
 
   const allFilteredEvents = [
@@ -795,8 +806,8 @@ useEffect(() => {
   // Big Board first, then Traditions, then All Events
 const allPagedEvents = [
     ...bigBoardEvents,
-    ...traditionEvents,
     ...sportsEvents,
+    ...traditionEvents,
     ...recurringOccs,
     ...groupEvents,
     ...events
@@ -1111,11 +1122,8 @@ if (loading) {
 
           const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : '';
 
-          const isExternal = evt.isSports;
-          const Wrapper    = isExternal ? 'a' : Link;
-          const linkProps = isExternal
-          ? { href: evt.href, target: '_blank', rel: 'noopener noreferrer' }
-          : evt.isGroupEvent
+          const Wrapper = Link;
+          const linkProps = evt.isGroupEvent
             ? { to: evt.href }
             : evt.isRecurring
               ? { to: `/series/${evt.slug}/${evt.start_date}` }
@@ -1123,9 +1131,11 @@ if (loading) {
                 ? { to: `/events/${evt.slug}` }
                 : evt.isBigBoard
                   ? { to: `/big-board/${evt.slug}` }
-                  : evt.venues?.slug && evt.slug
-                    ? { to: `/${evt.venues.slug}/${evt.slug}` }
-                    : { to: '/' };
+                  : evt.isSports
+                    ? { to: evt.href }
+                    : evt.venues?.slug && evt.slug
+                      ? { to: `/${evt.venues.slug}/${evt.slug}` }
+                      : { to: '/' };
 
 
           const tagKey = evt.isRecurring ? String(evt.id).split('::')[0] : evt.id;
@@ -1148,7 +1158,9 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                       ? 'group_events'
                       : evt.isRecurring
                         ? 'recurring_events'
-                        : 'all_events'
+                        : evt.isSports
+                          ? 'sports'
+                          : 'all_events'
               }
             >
             {({ isFavorite, toggleFavorite, loading }) => (
