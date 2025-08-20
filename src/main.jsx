@@ -50,6 +50,7 @@ import ContactPage from './ContactPage.jsx'
 import TraditionsFAQ from './TraditionsFAQ.jsx'
 import GroupsFAQ from './GroupsFAQ.jsx'
 import RecurringPage from './RecurringEventPage.jsx'
+import SportsEventPage from './SportsEventPage.jsx'
 
 
 
@@ -72,6 +73,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/:view" element={<MainEvents />} />
           <Route path="/old" element={<App />} />
           <Route path="/sports" element={<SportsPage />} />
+          <Route path="/sports/:id" element={<SportsEventPage />} />
           <Route path="/trivia" element={<TriviaNights />} />
           <Route path="/voicemail" element={<VoicemailPage />} />
           <Route path="/groups" element={<GroupsPage />} />

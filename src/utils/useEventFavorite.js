@@ -16,7 +16,7 @@ export default function useEventFavorite({ event_id, source_table }) {
     }
     let column = 'event_id'
     if (source_table === 'all_events') column = 'event_int_id'
-    else if (source_table !== 'events') column = 'event_uuid'
+    else if (source_table === 'sg_events') column = 'event_uuid'
     supabase
       .from('event_favorites')
       .select('id')
@@ -53,7 +53,7 @@ export default function useEventFavorite({ event_id, source_table }) {
     setLoading(true)
     let column = 'event_id'
     if (source_table === 'all_events') column = 'event_int_id'
-    else if (source_table !== 'events') column = 'event_uuid'
+    else if (source_table === 'sg_events') column = 'event_uuid'
     let newFavId = null
     if (favId) {
       await supabase

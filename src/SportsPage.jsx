@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import { Helmet } from 'react-helmet';
 import FilteredGroupSection from './FilteredGroupSection';
+import { Link } from 'react-router-dom';
 
 
 const teamSlugs = [
@@ -27,14 +28,15 @@ const SportsPage = () => {
 
         for (const slug of teamSlugs) {
           const res = await fetch(
-            `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+            `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
           );
           const data = await res.json();
           allEvents.push(...(data.events || []));
         }
 
-        allEvents.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
-        setEvents(allEvents);
+        const homeGames = allEvents.filter(e => e.venue?.city === 'Philadelphia');
+        homeGames.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
+        setEvents(homeGames);
       } catch (error) {
         console.error('Error fetching events:', error);
       } finally {
@@ -116,11 +118,9 @@ const SportsPage = () => {
                   const weekday = eventDate.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
 
                   return (
-                    <a
+                    <Link
                       key={event.id}
-                      href={event.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      to={`/sports/${event.id}`}
                       className="bg-white rounded-2xl shadow hover:shadow-xl transition-transform hover:scale-105 overflow-hidden flex flex-col"
                     >
                       <div className="relative">
@@ -150,7 +150,7 @@ const SportsPage = () => {
                           📍 {event.venue?.name}, {event.venue?.city}
                         </p>
                       </div>
-                    </a>
+                    </Link>
                   );
                 })}
               </div>

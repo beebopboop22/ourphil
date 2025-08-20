@@ -1,5 +1,6 @@
 // src/SportsEventsGrid.jsx
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const teamSlugs = [
   'philadelphia-phillies',
@@ -19,13 +20,14 @@ export default function SportsEventsGrid() {
         let allEvents = [];
         for (const slug of teamSlugs) {
           const res = await fetch(
-            `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+            `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
           );
           const data = await res.json();
           allEvents.push(...(data.events || []));
         }
-        allEvents.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
-        setEvents(allEvents);
+        const homeGames = allEvents.filter(e => e.venue?.city === 'Philadelphia');
+        homeGames.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
+        setEvents(homeGames);
       } catch (err) {
         console.error('Error fetching events:', err);
       } finally {
@@ -80,52 +82,62 @@ export default function SportsEventsGrid() {
                 'bg-gray-500';
 
               return (
-                <a
+                <div
                   key={evt.id}
-                  href={evt.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="relative min-w-[360px] max-w-[360px] bg-white rounded-2xl shadow-lg hover:shadow-xl transition-transform hover:scale-105 overflow-hidden flex flex-col"
                 >
-                  <div className="relative">
-                    <img
-                      src={evt.performers?.[0]?.image || 'https://via.placeholder.com/400'}
-                      alt={evt.short_title}
-                      className="w-full h-56 object-cover"
-                    />
+                  <Link to={`/sports/${evt.id}`} className="flex flex-col flex-grow">
+                    <div className="relative">
+                      <img
+                        src={evt.performers?.[0]?.image || 'https://via.placeholder.com/400'}
+                        alt={evt.short_title}
+                        className="w-full h-56 object-cover"
+                      />
 
-                    {/* Day badge */}
-                    <div
-                      className={`
-                        absolute top-2 left-2 text-white text-sm font-bold
-                        px-3 py-0.5 rounded-full whitespace-nowrap shadow-md z-10
-                        ${bgColor}
-                      `}
-                    >
-                      {displayDay}
+                      {/* Day badge */}
+                      <div
+                        className={`
+                          absolute top-2 left-2 text-white text-sm font-bold
+                          px-3 py-0.5 rounded-full whitespace-nowrap shadow-md z-10
+                          ${bgColor}
+                        `}
+                      >
+                        {displayDay}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="p-5 flex flex-col justify-between flex-grow">
-                    <h3 className="text-lg font-bold text-indigo-800 mb-2 line-clamp-2">
-                      {evt.short_title}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      📅 {eventDate.toLocaleDateString('en-US', {
-                        month: 'short',
-                        day:   'numeric',
-                      })}
-                    </p>
-                    {evt.stats?.lowest_price && (
-                      <p className="text-sm text-yellow-600 font-semibold mt-2">
-                        🎟️ From ${evt.stats.lowest_price}
+                    <div className="p-5 flex flex-col justify-between flex-grow">
+                      <h3 className="text-lg font-bold text-indigo-800 mb-2 line-clamp-2">
+                        {evt.short_title}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        📅 {eventDate.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day:   'numeric',
+                        })}
                       </p>
-                    )}
-                    <p className="text-sm text-gray-500 mt-1">
-                      📍 {evt.venue?.name}, {evt.venue?.city}
-                    </p>
-                  </div>
-                </a>
+                      {evt.stats?.lowest_price && (
+                        <p className="text-sm text-yellow-600 font-semibold mt-2">
+                          🎟️ From ${evt.stats.lowest_price}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-500 mt-1">
+                        📍 {evt.venue?.name}, {evt.venue?.city}
+                      </p>
+                    </div>
+                  </Link>
+                  {evt.url && (
+                    <a
+                      href={evt.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="m-4 mt-2 border border-indigo-600 rounded-md py-2 font-semibold text-center text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      Get Tickets
+                    </a>
+                  )}
+                </div>
               );
             })}
           </div>

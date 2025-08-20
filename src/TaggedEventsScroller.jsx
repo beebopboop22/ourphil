@@ -262,6 +262,42 @@ export default function TaggedEventsScroller({
           });
         });
 
+        // SeatGeek sports events when #sports is requested
+        if (tags.includes('sports')) {
+          try {
+            const teamSlugs = [
+              'philadelphia-phillies',
+              'philadelphia-76ers',
+              'philadelphia-eagles',
+              'philadelphia-flyers',
+              'philadelphia-union',
+            ];
+            let sgEvents = [];
+            for (const slug of teamSlugs) {
+              const res = await fetch(
+                `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+              );
+              const json = await res.json();
+              sgEvents.push(...(json.events || []));
+            }
+            sgEvents.forEach(e => {
+              const start = new Date(e.datetime_local);
+              merged.push({
+                id: `sg-${e.id}`,
+                source_table: 'sg_events',
+                title: e.short_title,
+                imageUrl: e.performers?.[0]?.image || '',
+                start,
+                end: start,
+                href: `/sports/${e.id}`,
+                url: e.url,
+              });
+            });
+          } catch (err) {
+            console.error('Error loading sports events', err);
+          }
+        }
+
         // 7) filter + sort + limit
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const upcoming = merged
@@ -318,6 +354,47 @@ export default function TaggedEventsScroller({
               evt.start,
               evt.start <= new Date() && new Date() <= evt.end
             );
+            if (evt.source_table === 'sg_events') {
+              return (
+                <div key={`${evt.id}-${evt.start}`} className="flex-shrink-0 w-[260px]">
+                  <Link
+                    to={evt.href}
+                    className="relative block w-full h-[380px] rounded-2xl overflow-hidden shadow-lg bg-green-50 border-2 border-green-500"
+                  >
+                    <img
+                      src={evt.imageUrl}
+                      alt={evt.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                    <h3 className="absolute bottom-16 left-4 right-4 text-center text-white text-3xl font-bold z-20 leading-tight">
+                      {evt.title}
+                    </h3>
+                    <span
+                      className={`
+                        absolute bottom-6 left-1/2 transform -translate-x-1/2
+                        ${color} text-white text-base font-bold px-6 py-1 rounded-full
+                        whitespace-nowrap min-w-[6rem]
+                        ${pulse ? 'animate-pulse' : ''}
+                        z-20
+                      `}
+                    >
+                      {text}
+                    </span>
+                  </Link>
+                  {evt.url && (
+                    <a
+                      href={evt.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 w-full border border-indigo-600 rounded-md py-2 font-semibold text-center text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors"
+                    >
+                      Get Tickets
+                    </a>
+                  )}
+                </div>
+              );
+            }
             return (
               <FavoriteState
                 key={`${evt.id}-${evt.start}`}
