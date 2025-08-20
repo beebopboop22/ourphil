@@ -105,7 +105,7 @@ export default function EventsPageHero() {
         let allGames = []
         for (const slug of teamSlugs) {
           const res  = await fetch(
-            `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+            `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=20&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
           )
           const json = await res.json()
           allGames.push(...(json.events || []))
@@ -115,16 +115,16 @@ export default function EventsPageHero() {
           .filter(e => {
             const d = new Date(e.datetime_local)
             d.setHours(0,0,0,0)
-            return d.getTime() === today.getTime()
+            return d.getTime() === today.getTime() && e.venue?.city === 'Philadelphia'
           })
           .map(e => {
-            const local = e.performers.find(p => p.name.startsWith('Philadelphia '))
-            const opp   = e.performers.find(p => p !== local)
+            const local = e.performers.find(p => p.home_team) || e.performers.find(p => p.name.startsWith('Philadelphia '))
+            const opp   = e.performers.find(p => p.id !== local?.id)
             const team     = local?.name.replace(/^Philadelphia\s+/, '')  || ''
             const opponent = opp?.name.replace(/^Philadelphia\s+/, '')  || ''
             const hour = new Date(e.datetime_local)
               .toLocaleTimeString('en-US',{ hour: 'numeric', minute: 'numeric', hour12: true })
-            return `${team} at ${opponent} at ${hour}`
+            return `${opponent} at ${team} at ${hour}`
           })
         setSportsSummary(gamesToday.join(', '))
       } catch (err) {
