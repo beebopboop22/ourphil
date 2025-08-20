@@ -1,5 +1,6 @@
 // src/SportsTonightSidebar.jsx
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const teamSlugs = [
   'philadelphia-phillies',
@@ -19,7 +20,7 @@ export default function SportsTonightSidebar() {
         let allEvents = [];
         for (const slug of teamSlugs) {
           const res = await fetch(
-            `https://api.seatgeek.com/2/events?performers.slug=${slug}&per_page=10&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
+            `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=10&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
           );
           const data = await res.json();
           allEvents.push(...(data.events || []));
@@ -29,7 +30,7 @@ export default function SportsTonightSidebar() {
         const tonight = allEvents.filter(evt => {
           const d = new Date(evt.datetime_local);
           d.setHours(0, 0, 0, 0);
-          return d.getTime() === today.getTime();
+          return d.getTime() === today.getTime() && evt.venue?.city === 'Philadelphia';
         });
         tonight.sort((a, b) => new Date(a.datetime_local) - new Date(b.datetime_local));
         setGames(tonight);
@@ -65,11 +66,9 @@ export default function SportsTonightSidebar() {
             const venueName  = evt.venue?.name || '';
 
             return (
-              <a
+              <Link
                 key={evt.id}
-                href={evt.url}
-                target="_blank"
-                rel="noopener noreferrer"
+                to={`/sports/${evt.id}`}
                 className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition text-sm"
               >
                 <img
@@ -80,11 +79,11 @@ export default function SportsTonightSidebar() {
                 <span className="font-semibold text-[#28313e]">{localName}</span>
                 <span className="text-gray-500">vs</span>
                 <span className="font-semibold text-[#28313e]">{visitorName}</span>
-                
+
                 <span className="ml-2 text-gray-600 whitespace-nowrap">
                   {gameTime} @ {venueName}
                 </span>
-              </a>
+              </Link>
             );
           })}
         </div>
