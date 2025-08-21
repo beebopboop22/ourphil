@@ -14,6 +14,7 @@ import LoginPage from './LoginPage.jsx'
 import SignUpPage from './SignUpPage.jsx'
 import ProfilePage from './ProfilePage.jsx';
 import PublicProfilePage from './PublicProfilePage.jsx';
+import OnboardingFlow from './OnboardingFlow.jsx';
 import { AuthProvider } from './AuthProvider.jsx'
 import MomentsExplorer from './MomentsExplorer.jsx' 
 import EventDetailPage from './EventDetailPage.jsx'
@@ -85,6 +86,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/onboarding-preview" element={<OnboardingFlow demo />} />
           <Route path="/u/:slug" element={<PublicProfilePage />} />
           <Route path="/moments" element={<MomentsExplorer />} />
           <Route path="/moments/:id" element={<MomentsExplorer />} />
