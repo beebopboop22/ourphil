@@ -4,29 +4,39 @@ import { motion, AnimatePresence } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import imageCompression from 'browser-image-compression';
+import { useForm, Controller } from 'react-hook-form';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import { isTagActive } from './utils/tagUtils';
 
-export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initialFile = null }) {
+export default function PostFlyerModal({ isOpen, onClose, initialFile = null }) {
   const { user } = useContext(AuthContext);
   const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
   const sessionToken = useRef(crypto.randomUUID());
   const skipNextFetch = useRef(false);
 
-  const [step, setStep] = useState(1);
-  const totalSteps = 5;
+  const {
+    register,
+    handleSubmit,
+    control,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      title: '',
+      description: '',
+      link: '',
+      startDate: null,
+      endDate: null,
+      startTime: '',
+      endTime: '',
+    },
+  });
 
   // ── Form state ─────────────────────────
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [link, setLink] = useState('');
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
   const [address, setAddress] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [lat, setLat] = useState(null);
@@ -51,10 +61,8 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       loadTags();
-      setStep(startStep);
       if (initialFile) {
-        setSelectedFile(initialFile);
-        setPreviewUrl(URL.createObjectURL(initialFile));
+        processFile(initialFile);
       }
     } else {
       document.body.style.overflow = '';
@@ -70,24 +78,51 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
     if (!error && data) setTagsList(data.filter(isTagActive));
   }
 
+  function processFile(file) {
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setValue('selectedFile', file, { shouldValidate: true });
+  }
+
   function handleFileChange(e) {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+    if (file) processFile(file);
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  }
+
+  function handlePaste(e) {
+    const file = e.clipboardData.files?.[0];
+    if (file) processFile(file);
+  }
+
+  async function handleCapturePhoto() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      await video.play();
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      stream.getTracks().forEach(t => t.stop());
+      canvas.toBlob(blob => {
+        if (blob) processFile(new File([blob], 'capture.jpg', { type: blob.type }));
+      }, 'image/jpeg');
+    } catch (err) {
+      console.error('Camera capture failed', err);
     }
   }
 
   function resetForm() {
+    reset();
     setSelectedFile(null);
     setPreviewUrl('');
-    setTitle('');
-    setDescription('');
-    setLink('');
-    setStartDate(null);
-    setEndDate(null);
-    setStartTime('');
-    setEndTime('');
     setAddress('');
     setSuggestions([]);
     if (suggestRef.current) suggestRef.current.blur();
@@ -96,7 +131,6 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
     setSelectedTags([]);
     setUploading(false);
     setConfirmationUrl('');
-    setStep(1);
     sessionToken.current = crypto.randomUUID();
     skipNextFetch.current = false;
   }
@@ -160,18 +194,7 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
     if (suggestRef.current) suggestRef.current.blur();
   }
 
-  function canProceed() {
-    switch (step) {
-      case 1: return Boolean(selectedFile);
-      case 2: return Boolean(title.trim());
-      case 3: return true;                  // location optional
-      case 4: return Boolean(startDate);
-      case 5: return true;
-      default: return false;
-    }
-  }
-
-  async function handleSubmit() {
+  async function onSubmit(data) {
     if (!user) return alert('Please log in first.');
     setUploading(true);
     try {
@@ -191,7 +214,7 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
       const postId = postData.id;
 
       // 3) Slug
-      const base = title.toLowerCase()
+      const base = data.title.toLowerCase()
         .replace(/[^a-z0-9]+/g,'-')
         .replace(/(^-|-$)/g,'');
       const slug = `${base}-${Date.now()}`;
@@ -199,13 +222,13 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
       // 4) Event insert
       const payload = {
         post_id:    postId,
-        title,
-        description: description || null,
-        link:        link || null,
-        start_date:  startDate.toISOString().split('T')[0],
-        end_date:    (endDate || startDate).toISOString().split('T')[0],
-        start_time:  startTime || null,
-        end_time:    endTime   || null,
+        title:      data.title,
+        description: data.description || null,
+        link:        data.link || null,
+        start_date:  data.startDate.toISOString().split('T')[0],
+        end_date:    (data.endDate || data.startDate).toISOString().split('T')[0],
+        start_time:  data.startTime || null,
+        end_time:    data.endTime   || null,
         address:     address   || null,
         latitude:    lat,
         longitude:   lng,
@@ -243,11 +266,6 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
     }
   }
 
-  function handleNext() {
-    if (step < totalSteps) setStep(step + 1);
-    else handleSubmit();
-  }
-  function handleBack() { if (step > 1) setStep(step - 1); }
   function copyToClipboard() { navigator.clipboard.writeText(confirmationUrl); }
 
   return (
@@ -288,237 +306,220 @@ export default function PostFlyerModal({ isOpen, onClose, startStep = 1, initial
                 >Done</button>
               </div>
             ) : (
-              <div>
-                {/* Step 1 */}
-                {step === 1 && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Upload Flyer <span className="text-xs font-normal">(required)</span>
-                    </label>
-                    <input
-                      type="file" accept="image/*"
-                      onChange={handleFileChange}
-                      disabled={uploading}
-                      className="mt-1"
+              <form
+                onSubmit={handleSubmit(onSubmit)}
+                onDrop={handleDrop}
+                onDragOver={e => e.preventDefault()}
+                onPaste={handlePaste}
+              >
+                <input type="hidden" {...register('selectedFile', { required: true })} />
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Upload Flyer <span className="text-xs font-normal">(required)</span>
+                  </label>
+                  <input
+                    type="file" accept="image/*"
+                    onChange={handleFileChange}
+                    disabled={uploading}
+                    className="mt-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCapturePhoto}
+                    className="mt-2 text-sm text-indigo-600"
+                  >Capture Photo</button>
+                  {errors.selectedFile && (
+                    <p className="text-red-500 text-xs mt-1">Flyer is required</p>
+                  )}
+                  {previewUrl && (
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="mt-4 w-full h-48 object-cover rounded"
                     />
-                    {previewUrl && (
-                      <img
-                        src={previewUrl}
-                        alt="Preview"
-                        className="mt-4 w-full h-48 object-cover rounded"
-                      />
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* Step 2 */}
-                {step === 2 && (
-                  <div className="mb-6 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Title <span className="text-xs font-normal">(required)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={title}
-                        onChange={e => setTitle(e.target.value)}
-                        disabled={uploading}
-                        className="w-full border p-2 rounded mt-1"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Why should we go? <span className="text-xs font-normal">(optional)</span>
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        disabled={uploading}
-                        className="w-full border p-2 rounded mt-1"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Step 3 */}
-                {step === 3 && (
-                  <div className="mb-6 relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Location <span className="text-xs font-normal">(optional)</span>
+                <div className="mb-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Title <span className="text-xs font-normal">(required)</span>
                     </label>
                     <input
                       type="text"
-                      value={address}
-                      onChange={e => setAddress(e.target.value)}
+                      {...register('title', { required: true })}
                       disabled={uploading}
-                      className="w-full border p-2 rounded"
-                      placeholder="Search place or address"
-                      ref={suggestRef}
+                      className="w-full border p-2 rounded mt-1"
                     />
-                    {suggestions.length > 0 && (
-                      <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
-                        {suggestions.map(feat => (
-                          <li
-                            key={feat.mapbox_id}
-                            onClick={() => pickSuggestion(feat)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                          >
-                            {feat.name} — {feat.full_address || feat.place_formatted}
-                          </li>
-                        ))}
-                      </ul>
+                    {errors.title && (
+                      <p className="text-red-500 text-xs mt-1">Title is required</p>
                     )}
                   </div>
-                )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Why should we go? <span className="text-xs font-normal">(optional)</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      {...register('description')}
+                      disabled={uploading}
+                      className="w-full border p-2 rounded mt-1"
+                    />
+                  </div>
+                </div>
 
-                {/* Step 4 */}
-                {step === 4 && (
-                  <div className="mb-6 space-y-4">
+                <div className="mb-6 relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Location <span className="text-xs font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={e => setAddress(e.target.value)}
+                    disabled={uploading}
+                    className="w-full border p-2 rounded"
+                    placeholder="Search place or address"
+                    ref={suggestRef}
+                  />
+                  {suggestions.length > 0 && (
+                    <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
+                      {suggestions.map(feat => (
+                        <li
+                          key={feat.mapbox_id}
+                          onClick={() => pickSuggestion(feat)}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        >
+                          {feat.name} — {feat.full_address || feat.place_formatted}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="mb-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Link <span className="text-xs font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      {...register('link')}
+                      disabled={uploading}
+                      className="w-full border p-2 rounded mt-1"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">
-                        Link <span className="text-xs font-normal">(optional)</span>
+                        Start Date <span className="text-xs font-normal">(required)</span>
+                      </label>
+                      <Controller
+                        name="startDate"
+                        control={control}
+                        rules={{ required: true }}
+                        render={({ field }) => (
+                          <DatePicker
+                            selected={field.value}
+                            onChange={field.onChange}
+                            disabled={uploading}
+                            className="w-full border p-2 rounded mt-1"
+                          />
+                        )}
+                      />
+                      {errors.startDate && (
+                        <p className="text-red-500 text-xs mt-1">Start date is required</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        End Date <span className="text-xs font-normal">(optional)</span>
+                      </label>
+                      <Controller
+                        name="endDate"
+                        control={control}
+                        render={({ field }) => (
+                          <DatePicker
+                            selected={field.value}
+                            onChange={field.onChange}
+                            disabled={uploading}
+                            className="w-full border p-2 rounded mt-1"
+                          />
+                        )}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Start Time
                       </label>
                       <input
-                        type="url"
-                        value={link}
-                        onChange={e => setLink(e.target.value)}
+                        type="time"
+                        {...register('startTime')}
                         disabled={uploading}
-                        placeholder="https://example.com"
                         className="w-full border p-2 rounded mt-1"
                       />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          Start Date <span className="text-xs font-normal">(required)</span>
-                        </label>
-                        <DatePicker
-                          selected={startDate}
-                          onChange={setStartDate}
-                          disabled={uploading}
-                          className="w-full border p-2 rounded mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          End Date <span className="text-xs font-normal">(optional)</span>
-                        </label>
-                        <DatePicker
-                          selected={endDate}
-                          onChange={setEndDate}
-                          disabled={uploading}
-                          className="w-full border p-2 rounded mt-1"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 mt-2">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          Start Time
-                        </label>
-                        <input
-                          type="time"
-                          value={startTime}
-                          onChange={e => setStartTime(e.target.value)}
-                          disabled={uploading}
-                          className="w-full border p-2 rounded mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          End Time
-                        </label>
-                        <input
-                          type="time"
-                          value={endTime}
-                          onChange={e => setEndTime(e.target.value)}
-                          disabled={uploading}
-                          className="w-full border p-2 rounded mt-1"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        End Time
+                      </label>
+                      <input
+                        type="time"
+                        {...register('endTime')}
+                        disabled={uploading}
+                        className="w-full border p-2 rounded mt-1"
+                      />
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Step 5 */}
-                {step === 5 && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tag this Event <span className="text-xs font-normal">(optional)</span>
-                    </label>
-                    <div className="flex flex-wrap gap-3">
-                      {tagsList.map((tagOpt, i) => {
-                        const isSel = selectedTags.includes(tagOpt.id);
-                        const cls = isSel
-                          ? pillStyles[i % pillStyles.length]
-                          : 'bg-gray-200 text-gray-700';
-                        return (
-                          <button
-                            key={tagOpt.id}
-                            type="button"
-                            onClick={() =>
-                              setSelectedTags(prev =>
-                                isSel
-                                  ? prev.filter(x => x !== tagOpt.id)
-                                  : [...prev, tagOpt.id]
-                              )
-                            }
-                            disabled={uploading}
-                            className={`${cls} px-4 py-2 rounded-full text-sm font-semibold`}
-                          >
-                            {tagOpt.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Progress bar */}
                 <div className="mb-6">
-                  <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>Step {step} of {totalSteps}</span>
-                    <span>{Math.round((step/totalSteps)*100)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 h-2 rounded">
-                    <div
-                      className="h-2 bg-indigo-600 rounded"
-                      style={{ width: `${(step/totalSteps)*100}%` }}
-                    />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tag this Event <span className="text-xs font-normal">(optional)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    {tagsList.map((tagOpt, i) => {
+                      const isSel = selectedTags.includes(tagOpt.id);
+                      const cls = isSel
+                        ? pillStyles[i % pillStyles.length]
+                        : 'bg-gray-200 text-gray-700';
+                      return (
+                        <button
+                          key={tagOpt.id}
+                          type="button"
+                          onClick={() =>
+                            setSelectedTags(prev =>
+                              isSel
+                                ? prev.filter(x => x !== tagOpt.id)
+                                : [...prev, tagOpt.id]
+                            )
+                          }
+                          disabled={uploading}
+                          className={`${cls} px-4 py-2 rounded-full text-sm font-semibold`}
+                        >
+                          {tagOpt.name}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Navigation */}
-                <div className="flex justify-between">
+                <div className="flex justify-end">
                   <button
-                    onClick={handleBack}
-                    disabled={step === 1}
-                    className={`px-4 py-2 rounded ${
-                      step === 1
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
-                    }`}
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleNext}
-                    disabled={!canProceed() || uploading}
+                    type="submit"
+                    disabled={uploading}
                     className={`px-4 py-2 rounded text-white ${
-                      canProceed()
-                        ? 'bg-indigo-600 hover:bg-indigo-700'
-                        : 'bg-indigo-300 cursor-not-allowed'
+                      uploading
+                        ? 'bg-indigo-300 cursor-not-allowed'
+                        : 'bg-indigo-600 hover:bg-indigo-700'
                     }`}
                   >
-                    {step < totalSteps
-                      ? 'Next'
-                      : uploading
-                      ? 'Posting…'
-                      : 'Post Event'}
+                    {uploading ? 'Posting…' : 'Post Event'}
                   </button>
                 </div>
-              </div>
+              </form>
             )}
           </motion.div>
         </motion.div>
