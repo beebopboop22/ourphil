@@ -9,82 +9,22 @@ import SavedEventCard from './SavedEventCard.jsx';
 import useProfile from './utils/useProfile';
 import useProfileTags from './utils/useProfileTags';
 import { RRule } from 'rrule';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FaFacebookF, FaInstagram, FaGlobe } from 'react-icons/fa';
 import { SiTiktok } from 'react-icons/si';
 import { createRoot } from 'react-dom/client';
 import UpcomingPlansCard from './UpcomingPlansCard.jsx';
 import exportCardImage from './utils/exportCardImage.js';
-
-function CultureModal({ initial = [], onSave, onClose }) {
-  const [tags, setTags] = useState([]);
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState(new Set(initial));
-
-  useEffect(() => {
-    supabase
-      .from('culture_tags')
-      .select('id,name,emoji')
-      .order('name', { ascending: true })
-      .then(({ data }) => setTags(data || []));
-  }, []);
-
-  const toggle = id => {
-    setSelected(prev => {
-      const s = new Set(prev);
-      s.has(id) ? s.delete(id) : s.add(id);
-      return s;
-    });
-  };
-
-  const handleSave = () => {
-    onSave(Array.from(selected));
-  };
-
-  const filtered = tags.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg p-4 max-h-[80vh] overflow-y-auto w-80 space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="font-semibold">Select Cultures</h2>
-          <button onClick={onClose} className="text-xl">×</button>
-        </div>
-        <input
-          className="w-full border p-1"
-          placeholder="Search"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        <div className="space-y-1">
-          {filtered.map(t => (
-            <label key={t.id} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={selected.has(t.id)}
-                onChange={() => toggle(t.id)}
-              />
-              <span>{t.emoji} {t.name}</span>
-            </label>
-          ))}
-        </div>
-        <button
-          onClick={handleSave}
-          className="mt-2 bg-indigo-600 text-white px-4 py-1 rounded"
-        >
-          Save
-        </button>
-      </div>
-    </div>
-  );
-}
+import CultureModal from './CultureModal.jsx';
+import OnboardingFlow from './OnboardingFlow.jsx';
 
 export default function ProfilePage() {
   const { user } = useContext(AuthContext);
   const { profile, updateProfile } = useProfile();
   const { tags: cultureTags, saveTags } = useProfileTags('culture');
+
+  const [searchParams] = useSearchParams();
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const navigate = useNavigate();
 
@@ -119,6 +59,11 @@ export default function ProfilePage() {
   const [tiktokUrl, setTiktokUrl] = useState(profile?.tiktok_url || '');
   const [websiteUrl, setWebsiteUrl] = useState(profile?.website_url || '');
   const fileRef = useRef(null);
+
+  const handleOnboardingComplete = async () => {
+    await updateProfile({ onboarding_complete: true });
+    setShowOnboarding(false);
+  };
 
   const shareUpcomingPlans = async () => {
     if (!profile?.slug) return;
@@ -190,6 +135,15 @@ export default function ProfilePage() {
         if (!error) setSubs(new Set((data || []).map(r => r.tag_id)));
       });
   }, [activeTab, user]);
+
+  // Show onboarding flow if profile isn't complete or forced via query param
+  useEffect(() => {
+    if (!profile) return;
+    const force = searchParams.get('onboard') === '1';
+    if (force || profile.onboarding_complete === false) {
+      setShowOnboarding(true);
+    }
+  }, [profile, searchParams]);
 
   useEffect(() => {
     setUsername(profile?.username || profile?.slug || '');
@@ -616,6 +570,9 @@ export default function ProfilePage() {
         <link rel="canonical" href="https://ourphilly.org/profile" />
       </Helmet>
       <Navbar />
+      {showOnboarding && (
+        <OnboardingFlow onComplete={handleOnboardingComplete} />
+      )}
 
       <header className="bg-gradient-to-r from-indigo-700 to-purple-600 text-white">
         <div className="max-w-screen-md mx-auto px-4 py-10 flex flex-col sm:flex-row items-center gap-6">
