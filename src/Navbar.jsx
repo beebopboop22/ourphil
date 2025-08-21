@@ -7,6 +7,7 @@ import PostFlyerModal from './PostFlyerModal';
 import { AuthContext } from './AuthProvider';
 import { supabase } from './supabaseClient';
 import NavTagMenu from './NavTagMenu';
+import LoginPromptModal from './LoginPromptModal';
 
 export default function Navbar({ style }) {
   const { user } = useContext(AuthContext);
@@ -16,6 +17,7 @@ export default function Navbar({ style }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -28,6 +30,11 @@ export default function Navbar({ style }) {
   };
 
   const openPostModal = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      setMenuOpen(false);
+      return;
+    }
     setShowPostModal(true);
     setMenuOpen(false);
   };
@@ -177,6 +184,7 @@ export default function Navbar({ style }) {
       {/* Modals */}
       {showSubmitModal && <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />}
       {showPostModal && <PostFlyerModal isOpen={showPostModal} onClose={() => setShowPostModal(false)} />}
+      {showLoginModal && <LoginPromptModal onClose={() => setShowLoginModal(false)} />}
     </>
   );
 }

@@ -1,13 +1,26 @@
 // src/FloatingAddButton.jsx
-import React from 'react'
+import React, { useContext, useState } from 'react'
 import { PlusIcon } from '@heroicons/react/24/solid'
+import { AuthContext } from './AuthProvider'
+import LoginPromptModal from './LoginPromptModal'
 
 export default function FloatingAddButton({ onClick }) {
+  const { user } = useContext(AuthContext)
+  const [showLogin, setShowLogin] = useState(false)
+
+  const handleClick = () => {
+    if (user) {
+      onClick()
+    } else {
+      setShowLogin(true)
+    }
+  }
+
   return (
     <>
       {/* Desktop: circular floating button */}
       <button
-        onClick={onClick}
+        onClick={handleClick}
         className="
           hidden md:block
           fixed bottom-6 right-6 z-50
@@ -22,7 +35,7 @@ export default function FloatingAddButton({ onClick }) {
 
       {/* Mobile: full-width sticky bar */}
       <button
-        onClick={onClick}
+        onClick={handleClick}
         className="
           md:hidden
           fixed bottom-0 left-0 right-0 z-50
@@ -36,6 +49,8 @@ export default function FloatingAddButton({ onClick }) {
         <PlusIcon className="h-6 w-6" />
         <span className="font-semibold">Post Event</span>
       </button>
+
+      {showLogin && <LoginPromptModal onClose={() => setShowLogin(false)} />}
     </>
   )
 }
