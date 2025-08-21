@@ -14,9 +14,13 @@ export default function useEventFavorite({ event_id, source_table }) {
       setFavId(null)
       return
     }
-    let column = 'event_id'
+    // Determine which column on event_favorites stores the event's ID.
+    //  - all_events      → event_int_id (integer id)
+    //  - events          → event_id (legacy events table)
+    //  - everything else → event_uuid (uuid id)
+    let column = 'event_uuid'
     if (source_table === 'all_events') column = 'event_int_id'
-    else if (source_table === 'sg_events') column = 'event_uuid'
+    else if (source_table === 'events') column = 'event_id'
     supabase
       .from('event_favorites')
       .select('id')
@@ -51,9 +55,10 @@ export default function useEventFavorite({ event_id, source_table }) {
   const toggleFavorite = async () => {
     if (!user || !event_id || !source_table) return
     setLoading(true)
-    let column = 'event_id'
+    // Mirror column selection from fetchFavorite() above
+    let column = 'event_uuid'
     if (source_table === 'all_events') column = 'event_int_id'
-    else if (source_table === 'sg_events') column = 'event_uuid'
+    else if (source_table === 'events') column = 'event_id'
     let newFavId = null
     if (favId) {
       await supabase
