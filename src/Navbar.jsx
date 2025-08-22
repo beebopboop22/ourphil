@@ -2,6 +2,7 @@
 import React, { useState, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import { FaTiktok, FaInstagram } from 'react-icons/fa';
 import SubmitGroupModal from './SubmitGroupModal';
 import PostFlyerModal from './PostFlyerModal';
 import { AuthContext } from './AuthProvider';
@@ -61,6 +62,26 @@ export default function Navbar({ style }) {
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center space-x-8 text-base">
+            {/* Social links */}
+            <div className="flex items-center space-x-4">
+              <a
+                href="https://www.tiktok.com/@ourphilly?lang=en"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="TikTok"
+              >
+                <FaTiktok className="w-5 h-5 text-gray-700 hover:text-gray-900 transition" />
+              </a>
+              <a
+                href="https://www.instagram.com/ourphillydotorg/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+              >
+                <FaInstagram className="w-5 h-5 text-gray-700 hover:text-gray-900 transition" />
+              </a>
+            </div>
+
             {/* Primary links */}
             <ul className="flex items-center space-x-6 font-medium">
               
@@ -140,15 +161,33 @@ export default function Navbar({ style }) {
         {/* Mobile slide-out */}
         {menuOpen && (
           <div className="md:hidden bg-white shadow-lg px-4 py-6 space-y-4 text-base font-medium">
+            <div className="flex space-x-4">
+              <a
+                href="https://www.tiktok.com/@ourphilly?lang=en"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="TikTok"
+              >
+                <FaTiktok className="w-5 h-5 text-gray-700 hover:text-gray-900" />
+              </a>
+              <a
+                href="https://www.instagram.com/ourphillydotorg/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+              >
+                <FaInstagram className="w-5 h-5 text-gray-700 hover:text-gray-900" />
+              </a>
+            </div>
             <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
               Claim Your Group
             </Link>
-                <Link
-                  to="/contact"
-                  className={`flex items-center space-x-1 ${linkClass('/groups')}`}
-                >
-                  <span>Contact</span>
-                </Link>
+            <Link
+              to="/contact"
+              className={`flex items-center space-x-1 ${linkClass('/groups')}`}
+            >
+              <span>Contact</span>
+            </Link>
             <button
               onClick={openPostModal}
               className="block text-left w-full"
