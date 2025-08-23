@@ -30,6 +30,7 @@ import useEventFavorite from './utils/useEventFavorite.js'
 import { AuthContext } from './AuthProvider'
 import { FaStar } from 'react-icons/fa';
 import FallingPills from './FallingPills';
+import SavedEventsScroller from './SavedEventsScroller';
 
 
 
@@ -176,78 +177,6 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
   );
 }
 
-// ── "Dig Into Philly" Feature Promo Section ──
-function DigIntoPhillySection() {
-  const items = [
-    {
-      title: 'Add events to your Plans',
-      body: "They'll appear in the Plans section of your calendar.",
-    },
-    {
-      title: 'Share your events card with friends',
-      body:
-        'Select View Upcoming Plans Card and share by text, Instagram, whatever.',
-    },
-    {
-      title: 'Subscribe to tags',
-      body:
-        "You'll receive a daily e-mail digest of upcoming events for any tag you subscribe to. Visit Settings in your account to change your digest.",
-    },
-    {
-      title: 'Edit your profile',
-      body:
-        'Besides a username and photo, add your ethnicities and social accounts. Both your ethnicities (as flag emojis) and links to social accounts will appear beside any comment you leave on an event page.',
-    },
-    {
-      title: 'Follow event creators',
-      body: "Their created events will appear in your profile's Following section.",
-    },
-    {
-      title: 'Find Groups',
-      body: (
-        <span>
-          Use <Link to="/groups" className="underline">Quick Match on the groups page</Link>, or search around.
-        </span>
-      ),
-    },
-    {
-      title: 'Claim Groups',
-      body: (
-        <span>
-          If you manage a group, you can claim it. See our{' '}
-          <Link to="/groups-faq" className="underline">Groups FAQ page</Link> for more information.
-        </span>
-      ),
-    },
-  ];
-
-  return (
-    <section className="w-full py-12">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-center px-4">
-        <img
-          src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Cards%20Design.png"
-          alt="Upcoming plans cards"
-          className="w-full rounded-lg shadow"
-        />
-        <div>
-          <h2 className="font-[Barrio] text-4xl text-indigo-900 mb-4">Dig Into Philly</h2>
-          <p className="mb-4 text-gray-700">
-            A reminder of what you can do on Our Philly, besides adding events:
-          </p>
-          <div className="space-y-2">
-            {items.map(({ title, body }, idx) => (
-              <details key={idx} className="border rounded-md p-3">
-                <summary className="cursor-pointer font-semibold">{title}</summary>
-                <div className="mt-2 text-gray-700">{body}</div>
-              </details>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ── MainEvents Component ───────────────────────────────
 export default function MainEvents() {
   const params = useParams();
@@ -362,6 +291,166 @@ const [tagMap, setTagMap] = useState({});
   // Community‐submitted group events
   const [groupEvents, setGroupEvents] = useState([]);
   const [profileMap, setProfileMap] = useState({});
+  const [savedEvents, setSavedEvents] = useState([]);
+  const [loadingSaved, setLoadingSaved] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setSavedEvents([]);
+      setLoadingSaved(false);
+      return;
+    }
+    (async () => {
+      setLoadingSaved(true);
+      const { data: favs } = await supabase
+        .from('event_favorites')
+        .select('event_id,event_int_id,event_uuid,source_table')
+        .eq('user_id', user.id);
+
+      const idsByTable = {};
+      (favs || []).forEach(r => {
+        const tbl = r.source_table;
+        let id;
+        if (tbl === 'all_events') id = r.event_int_id;
+        else if (tbl === 'events') id = r.event_id;
+        else id = r.event_uuid;
+        if (!id) return;
+        idsByTable[tbl] = idsByTable[tbl] || [];
+        idsByTable[tbl].push(id);
+      });
+
+      const all = [];
+      if (idsByTable.all_events?.length) {
+        const { data } = await supabase
+          .from('all_events')
+          .select('id,name,slug,image,start_date,venues:venue_id(slug)')
+          .in('id', idsByTable.all_events);
+        data?.forEach(e => {
+          all.push({
+            id: e.id,
+            slug: e.slug,
+            title: e.name,
+            image: e.image,
+            start_date: e.start_date,
+            source_table: 'all_events',
+            venues: e.venues,
+          });
+        });
+      }
+      if (idsByTable.events?.length) {
+        const { data } = await supabase
+          .from('events')
+          .select('id,slug,"E Name","E Image",Dates,"End Date"')
+          .in('id', idsByTable.events);
+        data?.forEach(e => {
+          all.push({
+            id: e.id,
+            slug: e.slug,
+            title: e['E Name'],
+            image: e['E Image'],
+            start_date: e.Dates,
+            end_date: e['End Date'],
+            source_table: 'events',
+          });
+        });
+      }
+      if (idsByTable.big_board_events?.length) {
+        const { data } = await supabase
+          .from('big_board_events')
+          .select('id,slug,title,start_date,start_time,big_board_posts!big_board_posts_event_id_fkey(image_url)')
+          .in('id', idsByTable.big_board_events);
+        data?.forEach(ev => {
+          let img = '';
+          const path = ev.big_board_posts?.[0]?.image_url || '';
+          if (path) {
+            const { data: { publicUrl } } = supabase.storage
+              .from('big-board')
+              .getPublicUrl(path);
+            img = publicUrl;
+          }
+          all.push({
+            id: ev.id,
+            slug: ev.slug,
+            title: ev.title,
+            start_date: ev.start_date,
+            start_time: ev.start_time,
+            image: img,
+            source_table: 'big_board_events',
+          });
+        });
+      }
+      if (idsByTable.group_events?.length) {
+        const { data } = await supabase
+          .from('group_events')
+          .select('id,slug,title,start_date,start_time,groups(imag,slug)')
+          .in('id', idsByTable.group_events);
+        data?.forEach(ev => {
+          all.push({
+            id: ev.id,
+            slug: ev.slug,
+            title: ev.title,
+            start_date: ev.start_date,
+            start_time: ev.start_time,
+            image: ev.groups?.imag || '',
+            group: ev.groups ? { slug: ev.groups.slug } : null,
+            source_table: 'group_events',
+          });
+        });
+      }
+      if (idsByTable.recurring_events?.length) {
+        const { data } = await supabase
+          .from('recurring_events')
+          .select('id,slug,name,start_date,start_time,end_date,rrule,image_url')
+          .in('id', idsByTable.recurring_events);
+        data?.forEach(ev => {
+          try {
+            const opts = RRule.parseString(ev.rrule);
+            opts.dtstart = new Date(`${ev.start_date}T${ev.start_time}`);
+            if (ev.end_date) opts.until = new Date(`${ev.end_date}T23:59:59`);
+            const rule = new RRule(opts);
+            const today0 = new Date();
+            today0.setHours(0, 0, 0, 0);
+            const next = rule.after(today0, true);
+            if (next) {
+              all.push({
+                id: ev.id,
+                slug: ev.slug,
+                title: ev.name,
+                start_date: next.toISOString().slice(0, 10),
+                start_time: ev.start_time,
+                image: ev.image_url,
+                source_table: 'recurring_events',
+              });
+            }
+          } catch (err) {
+            console.error('rrule parse', err);
+          }
+        });
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const upcoming = all
+        .map(ev => {
+          let start, end;
+          if (ev.source_table === 'events') {
+            start = parseDate(ev.start_date);
+            end = parseDate(ev.end_date) || start;
+          } else {
+            start = parseISODateLocal(ev.start_date);
+            end = start;
+          }
+          return { ...ev, _date: start, _end: end };
+        })
+        .filter(ev => ev._date && ev._end && ev._end >= today)
+        .sort((a, b) => a._date - b._date)
+        .slice(0, 10)
+        .map(({ _date, _end, ...rest }) => rest);
+
+      setSavedEvents(upcoming);
+      setLoadingSaved(false);
+    })();
+  }, [user]);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -1352,7 +1441,24 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
       
             {/* ─── Recent Activity ─── */}
             <RecentActivity />
-            <DigIntoPhillySection />
+            <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
+              <h2 className="text-black text-4xl font-[Barrio] mb-4 text-left">
+                Your Upcoming Plans
+              </h2>
+              {loadingSaved ? null : user ? (
+                savedEvents.length ? (
+                  <SavedEventsScroller events={savedEvents} />
+                ) : (
+                  <p className="text-gray-600">
+                    You don't have any plans yet! Add some to get started.
+                  </p>
+                )
+              ) : (
+                <p className="text-gray-600">
+                  <Link to="/login" className="text-indigo-600 underline">Log in</Link> to add events to your plans.
+                </p>
+              )}
+            </section>
             <HeroLanding fullWidth />
             <TaggedEventScroller
               tags={['birds']}
