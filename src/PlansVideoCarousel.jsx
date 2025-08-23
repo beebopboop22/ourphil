@@ -42,6 +42,7 @@ export default function PlansVideoCarousel({
   onlyEvents = false,
   headline,
   weekend = false,
+  today = false,
   limit = 15,
 }) {
   const [events, setEvents] = useState([])
@@ -99,12 +100,12 @@ export default function PlansVideoCarousel({
     ;(async () => {
       try {
         if (weekend) {
-          const today = new Date(); today.setHours(0,0,0,0)
-          const day = today.getDay()
-          let friday = new Date(today)
-          if (day === 0) friday.setDate(today.getDate() - 2)
-          else if (day >= 5) friday.setDate(today.getDate() - (day - 5))
-          else friday.setDate(today.getDate() + (5 - day))
+          const todayDate = new Date(); todayDate.setHours(0,0,0,0)
+          const day = todayDate.getDay()
+          let friday = new Date(todayDate)
+          if (day === 0) friday.setDate(todayDate.getDate() - 2)
+          else if (day >= 5) friday.setDate(todayDate.getDate() - (day - 5))
+          else friday.setDate(todayDate.getDate() + (5 - day))
           const sunday = new Date(friday); sunday.setDate(friday.getDate() + 2)
 
           const [eRes, bbRes, aeRes, geRes] = await Promise.all([
@@ -207,16 +208,120 @@ export default function PlansVideoCarousel({
           return
         }
 
+        if (today) {
+          const todayDate = new Date(); todayDate.setHours(0,0,0,0)
+          const tomorrow = new Date(todayDate); tomorrow.setDate(todayDate.getDate() + 1)
+
+          const [eRes, bbRes, aeRes, geRes] = await Promise.all([
+            supabase
+              .from('events')
+              .select('id, slug, "E Name", Dates, "End Date", "E Image", "E Description"'),
+            supabase
+              .from('big_board_events')
+              .select('id, title, slug, start_date, end_date, description, big_board_posts!big_board_posts_event_id_fkey(image_url)'),
+            supabase
+              .from('all_events')
+              .select('id, slug, name, start_date, image, description, venue_id(slug)'),
+            supabase
+              .from('group_events')
+              .select('id, title, slug, description, start_date, end_date, image_url, group_id'),
+          ])
+
+          let groupMap = {}
+          if (geRes.data?.length) {
+            const groupIds = [...new Set(geRes.data.map(ev => ev.group_id))]
+            if (groupIds.length) {
+              const { data: groupsData } = await supabase
+                .from('groups')
+                .select('id, slug')
+                .in('id', groupIds)
+              groupsData?.forEach(g => { groupMap[g.id] = g.slug })
+            }
+          }
+
+          const merged = []
+          ;(eRes.data || []).forEach(e => {
+            const start = parseDate(e.Dates)
+            const end = e['End Date'] ? parseDate(e['End Date']) : start
+            merged.push({
+              key: `ev-${e.id}`,
+              slug: `/events/${e.slug}`,
+              name: e['E Name'],
+              start,
+              end,
+              image: e['E Image'] || '',
+              description: e['E Description'] || ''
+            })
+          })
+          ;(bbRes.data || []).forEach(ev => {
+            const start = parseLocalYMD(ev.start_date)
+            const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
+            const key = ev.big_board_posts?.[0]?.image_url
+            const image = key
+              ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
+              : ''
+            merged.push({
+              key: `bb-${ev.id}`,
+              slug: `/big-board/${ev.slug}`,
+              name: ev.title,
+              start,
+              end,
+              image,
+              description: ev.description || ''
+            })
+          })
+          ;(aeRes.data || []).forEach(ev => {
+            const start = parseLocalYMD(ev.start_date)
+            const venueSlug = ev.venue_id?.slug
+            merged.push({
+              key: `ae-${ev.id}`,
+              slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+              name: ev.name,
+              start,
+              end: start,
+              image: ev.image || '',
+              description: ev.description || ''
+            })
+          })
+          ;(geRes.data || []).forEach(ev => {
+            const start = parseLocalYMD(ev.start_date)
+            const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
+            let image = ''
+            if (ev.image_url?.startsWith('http')) image = ev.image_url
+            else if (ev.image_url)
+              image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
+            const groupSlug = groupMap[ev.group_id]
+            if (groupSlug) {
+              merged.push({
+                key: `ge-${ev.id}`,
+                slug: `/groups/${groupSlug}/events/${ev.slug}`,
+                name: ev.title,
+                start,
+                end,
+                image,
+                description: ev.description || ''
+              })
+            }
+          })
+
+          const todayEvents = merged
+            .filter(ev => ev.start && ev.start >= todayDate && ev.start < tomorrow)
+            .sort((a, b) => a.start - b.start)
+          setEvents(todayEvents.slice(0, limit))
+          setLoading(false)
+          return
+        }
+
         if (!tag) {
           const { data } = await supabase
             .from('events')
             .select('id, slug, "E Name", Dates, "End Date", "E Image", "E Description"')
-          const today = new Date(); today.setHours(0,0,0,0)
+          const todayDate = new Date(); todayDate.setHours(0,0,0,0)
           const merged = []
           ;(data || []).forEach(e => {
             const start = parseDate(e.Dates)
             const end = e['End Date'] ? parseDate(e['End Date']) : start
-            if (start && start >= today) {
+            if (start && start >= todayDate) {
               merged.push({
                 key: `ev-${e.id}`,
                 slug: `/events/${e.slug}`,
@@ -369,9 +474,9 @@ export default function PlansVideoCarousel({
           })
         }
 
-        const today = new Date(); today.setHours(0,0,0,0)
+        const todayDate = new Date(); todayDate.setHours(0,0,0,0)
         const upcoming = merged
-          .filter(ev => ev.start && ev.start >= today)
+          .filter(ev => ev.start && ev.start >= todayDate)
           .sort((a, b) => a.start - b.start)
         setEvents(upcoming.slice(0, limit))
         setLoading(false)
