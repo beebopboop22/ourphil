@@ -111,6 +111,14 @@ export default function Navbar({ style }) {
                   <span>Contact</span>
                 </Link>
               </li>
+              <li>
+                <Link
+                  to="/about"
+                  className={`flex items-center space-x-1 ${linkClass('/about')}`}
+                >
+                  <span>About</span>
+                </Link>
+              </li>
             </ul>
 
             {/* Auth */}
@@ -187,6 +195,9 @@ export default function Navbar({ style }) {
               className={`flex items-center space-x-1 ${linkClass('/groups')}`}
             >
               <span>Contact</span>
+            </Link>
+            <Link to="/about" className="block" onClick={() => setMenuOpen(false)}>
+              About
             </Link>
             <button
               onClick={openPostModal}

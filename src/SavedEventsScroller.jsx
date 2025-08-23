@@ -30,6 +30,21 @@ function getBubble(date) {
 
 export default function SavedEventsScroller({ events = [] }) {
   if (!events.length) return null
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const weekendStart = new Date(today)
+  const day = today.getDay()
+  if (day === 6) {
+    // Saturday
+  } else if (day === 0) {
+    weekendStart.setDate(today.getDate() - 1)
+  } else {
+    weekendStart.setDate(today.getDate() + (6 - day))
+  }
+  const weekendEnd = new Date(weekendStart)
+  weekendEnd.setDate(weekendStart.getDate() + 1)
+
   return (
     <div className="overflow-x-auto scrollbar-hide">
       <div className="flex gap-4 pb-4">
@@ -61,6 +76,7 @@ export default function SavedEventsScroller({ events = [] }) {
           const d = source_table === 'events'
             ? parseMMDDYYYY(start_date)
             : parseISODateLocal(start_date)
+          const isWeekend = d && d >= weekendStart && d <= weekendEnd
           const { text, color, pulse } = getBubble(d)
           return (
             <Link
@@ -76,6 +92,11 @@ export default function SavedEventsScroller({ events = [] }) {
                 />
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+              {isWeekend && (
+                <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded z-20">
+                  This Weekend
+                </span>
+              )}
               <EventFavorite
                 event_id={id}
                 source_table={source_table}
