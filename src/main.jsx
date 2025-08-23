@@ -52,6 +52,7 @@ import TraditionsFAQ from './TraditionsFAQ.jsx'
 import GroupsFAQ from './GroupsFAQ.jsx'
 import RecurringPage from './RecurringEventPage.jsx'
 import SportsEventPage from './SportsEventPage.jsx'
+import AboutPage from './AboutPage.jsx'
 
 
 
@@ -136,6 +137,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/traditions-faq" element={<TraditionsFAQ />} />
           <Route path="/groups-faq" element={<GroupsFAQ />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/series/:slug/:date" element={<RecurringPage />} />
 
 

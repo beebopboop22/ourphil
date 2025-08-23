@@ -42,6 +42,9 @@ const Footer = () => {
             <li>
               <a href="/groups-faq" className="text-sm text-gray-400 hover:text-white">Groups FAQ</a>
             </li>
+            <li>
+              <a href="/about" className="text-sm text-gray-400 hover:text-white">About</a>
+            </li>
           </ul>
         </div>
 
