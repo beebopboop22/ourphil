@@ -26,6 +26,7 @@ export default function PlansVideoIndex() {
     { to: '/plans-video-food', label: 'Nomnomslurp' },
     { to: '/plans-video-fitness', label: 'Fitness' },
     { to: '/plans-video-music', label: 'Music' },
+    { to: '/plans-video-birds', label: 'Birds' },
     { to: '/plans-video-traditions', label: 'Traditions' },
     { to: '/plans-video-peco', label: 'PECO Multicultural' },
     { to: '/plans-video-markets', label: 'Markets' },
