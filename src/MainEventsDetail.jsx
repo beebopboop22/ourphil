@@ -14,6 +14,14 @@ import TaggedEventScroller from './TaggedEventsScroller';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
+import {
+  CalendarCheck,
+  CalendarPlus,
+  ExternalLink,
+  Pencil,
+  Share2,
+  Trash2,
+} from 'lucide-react';
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -594,48 +602,66 @@ export default function MainEventsDetail() {
                       <p className="text-gray-700 leading-relaxed">{event.description}</p>
                     </div>
                   )}
-                  <div className="mb-6">
+                  <div className="space-y-4">
                     <button
                       onClick={handleFavorite}
                       disabled={toggling}
-                      className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                      className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
                     >
+                      <CalendarCheck className="w-5 h-5" />
                       {isFavorite ? 'In the Plans' : 'Add to Plans'}
                     </button>
-                  </div>
 
-                  <button
-                    onClick={handleShare}
-                    className="w-full bg-green-600 text-white py-3 rounded-lg shadow hover:bg-green-700 transition mb-4"
-                  >
-                    Share
-                  </button>
-
-                  <a
-                    href={gcalLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full bg-indigo-600 text-white py-3 rounded-lg shadow hover:bg-indigo-700 transition mb-4 text-center"
-                  >
-                    Add to Google Calendar
-                  </a>
-
-                  {isAdmin && (
-                    <div className="space-y-3">
-                      <button
-                        onClick={() => setIsEditing(true)}
-                        className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition"
+                    {event.link && (
+                      <a
+                        href={event.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
                       >
-                        Edit Event
-                      </button>
+                        <ExternalLink className="w-5 h-5" />
+                        Visit Site
+                      </a>
+                    )}
+
+                    <div className="flex items-center justify-center gap-6 pt-2">
                       <button
-                        onClick={handleDelete}
-                        className="w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition"
+                        onClick={handleShare}
+                        className="flex items-center gap-2 text-indigo-600 hover:underline"
                       >
-                        Delete Event
+                        <Share2 className="w-5 h-5" />
+                        Share
                       </button>
+                      <a
+                        href={gcalLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-indigo-600 hover:underline"
+                      >
+                        <CalendarPlus className="w-5 h-5" />
+                        Google Calendar
+                      </a>
                     </div>
-                  )}
+
+                    {isAdmin && (
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={() => setIsEditing(true)}
+                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={handleDelete}
+                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-red-100 text-red-700 hover:bg-red-200"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
