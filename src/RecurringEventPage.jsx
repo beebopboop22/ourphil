@@ -12,6 +12,7 @@ import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
+import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
 
 export default function RecurringEventPage() {
   const { slug, date } = useParams();
@@ -103,6 +104,19 @@ export default function RecurringEventPage() {
     if (navigator.share) navigator.share({ title, url }).catch(console.error);
     else copyLinkFallback(url);
   }
+
+  const gcalLink = (() => {
+    const next = date || occurrences[0]?.toISOString().slice(0,10);
+    if (!series || !next) return '#';
+    const start = next.replace(/-/g, '');
+    const url = window.location.href;
+    return (
+      'https://www.google.com/calendar/render?action=TEMPLATE' +
+      `&text=${encodeURIComponent(series.name)}` +
+      `&dates=${start}/${start}` +
+      `&details=${encodeURIComponent('Details: ' + url)}`
+    );
+  })();
 
   // Fetch series + tags
   useEffect(() => {
@@ -374,34 +388,47 @@ export default function RecurringEventPage() {
                   <p className="text-gray-700">{series.description}</p>
                 </div>
               )}
-              <div className="mb-6">
-                <button
-                  onClick={handleFavorite}
-                  disabled={favLoading}
-                  className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                >
-                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                </button>
-              </div>
+                <div className="space-y-4">
+                  <button
+                    onClick={handleFavorite}
+                    disabled={favLoading}
+                    className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                  >
+                    <CalendarCheck className="w-5 h-5" />
+                    {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                  </button>
 
-              {series.link && (
-                <a
-                  href={series.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full bg-indigo-600 text-white text-center py-3 rounded-lg shadow hover:bg-indigo-700 transition"
-                >
-                  Visit Site
-                </a>
-              )}
+                  {series.link && (
+                    <a
+                      href={series.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                    >
+                      <ExternalLink className="w-5 h-5" />
+                      Visit Site
+                    </a>
+                  )}
 
-              <button
-                onClick={handleShare}
-                className="block w-full bg-green-600 text-white text-center py-3 rounded-lg shadow hover:bg-green-700 mt-4 transition"
-              >
-                Share
-              </button>
-          </div>
+                  <div className="flex items-center justify-center gap-6 pt-2">
+                    <button
+                      onClick={handleShare}
+                      className="flex items-center gap-2 text-indigo-600 hover:underline"
+                    >
+                      <Share2 className="w-5 h-5" />
+                      Share
+                    </button>
+                    <a
+                      href={gcalLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-indigo-600 hover:underline"
+                    >
+                      <CalendarPlus className="w-5 h-5" />
+                      Google Calendar
+                    </a>
+                  </div>
+                </div>
 
           {/* Right side: capped-height image */}
           <div>

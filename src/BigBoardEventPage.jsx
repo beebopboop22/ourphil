@@ -14,6 +14,14 @@ import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import { isTagActive } from './utils/tagUtils';
 const CommentsSection = lazy(() => import('./CommentsSection'));
+import {
+  CalendarCheck,
+  CalendarPlus,
+  ExternalLink,
+  Pencil,
+  Share2,
+  Trash2,
+} from 'lucide-react';
 
 export default function BigBoardEventPage() {
   const { slug } = useParams();
@@ -122,6 +130,18 @@ export default function BigBoardEventPage() {
       copyLinkFallback(url);
     }
   }
+
+  const gcalLink = event ? (() => {
+    const start = event.start_date?.replace(/-/g, '') || '';
+    const end = (event.end_date || event.start_date || '').replace(/-/g, '');
+    const url = window.location.href;
+    return (
+      'https://www.google.com/calendar/render?action=TEMPLATE' +
+      `&text=${encodeURIComponent(event.title)}` +
+      `&dates=${start}/${end}` +
+      `&details=${encodeURIComponent('Details: ' + url)}`
+    );
+  })() : '#';
 
   // Fetch main event (including lat/lng)
   useEffect(() => {
@@ -733,107 +753,76 @@ export default function BigBoardEventPage() {
                       <p className="text-gray-700">{event.description}</p>
                     </div>
                   )}
-                  <div className="mb-6">
+                  <div className="space-y-4">
                     <button
                       onClick={handleFavorite}
                       disabled={favLoading}
-                      className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                      className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
                     >
+                      <CalendarCheck className="w-5 h-5" />
                       {isFavorite ? 'In the Plans' : 'Add to Plans'}
                     </button>
-                  </div>
-                  {event.link && (
-                    <div className="mb-6">
+
+                    {event.link && (
                       <a
                         href={event.link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`
-                          block w-full
-                          px-6 py-3
-                          rounded-md
-                          text-center
-                          bg-indigo-600 text-white
-                          text-base font-medium
-                          shadow-sm
-                          hover:bg-indigo-700
-                          focus:outline-none focus:ring-2 focus:ring-indigo-500
-                          active:scale-95
-                          transition duration-150 ease-in-out
-                          mb-4
-                        `}
+                        className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
                       >
-                        Event Page
+                        <ExternalLink className="w-5 h-5" />
+                        Visit Site
+                      </a>
+                    )}
+
+                    <div className="flex items-center justify-center gap-6 pt-2">
+                      <button
+                        onClick={handleShare}
+                        className="flex items-center gap-2 text-indigo-600 hover:underline"
+                      >
+                        <Share2 className="w-5 h-5" />
+                        Share
+                      </button>
+                      <a
+                        href={gcalLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-indigo-600 hover:underline"
+                      >
+                        <CalendarPlus className="w-5 h-5" />
+                        Google Calendar
                       </a>
                     </div>
-                  )}
 
-                  <div className="mt-6 flex flex-col space-y-4">
-                    <button
-                      onClick={handleShare}
-                      className={`
-                        w-full
-                        px-6 py-3
-                        rounded-md
-                        bg-green-600 text-white
-                        text-base font-medium
-                        shadow-sm
-                        hover:bg-green-700
-                        focus:outline-none focus:ring-2 focus:ring-green-500
-                        active:scale-95
-                        transition duration-150 ease-in-out
-                      `}
-                    >
-                      Share
-                    </button>
                     {event.owner_id === user?.id && (
-                      <>
+                      <div className="flex gap-3 pt-2">
                         <button
                           onClick={startEditing}
-                          className={`
-                            w-full
-                            px-6 py-3
-                            rounded-md
-                            bg-indigo-600 text-white
-                            text-base font-medium
-                            shadow-sm
-                            hover:bg-indigo-700
-                            focus:outline-none focus:ring-2 focus:ring-indigo-500
-                            active:scale-95
-                            transition duration-150 ease-in-out
-                          `}
+                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
                         >
+                          <Pencil className="w-4 h-4" />
                           Edit
                         </button>
                         <button
                           onClick={handleDelete}
-                          className={`
-                            w-full
-                            px-6 py-3
-                            rounded-md
-                            bg-red-600 text-white
-                            text-base font-medium
-                            shadow-sm
-                            hover:bg-red-700
-                            focus:outline-none focus:ring-2 focus:ring-red-500
-                            active:scale-95
-                            transition duration-150 ease-in-out
-                          `}
+                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-red-100 text-red-700 hover:bg-red-200"
                         >
+                          <Trash2 className="w-4 h-4" />
                           Delete
                         </button>
-                      </>
+                      </div>
                     )}
+
                     <Link
                       to="/"
-                      className="w-full text-center text-indigo-600 hover:underline font-medium"
+                      className="block text-center text-indigo-600 hover:underline font-medium"
                     >
                       ← Back to Events
                     </Link>
                   </div>
-                </>
-              )}
-            </div>
+                  </>
+                )}
+              </div>
 
             {/* Right: full image */}
             <div>
