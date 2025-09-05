@@ -31,8 +31,18 @@ import { AuthContext } from './AuthProvider'
 import { FaStar } from 'react-icons/fa';
 import FallingPills from './FallingPills';
 import SavedEventsScroller from './SavedEventsScroller';
-
-
+ 
+// Shared styles for tag "pills"
+const pillStyles = [
+  'bg-green-100 text-indigo-800',
+  'bg-teal-100 text-teal-800',
+  'bg-pink-100 text-pink-800',
+  'bg-blue-100 text-blue-800',
+  'bg-orange-100 text-orange-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-purple-100 text-purple-800',
+  'bg-red-100 text-red-800',
+];
 
 
 // ── Helpers ───────────────────────────────
@@ -178,6 +188,47 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
 }
 
 // ── MainEvents Component ───────────────────────────────
+function TagFilterModal({ open, tags, selectedTags, onToggle, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-2xl rounded-lg shadow-xl p-8 relative">
+        <h2 className="text-lg font-semibold mb-6 text-center">Select Tags</h2>
+        <div className="flex flex-wrap gap-3 mb-6">
+          {tags.map((tag, i) => {
+            const isSel = selectedTags.includes(tag.slug);
+            const cls = isSel ? pillStyles[i % pillStyles.length] : 'bg-gray-200 text-gray-700';
+            return (
+              <button
+                key={tag.slug}
+                onClick={() => onToggle(tag.slug, !isSel)}
+                className={`${cls} px-4 py-2 rounded-full text-sm font-semibold`}
+              >
+                {tag.name}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex justify-center">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-md shadow hover:bg-indigo-700 transition"
+          >
+            Done
+          </button>
+        </div>
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-3 text-gray-400 hover:text-gray-600 text-xl"
+          aria-label="Close"
+        >
+          &times;
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
@@ -256,6 +307,14 @@ useEffect(() => {
 
   // at the top of MainEvents()
 const [tagMap, setTagMap] = useState({});
+const [selectedTags, setSelectedTags] = useState([]);
+const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+
+const handleTagToggle = (slug, checked) => {
+  setSelectedTags(prev =>
+    checked ? [...prev, slug] : prev.filter(t => t !== slug)
+  );
+};
 
 
   const [showFlyerModal, setShowFlyerModal] = useState(false);
@@ -523,22 +582,6 @@ const [tagMap, setTagMap] = useState({});
     sun.setHours(0, 0, 0, 0);
     return [sat, sun];
   };
-
-  // import this from wherever you keep it, or just copy it in here:
-    const pillStyles = [
-      'bg-green-100 text-indigo-800',
-      'bg-teal-100 text-teal-800',
-      'bg-pink-100 text-pink-800',
-      'bg-blue-100 text-blue-800',
-      'bg-orange-100 text-orange-800',
-      'bg-yellow-100 text-yellow-800',
-      'bg-purple-100 text-purple-800',
-      'bg-red-100 text-red-800',
-    ];
-
-    
-
-
   // Navigation for pills/date changes
   const goTo = (option, dateVal) => {
     if (option === 'today') navigate('/today');
@@ -878,13 +921,8 @@ useEffect(() => {
 }, [selectedOption, customDate, params.view, sportsEventsRaw]);
 
 
-
-  // Pagination
-  const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length + sportsEvents.length;;
-  const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
-
-  // Sports events should lead so they feel featured
-  const allFilteredEvents = [
+  // Combine all events
+  const combinedEvents = [
     ...sportsEvents,
     ...bigBoardEvents,
     ...groupEvents,
@@ -893,31 +931,27 @@ useEffect(() => {
     ...events
   ];
 
-  // Sports first, then Big Board submissions, then everything else
-  const allPagedEvents = [
-    ...sportsEvents,
-    ...bigBoardEvents,
-    ...traditionEvents,
-    ...recurringOccs,
-    ...groupEvents,
-    ...events
-  ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+  // Filter by selected tags
+  const filteredEvents = selectedTags.length
+    ? combinedEvents.filter(evt => {
+        const tagKey = evt.isRecurring ? String(evt.id).split('::')[0] : evt.id;
+        const tags = tagMap[tagKey] || [];
+        return tags.some(t => selectedTags.includes(t.slug));
+      })
+    : combinedEvents;
 
-  const fullCount = allPagedEvents.length
+  // Sort events by start time
+  const sortedEvents = [...filteredEvents].sort((a, b) =>
+    (a.start_time || '').localeCompare(b.start_time || '')
+  );
 
-  // normalize coords
-const coordsEvents = allFilteredEvents
-.map(evt => {
-  if (evt.latitude != null && evt.longitude != null) {
-    return { ...evt, lat: evt.latitude, lng: evt.longitude }
-  }
-  if (evt.venues?.latitude != null && evt.venues?.longitude != null) {
-    return { ...evt, lat: evt.venues.latitude, lng: evt.venues.longitude }
-  }
-  return null
-})
-.filter(Boolean)
+  // Pagination
+  const totalCount = sortedEvents.length;
+  const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
 
+  const allPagedEvents = sortedEvents.slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+
+  const fullCount = allPagedEvents.length;
   let toShow = allPagedEvents;
 if (selectedOption === 'today' && !showAllToday) {
   toShow = allPagedEvents.slice(0, 4);
@@ -925,10 +959,10 @@ if (selectedOption === 'today' && !showAllToday) {
 
 
   useEffect(() => {
-    if (!allPagedEvents.length) return;
-  
+    if (!combinedEvents.length) return;
+
     // group IDs by their table
-    const idsByType = allPagedEvents.reduce((acc, evt) => {
+    const idsByType = combinedEvents.reduce((acc, evt) => {
       let table;
       let id = String(evt.id);
       if (evt.isBigBoard) {
@@ -984,7 +1018,7 @@ if (selectedOption === 'today' && !showAllToday) {
 
       setTagMap(map);
     });
-  }, [allPagedEvents, allTags]);
+  }, [combinedEvents, allTags]);
   
   
   
@@ -1189,9 +1223,35 @@ if (loading) {
                     />
                   </div>
                 </div>
+
+                {/* Tag filter */}
+                <div className="flex justify-center items-center gap-4 mt-4">
+                  <button
+                    onClick={() => setIsTagModalOpen(true)}
+                    className="px-6 py-3 min-w-[200px] border-2 border-indigo-600 text-indigo-600 rounded-full shadow-md hover:bg-indigo-50 transition"
+                  >
+                    Filter by Tag
+                  </button>
+                  {selectedTags.length > 0 && (
+                    <button
+                      onClick={() => setSelectedTags([])}
+                      className="text-sm text-gray-600 underline"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-      
+
+            <TagFilterModal
+              open={isTagModalOpen}
+              tags={allTags}
+              selectedTags={selectedTags}
+              onToggle={handleTagToggle}
+              onClose={() => setIsTagModalOpen(false)}
+            />
+
             <main className="container mx-auto px-4 py-8">
   <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
     {headerText}
