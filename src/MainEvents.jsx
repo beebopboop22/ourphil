@@ -178,6 +178,45 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
 }
 
 // ── MainEvents Component ───────────────────────────────
+function TagFilterModal({ open, tags, selectedTags, onToggle, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-md rounded-lg shadow-xl p-6 relative">
+        <h2 className="text-lg font-semibold mb-4">Select Tags</h2>
+        <div className="max-h-60 overflow-y-auto mb-4">
+          {tags.map(tag => (
+            <label key={tag.slug} className="flex items-center space-x-2 mb-2">
+              <input
+                type="checkbox"
+                value={tag.slug}
+                checked={selectedTags.includes(tag.slug)}
+                onChange={e => onToggle(tag.slug, e.target.checked)}
+              />
+              <span>#{tag.name}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md shadow hover:bg-indigo-700 transition"
+          >
+            Done
+          </button>
+        </div>
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-3 text-gray-400 hover:text-gray-600 text-xl"
+          aria-label="Close"
+        >
+          &times;
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
@@ -256,6 +295,15 @@ useEffect(() => {
 
   // at the top of MainEvents()
 const [tagMap, setTagMap] = useState({});
+const [selectedTags, setSelectedTags] = useState([]);
+const [sortBy, setSortBy] = useState('time');
+const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+
+const handleTagToggle = (slug, checked) => {
+  setSelectedTags(prev =>
+    checked ? [...prev, slug] : prev.filter(t => t !== slug)
+  );
+};
 
 
   const [showFlyerModal, setShowFlyerModal] = useState(false);
@@ -878,13 +926,8 @@ useEffect(() => {
 }, [selectedOption, customDate, params.view, sportsEventsRaw]);
 
 
-
-  // Pagination
-  const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length + sportsEvents.length;;
-  const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
-
-  // Sports events should lead so they feel featured
-  const allFilteredEvents = [
+  // Combine all events
+  const combinedEvents = [
     ...sportsEvents,
     ...bigBoardEvents,
     ...groupEvents,
@@ -893,31 +936,32 @@ useEffect(() => {
     ...events
   ];
 
-  // Sports first, then Big Board submissions, then everything else
-  const allPagedEvents = [
-    ...sportsEvents,
-    ...bigBoardEvents,
-    ...traditionEvents,
-    ...recurringOccs,
-    ...groupEvents,
-    ...events
-  ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+  // Filter by selected tags
+  const filteredEvents = selectedTags.length
+    ? combinedEvents.filter(evt => {
+        const tagKey = evt.isRecurring ? String(evt.id).split('::')[0] : evt.id;
+        const tags = tagMap[tagKey] || [];
+        return tags.some(t => selectedTags.includes(t.slug));
+      })
+    : combinedEvents;
 
-  const fullCount = allPagedEvents.length
+  // Sort events
+  const sortedEvents = [...filteredEvents].sort((a, b) => {
+    if (sortBy === 'time') {
+      return (a.start_time || '').localeCompare(b.start_time || '');
+    }
+    const dateA = a.isTradition ? a.start : parseISODateLocal(a.start_date);
+    const dateB = b.isTradition ? b.start : parseISODateLocal(b.start_date);
+    return dateA - dateB;
+  });
 
-  // normalize coords
-const coordsEvents = allFilteredEvents
-.map(evt => {
-  if (evt.latitude != null && evt.longitude != null) {
-    return { ...evt, lat: evt.latitude, lng: evt.longitude }
-  }
-  if (evt.venues?.latitude != null && evt.venues?.longitude != null) {
-    return { ...evt, lat: evt.venues.latitude, lng: evt.venues.longitude }
-  }
-  return null
-})
-.filter(Boolean)
+  // Pagination
+  const totalCount = sortedEvents.length;
+  const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
 
+  const allPagedEvents = sortedEvents.slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+
+  const fullCount = allPagedEvents.length;
   let toShow = allPagedEvents;
 if (selectedOption === 'today' && !showAllToday) {
   toShow = allPagedEvents.slice(0, 4);
@@ -925,10 +969,10 @@ if (selectedOption === 'today' && !showAllToday) {
 
 
   useEffect(() => {
-    if (!allPagedEvents.length) return;
-  
+    if (!combinedEvents.length) return;
+
     // group IDs by their table
-    const idsByType = allPagedEvents.reduce((acc, evt) => {
+    const idsByType = combinedEvents.reduce((acc, evt) => {
       let table;
       let id = String(evt.id);
       if (evt.isBigBoard) {
@@ -984,7 +1028,7 @@ if (selectedOption === 'today' && !showAllToday) {
 
       setTagMap(map);
     });
-  }, [allPagedEvents, allTags]);
+  }, [combinedEvents, allTags]);
   
   
   
@@ -1189,9 +1233,50 @@ if (loading) {
                     />
                   </div>
                 </div>
+
+                {/* Tag and sort filters */}
+                <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsTagModalOpen(true)}
+                      className="w-full sm:w-48 px-4 py-2 bg-indigo-600 text-white rounded-md shadow hover:bg-indigo-700 transition"
+                    >
+                      Filter by Tag
+                    </button>
+                    {selectedTags.length > 0 && (
+                      <button
+                        onClick={() => setSelectedTags([])}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md border shadow-sm hover:bg-gray-200 transition"
+                      >
+                        Clear Tags
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold" htmlFor="sortBy">Sort by:</label>
+                    <select
+                      id="sortBy"
+                      value={sortBy}
+                      onChange={e => setSortBy(e.target.value)}
+                      className="border rounded p-1"
+                    >
+                      <option value="time">Start Time</option>
+                      <option value="date">Date</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
-      
+
+            <TagFilterModal
+              open={isTagModalOpen}
+              tags={allTags}
+              selectedTags={selectedTags}
+              onToggle={handleTagToggle}
+              onClose={() => setIsTagModalOpen(false)}
+            />
+
             <main className="container mx-auto px-4 py-8">
   <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
     {headerText}
