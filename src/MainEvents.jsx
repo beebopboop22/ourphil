@@ -256,6 +256,8 @@ useEffect(() => {
 
   // at the top of MainEvents()
 const [tagMap, setTagMap] = useState({});
+const [selectedTags, setSelectedTags] = useState([]);
+const [sortBy, setSortBy] = useState('date');
 
 
   const [showFlyerModal, setShowFlyerModal] = useState(false);
@@ -878,13 +880,8 @@ useEffect(() => {
 }, [selectedOption, customDate, params.view, sportsEventsRaw]);
 
 
-
-  // Pagination
-  const totalCount = events.length + bigBoardEvents.length + traditionEvents.length + groupEvents.length + sportsEvents.length;;
-  const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
-
-  // Sports events should lead so they feel featured
-  const allFilteredEvents = [
+  // Combine all events
+  const combinedEvents = [
     ...sportsEvents,
     ...bigBoardEvents,
     ...groupEvents,
@@ -893,31 +890,32 @@ useEffect(() => {
     ...events
   ];
 
-  // Sports first, then Big Board submissions, then everything else
-  const allPagedEvents = [
-    ...sportsEvents,
-    ...bigBoardEvents,
-    ...traditionEvents,
-    ...recurringOccs,
-    ...groupEvents,
-    ...events
-  ].slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+  // Filter by selected tags
+  const filteredEvents = selectedTags.length
+    ? combinedEvents.filter(evt => {
+        const tagKey = evt.isRecurring ? String(evt.id).split('::')[0] : evt.id;
+        const tags = tagMap[tagKey] || [];
+        return tags.some(t => selectedTags.includes(t.slug));
+      })
+    : combinedEvents;
 
-  const fullCount = allPagedEvents.length
+  // Sort events
+  const sortedEvents = [...filteredEvents].sort((a, b) => {
+    if (sortBy === 'time') {
+      return (a.start_time || '').localeCompare(b.start_time || '');
+    }
+    const dateA = a.isTradition ? a.start : parseISODateLocal(a.start_date);
+    const dateB = b.isTradition ? b.start : parseISODateLocal(b.start_date);
+    return dateA - dateB;
+  });
 
-  // normalize coords
-const coordsEvents = allFilteredEvents
-.map(evt => {
-  if (evt.latitude != null && evt.longitude != null) {
-    return { ...evt, lat: evt.latitude, lng: evt.longitude }
-  }
-  if (evt.venues?.latitude != null && evt.venues?.longitude != null) {
-    return { ...evt, lat: evt.venues.latitude, lng: evt.venues.longitude }
-  }
-  return null
-})
-.filter(Boolean)
+  // Pagination
+  const totalCount = sortedEvents.length;
+  const pageCount = Math.ceil(totalCount / EVENTS_PER_PAGE);
 
+  const allPagedEvents = sortedEvents.slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
+
+  const fullCount = allPagedEvents.length;
   let toShow = allPagedEvents;
 if (selectedOption === 'today' && !showAllToday) {
   toShow = allPagedEvents.slice(0, 4);
@@ -925,10 +923,10 @@ if (selectedOption === 'today' && !showAllToday) {
 
 
   useEffect(() => {
-    if (!allPagedEvents.length) return;
-  
+    if (!combinedEvents.length) return;
+
     // group IDs by their table
-    const idsByType = allPagedEvents.reduce((acc, evt) => {
+    const idsByType = combinedEvents.reduce((acc, evt) => {
       let table;
       let id = String(evt.id);
       if (evt.isBigBoard) {
@@ -984,7 +982,7 @@ if (selectedOption === 'today' && !showAllToday) {
 
       setTagMap(map);
     });
-  }, [allPagedEvents, allTags]);
+  }, [combinedEvents, allTags]);
   
   
   
@@ -1189,9 +1187,46 @@ if (loading) {
                     />
                   </div>
                 </div>
+
+                {/* Tag and sort filters */}
+                <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                  <div className="flex flex-wrap gap-2">
+                    {allTags.map(tag => (
+                      <label key={tag.slug} className="flex items-center space-x-1">
+                        <input
+                          type="checkbox"
+                          value={tag.slug}
+                          checked={selectedTags.includes(tag.slug)}
+                          onChange={(e) => {
+                            const { value, checked } = e.target;
+                            setSelectedTags(prev =>
+                              checked
+                                ? [...prev, value]
+                                : prev.filter(t => t !== value)
+                            );
+                          }}
+                        />
+                        <span className="text-sm">#{tag.name}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold" htmlFor="sortBy">Sort by:</label>
+                    <select
+                      id="sortBy"
+                      value={sortBy}
+                      onChange={e => setSortBy(e.target.value)}
+                      className="border rounded p-1"
+                    >
+                      <option value="date">Date</option>
+                      <option value="time">Start Time</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
-      
+
             <main className="container mx-auto px-4 py-8">
   <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
     {headerText}
