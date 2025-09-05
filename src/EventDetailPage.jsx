@@ -16,6 +16,7 @@ import TaggedEventScroller from './TaggedEventsScroller';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
+import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
 
 export default function EventDetailPage() {
   const { slug } = useParams();
@@ -349,6 +350,18 @@ export default function EventDetailPage() {
     ? getFriendlyDate(event.Dates)
     : `${sd.toLocaleDateString('en-US',{ month:'long', day:'numeric' })} — ${ed.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
 
+  const gcalLink = (() => {
+    const start = (event.Dates || '').replace(/-/g, '');
+    const end = (event['End Date'] || event.Dates || '').replace(/-/g, '');
+    const url = window.location.href;
+    return (
+      'https://www.google.com/calendar/render?action=TEMPLATE' +
+      `&text=${encodeURIComponent(event['E Name'])}` +
+      `&dates=${start}/${end}` +
+      `&details=${encodeURIComponent('Details: ' + url)}`
+    );
+  })();
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Helmet>
@@ -407,30 +420,28 @@ export default function EventDetailPage() {
               {displayDate}
               {event.time && ` — ${event.time}`}
             </p>
-            <div className="flex justify-center gap-4 mb-6">
-              {event['E Link'] && (
-                <a
-                  href={event['E Link']}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
+            <div className="flex flex-col items-center gap-4 mb-6">
+              <div className="flex flex-wrap justify-center gap-4">
+                <button
+                  onClick={toggleFav}
+                  disabled={toggling}
+                  className={`flex items-center gap-2 px-4 py-2 rounded font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
                 >
-                  Visit Site
-                </a>
-              )}
-              <button
-                onClick={toggleFav}
-                disabled={toggling}
-                className={`border border-indigo-600 px-4 py-2 rounded font-semibold transition-colors ${isFavorite ? 'bg-white text-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-              >
-                {isFavorite ? 'In the Plans' : 'Add to Plans'}
-              </button>
-              <button
-                onClick={handleShare}
-                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
-              >
-                Share
-              </button>
+                  <CalendarCheck className="w-5 h-5" />
+                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                </button>
+                {event['E Link'] && (
+                  <a
+                    href={event['E Link']}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
+                  >
+                    <ExternalLink className="w-5 h-5" />
+                    Visit Site
+                  </a>
+                )}
+              </div>
             </div>
             {eventTags.length > 0 && (
               <div className="flex flex-wrap justify-center gap-3 mt-4">
@@ -504,14 +515,33 @@ export default function EventDetailPage() {
                 <p className="text-gray-700">{event.longDescription}</p>
               </div>
             )}
-            <div className="mb-6">
+            <div className="mb-6 space-y-4">
               <button
                 onClick={toggleFav}
                 disabled={toggling}
-                className={`w-full border border-indigo-600 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
               >
+                <CalendarCheck className="w-5 h-5" />
                 {isFavorite ? 'In the Plans' : 'Add to Plans'}
               </button>
+              <div className="flex items-center justify-center gap-6 pt-2">
+                <button
+                  onClick={handleShare}
+                  className="flex items-center gap-2 text-indigo-600 hover:underline"
+                >
+                  <Share2 className="w-5 h-5" />
+                  Share
+                </button>
+                <a
+                  href={gcalLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-indigo-600 hover:underline"
+                >
+                  <CalendarPlus className="w-5 h-5" />
+                  Google Calendar
+                </a>
+              </div>
             </div>
           </div>
           <div>
