@@ -44,6 +44,15 @@ const pillStyles = [
   'bg-red-100 text-red-800',
 ];
 
+// Fixed list of popular tags to display on the home page
+const popularTags = [
+  { slug: 'nomnomslurp', label: 'nomnomslurp' },
+  { slug: 'markets', label: 'markets' },
+  { slug: 'music', label: 'music' },
+  { slug: 'family', label: 'family' },
+  { slug: 'arts', label: 'arts' },
+];
+
 
 // ── Helpers ───────────────────────────────
 function parseISODateLocal(str) {
@@ -1225,13 +1234,7 @@ if (loading) {
                 </div>
 
                 {/* Tag filter */}
-                <div className="flex justify-center items-center gap-4 mt-4">
-                  <button
-                    onClick={() => setIsTagModalOpen(true)}
-                    className="px-3 py-1 min-w-[150px] border border-gray-400 text-gray-700 rounded-md bg-gray-100 shadow-sm hover:bg-gray-200 transition text-sm"
-                  >
-                    {`Filter by Tag${selectedTags.length ? ` (${selectedTags.length} selected)` : ''}`}
-                  </button>
+                <div className="flex flex-wrap justify-center items-center gap-4 mt-4">
                   {selectedTags.length > 0 && (
                     <button
                       onClick={() => setSelectedTags([])}
@@ -1240,6 +1243,27 @@ if (loading) {
                       Clear Filters
                     </button>
                   )}
+                  <button
+                    onClick={() => setIsTagModalOpen(true)}
+                    className="px-3 py-1 min-w-[150px] border border-gray-400 text-gray-700 rounded-md bg-gray-100 shadow-sm hover:bg-gray-200 transition text-sm"
+                  >
+                    {`Filter by Tag${selectedTags.length ? ` (${selectedTags.length} selected)` : ''}`}
+                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm text-gray-700 font-semibold">Popular tags:</span>
+                    {popularTags.map((tag, i) => {
+                      const isSel = selectedTags.includes(tag.slug);
+                      return (
+                        <button
+                          key={tag.slug}
+                          onClick={() => handleTagToggle(tag.slug, !isSel)}
+                          className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition ${isSel ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
+                        >
+                          #{tag.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
