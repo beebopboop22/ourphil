@@ -20,7 +20,7 @@ import SeasonalEventsGrid from './SeasonalEvents';
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
 import NewsletterSection from './NewsletterSection';
-import { Share2 } from 'lucide-react';
+import { XCircle, Filter } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
 const EventsMap = lazy(() => import('./EventsMap'));
@@ -317,7 +317,7 @@ useEffect(() => {
   // at the top of MainEvents()
 const [tagMap, setTagMap] = useState({});
 const [selectedTags, setSelectedTags] = useState([]);
-const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
 const handleTagToggle = (slug, checked) => {
   setSelectedTags(prev =>
@@ -345,12 +345,13 @@ const handleTagToggle = (slug, checked) => {
   const paperBg = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/loose-leaf-paper.jpg'
 
 
-  const [selectedOption, setSelectedOption] = useState(filterFromParam());
-  const [customDate, setCustomDate] = useState(() => {
+const [selectedOption, setSelectedOption] = useState(filterFromParam());
+const [customDate, setCustomDate] = useState(() => {
     if (/^\d{4}-\d{2}-\d{2}$/.test(params.view || '')) return params.view;
     const t = new Date();
     return t.toISOString().slice(0, 10);
   });
+const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
 
   const [events, setEvents] = useState([]);
   const [bigBoardEvents, setBigBoardEvents] = useState([]);
@@ -598,6 +599,14 @@ const handleTagToggle = (slug, checked) => {
     else if (option === 'weekend') navigate('/weekend');
     else if (option === 'custom' && dateVal)
       navigate(`/${dateVal}`);
+  };
+
+  const clearFilters = () => {
+    setSelectedTags([]);
+    setSelectedOption('today');
+    const t = new Date();
+    setCustomDate(t.toISOString().slice(0, 10));
+    goTo('today');
   };
 
   // Fetch all_events, big_board_events, and events (traditions)
@@ -1176,104 +1185,88 @@ if (loading) {
                 <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
               </div>
 
-              {/* ─── Pills + Date Picker + Event Count ─── */}
+              {/* ─── Filters Bar ─── */}
               <div className="relative z-10 container mx-auto px-4 mt-12">
-                <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
-                  {/* Pills row */}
-                  <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4 w-full sm:w-auto">
-                    {['today', 'tomorrow', 'weekend'].map(opt => (
-                      <button
-                        key={opt}
-                        onClick={() => { setSelectedOption(opt); goTo(opt); }}
-                        className={`
-                          text-sm sm:text-base
-                          px-3 sm:px-5 py-1 sm:py-2
-                          rounded-full border-2
-                          font-semibold
-                          shadow-lg
-                          transform transition-transform duration-200
-                          ${
-                            selectedOption === opt
-                              ? 'bg-indigo-600 text-white border-indigo-600'
-                              : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
-                          }
-                        `}
-                      >
-                        {opt === 'today' ? 'Today'
-                          : opt === 'tomorrow' ? 'Tomorrow'
-                          : 'This Weekend'}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* DatePicker below on mobile, inline on desktop */}
-                  <div className="relative w-full sm:w-auto">
-                    <DatePicker
-                      selected={new Date(customDate)}
-                      onChange={date => {
-                        const iso = date.toISOString().slice(0, 10)
-                        setCustomDate(iso)
-                        setSelectedOption('custom')
-                        goTo('custom', iso)
-                      }}
-                      dateFormat="yyyy-MM-dd"
-                      placeholderText="Pick a date"
-                      className={`
-                        w-full sm:w-auto
-                        text-sm sm:text-base px-2 sm:px-4 py-1 sm:py-2
-                        border-2 border-indigo-600 rounded-full
-                        shadow-lg
-                        focus:outline-none focus:ring-2 focus:ring-indigo-500
-                        transition duration-200
-                      `}
-                      wrapperClassName="w-full sm:w-auto"
-                      calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
-                      popperClassName="z-50"
-                    />
-                  </div>
-                </div>
-
-                {/* Tag filter */}
-                <div className="flex flex-wrap justify-center items-center gap-4 mt-4">
-                  {selectedTags.length > 0 && (
+                <div className="flex justify-end items-center gap-2 mb-4">
+                  {hasFilters && (
                     <button
-                      onClick={() => setSelectedTags([])}
-                      className="text-sm text-gray-600 underline"
+                      onClick={clearFilters}
+                      className="text-sm text-gray-500 hover:underline"
                     >
-                      Clear Filters
+                      Clear filters
                     </button>
                   )}
                   <button
-                    onClick={() => setIsTagModalOpen(true)}
-                    className="px-3 py-1 min-w-[150px] border border-gray-400 text-gray-700 rounded-md bg-gray-100 shadow-sm hover:bg-gray-200 transition text-sm"
+                    onClick={() => setIsFiltersOpen(true)}
+                    className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-indigo-600 rounded-full shadow-lg"
                   >
-                    {`Filter by Tag${selectedTags.length ? ` (${selectedTags.length} selected)` : ''}`}
+                    <Filter className="w-4 h-4" />
+                    {`Filters${selectedTags.length ? ` (${selectedTags.length})` : ''}`}
                   </button>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm text-gray-700 font-semibold">Popular tags:</span>
-                    {popularTags.map((tag, i) => {
-                      const isSel = selectedTags.includes(tag.slug);
-                      return (
-                        <button
-                          key={tag.slug}
-                          onClick={() => handleTagToggle(tag.slug, !isSel)}
-                          className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold hover:opacity-80 transition ${isSel ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
-                        >
-                          #{tag.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap pb-2">
+                  {['today', 'tomorrow', 'weekend'].map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => { setSelectedOption(opt); goTo(opt); }}
+                      className={`text-sm px-3 py-1 rounded-full border-2 font-semibold shadow-lg transition-transform duration-200 flex-shrink-0 ${
+                        selectedOption === opt
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
+                      }`}
+                    >
+                      {opt === 'today' ? 'Today'
+                        : opt === 'tomorrow' ? 'Tomorrow'
+                        : 'This Weekend'}
+                    </button>
+                  ))}
+                  <DatePicker
+                    selected={new Date(customDate)}
+                    onChange={date => {
+                      const iso = date.toISOString().slice(0, 10)
+                      setCustomDate(iso)
+                      setSelectedOption('custom')
+                      goTo('custom', iso)
+                    }}
+                    dateFormat="yyyy-MM-dd"
+                    placeholderText="Pick a date"
+                    className="text-sm px-3 py-1 border-2 border-indigo-600 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200 flex-shrink-0 bg-white text-indigo-600"
+                    wrapperClassName="flex-shrink-0"
+                    calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
+                    popperClassName="z-50"
+                  />
+                  <span className="text-sm text-gray-700 font-semibold flex-shrink-0">Filter by tags:</span>
+                  {popularTags.map((tag, i) => {
+                    const isSel = selectedTags.includes(tag.slug)
+                    return (
+                      <button
+                        key={tag.slug}
+                        onClick={() => handleTagToggle(tag.slug, !isSel)}
+                        className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold shadow-lg hover:opacity-80 transition flex-shrink-0 ${isSel ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
+                      >
+                        #{tag.label}
+                      </button>
+                    )
+                  })}
+                  {selectedTags.length > 0 && (
+                    <button
+                      onClick={() => setSelectedTags([])}
+                      className="ml-2 text-gray-500 hover:text-gray-700 flex-shrink-0"
+                      aria-label="Clear filters"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
 
             <TagFilterModal
-              open={isTagModalOpen}
+              open={isFiltersOpen}
               tags={allTags}
               selectedTags={selectedTags}
               onToggle={handleTagToggle}
-              onClose={() => setIsTagModalOpen(false)}
+              onClose={() => setIsFiltersOpen(false)}
             />
 
             <main className="container mx-auto px-4 py-8">
