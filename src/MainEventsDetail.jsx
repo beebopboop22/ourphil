@@ -75,7 +75,6 @@ export default function MainEventsDetail() {
   });
   const [saving, setSaving] = useState(false);
 
-  const [favCount, setFavCount] = useState(0);
   const {
     isFavorite,
     toggleFavorite,
@@ -246,14 +245,6 @@ export default function MainEventsDetail() {
         else setEventTags((data || []).map(r => r.tags));
       });
 
-    supabase
-      .from('event_favorites')
-      .select('id', { count: 'exact', head: true })
-      .eq('source_table', 'all_events')
-      .eq('event_int_id', event.id)
-      .then(({ count, error }) => {
-        if (!error) setFavCount(count || 0)
-      })
   }, [event]);
 
   // Load all tags for explore section
@@ -442,13 +433,6 @@ export default function MainEventsDetail() {
 
           {/* Overlap Card */}
           <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform relative">
-            <button
-              onClick={handleFavorite}
-              disabled={toggling}
-              className="absolute left-6 top-6 text-3xl"
-            >
-              {isFavorite ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
-            </button>
             <div className="text-center space-y-4">
               <h1 className="text-4xl font-bold">{event.name}</h1>
               <p className="text-lg font-medium">

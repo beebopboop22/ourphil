@@ -25,8 +25,6 @@ export default function EventDetailPage() {
 
   // ─── State ───────────────────────────────────────────────────────────
   const [event, setEvent] = useState(null);
-  const [favCount, setFavCount] = useState(0);
-
   const {
     isFavorite,
     toggleFavorite,
@@ -186,15 +184,6 @@ export default function EventDetailPage() {
   useEffect(() => {
     if (!event) return;
 
-    // favorite count
-    supabase
-      .from('event_favorites')
-      .select('id', { count: 'exact', head: true })
-      .eq('event_id', event.id)
-      .then(({ count, error }) => {
-        if (!error) setFavCount(count || 0);
-      });
-
     // upcoming community submissions
     (async () => {
       const today = new Date().toISOString().slice(0,10);
@@ -259,9 +248,7 @@ export default function EventDetailPage() {
       return;
     }
     if (!event) return;
-    const wasFav = isFavorite;
     await toggleFavorite();
-    setFavCount(c => (wasFav ? c - 1 : c + 1));
   };
 
   // ─── Reviews ─────────────────────────────────────────────────────────
@@ -407,13 +394,6 @@ export default function EventDetailPage() {
           style={{ backgroundImage: `url(${event['E Image']})` }}
         >
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
-          <button
-            onClick={toggleFav}
-            disabled={toggling}
-            className="absolute top-6 left-6 z-10 text-4xl"
-          >
-            {isFavorite ? '❤️' : '🤍'} <span className="text-2xl">{favCount}</span>
-          </button>
           <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white text-center">
             <h1 className="text-6xl font-[Barrio] mb-4">{event['E Name']}</h1>
             <p className="text-xl mb-6">
