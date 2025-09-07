@@ -969,7 +969,8 @@ useEffect(() => {
 
   const allPagedEvents = sortedEvents.slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
 
-  const fullCount = allPagedEvents.length;
+  // Use the total number of events across all pages for the header count
+  const fullCount = totalCount;
   let toShow = allPagedEvents;
 if (selectedOption === 'today' && !showAllToday) {
   toShow = allPagedEvents.slice(0, 4);
