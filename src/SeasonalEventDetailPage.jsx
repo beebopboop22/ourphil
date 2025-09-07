@@ -1,24 +1,17 @@
 // src/SeasonalEventDetailPage.jsx
 
-import React, { useEffect, useState, useContext } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
-import { AuthContext } from './AuthProvider';
-import SeasonalEventsGrid from './SeasonalEvents'; 
-import { getMySeasonalFavorites, addSeasonalFavorite, removeSeasonalFavorite } from './utils/seasonalFavorites';
+import SeasonalEventsGrid from './SeasonalEvents';
 
 const SeasonalEventDetailPage = () => {
   const { slug } = useParams();
-  const { user } = useContext(AuthContext);
-  const navigate = useNavigate();
 
   const [event, setEvent] = useState(null);
-  const [isFav, setIsFav] = useState(false);
-  const [favCount, setFavCount] = useState(0);
-  const [favId, setFavId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,46 +32,7 @@ const SeasonalEventDetailPage = () => {
     fetchEvent();
   }, [slug]);
 
-  useEffect(() => {
-    if (!event) return;
-    (async () => {
-      const { data, error } = await supabase
-        .from('seasonal_event_favorites')
-        .select('*')
-        .eq('seasonal_event_id', event.id);
-
-      if (!error) {
-        setFavCount(data.length);
-        if (user) {
-          const mine = data.find(r => r.user_id === user.id);
-          if (mine) {
-            setIsFav(true);
-            setFavId(mine.id);
-          }
-        }
-      }
-    })();
-  }, [event, user]);
-
-  const toggleFavorite = async () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (!event) return;
-
-    if (isFav) {
-      await removeSeasonalFavorite(favId);
-      setIsFav(false);
-      setFavId(null);
-      setFavCount(c => c - 1);
-    } else {
-      const inserted = await addSeasonalFavorite(event.id);
-      setIsFav(true);
-      setFavId(inserted.id);
-      setFavCount(c => c + 1);
-    }
-  };
+  // Heart/favorite functionality removed
 
   if (loading) return <div className="text-center py-20">Loading event...</div>;
   if (!event) return <div className="text-center py-20 text-gray-500">Event not found.</div>;
@@ -168,19 +122,8 @@ const SeasonalEventDetailPage = () => {
           )}
         </div>
 
-        <div className="absolute bottom-6 right-6 text-white flex items-center gap-2">
-          <button onClick={toggleFavorite} className="text-5xl">
-            {isFav ? '❤️' : '🤍'}
-          </button>
-          <span className="text-5xl font-[Barrio]">{favCount}</span>
-        </div>
+        {/* Hearts removed */}
       </div>
-
-      {!user && (
-        <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-          <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-        </div>
-      )}
 
       <SeasonalEventsGrid />
 

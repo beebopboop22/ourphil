@@ -1,21 +1,10 @@
 // src/SeasonalEventsGrid.jsx
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
-import { AuthContext } from './AuthProvider';
-import {
-  getMySeasonalFavorites,
-  addSeasonalFavorite,
-  removeSeasonalFavorite,
-} from './utils/seasonalFavorites';
 
 const SeasonalEventsGrid = () => {
-  const { user } = useContext(AuthContext);
-
   const [events, setEvents] = useState([]);
-  const [favMap, setFavMap] = useState({});
-  const [favCounts, setFavCounts] = useState({});
-  const [busyFavAction, setBusyFavAction] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -33,58 +22,6 @@ const SeasonalEventsGrid = () => {
       }
     })();
   }, []);
-
-  useEffect(() => {
-    if (!events.length) return;
-    (async () => {
-      const ids = events.map(e => e.id);
-      const { data, error } = await supabase
-        .from('seasonal_event_favorites')
-        .select('seasonal_event_id')
-        .in('seasonal_event_id', ids);
-
-      if (error) {
-        console.error('Error loading event favorite counts:', error);
-      } else {
-        const counts = {};
-        data.forEach(r => {
-          counts[r.seasonal_event_id] = (counts[r.seasonal_event_id] || 0) + 1;
-        });
-        setFavCounts(counts);
-      }
-    })();
-  }, [events]);
-
-  useEffect(() => {
-    if (!user) {
-      setFavMap({});
-      return;
-    }
-    getMySeasonalFavorites()
-      .then(rows => {
-        const m = {};
-        rows.forEach(r => { m[r.seasonal_event_id] = r.id; });
-        setFavMap(m);
-      })
-      .catch(console.error);
-  }, [user, events]);
-
-  const toggleFav = async (eventId) => {
-    if (!user) return;
-    setBusyFavAction(true);
-
-    if (favMap[eventId]) {
-      await removeSeasonalFavorite(favMap[eventId]);
-      setFavMap(m => { const c = { ...m }; delete c[eventId]; return c; });
-      setFavCounts(c => ({ ...c, [eventId]: (c[eventId] || 1) - 1 }));
-    } else {
-      const inserted = await addSeasonalFavorite(eventId);
-      setFavMap(m => ({ ...m, [eventId]: inserted.id }));
-      setFavCounts(c => ({ ...c, [eventId]: (c[eventId] || 0) + 1 }));
-    }
-
-    setBusyFavAction(false);
-  };
 
   if (!events.length) return null;
 
@@ -107,9 +44,6 @@ const SeasonalEventsGrid = () => {
               ? 'Open'
               : `Opens ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
             const tagColor = isOpen ? 'bg-green-500' : 'bg-yellow-500';
-
-            const isFav = Boolean(favMap[evt.id]);
-            const count = favCounts[evt.id] || 0;
 
             return (
               <Link
@@ -134,27 +68,6 @@ const SeasonalEventsGrid = () => {
                   className={`absolute top-3 left-3 px-2 py-1 text-xs font-bold text-white rounded-full ${tagColor}`}
                 >
                   {tagText}
-                </div>
-
-                {/* Heart + count aligned */}
-                <div className="absolute top-3 right-3 flex items-center space-x-1 z-20">
-                  <button
-                    onClick={e => { 
-                      e.preventDefault(); 
-                      e.stopPropagation(); 
-                      toggleFav(evt.id);
-                    }}
-                    disabled={busyFavAction}
-                    className="text-2xl text-white"
-                    aria-label={isFav ? 'Remove favorite' : 'Add favorite'}
-                  >
-                    {isFav ? '❤️' : '🤍'}
-                  </button>
-                  {count > 0 && (
-                    <span className="text-sm font-semibold text-white">
-                      {count}
-                    </span>
-                  )}
                 </div>
 
                 {/* Event name */}
