@@ -20,7 +20,7 @@ import SeasonalEventsGrid from './SeasonalEvents';
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
 import NewsletterSection from './NewsletterSection';
-import { XCircle, Filter } from 'lucide-react';
+import { XCircle, Filter, List } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
 const EventsMap = lazy(() => import('./EventsMap'));
@@ -318,6 +318,7 @@ useEffect(() => {
 const [tagMap, setTagMap] = useState({});
 const [selectedTags, setSelectedTags] = useState([]);
 const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+const [isListView, setIsListView] = useState(false);
 
 const handleTagToggle = (slug, checked) => {
   setSelectedTags(prev =>
@@ -1198,6 +1199,13 @@ if (loading) {
                     </button>
                   )}
                   <button
+                    onClick={() => setIsListView(v => !v)}
+                    className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-indigo-600 rounded-full shadow-lg"
+                  >
+                    <List className="w-4 h-4" />
+                    {isListView ? 'Card View' : 'List View'}
+                  </button>
+                  <button
                     onClick={() => setIsFiltersOpen(true)}
                     className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-indigo-600 rounded-full shadow-lg"
                   >
@@ -1284,7 +1292,7 @@ if (loading) {
     
 
     
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+      <div className={isListView ? "flex flex-col divide-y divide-gray-200" : "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6"}>
         {toShow.map(evt => {
           const today = new Date(); today.setHours(0,0,0,0);
           const now = new Date();
@@ -1350,134 +1358,181 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
               }
             >
             {({ isFavorite, toggleFavorite, loading }) => (
-              <Wrapper
-                key={evt.id}
-                {...linkProps}
-                className={`block rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col ${
-                  evt.isSports
-                    ? 'bg-green-50 border-2 border-green-500'
-                    : `bg-white ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`
-                }`}
-              >
-              {/* IMAGE + BUBBLE + BADGES */}
-              <div className="relative w-full h-48">
-                <img
-                  src={evt.imageUrl || evt.image || ''}
-                  alt={evt.title || evt.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
-                  {bubbleLabel}{bubbleTime}
-                </div>
-                {isFavorite && !evt.isSports && (
-                  <div className="absolute top-2 right-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded">
-                    In the plans!
+              isListView ? (
+                <Wrapper
+                  key={evt.id}
+                  {...linkProps}
+                  className={`flex items-center justify-between p-4 transition-colors ${isFavorite ? 'bg-purple-100' : 'bg-white hover:bg-purple-50'}`}
+                >
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-800">{evt.title || evt.name}</h3>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {shown.map((tag, i) => (
+                        <Link
+                          key={tag.slug}
+                          to={`/tags/${tag.slug}`}
+                          className={`${pillStyles[i % pillStyles.length]} text-xs px-2 py-1 rounded-full font-semibold`}
+                        >
+                          #{tag.name}
+                        </Link>
+                      ))}
+                      {extra > 0 && (
+                        <span className="text-xs text-gray-600">+{extra} more</span>
+                      )}
+                    </div>
                   </div>
-                )}
-
-                {/* Group Event comes first */}
-                {evt.isGroupEvent && (
-                  <div className="absolute inset-x-0 bottom-0 bg-green-600 text-white text-xs uppercase text-center py-1">
-                    Group Event
-                  </div>
-                )}
-
-                {evt.isBigBoard && (
-                  <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
-                    Submission
-                  </div>
-                )}
-                {evt.isTradition && (
-                  <div className="absolute inset-x-0 bottom-0 border-2 border-yellow-400 bg-yellow-100 text-yellow-800 text-xs uppercase font-semibold text-center py-1 flex items-center justify-center gap-1">
-                    <FaStar className="text-yellow-500" />
-                    Tradition
-                  </div>
-                )}
-              </div>
-
-              {/* FOOTER */}
-              <div className="p-4 flex-1 flex flex-col justify-between items-center text-center">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">
-                    {evt.title || evt.name}
-                  </h3>
-                  {/* location line */}
-                    {evt.isRecurring ? (
-                      evt.address && (
-                        <p className="text-sm text-gray-600">
-                          at {evt.address}
-                        </p>
-                      )
-                    ) : (
-                      evt.venues?.name && (
-                        <p className="text-sm text-gray-600">
-                          at {evt.venues.name}
-                        </p>
-                      )
-                    )}
-                </div>
-
-                <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
-                  {shown.map((tag, i) => (
-                    <Link
-                      key={tag.slug}
-                      to={`/tags/${tag.slug}`}
-                      className={`
-                        ${pillStyles[i % pillStyles.length]}
-                        text-[0.6rem] sm:text-sm
-                        px-2 sm:px-3
-                        py-1 sm:py-2
-                        rounded-full font-semibold
-                      `}
+                  {evt.isSports ? (
+                    evt.url && (
+                      <a
+                        href={evt.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-4 border border-indigo-600 rounded-md px-3 py-1 text-sm font-semibold text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        Get Tickets
+                      </a>
+                    )
+                  ) : (
+                    <button
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); if (!user) { navigate('/login'); return; } toggleFavorite(); }}
+                      disabled={loading}
+                      className={`ml-4 border border-indigo-600 rounded-md px-3 py-1 text-sm font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
                     >
-                      #{tag.name}
-                    </Link>
-                  ))}
-                  {extra > 0 && (
-                    <span className="text-[0.6rem] sm:text-sm text-gray-600">
-                      +{extra} more
-                    </span>
+                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                    </button>
+                  )}
+                </Wrapper>
+              ) : (
+                <Wrapper
+                  key={evt.id}
+                  {...linkProps}
+                  className={`block rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col ${
+                    evt.isSports
+                      ? 'bg-green-50 border-2 border-green-500'
+                      : `bg-white ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`
+                  }`}
+                >
+                {/* IMAGE + BUBBLE + BADGES */}
+                <div className="relative w-full h-48">
+                  <img
+                    src={evt.imageUrl || evt.image || ''}
+                    alt={evt.title || evt.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-semibold text-gray-800">
+                    {bubbleLabel}{bubbleTime}
+                  </div>
+                  {isFavorite && !evt.isSports && (
+                    <div className="absolute top-2 right-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded">
+                      In the plans!
+                    </div>
+                  )}
+
+                  {/* Group Event comes first */}
+                  {evt.isGroupEvent && (
+                    <div className="absolute inset-x-0 bottom-0 bg-green-600 text-white text-xs uppercase text-center py-1">
+                      Group Event
+                    </div>
+                  )}
+
+                  {evt.isBigBoard && (
+                    <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1">
+                      Submission
+                    </div>
+                  )}
+                  {evt.isTradition && (
+                    <div className="absolute inset-x-0 bottom-0 border-2 border-yellow-400 bg-yellow-100 text-yellow-800 text-xs uppercase font-semibold text-center py-1 flex items-center justify-center gap-1">
+                      <FaStar className="text-yellow-500" />
+                      Tradition
+                    </div>
                   )}
                 </div>
-                {evt.isSports ? (
-                  evt.url && (
-                    <a
-                      href={evt.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors text-center"
-                      onClick={e => e.stopPropagation()}
-                    >
-                      Get Tickets
-                    </a>
-                  )
-                ) : (
-                  <button
-                    onClick={e => { e.preventDefault(); e.stopPropagation(); if (!user) { navigate('/login'); return; } toggleFavorite(); }}
-                    disabled={loading}
-                    className={`mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                  >
-                    {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                  </button>
-                )}
-              </div>
-              {evt.isBigBoard && (
-                <div className="w-full bg-blue-50 text-blue-900 py-2 text-center">
-                  <div className="text-[0.55rem] uppercase font-semibold tracking-wide">SUBMITTED BY</div>
-                  <div className="mt-1 flex justify-center gap-1 text-xs font-semibold">
-                    <span>{profileMap[evt.owner_id]?.username}</span>
-                    {profileMap[evt.owner_id]?.cultures?.map(c => (
-                      <span key={c.emoji} className="relative group">
-                        {c.emoji}
-                        <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
-                          {c.name}
-                        </span>
-                      </span>
-                    ))}
+
+                {/* FOOTER */}
+                <div className="p-4 flex-1 flex flex-col justify-between items-center text-center">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">
+                      {evt.title || evt.name}
+                    </h3>
+                    {/* location line */}
+                      {evt.isRecurring ? (
+                        evt.address && (
+                          <p className="text-sm text-gray-600">
+                            at {evt.address}
+                          </p>
+                        )
+                      ) : (
+                        evt.venues?.name && (
+                          <p className="text-sm text-gray-600">
+                            at {evt.venues.name}
+                          </p>
+                        )
+                      )}
                   </div>
+
+                  <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
+                    {shown.map((tag, i) => (
+                      <Link
+                        key={tag.slug}
+                        to={`/tags/${tag.slug}`}
+                        className={`
+                          ${pillStyles[i % pillStyles.length]}
+                          text-[0.6rem] sm:text-sm
+                          px-2 sm:px-3
+                          py-1 sm:py-2
+                          rounded-full font-semibold
+                        `}
+                      >
+                        #{tag.name}
+                      </Link>
+                    ))}
+                    {extra > 0 && (
+                      <span className="text-[0.6rem] sm:text-sm text-gray-600">
+                        +{extra} more
+                      </span>
+                    )}
+                  </div>
+                  {evt.isSports ? (
+                    evt.url && (
+                      <a
+                        href={evt.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors text-center"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        Get Tickets
+                      </a>
+                    )
+                  ) : (
+                    <button
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); if (!user) { navigate('/login'); return; } toggleFavorite(); }}
+                      disabled={loading}
+                      className={`mt-4 w-full border border-indigo-600 rounded-md py-2 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                    >
+                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                    </button>
+                  )}
                 </div>
-              )}
-              </Wrapper>
+                {evt.isBigBoard && (
+                  <div className="w-full bg-blue-50 text-blue-900 py-2 text-center">
+                    <div className="text-[0.55rem] uppercase font-semibold tracking-wide">SUBMITTED BY</div>
+                    <div className="mt-1 flex justify-center gap-1 text-xs font-semibold">
+                      <span>{profileMap[evt.owner_id]?.username}</span>
+                      {profileMap[evt.owner_id]?.cultures?.map(c => (
+                        <span key={c.emoji} className="relative group">
+                          {c.emoji}
+                          <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                            {c.name}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                </Wrapper>
+              )
             )}
             </FavoriteState>
           );
