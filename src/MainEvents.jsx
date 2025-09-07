@@ -1176,11 +1176,11 @@ if (loading) {
                 <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
               </div>
 
-              {/* ─── Pills + Date Picker + Event Count ─── */}
-              <div className="relative z-10 container mx-auto px-4 mt-12">
-                <div className="flex flex-col sm:flex-row justify-start sm:justify-center items-start sm:items-center gap-2 sm:gap-4">
+              {/* ─── Pills + Date Picker + Tag Filter ─── */}
+              <div className="relative z-10 container mx-auto px-4 mt-12 space-y-4">
+                <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4">
                   {/* Pills row */}
-                  <div className="flex flex-nowrap sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                  <div className="flex flex-nowrap overflow-x-auto scrollbar-hide sm:flex-wrap justify-start sm:justify-center items-center gap-2 sm:gap-4 w-full sm:w-auto pb-2">
                     {['today', 'tomorrow', 'weekend'].map(opt => (
                       <button
                         key={opt}
@@ -1234,25 +1234,27 @@ if (loading) {
                 </div>
 
                 {/* Tag filter */}
-                <div className="flex flex-wrap justify-center items-center gap-4 mt-4">
-                  {selectedTags.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-center items-center gap-4">
+                    {selectedTags.length > 0 && (
+                      <button
+                        onClick={() => setSelectedTags([])}
+                        className="text-sm text-gray-600 underline"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
                     <button
-                      onClick={() => setSelectedTags([])}
-                      className="text-sm text-gray-600 underline"
+                      onClick={() => setIsTagModalOpen(true)}
+                      className="px-3 py-1 min-w-[150px] border border-gray-400 text-gray-700 rounded-md bg-gray-100 shadow-sm hover:bg-gray-200 transition text-sm"
                     >
-                      Clear Filters
+                      {`Filter by Tag${selectedTags.length ? ` (${selectedTags.length} selected)` : ''}`}
                     </button>
-                  )}
-                  <button
-                    onClick={() => setIsTagModalOpen(true)}
-                    className="px-3 py-1 min-w-[150px] border border-gray-400 text-gray-700 rounded-md bg-gray-100 shadow-sm hover:bg-gray-200 transition text-sm"
-                  >
-                    {`Filter by Tag${selectedTags.length ? ` (${selectedTags.length} selected)` : ''}`}
-                  </button>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm text-gray-700 font-semibold">Popular tags:</span>
+                  </div>
+                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
+                    <span className="text-sm text-gray-700 font-semibold flex-shrink-0">Popular tags:</span>
                     {popularTags.map((tag, i) => {
-                      const isSel = selectedTags.includes(tag.slug);
+                      const isSel = selectedTags.includes(tag.slug)
                       return (
                         <button
                           key={tag.slug}
@@ -1261,7 +1263,7 @@ if (loading) {
                         >
                           #{tag.label}
                         </button>
-                      );
+                      )
                     })}
                   </div>
                 </div>
