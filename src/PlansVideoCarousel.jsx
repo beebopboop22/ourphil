@@ -86,6 +86,7 @@ export default function PlansVideoCarousel({
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const containerRef = useRef(null)
+  const listRef = useRef(null)
   const [current, setCurrent] = useState(0)
   const [added, setAdded] = useState(false)
   const [pillConfigs, setPillConfigs] = useState([])
@@ -811,13 +812,31 @@ export default function PlansVideoCarousel({
         </div>
 
         {events.length > 0 && (
-          <div className="px-4 py-8 z-10">
-            {events.map(ev => (
-              <p key={`list-${ev.key}`} className="mb-4">
-                {ev.name}, {formatDate(ev.start)}: {ev.description}
-              </p>
-            ))}
-          </div>
+          <>
+            <div className="px-4 py-8 z-10" ref={listRef}>
+              {events.map(ev => (
+                <p key={`list-${ev.key}`} className="mb-4">
+                  {ev.name}, {formatDate(ev.start)}
+                  {tag !== 'fitness' && `: ${ev.description}`}
+                </p>
+              ))}
+            </div>
+            {tag === 'fitness' && (
+              <div className="px-4 pb-8 z-10">
+                <button
+                  className="w-full border rounded-md py-2 font-semibold text-indigo-600 border-indigo-600"
+                  onClick={() => {
+                    const text = Array.from(listRef.current.querySelectorAll('p'))
+                      .map(p => p.innerText)
+                      .join('\n')
+                    navigator.clipboard.writeText(text)
+                  }}
+                >
+                  Copy Text
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         <div className="mb-96"></div>
