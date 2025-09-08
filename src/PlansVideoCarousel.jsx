@@ -1,5 +1,6 @@
 // src/PlansVideoCarousel.jsx
 import React, { useEffect, useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 
@@ -52,6 +53,8 @@ export default function PlansVideoCarousel({
   const [added, setAdded] = useState(false)
   const [pillConfigs, setPillConfigs] = useState([])
   const [navHeight, setNavHeight] = useState(0)
+  const [groups, setGroups] = useState([])
+  const [slides, setSlides] = useState([])
 
   const colors = [
     '#22C55E', // green
@@ -95,6 +98,23 @@ export default function PlansVideoCarousel({
       window.removeEventListener('resize', updateHeight)
     }
   }, [])
+
+  useEffect(() => {
+    if (tag !== 'fitness') { setGroups([]); return }
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('groups')
+        .select('id, slug, Name, Type')
+      if (!error) {
+        const fitnessTags = ['climbing','cycling','running','health & fitness','sports leagues','outdoors & adventure','yoga']
+        const filtered = (data || []).filter(g => {
+          const types = (g.Type || '').toLowerCase()
+          return fitnessTags.some(t => types.includes(t))
+        })
+        setGroups(filtered)
+      }
+    })()
+  }, [tag])
 
   useEffect(() => {
     ;(async () => {
@@ -489,17 +509,45 @@ export default function PlansVideoCarousel({
     }, [tag, onlyEvents, weekend, limit])
 
   useEffect(() => {
-    if (!events.length) return
+    if (!events.length) { setSlides([]); return }
+    if (tag === 'fitness' && groups.length) {
+      const combined = []
+      let gIdx = 0
+      const sampleGroups = () => {
+        const shuffled = [...groups].sort(() => Math.random() - 0.5)
+        return shuffled.slice(0,5)
+      }
+      for (let i = 0; i < events.length; i++) {
+        if (i > 0 && i % 4 === 0) {
+          const sample = sampleGroups()
+          if (sample.length) {
+            combined.push({ type: 'groups', key: `g-${gIdx++}`, groups: sample })
+          }
+        }
+        combined.push({ type: 'event', ...events[i] })
+      }
+      setSlides(combined)
+    } else {
+      setSlides(events.map(ev => ({ type: 'event', ...ev })))
+    }
+  }, [events, groups, tag])
+
+  useEffect(() => {
+    setCurrent(0)
+  }, [slides.length])
+
+  useEffect(() => {
+    if (!slides.length) return
     setAdded(false)
     const borderTimer = setTimeout(() => setAdded(true), 1000)
     const slideTimer = setTimeout(() => {
-      setCurrent(c => (c + 1) % events.length)
+      setCurrent(c => (c + 1) % slides.length)
     }, 2000)
     return () => {
       clearTimeout(borderTimer)
       clearTimeout(slideTimer)
     }
-  }, [current, events])
+  }, [current, slides])
 
   useEffect(() => {
     const el = containerRef.current
@@ -533,7 +581,9 @@ export default function PlansVideoCarousel({
           className="bg-[#ba3d36] text-white py-3 text-center font-[Barrio] text-lg z-10"
           style={{ marginTop: navHeight }}
         >
-          {headline || (tag ? `Upcoming #${tag} events in Philly` : 'Upcoming events in Philly')}
+          {groups.length && tag === 'fitness'
+            ? `Find #${tag} groups in Philly`
+            : headline || (tag ? `Upcoming #${tag} events in Philly` : 'Upcoming events in Philly')}
         </div>
 
         <div
@@ -544,46 +594,67 @@ export default function PlansVideoCarousel({
             <p className="text-center py-20">Loading…</p>
           ) : (
             <div ref={containerRef} className="flex w-full h-full overflow-hidden">
-              {events.map((evt, idx) => (
-                <div
-                  key={evt.key}
-                  className="flex-shrink-0 w-full h-full flex items-center justify-center p-4"
-                  style={{ minWidth: '100%' }}
-                >
+              {slides.map((slide, idx) => (
+                slide.type === 'event' ? (
                   <div
-                    className={`plans-carousel-card w-11/12 max-w-md mx-auto flex flex-col overflow-hidden rounded-xl bg-white transition-all duration-500 ${
-                      idx === current && added
-                        ? 'border-4 border-indigo-600'
-                        : 'border border-transparent'
-                    }`}
-                    style={{ maxHeight: 'calc(100dvh - var(--bottom-bar, 5rem) - env(safe-area-inset-bottom))' }}
+                    key={slide.key}
+                    className="flex-shrink-0 w-full h-full flex items-center justify-center p-4"
+                    style={{ minWidth: '100%' }}
                   >
-                    {evt.image && (
-                      <div className="shrink-0 relative w-full aspect-video">
-                        <img
-                          src={evt.image}
-                          alt={evt.name}
-                          className="absolute inset-0 h-full w-full object-cover"
-                        />
+                    <div
+                      className={`plans-carousel-card w-11/12 max-w-md mx-auto flex flex-col overflow-hidden rounded-xl bg-white transition-all duration-500 ${
+                        idx === current && added
+                          ? 'border-4 border-indigo-600'
+                          : 'border border-transparent'
+                      }`}
+                      style={{ maxHeight: 'calc(100dvh - var(--bottom-bar, 5rem) - env(safe-area-inset-bottom))' }}
+                    >
+                      {slide.image && (
+                        <div className="shrink-0 relative w-full aspect-video">
+                          <img
+                            src={slide.image}
+                            alt={slide.name}
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="min-h-0 flex-1 overflow-y-auto p-4 text-center">
+                        <h3 className="font-bold text-xl">{slide.name}</h3>
+                        <p className="text-gray-700 mb-4">{formatDate(slide.start)}</p>
                       </div>
-                    )}
-                    <div className="min-h-0 flex-1 overflow-y-auto p-4 text-center">
-                      <h3 className="font-bold text-xl">{evt.name}</h3>
-                      <p className="text-gray-700 mb-4">{formatDate(evt.start)}</p>
-                    </div>
-                    <div className="shrink-0 border-t p-3 bg-white">
-                      <button
-                        className={`w-full border rounded-md py-2 font-semibold transition-colors ${
-                          idx === current && added
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-indigo-600 border-indigo-600'
-                        }`}
-                      >
-                        {idx === current && added ? 'In the Plans' : 'Add to Plans'}
-                      </button>
+                      <div className="shrink-0 border-t p-3 bg-white">
+                        <button
+                          className={`w-full border rounded-md py-2 font-semibold transition-colors ${
+                            idx === current && added
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-white text-indigo-600 border-indigo-600'
+                          }`}
+                        >
+                          {idx === current && added ? 'In the Plans' : 'Add to Plans'}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div
+                    key={slide.key}
+                    className="flex-shrink-0 w-full h-full flex items-center justify-center p-4"
+                    style={{ minWidth: '100%' }}
+                  >
+                    <div className="w-11/12 max-w-md mx-auto bg-white rounded-xl overflow-hidden border">
+                      {slide.groups.map(g => (
+                        <Link
+                          key={g.id}
+                          to={`/groups/${g.slug}`}
+                          className="block px-4 py-3 border-b last:border-b-0"
+                        >
+                          <p className="font-semibold">{g.Name}</p>
+                          <p className="text-xs text-gray-600">{g.Type}</p>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )
               ))}
             </div>
           )}
