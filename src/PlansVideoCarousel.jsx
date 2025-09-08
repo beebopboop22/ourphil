@@ -143,11 +143,21 @@ export default function PlansVideoCarousel({
         .from('groups')
         .select('id, slug, Name, Type')
       if (!error) {
-        const fitnessTags = ['climbing','cycling','running','health & fitness','sports leagues','outdoors & adventure','yoga']
-        const filtered = (data || []).filter(g => {
-          const types = (g.Type || '').toLowerCase()
-          return fitnessTags.some(t => types.includes(t))
-        })
+        const fitnessTags = ['climbing','cycling','running','sports leagues','outdoors & adventure','yoga']
+        const filtered = (data || [])
+          .filter(g => {
+            const types = (g.Type || '').toLowerCase()
+            return fitnessTags.some(t => types.includes(t))
+          })
+          .map(g => ({
+            ...g,
+            Type: (g.Type || '')
+              .split(',')
+              .map(t => t.trim())
+              .filter(t => t.toLowerCase() !== 'health & fitness')
+              .join(', '),
+          }))
+          .slice(0, 5)
         setGroups(filtered)
       }
     })()
@@ -654,7 +664,7 @@ export default function PlansVideoCarousel({
       let gIdx = 0
       const sampleGroups = () => {
         const shuffled = [...groups].sort(() => Math.random() - 0.5)
-        return shuffled.slice(0,7)
+        return shuffled.slice(0,5)
       }
       for (let i = 0; i < events.length; i++) {
         if (i > 0 && i % 4 === 0) {
