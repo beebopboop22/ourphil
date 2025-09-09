@@ -393,6 +393,34 @@ export default function PlansVideoCarousel({
         }
 
         if (!tag) {
+          if (onlyEvents) {
+            const { data: eRes } = await supabase
+              .from('events')
+              .select('id, slug, "E Name", Dates, "End Date", "E Image", "E Description"')
+
+            const merged = []
+            ;(eRes || []).forEach(e => {
+              const start = parseDate(e.Dates)
+              const end = e['End Date'] ? parseDate(e['End Date']) : start
+              merged.push({
+                key: `ev-${e.id}`,
+                slug: `/events/${e.slug}`,
+                name: e['E Name'],
+                start,
+                end,
+                image: e['E Image'] || '',
+                description: e['E Description'] || ''
+              })
+            })
+            const todayDate = new Date(); todayDate.setHours(0,0,0,0)
+            const upcoming = merged
+              .filter(ev => ev.start && ev.start >= todayDate)
+              .sort((a, b) => a.start - b.start)
+            setEvents(upcoming.slice(0, limit))
+            setLoading(false)
+            return
+          }
+
           const [eRes, bbRes, aeRes, geRes, reRes] = await Promise.all([
             supabase
               .from('events')
