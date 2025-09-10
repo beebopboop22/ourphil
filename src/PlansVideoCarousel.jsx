@@ -45,6 +45,8 @@ const expandRecurring = (rows, windowStart = null, windowEnd = null) => {
       const dateStr = d.toISOString().slice(0, 10)
       out.push({
         key: `re-${r.id}-${dateStr}`,
+        id: r.id,
+        type: 'recurring_events',
         slug: `/series/${r.slug}/${dateStr}`,
         name: r.name,
         start: d,
@@ -93,6 +95,7 @@ export default function PlansVideoCarousel({
   const [navHeight, setNavHeight] = useState(0)
   const [groups, setGroups] = useState([])
   const [slides, setSlides] = useState([])
+  const [tagMap, setTagMap] = useState({})
 
   const colors = [
     '#22C55E', // green
@@ -213,6 +216,8 @@ export default function PlansVideoCarousel({
             const end = e['End Date'] ? parseDate(e['End Date']) : start
             merged.push({
               key: `ev-${e.id}`,
+              id: e.id,
+              type: 'events',
               slug: `/events/${e.slug}`,
               name: e['E Name'],
               start,
@@ -230,6 +235,8 @@ export default function PlansVideoCarousel({
               : ''
             merged.push({
               key: `bb-${ev.id}`,
+              id: ev.id,
+              type: 'big_board_events',
               slug: `/big-board/${ev.slug}`,
               name: ev.title,
               start,
@@ -243,6 +250,8 @@ export default function PlansVideoCarousel({
             const venueSlug = ev.venue_id?.slug
             merged.push({
               key: `ae-${ev.id}`,
+              id: ev.id,
+              type: 'all_events',
               slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
               name: ev.name,
               start,
@@ -262,6 +271,8 @@ export default function PlansVideoCarousel({
             if (groupSlug) {
               merged.push({
                 key: `ge-${ev.id}`,
+                id: ev.id,
+                type: 'group_events',
                 slug: `/groups/${groupSlug}/events/${ev.slug}`,
                 name: ev.title,
                 start,
@@ -323,6 +334,8 @@ export default function PlansVideoCarousel({
             const end = e['End Date'] ? parseDate(e['End Date']) : start
             merged.push({
               key: `ev-${e.id}`,
+              id: e.id,
+              type: 'events',
               slug: `/events/${e.slug}`,
               name: e['E Name'],
               start,
@@ -340,6 +353,8 @@ export default function PlansVideoCarousel({
               : ''
             merged.push({
               key: `bb-${ev.id}`,
+              id: ev.id,
+              type: 'big_board_events',
               slug: `/big-board/${ev.slug}`,
               name: ev.title,
               start,
@@ -353,6 +368,8 @@ export default function PlansVideoCarousel({
             const venueSlug = ev.venue_id?.slug
             merged.push({
               key: `ae-${ev.id}`,
+              id: ev.id,
+              type: 'all_events',
               slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
               name: ev.name,
               start,
@@ -372,6 +389,8 @@ export default function PlansVideoCarousel({
             if (groupSlug) {
               merged.push({
                 key: `ge-${ev.id}`,
+                id: ev.id,
+                type: 'group_events',
                 slug: `/groups/${groupSlug}/events/${ev.slug}`,
                 name: ev.title,
                 start,
@@ -404,6 +423,8 @@ export default function PlansVideoCarousel({
               const end = e['End Date'] ? parseDate(e['End Date']) : start
               merged.push({
                 key: `ev-${e.id}`,
+                id: e.id,
+                type: 'events',
                 slug: `/events/${e.slug}`,
                 name: e['E Name'],
                 start,
@@ -453,19 +474,21 @@ export default function PlansVideoCarousel({
           }
 
           const merged = []
-          ;(eRes.data || []).forEach(e => {
-            const start = parseDate(e.Dates)
-            const end = e['End Date'] ? parseDate(e['End Date']) : start
-            merged.push({
-              key: `ev-${e.id}`,
-              slug: `/events/${e.slug}`,
-              name: e['E Name'],
-              start,
-              end,
-              image: e['E Image'] || '',
-              description: e['E Description'] || ''
+            ;(eRes.data || []).forEach(e => {
+              const start = parseDate(e.Dates)
+              const end = e['End Date'] ? parseDate(e['End Date']) : start
+              merged.push({
+                key: `ev-${e.id}`,
+                id: e.id,
+                type: 'events',
+                slug: `/events/${e.slug}`,
+                name: e['E Name'],
+                start,
+                end,
+                image: e['E Image'] || '',
+                description: e['E Description'] || ''
+              })
             })
-          })
           ;(bbRes.data || []).forEach(ev => {
             const start = parseLocalYMD(ev.start_date)
             const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
@@ -475,6 +498,8 @@ export default function PlansVideoCarousel({
               : ''
             merged.push({
               key: `bb-${ev.id}`,
+              id: ev.id,
+              type: 'big_board_events',
               slug: `/big-board/${ev.slug}`,
               name: ev.title,
               start,
@@ -488,6 +513,8 @@ export default function PlansVideoCarousel({
             const venueSlug = ev.venue_id?.slug
             merged.push({
               key: `ae-${ev.id}`,
+              id: ev.id,
+              type: 'all_events',
               slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
               name: ev.name,
               start,
@@ -507,6 +534,8 @@ export default function PlansVideoCarousel({
             if (groupSlug) {
               merged.push({
                 key: `ge-${ev.id}`,
+                id: ev.id,
+                type: 'group_events',
                 slug: `/groups/${groupSlug}/events/${ev.slug}`,
                 name: ev.title,
                 start,
@@ -603,6 +632,8 @@ export default function PlansVideoCarousel({
             const end = e['End Date'] ? parseDate(e['End Date']) : start
             merged.push({
               key: `ev-${e.id}`,
+              id: e.id,
+              type: 'events',
               slug: `/events/${e.slug}`,
               name: e['E Name'],
               start,
@@ -622,6 +653,8 @@ export default function PlansVideoCarousel({
               : ''
             merged.push({
               key: `bb-${ev.id}`,
+              id: ev.id,
+              type: 'big_board_events',
               slug: `/big-board/${ev.slug}`,
               name: ev.title,
               start,
@@ -637,6 +670,8 @@ export default function PlansVideoCarousel({
             const venueSlug = ev.venue_id?.slug
             merged.push({
               key: `ae-${ev.id}`,
+              id: ev.id,
+              type: 'all_events',
               slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
               name: ev.name,
               start,
@@ -658,6 +693,8 @@ export default function PlansVideoCarousel({
             if (groupSlug) {
               merged.push({
                 key: `ge-${ev.id}`,
+                id: ev.id,
+                type: 'group_events',
                 slug: `/groups/${groupSlug}/events/${ev.slug}`,
                 name: ev.title,
                 start,
@@ -684,7 +721,47 @@ export default function PlansVideoCarousel({
         setLoading(false)
       }
     })()
-    }, [tag, onlyEvents, weekend, limit])
+  }, [tag, onlyEvents, weekend, limit])
+
+  useEffect(() => {
+    if (!events.length) { setTagMap({}); return }
+
+    const idsByType = {
+      events: [],
+      big_board_events: [],
+      all_events: [],
+      group_events: [],
+      recurring_events: []
+    }
+
+    events.forEach(ev => {
+      if (idsByType[ev.type]) idsByType[ev.type].push(ev.id)
+    })
+
+    const fetches = Object.entries(idsByType)
+      .filter(([, ids]) => ids.length)
+      .map(([type, ids]) =>
+        supabase
+          .from('taggings')
+          .select('taggable_id, tags(name,slug)')
+          .eq('taggable_type', type)
+          .in('taggable_id', ids)
+          .then(({ data, error }) => {
+            if (error) { console.error('tags load error', error); return [] }
+            return data.map(r => ({ ...r, type }))
+          })
+      )
+
+    Promise.all(fetches).then(results => {
+      const map = {}
+      results.flat().forEach(({ taggable_id, tags, type }) => {
+        const key = `${type}-${taggable_id}`
+        if (!map[key]) map[key] = []
+        map[key].push(tags)
+      })
+      setTagMap(map)
+    })
+  }, [events])
 
   useEffect(() => {
     if (!events.length) { setSlides([]); return }
@@ -699,14 +776,14 @@ export default function PlansVideoCarousel({
         if (i > 0 && i % 4 === 0) {
           const sample = sampleGroups()
           if (sample.length) {
-            combined.push({ type: 'groups', key: `g-${gIdx++}`, groups: sample })
+            combined.push({ slideType: 'groups', key: `g-${gIdx++}`, groups: sample })
           }
         }
-        combined.push({ type: 'event', ...events[i] })
+        combined.push({ slideType: 'event', ...events[i] })
       }
       setSlides(combined)
     } else {
-      setSlides(events.map(ev => ({ type: 'event', ...ev })))
+      setSlides(events.map(ev => ({ slideType: 'event', ...ev })))
     }
   }, [events, groups, tag])
 
@@ -719,7 +796,7 @@ export default function PlansVideoCarousel({
     setAdded(false)
     const borderTimer = setTimeout(() => setAdded(true), 1000)
     const currentSlide = slides[current]
-    const delay = currentSlide?.type === 'groups' ? 3000 : 2000
+    const delay = currentSlide?.slideType === 'groups' ? 3000 : 2000
     const slideTimer = setTimeout(() => {
       setCurrent(c => (c + 1) % slides.length)
     }, delay)
@@ -773,7 +850,7 @@ export default function PlansVideoCarousel({
           ) : (
             <div ref={containerRef} className="flex w-full h-full overflow-hidden">
               {slides.map((slide, idx) => (
-                slide.type === 'event' ? (
+                slide.slideType === 'event' ? (
                   <div
                     key={slide.key}
                     className="flex-shrink-0 w-full h-full flex items-center justify-center p-4"
@@ -846,7 +923,10 @@ export default function PlansVideoCarousel({
                 <p key={`list-${ev.key}`} className="mb-4">
                   {ev.name}, {formatDate(ev.start)}
                   {tag !== 'fitness' && `: ${ev.description}`}
-                  {" #fitness #arts #family"}
+                  {(() => {
+                    const tags = tagMap[`${ev.type}-${ev.id}`] || []
+                    return tags.length ? ' ' + tags.map(t => `#${t.slug}`).join(' ') : ''
+                  })()}
                 </p>
               ))}
             </div>
