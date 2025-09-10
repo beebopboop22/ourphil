@@ -846,6 +846,7 @@ export default function PlansVideoCarousel({
                 <p key={`list-${ev.key}`} className="mb-4">
                   {ev.name}, {formatDate(ev.start)}
                   {tag !== 'fitness' && `: ${ev.description}`}
+                  {" #fitness #arts #family"}
                 </p>
               ))}
             </div>
