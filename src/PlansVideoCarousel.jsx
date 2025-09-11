@@ -83,6 +83,7 @@ export default function PlansVideoCarousel({
   headline,
   weekend = false,
   today = false,
+  sunday = false,
   limit = 15,
 }) {
   const [events, setEvents] = useState([])
@@ -170,16 +171,16 @@ export default function PlansVideoCarousel({
   useEffect(() => {
     ;(async () => {
       try {
-        if (weekend) {
+        if (weekend || sunday) {
           const todayDate = new Date(); todayDate.setHours(0,0,0,0)
           const day = todayDate.getDay()
           let friday = new Date(todayDate)
           if (day === 0) friday.setDate(todayDate.getDate() - 2)
           else if (day >= 5) friday.setDate(todayDate.getDate() - (day - 5))
           else friday.setDate(todayDate.getDate() + (5 - day))
-          const sunday = new Date(friday); sunday.setDate(friday.getDate() + 2)
+          const sundayDate = new Date(friday); sundayDate.setDate(friday.getDate() + 2)
 
-          const [eRes, bbRes, aeRes, geRes, reRes] = await Promise.all([
+          const [eRes, bbRes, aeRes, geRes, reRes, gRes] = await Promise.all([
             supabase
               .from('events')
               .select('id, slug, "E Name", Dates, "End Date", "E Image", "E Description"'),
@@ -196,6 +197,9 @@ export default function PlansVideoCarousel({
               .from('recurring_events')
               .select('id, name, slug, description, image_url, start_date, end_date, start_time, rrule')
               .eq('is_active', true),
+            supabase
+              .from('games')
+              .select('*'),
           ])
 
           let groupMap = {}
@@ -283,12 +287,33 @@ export default function PlansVideoCarousel({
             }
           })
 
-          merged.push(...expandRecurring(reRes.data || [], friday, sunday))
+          ;(gRes.data || []).forEach(game => {
+            if (!game.Date) return
+            const [m, d, y] = game.Date.split('/').map(Number)
+            const start = new Date(2000 + y, m - 1, d)
+            merged.push({
+              key: `g-${game.id}`,
+              id: game.id,
+              type: 'games',
+              slug: game['Ticket link'] || '',
+              name: game.Subject,
+              start,
+              end: start,
+              image: game.Image || '',
+              description: game.Location || ''
+            })
+          })
 
-          const weekendEvents = merged
-            .filter(ev => ev.start && ev.start >= friday && ev.start <= sunday)
+          merged.push(...expandRecurring(reRes.data || [], friday, sundayDate))
+
+          let rangeStart = weekend ? friday : sundayDate
+          let rangeEnd = weekend ? new Date(sundayDate) : new Date(sundayDate)
+          if (!weekend) rangeEnd.setDate(rangeEnd.getDate() + 1)
+
+          const filteredEvents = merged
+            .filter(ev => ev.start && ev.start >= rangeStart && ev.start < rangeEnd)
             .sort((a, b) => a.start - b.start)
-          setEvents(weekendEvents.slice(0, limit))
+          setEvents(filteredEvents.slice(0, limit))
           setLoading(false)
           return
         }
@@ -721,7 +746,7 @@ export default function PlansVideoCarousel({
         setLoading(false)
       }
     })()
-  }, [tag, onlyEvents, weekend, limit])
+  }, [tag, onlyEvents, weekend, today, sunday, limit])
 
   useEffect(() => {
     if (!events.length) { setTagMap({}); return }
@@ -731,7 +756,8 @@ export default function PlansVideoCarousel({
       big_board_events: [],
       all_events: [],
       group_events: [],
-      recurring_events: []
+      recurring_events: [],
+      games: []
     }
 
     events.forEach(ev => {
