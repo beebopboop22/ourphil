@@ -22,6 +22,7 @@ export default function PlansVideoIndex() {
   const links = [
     { to: '/plans-video/today', label: 'Today' },
     { to: '/plans-video/weekend-plans', label: 'This Weekend' },
+    { to: '/plans-video/this-sunday', label: 'This Sunday' },
     { to: '/plans-video-arts', label: 'Arts' },
     { to: '/plans-video-food', label: 'Nomnomslurp' },
     { to: '/plans-video-fitness', label: 'Fitness' },
