@@ -948,7 +948,7 @@ export default function PlansVideoCarousel({
               {events.map(ev => (
                 <p key={`list-${ev.key}`} className="mb-4">
                   {ev.name}, {formatDate(ev.start)}
-                  {tag !== 'fitness' && `: ${ev.description}`}
+                  {ev.description ? `: ${ev.description}` : ''}
                   {(() => {
                     const tags = tagMap[`${ev.type}-${ev.id}`] || []
                     return tags.length ? ' ' + tags.map(t => `#${t.slug}`).join(' ') : ''
