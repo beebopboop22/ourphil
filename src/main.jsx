@@ -129,11 +129,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             path="/plans-video/today"
             element={<PlansVideoCarousel today headline="Events Today in Philly" limit={30} />}
           />
-          <Route
-            path="/plans-video/weekend-plans"
-            element={<PlansVideoCarousel weekend headline="Events This Weekend in Philly" limit={30} />}
-          />
-          <Route path="/plans-video" element={<PlansVideoIndex />} />
+        <Route
+          path="/plans-video/weekend-plans"
+          element={<PlansVideoCarousel weekend headline="Events This Weekend in Philly" limit={30} />}
+        />
+        <Route
+          path="/plans-video/this-sunday"
+          element={<PlansVideoCarousel sunday headline="Events This Sunday in Philly" limit={30} />}
+        />
+        <Route path="/plans-video" element={<PlansVideoIndex />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
           <Route path="/:venue" element={<VenuePage />} />
