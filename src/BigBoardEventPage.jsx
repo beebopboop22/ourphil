@@ -36,9 +36,8 @@ export default function BigBoardEventPage() {
   // Siblings for prev/next
   const [siblings, setSiblings] = useState([]);
 
-  // Mapbox Search Box setup
+  // Mapbox Geocoding setup
   const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
-  const sessionToken = useRef(crypto.randomUUID());
   const suggestRef = useRef(null);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
 
@@ -328,55 +327,51 @@ export default function BigBoardEventPage() {
     setFormData(fd => ({ ...fd, [name]: value }));
   };
 
-  // Address suggestions effect (Mapbox Search Box /suggest)
+  // Address suggestions effect (Mapbox Geocoding)
   useEffect(() => {
     if (!isEditing) return;
     const addr = formData.address?.trim();
-    if (!addr) {
+    if (!addr || !geocoderToken) {
       setAddressSuggestions([]);
       return;
     }
+
+    const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetch(
-        `https://api.mapbox.com/search/searchbox/v1/suggest` +
-        `?q=${encodeURIComponent(addr)}` +
-        `&access_token=${geocoderToken}` +
-        `&session_token=${sessionToken.current}` +
-        `&limit=5` +
-        `&proximity=-75.1652,39.9526` +
-        `&bbox=-75.2803,39.8670,-74.9558,40.1379`
-      )
-        .then(r => r.json())
-        .then(json => setAddressSuggestions(json.suggestions || []))
-        .catch(console.error);
+      const url = new URL(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(addr)}.json`
+      );
+      url.search = new URLSearchParams({
+        access_token: geocoderToken,
+        autocomplete: 'true',
+        limit: '5',
+        proximity: '-75.1652,39.9526',
+        bbox: '-75.2803,39.8670,-74.9558,40.1379',
+      }).toString();
+
+      fetch(url, { signal: controller.signal })
+        .then(r => (r.ok ? r.json() : Promise.reject(r)))
+        .then(json => setAddressSuggestions(json.features || []))
+        .catch(err => {
+          if (err.name !== 'AbortError') console.error(err);
+        });
     }, 300);
-    return () => clearTimeout(timer);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [formData.address, isEditing, geocoderToken]);
 
-  // Pick a suggestion (Mapbox Search Box /retrieve)
+  // Pick a suggestion
   function pickSuggestion(feat) {
-    fetch(
-      `https://api.mapbox.com/search/searchbox/v1/retrieve/${feat.mapbox_id}` +
-      `?access_token=${geocoderToken}` +
-      `&session_token=${sessionToken.current}`
-    )
-      .then(r => r.json())
-      .then(json => {
-        const feature = json.features?.[0];
-        if (feature) {
-          const name    = feature.properties.name_preferred || feature.properties.name;
-          const context = feature.properties.place_formatted;
-          const [lng, lat] = feature.geometry.coordinates;
-          setFormData(fd => ({
-            ...fd,
-            address:   `${name}, ${context}`,
-            latitude:  lat,
-            longitude: lng,
-          }));
-        }
-      })
-      .catch(console.error);
-
+    const [lng, lat] = feat.geometry.coordinates;
+    setFormData(fd => ({
+      ...fd,
+      address:   feat.place_name,
+      latitude:  lat,
+      longitude: lng,
+    }));
     setAddressSuggestions([]);
     suggestRef.current?.blur();
   }
@@ -641,11 +636,11 @@ export default function BigBoardEventPage() {
                       <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
                         {addressSuggestions.map(feat => (
                           <li
-                            key={feat.mapbox_id}
+                            key={feat.id}
                             onClick={() => pickSuggestion(feat)}
                             className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
                           >
-                            {feat.name} — {feat.full_address || feat.place_formatted}
+                            {feat.place_name}
                           </li>
                         ))}
                       </ul>
