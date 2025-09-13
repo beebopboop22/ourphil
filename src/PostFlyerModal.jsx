@@ -12,7 +12,6 @@ import { isTagActive } from './utils/tagUtils';
 export default function PostFlyerModal({ isOpen, onClose, initialFile = null }) {
   const { user } = useContext(AuthContext);
   const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
-  const sessionToken = useRef(crypto.randomUUID());
   const skipNextFetch = useRef(false);
 
   const {
@@ -131,7 +130,6 @@ export default function PostFlyerModal({ isOpen, onClose, initialFile = null }) 
     setSelectedTags([]);
     setUploading(false);
     setConfirmationUrl('');
-    sessionToken.current = crypto.randomUUID();
     skipNextFetch.current = false;
   }
 
@@ -143,27 +141,36 @@ export default function PostFlyerModal({ isOpen, onClose, initialFile = null }) 
       return;
     }
 
-    if (!address.trim()) {
+    if (!address.trim() || !geocoderToken) {
       setSuggestions([]);
       return;
     }
 
+    const controller = new AbortController();
     const timeout = setTimeout(() => {
-      fetch(
-        `https://api.mapbox.com/search/searchbox/v1/suggest` +
-        `?q=${encodeURIComponent(address)}` +
-        `&access_token=${geocoderToken}` +
-        `&session_token=${sessionToken.current}` +
-        `&limit=5` +
-        `&proximity=-75.1652,39.9526` +            // bias to Philly center
-        `&bbox=-75.2803,39.8670,-74.9558,40.1379`  // restrict to Philly bbox
-      )
-        .then(r => r.json())
-        .then(json => setSuggestions(json.suggestions || []))
-        .catch(console.error);
+      const url = new URL(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json`
+      );
+      url.search = new URLSearchParams({
+        access_token: geocoderToken,
+        autocomplete: 'true',
+        limit: '5',
+        proximity: '-75.1652,39.9526',
+        bbox: '-75.2803,39.8670,-74.9558,40.1379',
+      }).toString();
+
+      fetch(url, { signal: controller.signal })
+        .then(r => (r.ok ? r.json() : Promise.reject(r)))
+        .then(json => setSuggestions(json.features || []))
+        .catch(err => {
+          if (err.name !== 'AbortError') console.error(err);
+        });
     }, 300);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, [address, geocoderToken]);
 
   // ── On select suggestion → retrieve full feature ───
@@ -171,24 +178,10 @@ export default function PostFlyerModal({ isOpen, onClose, initialFile = null }) 
     // prevent the next suggest() call
     skipNextFetch.current = true;
 
-    fetch(
-      `https://api.mapbox.com/search/searchbox/v1/retrieve/${feat.mapbox_id}` +
-      `?access_token=${geocoderToken}` +
-      `&session_token=${sessionToken.current}`
-    )
-      .then(r => r.json())
-      .then(json => {
-        const feature = json.features?.[0];
-        if (feature) {
-          const name = feature.properties.name_preferred || feature.properties.name;
-          const context = feature.properties.place_formatted;
-          setAddress(`${name}, ${context}`);
-          const [lng_, lat_] = feature.geometry.coordinates;
-          setLat(lat_);
-          setLng(lng_);
-        }
-      })
-      .catch(console.error);
+    setAddress(feat.place_name);
+    const [lng_, lat_] = feat.geometry.coordinates;
+    setLat(lat_);
+    setLng(lng_);
 
     setSuggestions([]);
     if (suggestRef.current) suggestRef.current.blur();
@@ -386,11 +379,11 @@ export default function PostFlyerModal({ isOpen, onClose, initialFile = null }) 
                     <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
                       {suggestions.map(feat => (
                         <li
-                          key={feat.mapbox_id}
+                          key={feat.id}
                           onClick={() => pickSuggestion(feat)}
                           className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
                         >
-                          {feat.name} — {feat.full_address || feat.place_formatted}
+                          {feat.place_name}
                         </li>
                       ))}
                     </ul>
