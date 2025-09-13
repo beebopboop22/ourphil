@@ -1,7 +1,6 @@
-// src/AdminVideoPromo.jsx
-import React, { useEffect, useState, useContext } from 'react';
+// src/TraditionsVideo.jsx
+import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
-import { AuthContext } from './AuthProvider';
 
 function parseDateTime(datesStr) {
   if (!datesStr) return { date: null, time: null };
@@ -45,15 +44,12 @@ function formatDisplayDate(date, startTime) {
   return `${prefix}, ${datePart}${timePart ? `, ${timePart}` : ''}`;
 }
 
-export default function AdminVideoPromo() {
-  const { isAdmin } = useContext(AuthContext);
+export default function TraditionsVideo() {
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
-    if (isAdmin) {
-      loadEvents();
-    }
-  }, [isAdmin]);
+    loadEvents();
+  }, []);
 
   async function loadEvents() {
     const { data, error } = await supabase
@@ -82,10 +78,6 @@ export default function AdminVideoPromo() {
       .filter(ev => ev.date && ev.date >= today)
       .slice(0, 10);
     setEvents(upcoming);
-  }
-
-  if (!isAdmin) {
-    return <div className="text-center py-20 text-gray-500">Access denied.</div>;
   }
 
   return (
