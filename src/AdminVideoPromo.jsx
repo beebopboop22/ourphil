@@ -1,6 +1,5 @@
 // src/AdminVideoPromo.jsx
 import React, { useEffect, useState, useContext } from 'react';
-import Navbar from './Navbar';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 
@@ -81,7 +80,7 @@ export default function AdminVideoPromo() {
         };
       })
       .filter(ev => ev.date && ev.date >= today)
-      .slice(0, 7);
+      .slice(0, 11);
     setEvents(upcoming);
   }
 
@@ -92,8 +91,6 @@ export default function AdminVideoPromo() {
   return (
     <>
       <div className="relative min-h-screen text-white">
-        <div className="fixed top-0 w-full h-1 bg-white z-50" />
-        <Navbar style={{ top: '4px' }} />
         <video
           className="absolute inset-0 w-full h-full object-cover"
           src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//13687405-hd_1080_1920_30fps.mp4"
