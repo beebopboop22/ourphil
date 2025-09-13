@@ -38,7 +38,7 @@ import AdminComments from './AdminComments.jsx';
 import SocialVideoCarousel from './SocialVideoCarousel.jsx';
 import PlansVideoCarousel from './PlansVideoCarousel.jsx';
 import PlansVideoIndex from './PlansVideoIndex.jsx';
-import AdminVideoPromo from './AdminVideoPromo.jsx';
+import TraditionsVideo from './TraditionsVideo.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
 import MainEvents from './MainEvents.jsx';
@@ -109,7 +109,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/admin/comments" element={<AdminComments />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/activity" element={<AdminActivity />} />
-          <Route path="/admin/video-promo" element={<AdminVideoPromo />} />
           <Route path="/social-video-arts" element={<SocialVideoCarousel tag="arts" />} />
           <Route path="/social-video-food" element={<SocialVideoCarousel tag="nomnomslurp" />} />
           <Route path="/social-video-fitness" element={<SocialVideoCarousel tag="fitness" />} />
@@ -119,10 +118,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/plans-video-fitness" element={<PlansVideoCarousel tag="fitness" limit={40} />} />
           <Route path="/plans-video-music" element={<PlansVideoCarousel tag="music" />} />
           <Route path="/plans-video-oktoberfest" element={<PlansVideoCarousel tag="oktoberfest" />} />
-          <Route
-            path="/plans-video-traditions"
-            element={<PlansVideoCarousel onlyEvents headline="Upcoming Philly Traditions" />}
-          />
+          <Route path="/plans-video/traditions-video" element={<TraditionsVideo />} />
           <Route path="/plans-video-peco" element={<PlansVideoCarousel tag="peco-multicultural" />} />
           <Route path="/plans-video-markets" element={<PlansVideoCarousel tag="markets" />} />
           <Route
