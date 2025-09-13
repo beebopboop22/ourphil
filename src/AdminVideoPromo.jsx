@@ -80,7 +80,7 @@ export default function AdminVideoPromo() {
         };
       })
       .filter(ev => ev.date && ev.date >= today)
-      .slice(0, 11);
+      .slice(0, 10);
     setEvents(upcoming);
   }
 
