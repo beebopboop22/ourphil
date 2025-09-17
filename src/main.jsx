@@ -41,6 +41,7 @@ import PlansVideoIndex from './PlansVideoIndex.jsx';
 import TraditionsVideo from './TraditionsVideo.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
+import SocialGalleryGrid from './SocialGalleryGrid.jsx';
 import MainEvents from './MainEvents.jsx';
 import VenuePage from './VenuePage';
 import MainEventsDetail from './MainEventsDetail.jsx';
@@ -136,6 +137,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/plans-video" element={<PlansVideoIndex />} />
           <Route path="/big-board/:slug"  element={<BigBoardEventPage />} />
           <Route path="/board-carousel" element={<BigBoardCarousel />} />
+          <Route path="/social-gallery" element={<SocialGalleryGrid />} />
           <Route path="/:venue" element={<VenuePage />} />
           <Route path="/:venue/:slug" element={<MainEventsDetail />} />
           <Route path="/groups/:slug/events/:eventId" element={<GroupEventDetailPage />} />
