@@ -119,6 +119,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/plans-video-music" element={<PlansVideoCarousel tag="music" />} />
           <Route path="/plans-video-oktoberfest" element={<PlansVideoCarousel tag="oktoberfest" />} />
           <Route path="/plans-video/traditions-video" element={<TraditionsVideo />} />
+          <Route
+            path="/plans-video/traditions-gallery"
+            element={<PlansVideoCarousel onlyEvents headline="Traditions gAllery" limit={30} />}
+          />
           <Route path="/plans-video-peco" element={<PlansVideoCarousel tag="peco-multicultural" />} />
           <Route path="/plans-video-markets" element={<PlansVideoCarousel tag="markets" />} />
           <Route
