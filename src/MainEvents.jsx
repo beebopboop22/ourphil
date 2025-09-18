@@ -720,22 +720,18 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
           filtered = allData.filter(evt => {
             const dbStart = evt.start_date;
             const dbEnd = evt.end_date || evt.start_date;
-            const dur = Math.floor((Date.parse(dbEnd) - Date.parse(dbStart)) / (1000 * 60 * 60 * 24));
-            const shortOrSingle = (!evt.end_date) || (evt.end_date === evt.start_date) || dur <= 10;
             const coversSat = dbStart <= satStr && dbEnd >= satStr;
             const coversSun = dbStart <= sunStr && dbEnd >= sunStr;
-            return ((coversSat || coversSun) && shortOrSingle);
+            return coversSat || coversSun;
           });
         } else if (filterDay) {
           const dayStr = filterDay.toISOString().slice(0, 10);
           filtered = allData.filter(evt => {
             const dbStart = evt.start_date;
             const dbEnd = evt.end_date || evt.start_date;
-            const dur = Math.floor((Date.parse(dbEnd) - Date.parse(dbStart)) / (1000 * 60 * 60 * 24));
-            const shortOrSingle = (!evt.end_date) || (evt.end_date === evt.start_date) || dur <= 10;
             const isStartDay = dbStart === dayStr;
             const inRange = dbStart <= dayStr && dbEnd >= dayStr;
-            return (isStartDay || (shortOrSingle && inRange));
+            return isStartDay || inRange;
           });
         }
         setEvents(filtered);
