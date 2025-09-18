@@ -8,25 +8,24 @@ const Footer = () => {
 
   return (
     <footer className="relative bg-gray-900 text-gray-300 pt-64 pb-12 px-6 overflow-visible">
-      {/* clipping window: only top half of heart shows */}
-      <div className="absolute bottom-0 right-0 h-64 w-[600px]  pointer-events-none">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none">
         <img
           src={heartUrl}
           alt="Heart"
-          className="absolute bottom-0 right-0 w-3/4 h-auto opacity-100"
+          className="w-32 sm:w-36 h-auto -translate-y-1/2"
         />
       </div>
 
       <div className="max-w-screen-xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10 relative z-10">
         {/* Brand / Copyright */}
         <div className="col-span-1 md:col-span-2">
-        <img
-              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/logoo.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvbG9nb28ucG5nIiwiaWF0IjoxNzQ1NzYzMzA5LCJleHAiOjMzMjgxNzYzMzA5fQ.5BrTLfgwYzwT3UnYsqOkaJKLTP4pDVME_T-l7fyllc0"
-              alt="Our Philly Logo"
-              className="h-20 w-auto"
-            />
-          <p className="text-sm text-gray-400 mb-4">
-            Making community more accessible in the city.
+          <img
+            src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/sign/group-images/logoo.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJncm91cC1pbWFnZXMvbG9nb28ucG5nIiwiaWF0IjoxNzQ1NzYzMzA5LCJleHAiOjMzMjgxNzYzMzA5fQ.5BrTLfgwYzwT3UnYsqOkaJKLTP4pDVME_T-l7fyllc0"
+            alt="Our Philly Logo"
+            className="h-20 w-auto"
+          />
+          <p className="text-3xl sm:text-4xl font-bold text-white mb-6">
+            Our Philly: The most comprehensive events calendar in Philadelphia.
           </p>
 
           <p className="text-xs text-gray-500">&copy; {year} Our Philly. All rights reserved.</p>
