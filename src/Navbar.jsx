@@ -1,7 +1,7 @@
 // src/Navbar.jsx
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 import { FaTiktok, FaInstagram } from 'react-icons/fa';
 import SubmitGroupModal from './SubmitGroupModal';
 import PostFlyerModal from './PostFlyerModal';
@@ -16,9 +16,14 @@ export default function Navbar({ style }) {
   const navigate = useNavigate();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [guidesOpen, setGuidesOpen] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+
+  useEffect(() => {
+    setGuidesOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -46,6 +51,10 @@ export default function Navbar({ style }) {
         ? 'text-gray-900 font-semibold'
         : 'text-gray-700'
     }`;
+
+  const exploreActive =
+    location.pathname.startsWith('/this-weekend-in-philadelphia') ||
+    location.pathname.startsWith('/philadelphia-events');
 
   return (
     <>
@@ -84,7 +93,7 @@ export default function Navbar({ style }) {
 
             {/* Primary links */}
             <ul className="flex items-center space-x-6 font-medium">
-              
+
               <li>
                 <button
                   onClick={openPostModal}
@@ -92,6 +101,44 @@ export default function Navbar({ style }) {
                 >
                   Post Event
                 </button>
+              </li>
+
+              <li
+                className="relative"
+                onMouseEnter={() => setGuidesOpen(true)}
+                onMouseLeave={() => setGuidesOpen(false)}
+              >
+                <button
+                  onClick={() => setGuidesOpen(open => !open)}
+                  className={`flex items-center space-x-1 ${
+                    exploreActive ? 'text-gray-900 font-semibold' : 'text-gray-700'
+                  } hover:text-gray-900 transition`}
+                  aria-haspopup="true"
+                  aria-expanded={guidesOpen}
+                >
+                  <span>Events &amp; Guides</span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${guidesOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {guidesOpen && (
+                  <div className="absolute right-0 mt-3 w-64 bg-white border border-gray-200 rounded-xl shadow-lg py-3 z-50">
+                    <Link
+                      to="/this-weekend-in-philadelphia"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
+                      onClick={() => setGuidesOpen(false)}
+                    >
+                      This Weekend in Philadelphia
+                    </Link>
+                    <Link
+                      to="/philadelphia-events/"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
+                      onClick={() => setGuidesOpen(false)}
+                    >
+                      Philly Traditions Calendar
+                    </Link>
+                  </div>
+                )}
               </li>
 
               <li>
@@ -106,7 +153,7 @@ export default function Navbar({ style }) {
               <li>
                 <Link
                   to="/contact"
-                  className={`flex items-center space-x-1 ${linkClass('/groups')}`}
+                  className={`flex items-center space-x-1 ${linkClass('/contact')}`}
                 >
                   <span>Contact</span>
                 </Link>
@@ -187,14 +234,25 @@ export default function Navbar({ style }) {
                 <FaInstagram className="w-5 h-5 text-gray-700 hover:text-gray-900" />
               </a>
             </div>
+            <Link
+              to="/this-weekend-in-philadelphia"
+              className="block"
+              onClick={() => setMenuOpen(false)}
+            >
+              This Weekend in Philly
+            </Link>
+            <Link
+              to="/philadelphia-events/"
+              className="block"
+              onClick={() => setMenuOpen(false)}
+            >
+              Philly Traditions Calendar
+            </Link>
             <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
               Claim Your Group
             </Link>
-            <Link
-              to="/contact"
-              className={`flex items-center space-x-1 ${linkClass('/groups')}`}
-            >
-              <span>Contact</span>
+            <Link to="/contact" className="block" onClick={() => setMenuOpen(false)}>
+              Contact
             </Link>
             <Link to="/about" className="block" onClick={() => setMenuOpen(false)}>
               About
