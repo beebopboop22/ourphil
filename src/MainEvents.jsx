@@ -1,5 +1,5 @@
 // src/MainEvents.jsx
-import React, { useState, useEffect, lazy, Suspense, useContext } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useContext, useRef, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Helmet } from 'react-helmet';
 
@@ -9,8 +9,6 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import SportsTonightSidebar from './SportsTonightSidebar';
 import RecentActivity from './RecentActivity';
 import EventsPageHero from './EventsPageHero';
-import PopularGroups from './PopularGroups';
-import BigBoardEventsGrid from './BigBoardEventsGrid';
 import CityHolidayAlert from './CityHolidayAlert';
 import HeroLanding from './HeroLanding';
 import DatePicker from 'react-datepicker';
@@ -31,6 +29,16 @@ import { AuthContext } from './AuthProvider'
 import { FaStar } from 'react-icons/fa';
 import FallingPills from './FallingPills';
 import SavedEventsScroller from './SavedEventsScroller';
+import {
+  getWeekendWindow,
+  PHILLY_TIME_ZONE,
+  setStartOfDay,
+  setEndOfDay,
+  getMonthWindow,
+  getZonedDate,
+  parseMonthDayYear,
+  overlaps,
+} from './utils/dateUtils';
  
 // Shared styles for tag "pills"
 const pillStyles = [
@@ -243,6 +251,20 @@ export default function MainEvents() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
 
+  const weekendBaseRef = useRef({
+    loaded: false,
+    baseIds: [],
+    weekendStart: null,
+    weekendEnd: null,
+    promise: null,
+  });
+
+  const nowInPhilly = useMemo(() => getZonedDate(new Date(), PHILLY_TIME_ZONE), []);
+  const currentMonthName = useMemo(
+    () => nowInPhilly.toLocaleString('en-US', { month: 'long' }),
+    [nowInPhilly]
+  );
+
    // Recurring‐series state
  const [recurringRaw, setRecurringRaw]   = useState([]);
  const [recurringOccs, setRecurringOccs] = useState([]);
@@ -314,6 +336,201 @@ useEffect(() => {
 }, []);
 
 
+  useEffect(() => {
+    let active = true;
+
+    const computeWeekendCount = async () => {
+      try {
+        if (!weekendBaseRef.current.loaded) {
+          if (!weekendBaseRef.current.promise) {
+            setWeekendCountLoading(true);
+            weekendBaseRef.current.promise = (async () => {
+              try {
+                const { start, end } = getWeekendWindow(new Date(), PHILLY_TIME_ZONE);
+                const weekendStart = setStartOfDay(start);
+                const weekendEnd = setEndOfDay(end);
+                const baseKeys = new Set();
+
+                const [eventsResult, bigBoardResult, allEventsResult, groupEventsResult, recurringResult] = await Promise.all([
+                  supabase.from('events').select('id, Dates, "End Date"'),
+                  supabase.from('big_board_events').select('id, start_date, end_date'),
+                  supabase.from('all_events').select('id, start_date, end_date'),
+                  supabase.from('group_events').select('id, start_date, end_date'),
+                  supabase.from('recurring_events').select('id, start_date, end_date, start_time, rrule'),
+                ]);
+
+                if (eventsResult.error) throw eventsResult.error;
+                if (bigBoardResult.error) throw bigBoardResult.error;
+                if (allEventsResult.error) throw allEventsResult.error;
+                if (groupEventsResult.error) throw groupEventsResult.error;
+                if (recurringResult.error) throw recurringResult.error;
+
+                (eventsResult.data || []).forEach(evt => {
+                  const startDate = parseMonthDayYear(evt.Dates, PHILLY_TIME_ZONE);
+                  const endDate = evt['End Date'] ? parseMonthDayYear(evt['End Date'], PHILLY_TIME_ZONE) : startDate;
+                  if (!startDate || !endDate) return;
+                  const startBoundary = setStartOfDay(startDate);
+                  const endBoundary = setEndOfDay(endDate);
+                  if (overlaps(startBoundary, endBoundary, weekendStart, weekendEnd)) {
+                    baseKeys.add(`events-${evt.id}`);
+                  }
+                });
+
+                const normalizeIsoRange = (startStr, endStr) => {
+                  const startDate = parseISODateLocal(startStr);
+                  const endDate = parseISODateLocal(endStr || startStr);
+                  if (!startDate) return null;
+                  const startBoundary = setStartOfDay(startDate);
+                  const endBoundary = setEndOfDay(endDate || startDate);
+                  return { startBoundary, endBoundary };
+                };
+
+                (bigBoardResult.data || []).forEach(evt => {
+                  const range = normalizeIsoRange(evt.start_date, evt.end_date);
+                  if (!range) return;
+                  if (overlaps(range.startBoundary, range.endBoundary, weekendStart, weekendEnd)) {
+                    baseKeys.add(`big-${evt.id}`);
+                  }
+                });
+
+                (allEventsResult.data || []).forEach(evt => {
+                  const range = normalizeIsoRange(evt.start_date, evt.end_date);
+                  if (!range) return;
+                  if (overlaps(range.startBoundary, range.endBoundary, weekendStart, weekendEnd)) {
+                    baseKeys.add(`all-${evt.id}`);
+                  }
+                });
+
+                (groupEventsResult.data || []).forEach(evt => {
+                  const range = normalizeIsoRange(evt.start_date, evt.end_date);
+                  if (!range) return;
+                  if (overlaps(range.startBoundary, range.endBoundary, weekendStart, weekendEnd)) {
+                    baseKeys.add(`group-${evt.id}`);
+                  }
+                });
+
+                (recurringResult.data || []).forEach(series => {
+                  try {
+                    const opts = RRule.parseString(series.rrule);
+                    const startTime = series.start_time || '00:00';
+                    opts.dtstart = new Date(`${series.start_date}T${startTime}`);
+                    if (series.end_date) {
+                      opts.until = new Date(`${series.end_date}T23:59:59`);
+                    }
+                    const rule = new RRule(opts);
+                    const occurrences = rule.between(weekendStart, weekendEnd, true);
+                    occurrences.forEach(occ => {
+                      const local = new Date(occ.getFullYear(), occ.getMonth(), occ.getDate());
+                      const key = `${series.id}-${local.toISOString().slice(0, 10)}`;
+                      baseKeys.add(`recurring-${key}`);
+                    });
+                  } catch (err) {
+                    console.error('Error parsing recurring event for weekend count', err);
+                  }
+                });
+
+                weekendBaseRef.current.baseIds = Array.from(baseKeys);
+                weekendBaseRef.current.weekendStart = weekendStart;
+                weekendBaseRef.current.weekendEnd = weekendEnd;
+                weekendBaseRef.current.loaded = true;
+              } finally {
+                weekendBaseRef.current.promise = null;
+              }
+            })();
+          }
+          await weekendBaseRef.current.promise;
+        }
+
+        if (!weekendBaseRef.current.loaded) return;
+
+        const { baseIds, weekendStart, weekendEnd } = weekendBaseRef.current;
+        const combined = new Set(baseIds);
+
+        (sportsEventsRaw || []).forEach(evt => {
+          const startDate = parseISODateLocal(evt.start_date);
+          if (!startDate) return;
+          const normalized = setStartOfDay(startDate);
+          if (normalized >= weekendStart && normalized <= weekendEnd) {
+            combined.add(`sports-${evt.id}`);
+          }
+        });
+
+        if (active) {
+          setWeekendPromoCount(combined.size);
+          setWeekendCountLoading(false);
+        }
+      } catch (err) {
+        console.error('Error fetching weekend highlight count', err);
+        weekendBaseRef.current.loaded = false;
+        if (active) {
+          setWeekendPromoCount(0);
+          setWeekendCountLoading(false);
+        }
+      }
+    };
+
+    computeWeekendCount();
+
+    return () => {
+      active = false;
+    };
+  }, [sportsEventsRaw]);
+
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTraditionsCount = async () => {
+      setMonthlyTraditionsLoading(true);
+      try {
+        const now = getZonedDate(new Date(), PHILLY_TIME_ZONE);
+        const { start: monthStart, end: monthEnd } = getMonthWindow(
+          now.getFullYear(),
+          now.getMonth() + 1,
+          PHILLY_TIME_ZONE
+        );
+
+        const { data, error } = await supabase
+          .from('events')
+          .select('id, Dates, "End Date"');
+
+        if (error) throw error;
+
+        const ids = new Set();
+        (data || []).forEach(evt => {
+          const startDate = parseMonthDayYear(evt.Dates, PHILLY_TIME_ZONE);
+          const endDate = evt['End Date'] ? parseMonthDayYear(evt['End Date'], PHILLY_TIME_ZONE) : startDate;
+          if (!startDate || !endDate) return;
+          const startBoundary = setStartOfDay(startDate);
+          const endBoundary = setEndOfDay(endDate);
+          if (overlaps(startBoundary, endBoundary, monthStart, monthEnd)) {
+            ids.add(evt.id);
+          }
+        });
+
+        if (active) {
+          setMonthlyTraditionsCount(ids.size);
+        }
+      } catch (err) {
+        console.error('Error fetching traditions count', err);
+        if (active) {
+          setMonthlyTraditionsCount(0);
+        }
+      } finally {
+        if (active) {
+          setMonthlyTraditionsLoading(false);
+        }
+      }
+    };
+
+    loadTraditionsCount();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+
   // at the top of MainEvents()
 const [tagMap, setTagMap] = useState({});
 const [selectedTags, setSelectedTags] = useState([]);
@@ -358,6 +575,10 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
   const [bigBoardEvents, setBigBoardEvents] = useState([]);
   const [traditionEvents, setTraditionEvents] = useState([]);   // NEW
   const [loading, setLoading] = useState(true);
+  const [weekendPromoCount, setWeekendPromoCount] = useState(null);
+  const [weekendCountLoading, setWeekendCountLoading] = useState(true);
+  const [monthlyTraditionsCount, setMonthlyTraditionsCount] = useState(null);
+  const [monthlyTraditionsLoading, setMonthlyTraditionsLoading] = useState(true);
   // Community‐submitted group events
   const [groupEvents, setGroupEvents] = useState([]);
   const [profileMap, setProfileMap] = useState({});
@@ -1159,6 +1380,18 @@ if (loading) {
           : selectedOption
       } in Philadelphia.`;
 
+  const weekendPromoLabel = weekendCountLoading
+    ? 'Loading events…'
+    : weekendPromoCount
+      ? `${weekendPromoCount} event${weekendPromoCount === 1 ? '' : 's'} this weekend`
+      : 'No events listed yet — check back soon!';
+
+  const monthlyTraditionsPromoLabel = monthlyTraditionsLoading
+    ? 'Loading traditions…'
+    : monthlyTraditionsCount
+      ? `${monthlyTraditionsCount} tradition${monthlyTraditionsCount === 1 ? '' : 's'} this month`
+      : 'No traditions listed yet — check back soon!';
+
   
 
       return (
@@ -1595,6 +1828,32 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 </p>
               )}
             </section>
+            <section className="px-4 mb-12">
+              <Link
+                to="/this-weekend-in-philadelphia"
+                className="block group"
+              >
+                <div className="max-w-screen-xl mx-auto">
+                  <div className="relative overflow-hidden rounded-3xl bg-[#bf3d35] text-white px-6 py-10 sm:px-12 sm:py-12 shadow-xl transition-transform duration-300 group-hover:-translate-y-1 group-hover:shadow-2xl">
+                    <div className="absolute -top-20 -right-10 w-48 h-48 bg-white/20 rounded-full blur-3xl"></div>
+                    <div className="absolute -bottom-24 -left-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+                    <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h2 className="text-3xl sm:text-5xl font-[Barrio] uppercase tracking-wider">
+                          THIS WEEKEND IN THE CITY
+                        </h2>
+                        <p className="mt-3 text-lg sm:text-xl font-semibold">
+                          {weekendPromoLabel}
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center justify-center self-start sm:self-auto px-6 py-3 rounded-full bg-white text-[#bf3d35] font-semibold uppercase tracking-wide shadow-lg transition-colors duration-300 group-hover:bg-[#ffe1dd] group-hover:text-[#7f2622]">
+                        Plan my weekend →
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </section>
             <HeroLanding fullWidth />
             <TaggedEventScroller
               tags={['birds']}
@@ -1608,6 +1867,28 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 </Link>
               }
             />
+            <section className="px-4 mt-12 mb-8">
+              <Link to="/philadelphia-events/" className="block group">
+                <div className="max-w-screen-xl mx-auto">
+                  <div className="relative overflow-hidden rounded-3xl bg-[#bf3d35] text-white px-6 py-10 sm:px-12 sm:py-12 shadow-xl transition-transform duration-300 group-hover:-translate-y-1 group-hover:shadow-2xl">
+                    <div className="absolute inset-y-0 right-0 w-40 bg-white/10 blur-3xl rounded-l-full"></div>
+                    <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h2 className="text-3xl sm:text-5xl font-[Barrio] uppercase tracking-wider">
+                          {`PHILLY TRADITIONS: ${currentMonthName.toUpperCase()} EDITION`}
+                        </h2>
+                        <p className="mt-3 text-lg sm:text-xl font-semibold">
+                          {monthlyTraditionsPromoLabel}
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center justify-center self-start sm:self-auto px-6 py-3 rounded-full bg-white text-[#bf3d35] font-semibold uppercase tracking-wide shadow-lg transition-colors duration-300 group-hover:bg-[#ffe1dd] group-hover:text-[#7f2622]">
+                        View the calendar →
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </section>
             <TaggedEventScroller
               tags={['arts']}
               fullWidth
@@ -1634,9 +1915,6 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
             />
             <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
 
-            <BigBoardEventsGrid />
-            <PopularGroups />
-      
             {/* ─── Floating “+” (always on top) ─── */}
             <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
       
