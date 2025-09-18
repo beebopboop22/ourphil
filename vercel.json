@@ -1,13 +1,19 @@
 {
-    "rewrites": [
-      {
-        "source": "/groups/:slug",
-        "destination": "/index.html"
-      },
-      {
-        "source": "/:path*",
-        "destination": "/index.html"
-      }
-    ]
-  }
-  
+  "rewrites": [
+    {
+      "source": "/groups/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/this-weekend-in-philly",
+      "destination": "/this-weekend-in-philadelphia",
+      "permanent": true
+    }
+  ]
+}

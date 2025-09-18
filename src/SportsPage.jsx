@@ -1,7 +1,7 @@
 // src/SportsPage.jsx
 import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import FilteredGroupSection from './FilteredGroupSection';
 import { Link } from 'react-router-dom';
 

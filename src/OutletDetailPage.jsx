@@ -5,7 +5,7 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import GroupsList from './GroupsList';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 export default function OutletDetailPage() {
   const { slug } = useParams();

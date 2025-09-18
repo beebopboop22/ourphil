@@ -1,7 +1,7 @@
 // src/MainEvents.jsx
 import React, { useState, useEffect, lazy, Suspense, useContext } from 'react';
 import { supabase } from './supabaseClient';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 import Navbar from './Navbar';
 import Footer from './Footer';

@@ -1,6 +1,6 @@
 // src/GroupsPage.jsx
 import React, { useEffect, useState, useMemo } from 'react';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from './supabaseClient';
 import { Link } from 'react-router-dom';
 import Navbar from './Navbar';

@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import { indexToMonthSlug } from '../src/utils/dateUtils.js'
 
 // Load .env into process.env
 dotenv.config()
@@ -17,6 +18,13 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 const HOST  = 'https://ourphilly.org'
 const TODAY = new Date().toISOString().slice(0,10)
+const now = new Date()
+const currentYear = now.getFullYear()
+const currentMonthIndex = now.getMonth() + 1
+const currentMonthSlug = indexToMonthSlug(currentMonthIndex)
+const monthlyPath = currentMonthSlug
+  ? `/philadelphia-events-${currentMonthSlug}-${currentYear}/`
+  : '/philadelphia-events/'
 
 // Always‐on static routes
 const staticPages = [
@@ -24,6 +32,8 @@ const staticPages = [
   { path: '/groups',  priority: '0.6', changefreq: 'weekly'  },
   { path: '/contact', priority: '0.6', changefreq: 'monthly' },
   { path: '/traditions-faq', priority: '0.6', changefreq: 'monthly' },
+  { path: '/this-weekend-in-philadelphia/', priority: '0.8', changefreq: 'weekly' },
+  { path: monthlyPath, priority: '0.7', changefreq: 'monthly' },
 ]
 
 async function buildSitemap() {

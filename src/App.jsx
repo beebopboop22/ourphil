@@ -24,7 +24,7 @@ import HeroLanding from './HeroLanding';
 import PopularGroups from './PopularGroups';
 import LibraryCardBanner from './LibraryCardBanner';
 import ConcertsPage from './ConcertPage';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import BokEventsGrid from './BokEventsGrid';
 import BillboardAd from './BillboardAd';
 import SouthStreetEventsGrid from './SouthStreetEventsGrid';

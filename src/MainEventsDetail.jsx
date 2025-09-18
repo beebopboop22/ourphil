@@ -5,7 +5,7 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import { RRule } from 'rrule';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';

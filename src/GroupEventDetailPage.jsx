@@ -1,7 +1,7 @@
 // src/GroupEventDetailPage.jsx
 import React, { useEffect, useState, useContext } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { Helmet } from 'react-helmet'
+import { Helmet } from 'react-helmet-async'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import Footer from './Footer'

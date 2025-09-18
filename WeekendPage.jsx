@@ -5,7 +5,7 @@ import SportsEventsGrid from './SportsEventsGrid';
 import ConcertEventsGrid from './ConcertEventsGrid';
 import EventsGrid from './EventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 const WeekendPage = () => {
   return (
