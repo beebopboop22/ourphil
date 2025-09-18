@@ -89,6 +89,22 @@ export function parseISODate(value, timeZone = PHILLY_TIME_ZONE) {
   return setStartOfDay(zoned);
 }
 
+export function parseEventDateValue(value, timeZone = PHILLY_TIME_ZONE) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return setStartOfDay(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return parseISODate(trimmed, timeZone);
+    }
+    return parseMonthDayYear(trimmed, timeZone);
+  }
+  return null;
+}
+
 export function overlaps(startA, endA, startB, endB) {
   if (!startA || !endA || !startB || !endB) return false;
   return !(endA.getTime() < startB.getTime() || startA.getTime() > endB.getTime());
