@@ -3,6 +3,12 @@ import fs from 'fs'
 import path from 'path'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import {
+  PHILLY_TIME_ZONE,
+  formatMonthYear,
+  getZonedDate,
+  indexToMonthSlug,
+} from '../src/utils/dateUtils.js'
 
 // Load .env into process.env
 dotenv.config()
@@ -15,8 +21,16 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   process.exit(1)
 }
 
-const HOST  = 'https://ourphilly.org'
-const TODAY = new Date().toISOString().slice(0,10)
+const HOST = 'https://ourphilly.org'
+
+const zonedNow = getZonedDate(new Date(), PHILLY_TIME_ZONE)
+const TODAY = zonedNow.toISOString().slice(0, 10)
+const currentMonthSlug = indexToMonthSlug(zonedNow.getMonth() + 1)
+const currentYear = zonedNow.getFullYear()
+const currentMonthlyPath = currentMonthSlug
+  ? `/philadelphia-events-${currentMonthSlug}-${currentYear}/`
+  : null
+const currentMonthlyLabel = formatMonthYear(zonedNow, PHILLY_TIME_ZONE)
 
 // Always‐on static routes
 const staticPages = [
@@ -24,7 +38,39 @@ const staticPages = [
   { path: '/groups',  priority: '0.6', changefreq: 'weekly'  },
   { path: '/contact', priority: '0.6', changefreq: 'monthly' },
   { path: '/traditions-faq', priority: '0.6', changefreq: 'monthly' },
+  { path: '/this-weekend-in-philadelphia/', priority: '0.8', changefreq: 'weekly' },
 ]
+
+if (currentMonthlyPath) {
+  staticPages.push({
+    path: currentMonthlyPath,
+    priority: '0.8',
+    changefreq: 'monthly',
+  })
+}
+
+if (currentMonthlyPath && currentMonthlyLabel) {
+  console.log(
+    `ℹ️ Including monthly page for ${currentMonthlyLabel}: ${HOST}${currentMonthlyPath.slice(1)}`
+  )
+}
+
+const ensureTrailingSlash = url => (url.endsWith('/') ? url : `${url}/`)
+
+function toAbsoluteUrl(value) {
+  if (!value) {
+    return ensureTrailingSlash(HOST)
+  }
+
+  const trimmed = value.trim()
+  const hasProtocol = /^https?:\/\//i.test(trimmed)
+  if (hasProtocol) {
+    return ensureTrailingSlash(trimmed)
+  }
+
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  return ensureTrailingSlash(`${HOST}${withLeadingSlash}`)
+}
 
 async function buildSitemap() {
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -55,6 +101,22 @@ async function buildSitemap() {
 
   // Build an array of XML fragments
   const xmlParts = []
+  const seenUrls = new Set()
+
+  function addUrlEntry({ loc, changefreq, priority, lastmod = TODAY }) {
+    const absoluteUrl = toAbsoluteUrl(loc)
+    if (seenUrls.has(absoluteUrl)) return
+    seenUrls.add(absoluteUrl)
+
+    xmlParts.push(
+      `  <url>`,
+      `    <loc>${absoluteUrl}</loc>`,
+      `    <lastmod>${lastmod}</lastmod>`,
+      `    <changefreq>${changefreq}</changefreq>`,
+      `    <priority>${priority}</priority>`,
+      `  </url>`
+    )
+  }
 
   // XML header + opening tag
   xmlParts.push(
@@ -64,63 +126,48 @@ async function buildSitemap() {
 
   // static pages
   for (let page of staticPages) {
-    xmlParts.push(
-      `  <url>`,
-      `    <loc>${HOST}${page.path}</loc>`,
-      `    <lastmod>${TODAY}</lastmod>`,
-      `    <changefreq>${page.changefreq}</changefreq>`,
-      `    <priority>${page.priority}</priority>`,
-      `  </url>`
-    )
+    addUrlEntry({
+      loc: page.path,
+      changefreq: page.changefreq,
+      priority: page.priority,
+    })
   }
 
   // all_events
   for (let ev of allEvents) {
     if (!ev.venues?.slug) continue
-    xmlParts.push(
-      `  <url>`,
-      `    <loc>${HOST}/${ev.venues.slug}/${ev.slug}</loc>`,
-      `    <lastmod>${TODAY}</lastmod>`,
-      `    <changefreq>weekly</changefreq>`,
-      `    <priority>0.7</priority>`,
-      `  </url>`
-    )
+    addUrlEntry({
+      loc: `/${ev.venues.slug}/${ev.slug}`,
+      changefreq: 'weekly',
+      priority: '0.7',
+    })
   }
 
   // legacy events
   for (let ev of legacyEvents) {
-    xmlParts.push(
-      `  <url>`,
-      `    <loc>${HOST}/events/${ev.slug}</loc>`,
-      `    <lastmod>${TODAY}</lastmod>`,
-      `    <changefreq>weekly</changefreq>`,
-      `    <priority>0.7</priority>`,
-      `  </url>`
-    )
+    addUrlEntry({
+      loc: `/events/${ev.slug}`,
+      changefreq: 'weekly',
+      priority: '0.7',
+    })
   }
 
   // big-board events
   for (let b of bigs) {
-    xmlParts.push(
-      `  <url>`,
-      `    <loc>${HOST}/big-board/${b.slug}</loc>`,
-      `    <lastmod>${TODAY}</lastmod>`,
-      `    <changefreq>weekly</changefreq>`,
-      `    <priority>0.7</priority>`,
-      `  </url>`
-    )
+    addUrlEntry({
+      loc: `/big-board/${b.slug}`,
+      changefreq: 'weekly',
+      priority: '0.7',
+    })
   }
 
   // tags
   for (let t of tags) {
-    xmlParts.push(
-      `  <url>`,
-      `    <loc>${HOST}/tags/${t.name.toLowerCase()}</loc>`,
-      `    <lastmod>${TODAY}</lastmod>`,
-      `    <changefreq>weekly</changefreq>`,
-      `    <priority>0.6</priority>`,
-      `  </url>`
-    )
+    addUrlEntry({
+      loc: `/tags/${t.name.toLowerCase()}`,
+      changefreq: 'weekly',
+      priority: '0.6',
+    })
   }
 
   // closing tag
