@@ -1,13 +1,18 @@
 {
-    "rewrites": [
-      {
-        "source": "/groups/:slug",
-        "destination": "/index.html"
-      },
-      {
-        "source": "/:path*",
-        "destination": "/index.html"
-      }
-    ]
-  }
+  "rewrites": [
+    {
+      "source": "/groups/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    { "source": "/this-weekend-in-philly", "destination": "/this-weekend-in-philadelphia/", "permanent": false },
+    { "source": "/this-weekend-in-philadelphia", "destination": "/this-weekend-in-philadelphia/", "permanent": true },
+    { "source": "/philadelphia-events-:month-:year", "destination": "/philadelphia-events-:month-:year/", "permanent": true }
+  ]
+}
   

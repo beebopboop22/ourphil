@@ -124,7 +124,7 @@ export default function Navbar({ style }) {
                 {guidesOpen && (
                   <div className="absolute right-0 mt-3 w-64 bg-white border border-gray-200 rounded-xl shadow-lg py-3 z-50">
                     <Link
-                      to="/this-weekend-in-philadelphia"
+                      to="/this-weekend-in-philadelphia/"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
                       onClick={() => setGuidesOpen(false)}
                     >
@@ -235,7 +235,7 @@ export default function Navbar({ style }) {
               </a>
             </div>
             <Link
-              to="/this-weekend-in-philadelphia"
+              to="/this-weekend-in-philadelphia/"
               className="block"
               onClick={() => setMenuOpen(false)}
             >

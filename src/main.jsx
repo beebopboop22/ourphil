@@ -54,9 +54,11 @@ import RecurringPage from './RecurringEventPage.jsx'
 import SportsEventPage from './SportsEventPage.jsx'
 import AboutPage from './AboutPage.jsx'
 import ThisWeekendInPhiladelphia from './ThisWeekendInPhiladelphia.jsx';
+import ThisMonthInPhiladelphia from './ThisMonthInPhiladelphia.jsx';
 import PhiladelphiaEventsIndex from './PhiladelphiaEventsIndex.jsx';
 import ViewRouter from './ViewRouter.jsx';
 import HeadProvider from './components/HeadProvider.jsx'
+import SlashGuard from './components/SlashGuard.jsx'
 
 
 
@@ -75,18 +77,18 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <HeadProvider>
         <BrowserRouter>
           <ScrollToTop />
+          <SlashGuard />
           <Routes>
             <Route path="/" element={<MainEvents />} />
-            <Route
-              path="/this-weekend-in-philadelphia"
-              element={<ThisWeekendInPhiladelphia />}
-            />
             <Route
               path="/this-weekend-in-philadelphia/"
               element={<ThisWeekendInPhiladelphia />}
             />
-            <Route path="/philadelphia-events" element={<PhiladelphiaEventsIndex />} />
             <Route path="/philadelphia-events/" element={<PhiladelphiaEventsIndex />} />
+            <Route
+              path="/philadelphia-events-:month-:year/"
+              element={<ThisMonthInPhiladelphia />}
+            />
             <Route path="/:view" element={<ViewRouter />} />
             <Route path="/old" element={<App />} />
             <Route path="/sports" element={<SportsPage />} />
