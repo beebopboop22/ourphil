@@ -1,57 +1,26 @@
+/* eslint-disable react/prop-types */
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import Seo from './components/Seo.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import {
   PHILLY_TIME_ZONE,
   monthSlugToIndex,
-  indexToMonthSlug,
   getMonthWindow,
   parseMonthDayYear,
   overlaps,
   setEndOfDay,
   formatMonthYear,
   formatEventDateRange,
+  buildMonthlyPath,
 } from './utils/dateUtils';
 
 const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
-const CANONICAL_BASE = 'https://ourphilly.org/philadelphia-events-';
-
-function setMetaTag(name, content) {
-  if (typeof document === 'undefined') return;
-  let tag = document.querySelector(`meta[name="${name}"]`);
-  if (!tag) {
-    tag = document.createElement('meta');
-    tag.setAttribute('name', name);
-    document.head.appendChild(tag);
-  }
-  tag.setAttribute('content', content);
-}
-
-function setPropertyTag(property, content) {
-  if (typeof document === 'undefined') return;
-  let tag = document.querySelector(`meta[property="${property}"]`);
-  if (!tag) {
-    tag = document.createElement('meta');
-    tag.setAttribute('property', property);
-    document.head.appendChild(tag);
-  }
-  tag.setAttribute('content', content);
-}
-
-function setCanonicalLink(url) {
-  if (typeof document === 'undefined') return;
-  let link = document.querySelector('link[rel="canonical"]');
-  if (!link) {
-    link = document.createElement('link');
-    link.setAttribute('rel', 'canonical');
-    document.head.appendChild(link);
-  }
-  link.setAttribute('href', url);
-}
+const SITE_BASE_URL = 'https://ourphilly.org';
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -100,6 +69,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ogImage, setOgImage] = useState(DEFAULT_OG_IMAGE);
 
   useEffect(() => {
     if (!monthIndex || Number.isNaN(yearNum) || !monthStart || !monthEnd) return;
@@ -150,20 +120,30 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
 
   const monthLabel = monthStart ? formatMonthYear(monthStart, PHILLY_TIME_ZONE) : '';
   const headingLabel = monthLabel || 'Philadelphia';
-  const prevMonthIndex = monthIndex ? (monthIndex === 1 ? 12 : monthIndex - 1) : null;
-  const prevYear = monthIndex === 1 ? yearNum - 1 : yearNum;
-  const nextMonthIndex = monthIndex ? (monthIndex === 12 ? 1 : monthIndex + 1) : null;
-  const nextYear = monthIndex === 12 ? yearNum + 1 : yearNum;
+  const prevConfig =
+    monthIndex && !Number.isNaN(yearNum)
+      ? {
+          month: monthIndex === 1 ? 12 : monthIndex - 1,
+          year: monthIndex === 1 ? yearNum - 1 : yearNum,
+        }
+      : null;
+  const nextConfig =
+    monthIndex && !Number.isNaN(yearNum)
+      ? {
+          month: monthIndex === 12 ? 1 : monthIndex + 1,
+          year: monthIndex === 12 ? yearNum + 1 : yearNum,
+        }
+      : null;
 
-  const prevWindow = prevMonthIndex ? getMonthWindow(prevYear, prevMonthIndex, PHILLY_TIME_ZONE) : null;
-  const nextWindow = nextMonthIndex ? getMonthWindow(nextYear, nextMonthIndex, PHILLY_TIME_ZONE) : null;
+  const prevWindow = prevConfig
+    ? getMonthWindow(prevConfig.year, prevConfig.month, PHILLY_TIME_ZONE)
+    : null;
+  const nextWindow = nextConfig
+    ? getMonthWindow(nextConfig.year, nextConfig.month, PHILLY_TIME_ZONE)
+    : null;
 
-  const prevSlug = prevMonthIndex
-    ? `/philadelphia-events-${indexToMonthSlug(prevMonthIndex)}-${prevYear}/`
-    : '/philadelphia-events/';
-  const nextSlug = nextMonthIndex
-    ? `/philadelphia-events-${indexToMonthSlug(nextMonthIndex)}-${nextYear}/`
-    : '/philadelphia-events/';
+  const prevPath = prevConfig ? buildMonthlyPath(prevConfig.month, prevConfig.year) : '/philadelphia-events/';
+  const nextPath = nextConfig ? buildMonthlyPath(nextConfig.month, nextConfig.year) : '/philadelphia-events/';
 
   const prevLabel = prevWindow ? formatMonthYear(prevWindow.start, PHILLY_TIME_ZONE) : '';
   const nextLabel = nextWindow ? formatMonthYear(nextWindow.start, PHILLY_TIME_ZONE) : '';
@@ -175,35 +155,36 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
     return null;
   }, [events]);
 
-  const canonicalUrl = monthIndex && !Number.isNaN(yearNum)
-    ? `${CANONICAL_BASE}${indexToMonthSlug(monthIndex)}-${yearNum}/`
-    : `${CANONICAL_BASE}`;
-
   useEffect(() => {
-    if (!monthIndex || Number.isNaN(yearNum) || !monthStart) return;
-    const heroImage = firstImage || DEFAULT_OG_IMAGE;
-    const pageTitle = monthLabel ? `Philly Traditions in ${monthLabel}` : 'Philly Traditions in Philadelphia';
-    const description = `${monthLabel || 'Philadelphia'} traditions, festivals, family-friendly fun, concerts, and markets from the most comprehensive events calendar in Philadelphia.`;
-    if (typeof document !== 'undefined') {
-      document.title = pageTitle;
+    if (firstImage) {
+      setOgImage(firstImage);
+    } else {
+      setOgImage(DEFAULT_OG_IMAGE);
     }
-    setMetaTag('description', description);
-    setPropertyTag('og:title', pageTitle);
-    setPropertyTag('og:description', description);
-    setPropertyTag('og:url', canonicalUrl);
-    setPropertyTag('og:image', heroImage);
-    setMetaTag('twitter:card', 'summary_large_image');
-    setMetaTag('twitter:title', pageTitle);
-    setMetaTag('twitter:description', description);
-    setMetaTag('twitter:image', heroImage);
-    setCanonicalLink(canonicalUrl);
-  }, [monthIndex, yearNum, monthLabel, canonicalUrl, firstImage, monthStart]);
+  }, [firstImage]);
+
+  const canonicalPath =
+    monthIndex && !Number.isNaN(yearNum)
+      ? buildMonthlyPath(monthIndex, yearNum)
+      : '/philadelphia-events/';
+  const canonicalUrl = `${SITE_BASE_URL}${canonicalPath}`;
+
+  const pageTitle = monthLabel
+    ? `Events in Philadelphia – ${monthLabel} (Traditions, Festivals, Markets)`
+    : 'Events in Philadelphia – Traditions, Festivals, Markets';
+  const pageDescription = `${monthLabel || 'Philadelphia'} events, traditions, festivals, markets, and family-friendly outings curated by Our Philly.`;
 
   const countText = `${events.length} traditions in ${headingLabel}!`;
 
   if (!hasValidParams) {
     return (
       <div className="flex flex-col min-h-screen bg-white">
+        <Seo
+          title={pageTitle}
+          description={pageDescription}
+          canonicalUrl={canonicalUrl}
+          ogImage={ogImage}
+        />
         <Navbar />
         <main className="flex-1 pt-36 pb-16 flex items-center justify-center">
           <p className="text-gray-600">Redirecting to the latest Philadelphia traditions…</p>
@@ -215,6 +196,12 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
+      <Seo
+        title={pageTitle}
+        description={pageDescription}
+        canonicalUrl={canonicalUrl}
+        ogImage={ogImage}
+      />
       <Navbar />
       <main className="flex-1 pt-36 md:pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-5xl">
@@ -226,7 +213,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
           </p>
 
           <div className="mt-10 md:sticky md:top-24 bg-white/90 border border-gray-200 rounded-2xl shadow-sm px-4 py-3 flex flex-wrap items-center justify-center gap-4">
-            <Link to={prevSlug} className="text-sm font-semibold text-indigo-600 hover:underline">
+            <Link to={prevPath} className="text-sm font-semibold text-indigo-600 hover:underline">
               ← {prevLabel || 'Previous'}
             </Link>
             <span className="hidden md:block text-gray-300">|</span>
@@ -234,7 +221,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
               This Weekend →
             </Link>
             <span className="hidden md:block text-gray-300">|</span>
-            <Link to={nextSlug} className="text-sm font-semibold text-indigo-600 hover:underline">
+            <Link to={nextPath} className="text-sm font-semibold text-indigo-600 hover:underline">
               {nextLabel || 'Next'} →
             </Link>
           </div>

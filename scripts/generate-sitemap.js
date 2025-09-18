@@ -17,6 +17,44 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 const HOST  = 'https://ourphilly.org'
 const TODAY = new Date().toISOString().slice(0,10)
+const PHILLY_TIME_ZONE = 'America/New_York'
+const MONTH_SLUGS = [
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+]
+
+function getPhillyMonthParts(reference = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: PHILLY_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+  })
+  const parts = formatter.formatToParts(reference)
+  return parts.reduce((acc, part) => {
+    if (part.type === 'year' || part.type === 'month') {
+      acc[part.type] = Number(part.value)
+    }
+    return acc
+  }, {})
+}
+
+function getCurrentMonthlyPath(reference = new Date()) {
+  const { month, year } = getPhillyMonthParts(reference)
+  if (!month || !year) return '/philadelphia-events/'
+  const slug = MONTH_SLUGS[month - 1]
+  if (!slug) return '/philadelphia-events/'
+  return `/philadelphia-events-${slug}-${year}/`
+}
 
 // Always‐on static routes
 const staticPages = [
@@ -24,6 +62,11 @@ const staticPages = [
   { path: '/groups',  priority: '0.6', changefreq: 'weekly'  },
   { path: '/contact', priority: '0.6', changefreq: 'monthly' },
   { path: '/traditions-faq', priority: '0.6', changefreq: 'monthly' },
+]
+
+const evergreenPages = [
+  { path: '/this-weekend-in-philadelphia/', priority: '0.8', changefreq: 'weekly' },
+  { path: getCurrentMonthlyPath(), priority: '0.8', changefreq: 'monthly' },
 ]
 
 async function buildSitemap() {
@@ -64,6 +107,17 @@ async function buildSitemap() {
 
   // static pages
   for (let page of staticPages) {
+    xmlParts.push(
+      `  <url>`,
+      `    <loc>${HOST}${page.path}</loc>`,
+      `    <lastmod>${TODAY}</lastmod>`,
+      `    <changefreq>${page.changefreq}</changefreq>`,
+      `    <priority>${page.priority}</priority>`,
+      `  </url>`
+    )
+  }
+
+  for (let page of evergreenPages) {
     xmlParts.push(
       `  <url>`,
       `    <loc>${HOST}${page.path}</loc>`,

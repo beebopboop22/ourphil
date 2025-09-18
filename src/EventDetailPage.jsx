@@ -1,11 +1,11 @@
 // src/EventDetailPage.jsx
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
-import { Helmet } from 'react-helmet';
+import Seo from './components/Seo.jsx';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import HeroLanding from './HeroLanding';
@@ -17,11 +17,38 @@ import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
 import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
+import { getCurrentMonthlyLabel, getCurrentMonthlyPath } from './utils/dateUtils';
+
+const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
+const WEEKEND_PATH = '/this-weekend-in-philadelphia/';
+const SITE_BASE_URL = 'https://ourphilly.org';
+
+function parseDateStr(str) {
+  if (!str) return null;
+  if (str.includes('/')) {
+    const [m, d, y] = str.split('/').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function toIsoDate(value) {
+  if (!value) return null;
+  const direct = new Date(value);
+  if (!Number.isNaN(direct.getTime())) {
+    return direct.toISOString();
+  }
+  const parsed = parseDateStr(value);
+  return parsed ? parsed.toISOString() : null;
+}
 
 export default function EventDetailPage() {
   const { slug } = useParams();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const currentMonthlyPath = useMemo(() => getCurrentMonthlyPath(), []);
+  const currentMonthlyLabel = useMemo(() => getCurrentMonthlyLabel(), []);
 
   // ─── State ───────────────────────────────────────────────────────────
   const [event, setEvent] = useState(null);
@@ -29,7 +56,7 @@ export default function EventDetailPage() {
     isFavorite,
     toggleFavorite,
     loading: toggling,
-  } = useEventFavorite({ event_id: event?.id, source_table: 'events' })
+  } = useEventFavorite({ event_id: event?.id, source_table: 'events' });
 
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
@@ -63,6 +90,79 @@ export default function EventDetailPage() {
     reviews.flatMap(r => r.photo_urls || []),
   [reviews]);
 
+  const canonicalUrl = useMemo(() => `${SITE_BASE_URL}/events/${slug}`, [slug]);
+
+  const { metaTitle, metaDescription, seoImage, eventJsonLd } = useMemo(() => {
+    if (!event) {
+      return {
+        metaTitle: 'Philadelphia Event – Our Philly',
+        metaDescription: 'Plan your next Philadelphia tradition with Our Philly’s calendar of concerts, festivals, and family-friendly events.',
+        seoImage: DEFAULT_OG_IMAGE,
+        eventJsonLd: null,
+      };
+    }
+
+    const name = event['E Name'] || 'Philadelphia Event';
+    const rawDescription = (event['E Description'] || '').replace(/\s+/g, ' ').trim();
+    const description = rawDescription
+      ? (rawDescription.length > 160 ? `${rawDescription.slice(0, 157).trimEnd()}…` : rawDescription)
+      : `${name} is a Philadelphia tradition featured on Our Philly.`;
+
+    const startDateIso = toIsoDate(event['E Start Date'] || event.Dates);
+    const endDateIso = toIsoDate(event['E End Date'] || event['End Date'] || event['E Start Date'] || event.Dates);
+    const imageUrl = event['E Image'] || DEFAULT_OG_IMAGE;
+
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'Event',
+      name,
+      description,
+      url: canonicalUrl,
+      eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+      location: {
+        '@type': 'Place',
+        name: event['E Address'] || 'Philadelphia',
+        address: {
+          '@type': 'PostalAddress',
+          addressLocality: 'Philadelphia',
+          addressRegion: 'PA',
+          addressCountry: 'US',
+        },
+      },
+      organizer: {
+        '@type': 'Organization',
+        name: 'Our Philly',
+        url: SITE_BASE_URL,
+      },
+    };
+
+    if (startDateIso) jsonLd.startDate = startDateIso;
+    if (endDateIso) jsonLd.endDate = endDateIso;
+    if (imageUrl) jsonLd.image = [imageUrl];
+
+    return {
+      metaTitle: `${name} – Philadelphia Event`,
+      metaDescription: description,
+      seoImage: imageUrl,
+      eventJsonLd: jsonLd,
+    };
+  }, [event, canonicalUrl]);
+
+  const heroImage = seoImage || DEFAULT_OG_IMAGE;
+
+  const gcalLink = useMemo(() => {
+    if (!event) return '';
+    const start = (event.Dates || '').replace(/-/g, '');
+    const end = (event['End Date'] || event.Dates || '').replace(/-/g, '');
+    const url = typeof window !== 'undefined' ? window.location.href : canonicalUrl;
+    return (
+      'https://www.google.com/calendar/render?action=TEMPLATE' +
+      `&text=${encodeURIComponent(event['E Name'] || '')}` +
+      `&dates=${start}/${end}` +
+      `&details=${encodeURIComponent('Details: ' + url)}`
+    );
+  }, [event, canonicalUrl]);
+
   const pillStyles = [
     'bg-red-100 text-red-800',
     'bg-orange-100 text-orange-800',
@@ -91,16 +191,6 @@ export default function EventDetailPage() {
   ];
 
   // ─── Helpers ─────────────────────────────────────────────────────────
-  function parseDateStr(str) {
-    if (!str) return null;
-    if (str.includes('/')) {
-      const [m, d, y] = str.split('/').map(Number);
-      return new Date(y, m - 1, d);
-    }
-    const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-
   function getFriendlyDate(str) {
     const d = parseDateStr(str);
     if (!d) return '';
@@ -252,7 +342,8 @@ export default function EventDetailPage() {
   };
 
   // ─── Reviews ─────────────────────────────────────────────────────────
-  const loadReviews = async () => {
+  const loadReviews = useCallback(async () => {
+    if (!event) return;
     setLoadingReviews(true);
     const { data, error } = await supabase
       .from('reviews')
@@ -269,14 +360,18 @@ export default function EventDetailPage() {
           try {
             const p = JSON.parse(r.photo_urls);
             if (Array.isArray(p)) urls = p;
-          } catch {}
+          } catch (parseError) {
+            console.error('Failed to parse review photo URLs', parseError);
+          }
         }
         return { ...r, photo_urls: urls };
       }));
     }
     setLoadingReviews(false);
-  };
-  useEffect(() => { if (event) loadReviews(); }, [event]);
+  }, [event]);
+  useEffect(() => {
+    loadReviews();
+  }, [loadReviews]);
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -326,7 +421,19 @@ export default function EventDetailPage() {
   const alreadyReviewed = user && reviews.some(r => r.user_id === user.id);
 
   if (!event) {
-    return <div className="py-20 text-center text-gray-500">Loading…</div>;
+    return (
+      <div className="py-20 text-center text-gray-500">
+        <Seo
+          title={metaTitle}
+          description={metaDescription}
+          canonicalUrl={canonicalUrl}
+          ogImage={heroImage}
+          ogType="event"
+          jsonLd={eventJsonLd}
+        />
+        Loading…
+      </div>
+    );
   }
 
   // ─── Build displayDate ───────────────────────────────────────────────
@@ -337,61 +444,36 @@ export default function EventDetailPage() {
     ? getFriendlyDate(event.Dates)
     : `${sd.toLocaleDateString('en-US',{ month:'long', day:'numeric' })} — ${ed.toLocaleDateString('en-US',{ month:'long', day:'numeric' })}`;
 
-  const gcalLink = (() => {
-    const start = (event.Dates || '').replace(/-/g, '');
-    const end = (event['End Date'] || event.Dates || '').replace(/-/g, '');
-    const url = window.location.href;
-    return (
-      'https://www.google.com/calendar/render?action=TEMPLATE' +
-      `&text=${encodeURIComponent(event['E Name'])}` +
-      `&dates=${start}/${end}` +
-      `&details=${encodeURIComponent('Details: ' + url)}`
-    );
-  })();
-
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      <Helmet>
-        <title>{`${event['E Name']} – ${displayDate} – Our Philly`}</title>
-        <meta name="description" content={event['E Description']} />
-        <link rel="canonical" href={`https://ourphilly.org/events/${slug}`} />
-      </Helmet>
-      {/* JSON-LD structured data */}
-      <script type="application/ld+json">
-        {JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'Event',
-          name: event['E Name'],
-          startDate: event['E Start Date'],
-          endDate: event['E End Date'] || event['E Start Date'],
-          description: event['E Description'],
-          image: [event['E Image']],
-          eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-          location: {
-            '@type': 'Place',
-            name: event['E Address'] || 'Philadelphia',
-            address: {
-              '@type': 'PostalAddress',
-              addressLocality: 'Philadelphia',
-              addressRegion: 'PA',
-              addressCountry: 'US',
-            },
-          },
-          organizer: {
-            '@type': 'Organization',
-            name: 'Our Philly',
-            url: 'https://ourphilly.org',
-          },
-        })}
-      </script>
+      <Seo
+        title={metaTitle}
+        description={metaDescription}
+        canonicalUrl={canonicalUrl}
+        ogImage={heroImage}
+        ogType="event"
+        jsonLd={eventJsonLd}
+      />
 
       <Navbar />
 
       <main className="flex-grow mt-32">
+        <div className="bg-indigo-50 border-b border-indigo-100">
+          <div className="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-center gap-3 text-sm font-semibold text-indigo-700">
+            <span>Explore more:</span>
+            <Link to={WEEKEND_PATH} className="hover:underline">
+              This weekend in Philly
+            </Link>
+            <span className="hidden sm:inline text-indigo-300">•</span>
+            <Link to={currentMonthlyPath} className="hover:underline">
+              {currentMonthlyLabel} traditions
+            </Link>
+          </div>
+        </div>
         {/* Hero */}
         <div
           className="relative w-full h-screen bg-cover bg-center flex items-end"
-          style={{ backgroundImage: `url(${event['E Image']})` }}
+          style={{ backgroundImage: `url(${heroImage})` }}
         >
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
           <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white text-center">

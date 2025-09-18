@@ -247,4 +247,21 @@ export function formatEventDateRange(start, end, timeZone = PHILLY_TIME_ZONE) {
   return `${startStr} – ${endStr}`;
 }
 
+export function buildMonthlyPath(monthIndex, year) {
+  if (!monthIndex || !year) return '/philadelphia-events/';
+  const slug = indexToMonthSlug(monthIndex);
+  if (!slug) return '/philadelphia-events/';
+  return `/philadelphia-events-${slug}-${year}/`;
+}
+
+export function getCurrentMonthlyPath(timeZone = PHILLY_TIME_ZONE, reference = new Date()) {
+  const zoned = getZonedDate(reference, timeZone);
+  return buildMonthlyPath(zoned.getMonth() + 1, zoned.getFullYear());
+}
+
+export function getCurrentMonthlyLabel(timeZone = PHILLY_TIME_ZONE, reference = new Date()) {
+  const zoned = setStartOfDay(getZonedDate(reference, timeZone));
+  return formatMonthYear(zoned, timeZone);
+}
+
 export { MONTH_SLUGS };
