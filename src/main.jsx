@@ -53,6 +53,9 @@ import GroupsFAQ from './GroupsFAQ.jsx'
 import RecurringPage from './RecurringEventPage.jsx'
 import SportsEventPage from './SportsEventPage.jsx'
 import AboutPage from './AboutPage.jsx'
+import ThisWeekendInPhiladelphia from './ThisWeekendInPhiladelphia.jsx';
+import ThisMonthInPhiladelphia from './ThisMonthInPhiladelphia.jsx';
+import PhiladelphiaEventsIndex from './PhiladelphiaEventsIndex.jsx';
 
 
 
@@ -72,6 +75,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <ScrollToTop />
         <Routes>
           <Route path="/" element={<MainEvents />} />
+          <Route path="/this-weekend-in-philadelphia" element={<ThisWeekendInPhiladelphia />} />
+          <Route path="/this-weekend-in-philadelphia/" element={<ThisWeekendInPhiladelphia />} />
+          <Route path="/philadelphia-events" element={<PhiladelphiaEventsIndex />} />
+          <Route path="/philadelphia-events/" element={<PhiladelphiaEventsIndex />} />
+          <Route path="/philadelphia-events-:monthSlug-:year" element={<ThisMonthInPhiladelphia />} />
+          <Route path="/philadelphia-events-:monthSlug-:year/" element={<ThisMonthInPhiladelphia />} />
           <Route path="/:view" element={<MainEvents />} />
           <Route path="/old" element={<App />} />
           <Route path="/sports" element={<SportsPage />} />
