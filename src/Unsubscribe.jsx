@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import Navbar from './Navbar'
 import Footer from './Footer'
-import { Helmet } from 'react-helmet'
+import { Helmet } from 'react-helmet-async'
 
 export default function Unsubscribe() {
   const [status, setStatus] = useState('loading')

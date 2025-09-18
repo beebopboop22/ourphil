@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import Navbar from './Navbar';
 import Footer from './Footer';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import SavedEventCard from './SavedEventCard.jsx';
 import useProfile from './utils/useProfile';
 import useProfileTags from './utils/useProfileTags';

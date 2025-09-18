@@ -6,7 +6,7 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import { RRule } from 'rrule';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';

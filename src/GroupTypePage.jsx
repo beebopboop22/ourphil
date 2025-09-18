@@ -1,7 +1,7 @@
 // src/GroupTypePage.jsx
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import GroupsList from './GroupsList';

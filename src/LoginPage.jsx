@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 
 export default function LoginPage() {

@@ -5,6 +5,7 @@ import Footer from './Footer';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
+import { Helmet } from 'react-helmet-async';
 import {
   PHILLY_TIME_ZONE,
   monthSlugToIndex,
@@ -18,39 +19,52 @@ import {
 } from './utils/dateUtils';
 
 const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
-const CANONICAL_BASE = 'https://ourphilly.org/philadelphia-events-';
+const SITE_URL = 'https://ourphilly.org';
 
-function setMetaTag(name, content) {
-  if (typeof document === 'undefined') return;
-  let tag = document.querySelector(`meta[name="${name}"]`);
-  if (!tag) {
-    tag = document.createElement('meta');
-    tag.setAttribute('name', name);
-    document.head.appendChild(tag);
-  }
-  tag.setAttribute('content', content);
-}
+function buildMonthlyCollectionJsonLd(events, canonicalUrl, title, description) {
+  if (!events?.length || !canonicalUrl) return null;
+  const items = events.slice(0, 50).map((evt, index) => {
+    const slug = evt.slug;
+    if (!slug) return null;
+    const url = `${SITE_URL}/events/${slug}`;
+    const eventData = {
+      '@type': 'Event',
+      name: evt.title || evt['E Name'] || `Event ${index + 1}`,
+      url,
+    };
+    if (evt.startDate instanceof Date && !Number.isNaN(evt.startDate)) {
+      eventData.startDate = evt.startDate.toISOString();
+    }
+    if (evt.endDate instanceof Date && !Number.isNaN(evt.endDate)) {
+      eventData.endDate = evt.endDate.toISOString();
+    }
+    if (evt.description) {
+      eventData.description = evt.description;
+    }
+    if (evt.imageUrl) {
+      eventData.image = evt.imageUrl;
+    }
+    return {
+      '@type': 'ListItem',
+      position: index + 1,
+      url,
+      item: eventData,
+    };
+  }).filter(Boolean);
 
-function setPropertyTag(property, content) {
-  if (typeof document === 'undefined') return;
-  let tag = document.querySelector(`meta[property="${property}"]`);
-  if (!tag) {
-    tag = document.createElement('meta');
-    tag.setAttribute('property', property);
-    document.head.appendChild(tag);
-  }
-  tag.setAttribute('content', content);
-}
+  if (!items.length) return null;
 
-function setCanonicalLink(url) {
-  if (typeof document === 'undefined') return;
-  let link = document.querySelector('link[rel="canonical"]');
-  if (!link) {
-    link = document.createElement('link');
-    link.setAttribute('rel', 'canonical');
-    document.head.appendChild(link);
-  }
-  link.setAttribute('href', url);
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: title,
+    description,
+    url: canonicalUrl,
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: items,
+    },
+  });
 }
 
 function FavoriteState({ event_id, source_table, children }) {
@@ -176,28 +190,18 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
   }, [events]);
 
   const canonicalUrl = monthIndex && !Number.isNaN(yearNum)
-    ? `${CANONICAL_BASE}${indexToMonthSlug(monthIndex)}-${yearNum}/`
-    : `${CANONICAL_BASE}`;
+    ? `${SITE_URL}/philadelphia-events-${indexToMonthSlug(monthIndex)}-${yearNum}/`
+    : `${SITE_URL}/philadelphia-events/`;
 
-  useEffect(() => {
-    if (!monthIndex || Number.isNaN(yearNum) || !monthStart) return;
-    const heroImage = firstImage || DEFAULT_OG_IMAGE;
-    const pageTitle = monthLabel ? `Philly Traditions in ${monthLabel}` : 'Philly Traditions in Philadelphia';
-    const description = `${monthLabel || 'Philadelphia'} traditions, festivals, family-friendly fun, concerts, and markets from the most comprehensive events calendar in Philadelphia.`;
-    if (typeof document !== 'undefined') {
-      document.title = pageTitle;
-    }
-    setMetaTag('description', description);
-    setPropertyTag('og:title', pageTitle);
-    setPropertyTag('og:description', description);
-    setPropertyTag('og:url', canonicalUrl);
-    setPropertyTag('og:image', heroImage);
-    setMetaTag('twitter:card', 'summary_large_image');
-    setMetaTag('twitter:title', pageTitle);
-    setMetaTag('twitter:description', description);
-    setMetaTag('twitter:image', heroImage);
-    setCanonicalLink(canonicalUrl);
-  }, [monthIndex, yearNum, monthLabel, canonicalUrl, firstImage, monthStart]);
+  const heroImage = firstImage || DEFAULT_OG_IMAGE;
+  const monthTitle = monthLabel
+    ? `Events in Philadelphia – ${monthLabel} (Traditions, Festivals, Markets)`
+    : 'Events in Philadelphia – Traditions, Festivals, Markets';
+  const monthDescription = `${monthLabel || 'Philadelphia'} events in Philadelphia: traditions, festivals, markets, concerts, and family-friendly picks from the most comprehensive events calendar in Philadelphia.`;
+  const monthlyJsonLd = useMemo(
+    () => buildMonthlyCollectionJsonLd(events, canonicalUrl, monthTitle, monthDescription),
+    [events, canonicalUrl, monthTitle, monthDescription]
+  );
 
   const countText = `${events.length} traditions in ${headingLabel}!`;
 
@@ -214,13 +218,38 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
-      <Navbar />
-      <main className="flex-1 pt-36 md:pt-40 pb-16">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
-            Philly Traditions in {headingLabel}
-          </h1>
+    <>
+      <Helmet prioritizeSeoTags>
+        <title>{monthTitle}</title>
+        <meta name="description" content={monthDescription} />
+        <meta name="robots" content="index,follow" />
+        <meta name="keywords" content="Philadelphia events, Philly traditions, festivals in Philadelphia, family-friendly Philadelphia events" />
+        <link rel="canonical" href={canonicalUrl} />
+        {heroImage && <link rel="preload" as="image" href={heroImage} />}
+        <meta property="og:title" content={monthTitle} />
+        <meta property="og:description" content={monthDescription} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:site_name" content="Our Philly" />
+        {heroImage && <meta property="og:image" content={heroImage} />}
+        {heroImage && <meta property="og:image:alt" content="Philadelphia traditions collage" />}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={monthTitle} />
+        <meta name="twitter:description" content={monthDescription} />
+        {heroImage && <meta name="twitter:image" content={heroImage} />}
+      </Helmet>
+      {monthlyJsonLd && (
+        <Helmet>
+          <script type="application/ld+json">{monthlyJsonLd}</script>
+        </Helmet>
+      )}
+      <div className="flex flex-col min-h-screen bg-white">
+        <Navbar />
+        <main className="flex-1 pt-36 md:pt-40 pb-16">
+          <div className="container mx-auto px-4 max-w-5xl">
+            <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
+              Philly Traditions in {headingLabel}
+            </h1>
           <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
             Welcome to the most comprehensive events calendar in Philadelphia. Explore {headingLabel} traditions covering markets, festivals, concerts, and family-friendly outings so your plans stay rich all month long.
           </p>
@@ -306,9 +335,10 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
             </section>
           )}
         </div>
-      </main>
-      <Footer />
-    </div>
+        </main>
+        <Footer />
+      </div>
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 // src/NewsletterSection.jsx
 import React from 'react';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 export default function NewsletterSection() {
   // you can override these via VITE_CONVERTKIT_FORM_ID in .env

@@ -8,7 +8,7 @@ import { AuthContext } from './AuthProvider'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import CityHolidayAlert from './CityHolidayAlert'
-import { Helmet } from 'react-helmet'
+import { Helmet } from 'react-helmet-async'
 
 export default function BigBoardPage() {
   const { user } = useContext(AuthContext)

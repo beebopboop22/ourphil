@@ -1,7 +1,7 @@
 // src/TriviaNights.jsx
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from './supabaseClient'
-import { Helmet } from 'react-helmet'
+import { Helmet } from 'react-helmet-async'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import TriviaCard from './TriviaCard'

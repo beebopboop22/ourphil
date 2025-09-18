@@ -1,6 +1,6 @@
 // src/ConcertsPage.jsx
 import React, { useEffect, useState } from 'react';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import Navbar from './Navbar';
 
 const ConcertsPage = () => {

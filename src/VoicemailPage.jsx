@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 
 const VoicemailPage = () => {

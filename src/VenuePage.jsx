@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { Link, useParams } from 'react-router-dom';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 
 // 🟡 Inline Sidebar "Bulletin" (duplicate design, no desc)
 function UpcomingSidebarBulletin({ previewCount = 10 }) {
