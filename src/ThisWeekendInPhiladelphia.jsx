@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Filter, List, XCircle } from 'lucide-react';
@@ -5,6 +6,7 @@ import { RRule } from 'rrule';
 import { FaStar } from 'react-icons/fa';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import Seo from './components/Seo.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
@@ -52,39 +54,6 @@ const dayViewLabels = {
 
 const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
 const CANONICAL_URL = 'https://ourphilly.org/this-weekend-in-philadelphia/';
-
-function setMetaTag(name, content) {
-  if (typeof document === 'undefined') return;
-  let tag = document.querySelector(`meta[name="${name}"]`);
-  if (!tag) {
-    tag = document.createElement('meta');
-    tag.setAttribute('name', name);
-    document.head.appendChild(tag);
-  }
-  tag.setAttribute('content', content);
-}
-
-function setPropertyTag(property, content) {
-  if (typeof document === 'undefined') return;
-  let tag = document.querySelector(`meta[property="${property}"]`);
-  if (!tag) {
-    tag = document.createElement('meta');
-    tag.setAttribute('property', property);
-    document.head.appendChild(tag);
-  }
-  tag.setAttribute('content', content);
-}
-
-function setCanonicalLink(url) {
-  if (typeof document === 'undefined') return;
-  let link = document.querySelector('link[rel="canonical"]');
-  if (!link) {
-    link = document.createElement('link');
-    link.setAttribute('rel', 'canonical');
-    document.head.appendChild(link);
-  }
-  link.setAttribute('href', url);
-}
 
 function formatTime(timeStr) {
   if (!timeStr) return '';
@@ -170,6 +139,7 @@ export default function ThisWeekendInPhiladelphia() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isListView, setIsListView] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [ogImage, setOgImage] = useState(DEFAULT_OG_IMAGE);
 
   const today = useMemo(() => setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE)), []);
 
@@ -508,7 +478,7 @@ export default function ThisWeekendInPhiladelphia() {
     return () => {
       cancelled = true;
     };
-  }, [weekendStartMs, weekendEndMs]);
+  }, [weekendStartMs, weekendEndMs, weekendStart, weekendEnd]);
   useEffect(() => {
     if (!recurringRaw.length) {
       setRecurringEvents([]);
@@ -568,7 +538,7 @@ export default function ThisWeekendInPhiladelphia() {
         .filter(Boolean);
     });
     setRecurringEvents(occs);
-  }, [recurringRaw, weekendStartMs, weekendEndMs]);
+  }, [recurringRaw, weekendStartMs, weekendEndMs, weekendStart, weekendEnd]);
 
   useEffect(() => {
     const filtered = sportsEventsRaw
@@ -700,6 +670,14 @@ export default function ThisWeekendInPhiladelphia() {
     return null;
   }, [combinedEvents]);
 
+  useEffect(() => {
+    if (firstEventImage) {
+      setOgImage(firstEventImage);
+    } else {
+      setOgImage(DEFAULT_OG_IMAGE);
+    }
+  }, [firstEventImage]);
+
   const traditionLinks = useMemo(() => {
     const days = [0, 1, 2].map(offset => {
       const d = setStartOfDay(new Date(weekendStart));
@@ -725,25 +703,8 @@ export default function ThisWeekendInPhiladelphia() {
 
   const rangeForTitle = formatDateRangeForTitle(weekendStart, weekendEnd, PHILLY_TIME_ZONE);
   const introRange = `${formatMonthDay(weekendStart, PHILLY_TIME_ZONE)} through ${formatMonthDay(weekendEnd, PHILLY_TIME_ZONE)}`;
-
-  useEffect(() => {
-    const heroImage = firstEventImage || DEFAULT_OG_IMAGE;
-    const title = `Things to Do in Philadelphia This Weekend (${rangeForTitle})`;
-    const description = 'Plan this weekend in Philly with the most comprehensive events calendar in Philadelphia. Explore free events, family-friendly outings, concerts, festivals, and markets happening all across the city.';
-    if (typeof document !== 'undefined') {
-      document.title = title;
-    }
-    setMetaTag('description', description);
-    setPropertyTag('og:title', title);
-    setPropertyTag('og:description', description);
-    setPropertyTag('og:url', CANONICAL_URL);
-    setPropertyTag('og:image', heroImage);
-    setMetaTag('twitter:card', 'summary_large_image');
-    setMetaTag('twitter:title', title);
-    setMetaTag('twitter:description', description);
-    setMetaTag('twitter:image', heroImage);
-    setCanonicalLink(CANONICAL_URL);
-  }, [rangeForTitle, firstEventImage]);
+  const weekendTitle = 'Things to Do in Philadelphia This Weekend – Concerts, Festivals, Free Events';
+  const weekendDescription = `Plan this weekend in Philly (${introRange}) with free, family-friendly concerts, festivals, and markets curated by Our Philly.`;
 
   const handleTagToggle = (slug, checked) => {
     setSelectedTags(prev => (checked ? [...prev, slug] : prev.filter(tag => tag !== slug)));
@@ -753,6 +714,12 @@ export default function ThisWeekendInPhiladelphia() {
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
+      <Seo
+        title={weekendTitle}
+        description={weekendDescription}
+        canonicalUrl={CANONICAL_URL}
+        ogImage={ogImage}
+      />
       <Navbar />
       <main className="flex-1 pt-36 md:pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-6xl">

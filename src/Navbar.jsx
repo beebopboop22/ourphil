@@ -1,23 +1,27 @@
 // src/Navbar.jsx
-import React, { useState, useContext, useEffect } from 'react';
+/* eslint-disable react/prop-types */
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { FaTiktok, FaInstagram } from 'react-icons/fa';
-import SubmitGroupModal from './SubmitGroupModal';
 import PostFlyerModal from './PostFlyerModal';
 import { AuthContext } from './AuthProvider';
 import { supabase } from './supabaseClient';
 import NavTagMenu from './NavTagMenu';
 import LoginPromptModal from './LoginPromptModal';
+import { getCurrentMonthlyLabel, getCurrentMonthlyPath } from './utils/dateUtils';
 
 export default function Navbar({ style }) {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
+  const weekendPath = '/this-weekend-in-philadelphia/';
+  const currentMonthlyPath = useMemo(() => getCurrentMonthlyPath(), []);
+  const currentMonthlyLabel = useMemo(() => getCurrentMonthlyLabel(), []);
+  const monthlyNavLabel = currentMonthlyLabel ? `${currentMonthlyLabel} Traditions` : 'Monthly Traditions';
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [guidesOpen, setGuidesOpen] = useState(false);
-  const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
@@ -28,11 +32,6 @@ export default function Navbar({ style }) {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/');
-  };
-
-  const openGroupModal = () => {
-    setShowSubmitModal(true);
-    setMenuOpen(false);
   };
 
   const openPostModal = () => {
@@ -124,21 +123,39 @@ export default function Navbar({ style }) {
                 {guidesOpen && (
                   <div className="absolute right-0 mt-3 w-64 bg-white border border-gray-200 rounded-xl shadow-lg py-3 z-50">
                     <Link
-                      to="/this-weekend-in-philadelphia"
+                      to={weekendPath}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
                       onClick={() => setGuidesOpen(false)}
                     >
                       This Weekend in Philadelphia
                     </Link>
                     <Link
-                      to="/philadelphia-events/"
+                      to={currentMonthlyPath}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
                       onClick={() => setGuidesOpen(false)}
                     >
-                      Philly Traditions Calendar
+                      {monthlyNavLabel}
                     </Link>
                   </div>
                 )}
+              </li>
+
+              <li>
+                <Link
+                  to={weekendPath}
+                  className={`flex items-center space-x-1 ${linkClass('/this-weekend-in-philadelphia')}`}
+                >
+                  <span>This Weekend</span>
+                </Link>
+              </li>
+
+              <li>
+                <Link
+                  to={currentMonthlyPath}
+                  className={`flex items-center space-x-1 ${linkClass('/philadelphia-events')}`}
+                >
+                  <span>{monthlyNavLabel}</span>
+                </Link>
               </li>
 
               <li>
@@ -235,18 +252,18 @@ export default function Navbar({ style }) {
               </a>
             </div>
             <Link
-              to="/this-weekend-in-philadelphia"
+              to={weekendPath}
               className="block"
               onClick={() => setMenuOpen(false)}
             >
               This Weekend in Philly
             </Link>
             <Link
-              to="/philadelphia-events/"
+              to={currentMonthlyPath}
               className="block"
               onClick={() => setMenuOpen(false)}
             >
-              Philly Traditions Calendar
+              {monthlyNavLabel}
             </Link>
             <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
               Claim Your Group
@@ -290,7 +307,6 @@ export default function Navbar({ style }) {
       </nav>
 
       {/* Modals */}
-      {showSubmitModal && <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />}
       {showPostModal && <PostFlyerModal isOpen={showPostModal} onClose={() => setShowPostModal(false)} />}
       {showLoginModal && <LoginPromptModal onClose={() => setShowLoginModal(false)} />}
     </>
