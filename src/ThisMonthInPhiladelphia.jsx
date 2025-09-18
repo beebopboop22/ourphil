@@ -19,6 +19,7 @@ import {
 
 const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
 const CANONICAL_BASE = 'https://ourphilly.org/philadelphia-events-';
+const CANONICAL_INDEX = 'https://ourphilly.org/philadelphia-events/';
 
 function setMetaTag(name, content) {
   if (typeof document === 'undefined') return;
@@ -86,7 +87,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
 
   useEffect(() => {
     if (!hasValidParams) {
-      navigate('/philadelphia-events', { replace: true });
+      navigate('/philadelphia-events/', { replace: true });
     }
   }, [hasValidParams, navigate]);
 
@@ -177,7 +178,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
 
   const canonicalUrl = monthIndex && !Number.isNaN(yearNum)
     ? `${CANONICAL_BASE}${indexToMonthSlug(monthIndex)}-${yearNum}/`
-    : `${CANONICAL_BASE}`;
+    : CANONICAL_INDEX;
 
   useEffect(() => {
     if (!monthIndex || Number.isNaN(yearNum) || !monthStart) return;
@@ -230,7 +231,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
               ← {prevLabel || 'Previous'}
             </Link>
             <span className="hidden md:block text-gray-300">|</span>
-            <Link to="/this-weekend-in-philadelphia" className="text-sm font-semibold text-indigo-600 hover:underline">
+            <Link to="/this-weekend-in-philadelphia/" className="text-sm font-semibold text-indigo-600 hover:underline">
               This Weekend →
             </Link>
             <span className="hidden md:block text-gray-300">|</span>

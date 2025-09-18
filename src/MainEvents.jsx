@@ -1830,7 +1830,7 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
             </section>
             <section className="px-4 mb-12">
               <Link
-                to="/this-weekend-in-philadelphia"
+                to="/this-weekend-in-philadelphia/"
                 className="block group"
               >
                 <div className="max-w-screen-xl mx-auto">
