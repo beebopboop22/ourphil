@@ -40,6 +40,7 @@ import {
   parseMonthDayYear,
   overlaps,
 } from './utils/dateUtils';
+import { ALL_EVENTS_SELECT, normalizeAllEvents } from './utils/allEvents.js';
  
 // Shared styles for tag "pills"
 const pillStyles = [
@@ -851,27 +852,9 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
     }
 
     const fetchAllEvents = supabase
-  .from('all_events')
-  .select(`
-    id,
-    name,
-    description,
-    link,
-    image,
-    start_date,
-    start_time,
-    end_time,
-    end_date,
-    slug,
-    venue_id,
-    venues:venue_id (
-      name,
-      slug,
-      latitude,
-      longitude
-    )
-  `)
-  .order('start_date', { ascending: true });
+      .from('all_events')
+      .select(ALL_EVENTS_SELECT)
+      .order('start_date', { ascending: true });
 
         const fetchBigBoard = supabase
         .from('big_board_events')
@@ -930,14 +913,7 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
 
         
         // ----- ALL_EVENTS FILTERING -----
-        const allData = allEventsRes.data || [];
-
-        // tag every “all_events” row
-        const allTagged = allEventsRes.data?.map(evt => ({
-            ...evt,
-            isBigBoard: false,
-            isTradition: false
-        })) || [];
+        const allData = normalizeAllEvents(allEventsRes.data);
 
         let filtered = [];
         if (selectedOption === 'weekend') {
@@ -960,7 +936,16 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
             return isStartDay || inRange;
           });
         }
-        setEvents(filtered);
+        const mappedAllEvents = filtered.map(evt => {
+          const detailPath = getDetailPathForItem(evt);
+          const externalHref = evt.link && evt.link.startsWith('http') ? evt.link : null;
+          return {
+            ...evt,
+            href: detailPath || externalHref || '/',
+          };
+        });
+
+        setEvents(mappedAllEvents);
 
        // ----- BIG BOARD EVENTS FILTERING -----
 let bigData = bigBoardRes.data || [];
