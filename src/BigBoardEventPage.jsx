@@ -6,13 +6,23 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import useFollow from './utils/useFollow';
-import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import { isTagActive } from './utils/tagUtils';
+import Seo from './components/Seo.jsx';
+import {
+  SITE_BASE_URL,
+  DEFAULT_OG_IMAGE,
+  ensureAbsoluteUrl,
+  buildEventJsonLd,
+} from './utils/seoHelpers.js';
+
+const FALLBACK_BIG_BOARD_TITLE = 'Community Event – Our Philly';
+const FALLBACK_BIG_BOARD_DESCRIPTION =
+  'Discover community-submitted events happening around Philadelphia with Our Philly.';
 const CommentsSection = lazy(() => import('./CommentsSection'));
 import {
   CalendarCheck,
@@ -444,8 +454,28 @@ export default function BigBoardEventPage() {
     }
   };
 
-  if (loading) return <div className="py-20 text-center">Loading…</div>;
-  if (error)   return <div className="py-20 text-center text-red-600">{error}</div>;
+  const canonicalUrl = `${SITE_BASE_URL}/big-board/${slug}`;
+
+  if (loading || error || !event) {
+    const message = loading ? 'Loading…' : error || 'Event not found.';
+    const messageClass = error ? 'text-red-600' : 'text-gray-500';
+    return (
+      <div className="flex flex-col min-h-screen bg-white">
+        <Seo
+          title={FALLBACK_BIG_BOARD_TITLE}
+          description={FALLBACK_BIG_BOARD_DESCRIPTION}
+          canonicalUrl={canonicalUrl}
+          ogImage={DEFAULT_OG_IMAGE}
+          ogType="event"
+        />
+        <Navbar />
+        <main className="flex-grow flex items-center justify-center mt-32">
+          <div className={`text-2xl ${messageClass}`}>{message}</div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   // Compute whenText
   const startDateObj = parseLocalYMD(event.start_date);
@@ -457,7 +487,24 @@ export default function BigBoardEventPage() {
 
   const formattedDate = startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric', year:'numeric' });
   const rawDesc = event.description || '';
-  const metaDesc = rawDesc.length > 155 ? rawDesc.slice(0,152) + '…' : rawDesc;
+  const metaDesc = rawDesc.length > 155 ? `${rawDesc.slice(0, 152)}…` : rawDesc;
+  const seoDescription = metaDesc || FALLBACK_BIG_BOARD_DESCRIPTION;
+
+  const absoluteImage = ensureAbsoluteUrl(event.imageUrl);
+  const ogImage = absoluteImage || DEFAULT_OG_IMAGE;
+  const seoTitle = formattedDate
+    ? `${event.title} | Community Event on ${formattedDate} | Our Philly`
+    : `${event.title} – Our Philly`;
+
+  const jsonLd = buildEventJsonLd({
+    name: event.title,
+    canonicalUrl,
+    startDate: event.start_date,
+    endDate: event.end_date || event.start_date,
+    locationName: event.address || 'Philadelphia',
+    description: seoDescription,
+    image: ogImage,
+  });
 
   // Prev/Next logic
   const currentIndex = siblings.findIndex(e => e.slug === slug);
@@ -469,45 +516,18 @@ export default function BigBoardEventPage() {
     : null;
 
   return (
-    <>
-      <Helmet>
-        <title>{`${event.title} | Community Event on ${formattedDate} | Our Philly`}</title>
-        <meta name="description" content={metaDesc} />
-        <link rel="canonical" href={`https://ourphilly.org/big-board/${event.slug}`} />
-      </Helmet>
-      {/* JSON-LD structured data */}
-      <script type="application/ld+json">
-        {JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'Event',
-          name: event.title,
-          startDate: event.start_date,
-          endDate: event.end_date || event.start_date,
-          description: metaDesc,
-          image: [event.imageUrl],
-          eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-          location: {
-            '@type': 'Place',
-            name: event.address || 'Philadelphia',
-            address: {
-              '@type': 'PostalAddress',
-              addressLocality: 'Philadelphia',
-              addressRegion: 'PA',
-              addressCountry: 'US',
-            },
-          },
-          organizer: {
-            '@type': 'Organization',
-            name: 'Our Philly',
-            url: 'https://ourphilly.org',
-          },
-        })}
-      </script>
+    <div className="flex flex-col min-h-screen bg-white">
+      <Seo
+        title={seoTitle}
+        description={seoDescription}
+        canonicalUrl={canonicalUrl}
+        ogImage={ogImage}
+        ogType="event"
+        jsonLd={jsonLd}
+      />
+      <Navbar />
 
-      <div className="flex flex-col min-h-screen bg-white">
-        <Navbar />
-
-        <main className="flex-grow relative mt-32">
+      <main className="flex-grow relative mt-32">
           {/* Hero banner */}
           <div
             className="w-full h-[40vh] bg-cover bg-center"
@@ -907,23 +927,22 @@ export default function BigBoardEventPage() {
             setModalStartStep(2);
             setShowFlyerModal(true);
           }} />
-        </main>
+      </main>
 
-        <Footer />
-        <FloatingAddButton
-          onClick={() => {
-            setModalStartStep(1);
-            setInitialFlyer(null);
-            setShowFlyerModal(true);
-          }}
-        />
-        <PostFlyerModal
-          isOpen={showFlyerModal}
-          onClose={() => setShowFlyerModal(false)}
-          startStep={modalStartStep}
-          initialFile={initialFlyer}
-        />
-      </div>
-    </>
+      <Footer />
+      <FloatingAddButton
+        onClick={() => {
+          setModalStartStep(1);
+          setInitialFlyer(null);
+          setShowFlyerModal(true);
+        }}
+      />
+      <PostFlyerModal
+        isOpen={showFlyerModal}
+        onClose={() => setShowFlyerModal(false)}
+        startStep={modalStartStep}
+        initialFile={initialFlyer}
+      />
+    </div>
   );
 }

@@ -1,7 +1,39 @@
 {
   "rewrites": [
     {
+      "source": "/events/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/seasonal/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/big-board/:slug",
+      "destination": "/index.html"
+    },
+    {
       "source": "/groups/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/groups/:slug/events/:eventId",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/series/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/series/:slug/:date",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/sports/:id",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:venue/:slug",
       "destination": "/index.html"
     },
     {

@@ -5,7 +5,6 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
-import { Helmet } from 'react-helmet';
 import { RRule } from 'rrule';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
@@ -13,6 +12,16 @@ import SubmitEventSection from './SubmitEventSection';
 import TaggedEventScroller from './TaggedEventsScroller';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
+
+import Seo from './components/Seo.jsx';
+import {
+  SITE_BASE_URL,
+  DEFAULT_OG_IMAGE,
+  ensureAbsoluteUrl,
+  buildEventJsonLd,
+  buildIsoDateTime,
+} from './utils/seoHelpers.js';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
 import {
   CalendarCheck,
@@ -22,6 +31,10 @@ import {
   Share2,
   Trash2,
 } from 'lucide-react';
+
+const FALLBACK_MAIN_EVENT_TITLE = 'Philadelphia Event – Our Philly';
+const FALLBACK_MAIN_EVENT_DESCRIPTION =
+  'Discover upcoming events and things to do across Philadelphia with Our Philly.';
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -41,7 +54,7 @@ function formatTime(timeStr) {
 }
 
 export default function MainEventsDetail() {
-  const { slug } = useParams();
+  const { slug, venue } = useParams();
   const navigate = useNavigate();
   const { user, isAdmin } = useContext(AuthContext);
 
@@ -352,24 +365,28 @@ export default function MainEventsDetail() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col min-h-screen bg-white">
-        <Navbar/>
-        <div className="flex-grow flex items-center justify-center mt-32">
-          <div className="text-2xl text-gray-500">Loading…</div>
-        </div>
-        <Footer/>
-      </div>
-    );
-  }
+  const fallbackCanonicalPath =
+    getDetailPathForItem({
+      slug,
+      venue_slug: venue,
+    }) || (venue ? `/${venue}/${slug}` : `/events/${slug}`);
+  const fallbackCanonicalUrl = `${SITE_BASE_URL}${fallbackCanonicalPath}`;
 
-  if (!event) {
+  if (loading || !event) {
+    const message = loading ? 'Loading…' : 'Event not found.';
+    const messageClass = loading ? 'text-gray-500' : 'text-red-600';
     return (
       <div className="flex flex-col min-h-screen bg-white">
+        <Seo
+          title={FALLBACK_MAIN_EVENT_TITLE}
+          description={FALLBACK_MAIN_EVENT_DESCRIPTION}
+          canonicalUrl={fallbackCanonicalUrl}
+          ogImage={DEFAULT_OG_IMAGE}
+          ogType="event"
+        />
         <Navbar/>
         <div className="flex-grow flex items-center justify-center mt-32">
-          <div className="text-2xl text-red-600">Event not found.</div>
+          <div className={`text-2xl ${messageClass}`}>{message}</div>
         </div>
         <Footer/>
       </div>
@@ -387,12 +404,37 @@ export default function MainEventsDetail() {
   const timeText = event.start_time ? formatTime(event.start_time) : '';
   const endTimeText = event.end_time ? formatTime(event.end_time) : '';
   const weekdayName = sd.toLocaleDateString('en-US',{ weekday:'long' });
-  const metaKeywords = eventTags.map(t => t.name).join(', ');
+  const venueSlugForCanonical = venueData?.slug || venue;
+  const canonicalPath =
+    getDetailPathForItem({
+      ...event,
+      venue_slug: venueSlugForCanonical,
+      venues: event.venues || (venueData ? { name: venueData.name, slug: venueData.slug } : null),
+    }) || (venueSlugForCanonical ? `/${venueSlugForCanonical}/${event.slug}` : `/events/${event.slug}`);
+  const canonicalUrl = `${SITE_BASE_URL}${canonicalPath}`;
+
+  const eventImage = ensureAbsoluteUrl(event.image) || DEFAULT_OG_IMAGE;
+  const rawDescription = event.description || '';
+  const seoDescription = rawDescription
+    ? rawDescription.slice(0, 155)
+    : FALLBACK_MAIN_EVENT_DESCRIPTION;
+
+  const startIso = buildIsoDateTime(event.start_date, event.start_time);
+  const endIso = buildIsoDateTime(event.end_date || event.start_date, event.end_time);
+  const jsonLd = buildEventJsonLd({
+    name: event.name,
+    canonicalUrl,
+    startDate: startIso || event.start_date,
+    endDate: endIso,
+    locationName: venueData?.name || event.address || 'Philadelphia',
+    description: seoDescription,
+    image: eventImage,
+  });
 
   const gcalLink = (() => {
     const start = event.start_date.replace(/-/g, '');
     const end = (event.end_date || event.start_date).replace(/-/g, '');
-    const url = window.location.href;
+    const url = canonicalUrl;
     return (
       'https://www.google.com/calendar/render?action=TEMPLATE' +
       `&text=${encodeURIComponent(event.name)}` +
@@ -407,24 +449,19 @@ export default function MainEventsDetail() {
   const linkText = venueData?.name || resolvedAddress;
 
   return (
-    <>
-      <Helmet>
-        <title>{`${event.name} | Our Philly Concierge`}</title>
-        <meta name="description" content={(event.description||'').slice(0,155)} />
-        <meta name="keywords" content={metaKeywords} />
-        <link rel="canonical" href={`https://ourphilly.org${window.location.pathname}`} />
-        <meta property="og:title" content={`${event.name} | Our Philly Concierge`} />
-        <meta property="og:description" content={(event.description||'').slice(0,155)} />
-        <meta property="og:type" content="article" />
-        <meta property="og:url" content={`https://ourphilly.org${window.location.pathname}`} />
-        {event.image && <meta property="og:image" content={event.image} />}
-        <meta name="twitter:card" content="summary_large_image" />
-      </Helmet>
+    <div className="flex flex-col min-h-screen bg-white">
+      <Seo
+        title={`${event.name} | Our Philly Concierge`}
+        description={seoDescription}
+        canonicalUrl={canonicalUrl}
+        ogImage={eventImage}
+        ogType="event"
+        jsonLd={jsonLd}
+      />
 
-      <div className="flex flex-col min-h-screen bg-white">
-        <Navbar/>
+      <Navbar/>
 
-        <main className="flex-grow mt-32">
+      <main className="flex-grow mt-32">
           {/* Hero */}
           <div
             className="w-full h-[40vh] bg-cover bg-center"
@@ -827,12 +864,11 @@ export default function MainEventsDetail() {
           </section>
 
           <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
-        </main>
+      </main>
 
-        <Footer/>
-        <FloatingAddButton onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }} />
-        <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
-      </div>
-    </>
+      <Footer/>
+      <FloatingAddButton onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }} />
+      <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
+    </div>
   );
 }

@@ -1,7 +1,6 @@
 // src/GroupEventDetailPage.jsx
 import React, { useEffect, useState, useContext } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { Helmet } from 'react-helmet'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import Footer from './Footer'
@@ -9,6 +8,18 @@ import GroupProgressBar from './GroupProgressBar'
 import { AuthContext } from './AuthProvider'
 import EventFavorite from './EventFavorite.jsx'
 import CommentsSection from './CommentsSection'
+import Seo from './components/Seo.jsx'
+import {
+  SITE_BASE_URL,
+  DEFAULT_OG_IMAGE,
+  ensureAbsoluteUrl,
+  buildEventJsonLd,
+  buildIsoDateTime,
+} from './utils/seoHelpers.js'
+
+const FALLBACK_GROUP_EVENT_TITLE = 'Group Event – Our Philly'
+const FALLBACK_GROUP_EVENT_DESCRIPTION =
+  'Discover events hosted by Philadelphia community groups on Our Philly.'
 
 const pillStyles = [
   'bg-red-100 text-red-800',
@@ -90,20 +101,20 @@ export default function GroupEventDetailPage() {
 
       // 5) resolve public URL
       let evImgUrl = ''
-if (ev.image_url) {
-  if (ev.image_url.startsWith('http')) {
-    // already a full URL
-    evImgUrl = ev.image_url
-  } else {
-    // storage key → public URL
-    evImgUrl = supabase
-      .storage
-      .from('big-board')
-      .getPublicUrl(ev.image_url)
-      .data
-      .publicUrl
-  }
-}
+      if (ev.image_url) {
+        if (ev.image_url.startsWith('http')) {
+          // already a full URL
+          evImgUrl = ev.image_url
+        } else {
+          // storage key → public URL
+          evImgUrl = supabase
+            .storage
+            .from('big-board')
+            .getPublicUrl(ev.image_url)
+            .data
+            .publicUrl
+        }
+      }
 
       setGroup(grp)
       setEvt({ ...ev, image: evImgUrl })
@@ -238,294 +249,361 @@ if (ev.image_url) {
     navigate(`/groups/${group.slug}`)
   }
 
-  if (loading || !group || !evt) {
-    return <div className="py-20 text-center text-gray-500">Loading…</div>
-  }
+  const canonicalUrl = `${SITE_BASE_URL}/groups/${slug}/events/${eventId}`
+  const eventTitle = evt?.title?.trim?.() ? evt.title.trim() : evt?.title || ''
+  const groupName = group?.Name?.trim?.() ? group.Name.trim() : group?.Name || ''
+  const seoTitle = eventTitle
+    ? `${eventTitle} – ${groupName || 'Our Philly'}`
+    : FALLBACK_GROUP_EVENT_TITLE
+  const seoDescription =
+    (evt?.description && evt.description.trim()) ||
+    (group?.Description && group.Description.trim()) ||
+    FALLBACK_GROUP_EVENT_DESCRIPTION
+  const resolvedImage = ensureAbsoluteUrl(evt?.image || evt?.image_url)
+  const ogImage = resolvedImage || DEFAULT_OG_IMAGE
+  const startIso = buildIsoDateTime(evt?.start_date, evt?.start_time)
+  const endIso = buildIsoDateTime(
+    evt?.end_date || evt?.start_date,
+    evt?.end_time || evt?.start_time
+  )
+  const eventJsonLd = evt?.start_date
+    ? buildEventJsonLd({
+        name: eventTitle || 'Group Event',
+        canonicalUrl,
+        startDate: startIso || evt.start_date,
+        endDate: endIso || evt.end_date || evt.start_date,
+        locationName: evt?.address || groupName || 'Philadelphia',
+        description: seoDescription,
+        image: ogImage,
+      })
+    : null
 
-  // ── friendly date/time
-  const d0 = parseYMD(evt.start_date) || new Date()
-  const diff = Math.round((d0 - new Date().setHours(0,0,0,0)) / (1000*60*60*24))
-  const when = diff===0 ? 'Today'
-             : diff===1 ? 'Tomorrow'
-             : d0.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' })
-  const t1 = formatTime(evt.start_time)
-  const t2 = formatTime(evt.end_time)
-
-  return (
-    <>
-      <Helmet>
-        <title>{evt.title} – {group.Name}</title>
-      </Helmet>
-      <Navbar/>
-      <div className="mt-32">
-        <GroupProgressBar/>
-
-        {/* static banner */}
-        <div
-          className="w-full h-[200px] bg-cover bg-center"
-          style={{
-            backgroundImage:
-              `url("https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//Group%20Event%20Banner.png")`
-          }}
-        />
-        {!user && (
-          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-          </div>
-        )}
-
-        {/* overlap detail card */}
-        <div className={`max-w-3xl mx-auto bg-white shadow-xl rounded-xl relative z-10 ${user ? '-mt-24' : ''}`}>
-        <EventFavorite
-          event_id={evt.id}
-          source_table="group_events"
-          className="absolute left-6 top-6 text-3xl"
-        />
-
-        {/* created by */}
-        <div className="w-full bg-blue-50 px-6 py-3 text-center text-blue-700 font-semibold rounded-t-xl">
-          Created by&nbsp;
-          <Link to={`/groups/${group.slug}`} className="underline">
-            {group.Name}
-          </Link>
-        </div>
-
-        {/* two‐col layout */}
-        <div className="flex flex-col lg:flex-row">
-          {/* flyer */}
-          <div className="lg:w-1/2 p-6 flex items-center justify-center">
-            {evt.image
-              ? <img src={evt.image}
-                     alt={evt.title}
-                     className="w-full h-auto object-cover rounded-lg" />
-              : <div className="w-full h-64 bg-gray-100 rounded-lg" />
-            }
-          </div>
-
-          {/* details / edit */}
-          <div className="lg:w-1/2 p-6 space-y-4">
-            {isEditing ? (
-              <form onSubmit={handleSave} className="space-y-6">
-                <input
-                  name="title"
-                  value={formData.title}
-                  onChange={handleChange}
-                  required
-                  className="w-full border rounded px-3 py-2"
-                />
-
-                <textarea
-                  name="description"
-                  rows={4}
-                  value={formData.description}
-                  onChange={handleChange}
-                  className="w-full border rounded px-3 py-2"
-                />
-
-                {/* tags picker */}
-                <div>
-                  <label className="block text-sm font-medium">Tags</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {tagsList.map((tg,i) => {
-                      const sel = selectedTags.includes(tg.id)
-                      const cls = sel
-                        ? pillStyles[i % pillStyles.length]
-                        : 'bg-gray-200 text-gray-700'
-                      return (
-                        <button
-                          key={tg.id}
-                          type="button"
-                          onClick={()=>toggleTag(tg.id)}
-                          className={`${cls} px-3 py-1 rounded-full text-sm`}
-                        >
-                          {tg.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <input
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  placeholder="Address"
-                  className="w-full border rounded px-3 py-2"
-                />
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <input
-                    name="start_date"
-                    type="date"
-                    value={formData.start_date}
-                    onChange={handleChange}
-                    required
-                    className="w-full border rounded px-3 py-2"
-                  />
-                  <input
-                    name="end_date"
-                    type="date"
-                    value={formData.end_date}
-                    onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <input
-                    name="start_time"
-                    type="time"
-                    value={formData.start_time}
-                    onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                  <input
-                    name="end_time"
-                    type="time"
-                    value={formData.end_time}
-                    onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="flex-1 bg-indigo-600 text-white py-2 rounded"
-                  >
-                    {saving ? 'Saving…' : 'Save'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={()=>setIsEditing(false)}
-                    className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <>
-                <h1 className="text-2xl font-bold text-gray-900">{evt.title}</h1>
-                <p className="text-gray-600">
-                  {when}{t1 && ` — ${t1}`}{t2 && ` to ${t2}`}
-                </p>
-                {evt.address && (
-                  <p className="text-sm text-blue-600">
-                    <a
-                      href={`https://maps.google.com?q=${encodeURIComponent(evt.address)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {evt.address}
-                    </a>
-                  </p>
-                )}
-
-                {/* tags display */}
-                {selectedTags.length > 0 && (
-                  <div className="mb-4">
-                    <h2 className="text-sm font-medium text-gray-700 mb-1">Tags</h2>
-                    <div className="flex flex-wrap gap-2">
-                      {tagsList
-                        .filter(tag => selectedTags.includes(tag.id))
-                        .map((tg,i) => (
-                          <span
-                            key={tg.id}
-                            className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm`}
-                          >
-                            {tg.name}
-                          </span>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                <p className="mt-4 text-gray-700">{evt.description}</p>
-                <div className="mt-4">
-                  <h2 className="text-lg font-semibold">About this Group</h2>
-                  <p className="text-gray-700">{group.Description}</p>
-                </div>
-
-                {evt.user_id === user?.id && (
-                  <div className="mt-6 flex space-x-4">
-                    <button
-                      onClick={startEditing}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="bg-red-600 text-white px-4 py-2 rounded"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
+  let content
+  if (loading) {
+    content = (
+      <div className="py-20 text-center text-gray-500">Loading…</div>
+    )
+  } else if (!group || !evt) {
+    content = (
+      <div className="py-20 text-center text-gray-500">
+        Group event not found.
       </div>
+    )
+  } else {
+    const startDate = parseYMD(evt.start_date) || new Date()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const diff = Math.round((startDate - today) / (1000 * 60 * 60 * 24))
+    const when =
+      diff === 0
+        ? 'Today'
+        : diff === 1
+        ? 'Tomorrow'
+        : startDate.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+          })
+    const t1 = formatTime(evt.start_time)
+    const t2 = formatTime(evt.end_time)
 
-      <CommentsSection
-        source_table="group_events"
-        event_id={evt.id}
-      />
+    content = (
+      <>
+        <div>
+          <GroupProgressBar />
 
-      {/* full-width community subs */}
-      <section className="w-full bg-neutral-100 py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-2xl font-semibold text-center mb-6">
-            Upcoming Community Submissions
-          </h2>
-          {loadingSubs ? (
-            <p className="text-center text-gray-500">Loading…</p>
-          ) : subs.length === 0 ? (
-            <p className="text-center text-gray-600">No upcoming submissions.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {subs.map(s => {
-                const d = parseYMD(s.start_date)
-                const label = d
-                  ? d.toLocaleDateString('en-US',{ month:'short', day:'numeric' })
-                  : ''
-                return (
-                  <Link
-                    key={s.id}
-                    to={`/big-board/${s.slug}`}
-                    className="bg-white rounded-lg shadow hover:shadow-lg overflow-hidden"
-                  >
-                    <div className="relative h-32 bg-gray-100">
-                      <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1 z-10">
-                        COMMUNITY SUBMISSION
-                      </div>
-                      {s.image && (
-                        <img
-                          src={s.image}
-                          alt={s.title}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                    </div>
-                    <div className="p-4 text-center">
-                      <h3 className="font-semibold mb-1 line-clamp-2">
-                        {s.title}
-                      </h3>
-                      <p className="text-sm text-gray-600">{label}</p>
-                    </div>
-                  </Link>
-                )
-              })}
+          <div
+            className="w-full h-[200px] bg-cover bg-center"
+            style={{
+              backgroundImage:
+                'url("https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//Group%20Event%20Banner.png")',
+            }}
+          />
+
+          {!user && (
+            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+              <Link to="/login" className="underline font-semibold">
+                Log in
+              </Link>{' '}
+              or{' '}
+              <Link to="/signup" className="underline font-semibold">
+                sign up
+              </Link>{' '}
+              free to add to your Plans
             </div>
           )}
-        </div>
-      </section>
 
-      <Footer/>
+          <div
+            className={`max-w-3xl mx-auto bg-white shadow-xl rounded-xl relative z-10 ${
+              user ? '-mt-24' : ''
+            }`}
+          >
+            <EventFavorite
+              event_id={evt.id}
+              source_table="group_events"
+              className="absolute left-6 top-6 text-3xl"
+            />
+
+            <div className="w-full bg-blue-50 px-6 py-3 text-center text-blue-700 font-semibold rounded-t-xl">
+              Created by&nbsp;
+              <Link to={`/groups/${group.slug}`} className="underline">
+                {group.Name}
+              </Link>
+            </div>
+
+            <div className="flex flex-col lg:flex-row">
+              <div className="lg:w-1/2 p-6 flex items-center justify-center">
+                {evt.image ? (
+                  <img
+                    src={evt.image}
+                    alt={evt.title}
+                    className="w-full h-auto object-cover rounded-lg"
+                  />
+                ) : (
+                  <div className="w-full h-64 bg-gray-100 rounded-lg" />
+                )}
+              </div>
+
+              <div className="lg:w-1/2 p-6 space-y-4">
+                {isEditing ? (
+                  <form onSubmit={handleSave} className="space-y-6">
+                    <input
+                      name="title"
+                      value={formData.title}
+                      onChange={handleChange}
+                      required
+                      className="w-full border rounded px-3 py-2"
+                    />
+
+                    <textarea
+                      name="description"
+                      rows={4}
+                      value={formData.description}
+                      onChange={handleChange}
+                      className="w-full border rounded px-3 py-2"
+                    />
+
+                    <div>
+                      <label className="block text-sm font-medium">Tags</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {tagsList.map((tg, i) => {
+                          const sel = selectedTags.includes(tg.id)
+                          const cls = sel
+                            ? pillStyles[i % pillStyles.length]
+                            : 'bg-gray-200 text-gray-700'
+                          return (
+                            <button
+                              key={tg.id}
+                              type="button"
+                              onClick={() => toggleTag(tg.id)}
+                              className={`${cls} px-3 py-1 rounded-full text-sm`}
+                            >
+                              {tg.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <input
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      placeholder="Address"
+                      className="w-full border rounded px-3 py-2"
+                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <input
+                        name="start_date"
+                        type="date"
+                        value={formData.start_date}
+                        onChange={handleChange}
+                        required
+                        className="w-full border rounded px-3 py-2"
+                      />
+                      <input
+                        name="end_date"
+                        type="date"
+                        value={formData.end_date}
+                        onChange={handleChange}
+                        className="w-full border rounded px-3 py-2"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <input
+                        name="start_time"
+                        type="time"
+                        value={formData.start_time}
+                        onChange={handleChange}
+                        className="w-full border rounded px-3 py-2"
+                      />
+                      <input
+                        name="end_time"
+                        type="time"
+                        value={formData.end_time}
+                        onChange={handleChange}
+                        className="w-full border rounded px-3 py-2"
+                      />
+                    </div>
+
+                    <div className="flex space-x-4">
+                      <button
+                        type="submit"
+                        disabled={saving}
+                        className="flex-1 bg-indigo-600 text-white py-2 rounded"
+                      >
+                        {saving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(false)}
+                        className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <h1 className="text-2xl font-bold text-gray-900">{evt.title}</h1>
+                    <p className="text-gray-600">
+                      {when}
+                      {t1 && ` — ${t1}`}
+                      {t2 && ` to ${t2}`}
+                    </p>
+                    {evt.address && (
+                      <p className="text-sm text-blue-600">
+                        <a
+                          href={`https://maps.google.com?q=${encodeURIComponent(evt.address)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {evt.address}
+                        </a>
+                      </p>
+                    )}
+
+                    {selectedTags.length > 0 && (
+                      <div className="mb-4">
+                        <h2 className="text-sm font-medium text-gray-700 mb-1">Tags</h2>
+                        <div className="flex flex-wrap gap-2">
+                          {tagsList
+                            .filter(tag => selectedTags.includes(tag.id))
+                            .map((tg, i) => (
+                              <span
+                                key={tg.id}
+                                className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm`}
+                              >
+                                {tg.name}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="mt-4 text-gray-700">{evt.description}</p>
+                    <div className="mt-4">
+                      <h2 className="text-lg font-semibold">About this Group</h2>
+                      <p className="text-gray-700">{group.Description}</p>
+                    </div>
+
+                    {evt.user_id === user?.id && (
+                      <div className="mt-6 flex space-x-4">
+                        <button
+                          onClick={startEditing}
+                          className="bg-indigo-600 text-white px-4 py-2 rounded"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={handleDelete}
+                          className="bg-red-600 text-white px-4 py-2 rounded"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <CommentsSection source_table="group_events" event_id={evt.id} />
+
+        <section className="w-full bg-neutral-100 py-12">
+          <div className="max-w-7xl mx-auto px-4">
+            <h2 className="text-2xl font-semibold text-center mb-6">
+              Upcoming Community Submissions
+            </h2>
+            {loadingSubs ? (
+              <p className="text-center text-gray-500">Loading…</p>
+            ) : subs.length === 0 ? (
+              <p className="text-center text-gray-600">No upcoming submissions.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {subs.map(s => {
+                  const d = parseYMD(s.start_date)
+                  const label = d
+                    ? d.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })
+                    : ''
+                  return (
+                    <Link
+                      key={s.id}
+                      to={`/big-board/${s.slug}`}
+                      className="bg-white rounded-lg shadow hover:shadow-lg overflow-hidden"
+                    >
+                      <div className="relative h-32 bg-gray-100">
+                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1 z-10">
+                          COMMUNITY SUBMISSION
+                        </div>
+                        {s.image && (
+                          <img
+                            src={s.image}
+                            alt={s.title}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="p-4 text-center">
+                        <h3 className="font-semibold mb-1 line-clamp-2">{s.title}</h3>
+                        <p className="text-sm text-gray-600">{label}</p>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      </>
+    )
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-neutral-50">
+      <Seo
+        title={seoTitle}
+        description={seoDescription}
+        canonicalUrl={canonicalUrl}
+        ogImage={ogImage}
+        ogType="event"
+        jsonLd={eventJsonLd}
+      />
+
+      <Navbar />
+
+      <main className="flex-grow pt-32">
+        {content}
+      </main>
+
+      <Footer />
     </div>
-    </>
   )
 }

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import useEventFavorite from './utils/useEventFavorite'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 function parseMMDDYYYY(str) {
   if (!str) return null
@@ -66,18 +67,14 @@ export default function SavedEventsScroller({ events = [] }) {
             venues,
           } = ev
           const img = imageUrl || image || ''
+          const groupSlug = Array.isArray(group) ? group[0]?.slug : group?.slug
+          const venueSlug = Array.isArray(venues) ? venues[0]?.slug : venues?.slug
           const link =
-            source_table === 'big_board_events'
-              ? `/big-board/${slug}`
-              : source_table === 'events'
-                ? `/events/${slug}`
-                : source_table === 'group_events'
-                  ? `/groups/${group?.slug}/events/${id}`
-                  : source_table === 'recurring_events'
-                    ? `/series/${slug}/${start_date}`
-                    : source_table === 'all_events'
-                      ? `/${venues?.slug || ''}/${slug}`
-                      : '/'
+            getDetailPathForItem({
+              ...ev,
+              group_slug: groupSlug,
+              venue_slug: venueSlug,
+            }) || '/'
           const d = source_table === 'events'
             ? parseMMDDYYYY(start_date)
             : parseISODateLocal(start_date)

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 
 const MASCOT_URL =
   'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png';
@@ -60,6 +61,10 @@ export default function RecentActivity() {
   const r = items[idx];
   const name = r.events?.name || 'an event';
   const slug = r.events?.slug || '';
+  const detailPath = getDetailPathForItem({
+    ...(r.events || {}),
+    slug,
+  });
   // Only show "You" if there is a logged-in user AND they match the review's user_id
   const who = user && r.user_id === user.id ? 'You' : 'A total stranger';
 
@@ -84,7 +89,7 @@ export default function RecentActivity() {
     >
       {who} just reviewed{' '}
       <Link
-        to={`/events/${slug}`}
+        to={detailPath || '/'}
         className="font-semibold text-indigo-600 hover:underline"
       >
         {name}

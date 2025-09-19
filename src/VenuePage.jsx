@@ -5,6 +5,7 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import { Link, useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 
 // 🟡 Inline Sidebar "Bulletin" (duplicate design, no desc)
 function UpcomingSidebarBulletin({ previewCount = 10 }) {
@@ -81,20 +82,24 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
         {events.map((evt, idx) => {
           const isActive = evt.start && evt.end && today0 >= evt.start && today0 <= evt.end;
           const bgCls = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-          const href = evt.slug
-            ? evt.slug.startsWith('http')
-              ? evt.slug
-              : `/events/${evt.slug}`
-            : null;
-          const Wrapper = href ? 'a' : 'div';
-          const linkProps = href
-            ? { href, ...(href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {}) }
-            : {};
+          const detailPath = getDetailPathForItem(evt);
+          const externalHref =
+            !detailPath && typeof evt.slug === 'string' && evt.slug.trim().startsWith('http')
+              ? evt.slug.trim()
+              : null;
+          const Wrapper = detailPath ? Link : externalHref ? 'a' : 'div';
+          const linkProps = detailPath
+            ? { to: detailPath }
+            : externalHref
+              ? { href: externalHref, target: '_blank', rel: 'noopener noreferrer' }
+              : {};
           return React.createElement(
             Wrapper,
             {
               key: evt.id,
-              className: `${bgCls} flex items-center space-x-4 border-b border-gray-200 py-3 px-2 ${href ? 'hover:bg-gray-100 cursor-pointer' : ''}`,
+              className: `${bgCls} flex items-center space-x-4 border-b border-gray-200 py-3 px-2 ${
+                detailPath || externalHref ? 'hover:bg-gray-100 cursor-pointer' : ''
+              }`,
               ...linkProps,
             },
             isActive && <span className="block w-3 h-3 bg-green-500 rounded-full animate-ping flex-shrink-0" />,
@@ -214,12 +219,19 @@ export default function VenuePage() {
           {loadingEvents ? null : (
             <>
               <div className="grid grid-cols-1 gap-6">
-                {pagedEvents.map(evt => (
-                  <Link
-                    key={evt.id}
-                    to={`/things/${venue}/${evt.slug}`}
-                    className="flex bg-white rounded-lg shadow hover:shadow-lg overflow-hidden"
-                  >
+                {pagedEvents.map(evt => {
+                  const detailPath =
+                    getDetailPathForItem({
+                      ...evt,
+                      venue_slug: venue,
+                      venue,
+                    }) || '/';
+                  return (
+                    <Link
+                      key={evt.id}
+                      to={detailPath}
+                      className="flex bg-white rounded-lg shadow hover:shadow-lg overflow-hidden"
+                    >
                     {evt.image && (
                       <img
                         src={evt.image}
@@ -239,8 +251,9 @@ export default function VenuePage() {
                         {evt.start_time && ` ⏰ ${evt.start_time.slice(0,5)}`}
                       </div>
                     </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
               {pageCount > 1 && (
                 <div className="flex justify-center mt-6 space-x-2">

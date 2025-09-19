@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import { Link } from 'react-router-dom';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import RecentActivity from './RecentActivity';
@@ -249,19 +250,14 @@ export default function Bulletin({ previewCount = Infinity }) {
             const ed = evt.end;
             const isActive = sd && ed && today0 >= sd && today0 <= ed;
             const bgCls = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-            const href = evt.slug
-              ? evt.slug.startsWith('http')
-                ? evt.slug
-                : `/events/${evt.slug}`
-              : null;
-            const Wrapper = href ? 'a' : 'div';
+            const internalPath = getDetailPathForItem(evt);
+            const href = evt.slug?.startsWith('http') ? evt.slug : internalPath;
+            const isExternal = typeof href === 'string' && href.startsWith('http');
+            const Wrapper = href ? (isExternal ? 'a' : Link) : 'div';
             const linkProps = href
-              ? {
-                  href,
-                  ...(href.startsWith('http')
-                    ? { target: '_blank', rel: 'noopener noreferrer' }
-                    : {}),
-                }
+              ? isExternal
+                ? { href, target: '_blank', rel: 'noopener noreferrer' }
+                : { to: href }
               : {};
 
             return React.createElement(

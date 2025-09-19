@@ -219,6 +219,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/traditions-faq" element={<TraditionsFAQ />} />
             <Route path="/groups-faq" element={<GroupsFAQ />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/series/:slug" element={<RecurringPage />} />
             <Route path="/series/:slug/:date" element={<RecurringPage />} />
           </Routes>
         </BrowserRouter>

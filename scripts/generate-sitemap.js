@@ -9,6 +9,7 @@ import {
   getZonedDate,
   indexToMonthSlug,
 } from '../src/utils/dateUtils.js'
+import getDetailPathForItem from '../src/utils/eventDetailPaths.js'
 
 // Load .env into process.env
 dotenv.config()
@@ -55,21 +56,22 @@ if (currentMonthlyPath && currentMonthlyLabel) {
   )
 }
 
-const ensureTrailingSlash = url => (url.endsWith('/') ? url : `${url}/`)
-
 function toAbsoluteUrl(value) {
   if (!value) {
-    return ensureTrailingSlash(HOST)
+    return `${HOST}/`
   }
 
   const trimmed = value.trim()
-  const hasProtocol = /^https?:\/\//i.test(trimmed)
-  if (hasProtocol) {
-    return ensureTrailingSlash(trimmed)
+  if (!trimmed) return `${HOST}/`
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    const normalized = trimmed.replace(/\/+$/, '')
+    return normalized || `${HOST}/`
   }
 
   const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
-  return ensureTrailingSlash(`${HOST}${withLeadingSlash}`)
+  if (withLeadingSlash === '/') return `${HOST}/`
+  return `${HOST}${withLeadingSlash}`
 }
 
 async function buildSitemap() {
@@ -93,7 +95,26 @@ async function buildSitemap() {
     .select('slug')
   if (bbErr) throw bbErr
 
-  // 4) tags ➔ /tags/tag-name
+  // 4) seasonal events ➔ /seasonal/event-slug
+  const { data: seasonal = [], error: seasonalErr } = await supabase
+    .from('seasonal_events')
+    .select('slug')
+  if (seasonalErr) throw seasonalErr
+
+  // 5) group events ➔ /groups/group-slug/events/event-id
+  const { data: groupEvents = [], error: groupErr } = await supabase
+    .from('group_events')
+    .select('id, slug, group_id, groups:group_id (slug)')
+  if (groupErr) throw groupErr
+
+  // 6) recurring events ➔ /series/:slug[/date]
+  const { data: recurringEvents = [], error: recErr } = await supabase
+    .from('recurring_events')
+    .select('slug, start_date, next_start_date, end_date, rrule')
+    .eq('is_active', true)
+  if (recErr) throw recErr
+
+  // 7) tags ➔ /tags/tag-name
   const { data: tags = [], error: tagErr } = await supabase
     .from('tags')
     .select('name')
@@ -135,9 +156,14 @@ async function buildSitemap() {
 
   // all_events
   for (let ev of allEvents) {
-    if (!ev.venues?.slug) continue
+    const loc = getDetailPathForItem({
+      ...ev,
+      venue_slug: ev.venues?.slug,
+      venues: ev.venues,
+    })
+    if (!loc) continue
     addUrlEntry({
-      loc: `/${ev.venues.slug}/${ev.slug}`,
+      loc,
       changefreq: 'weekly',
       priority: '0.7',
     })
@@ -145,8 +171,10 @@ async function buildSitemap() {
 
   // legacy events
   for (let ev of legacyEvents) {
+    const loc = getDetailPathForItem(ev)
+    if (!loc) continue
     addUrlEntry({
-      loc: `/events/${ev.slug}`,
+      loc,
       changefreq: 'weekly',
       priority: '0.7',
     })
@@ -154,10 +182,52 @@ async function buildSitemap() {
 
   // big-board events
   for (let b of bigs) {
+    const loc = getDetailPathForItem({ ...b, isBigBoard: true })
+    if (!loc) continue
     addUrlEntry({
-      loc: `/big-board/${b.slug}`,
+      loc,
       changefreq: 'weekly',
       priority: '0.7',
+    })
+  }
+
+  // seasonal events
+  for (let s of seasonal) {
+    const loc = getDetailPathForItem({ ...s, isSeasonal: true })
+    if (!loc) continue
+    addUrlEntry({
+      loc,
+      changefreq: 'weekly',
+      priority: '0.6',
+    })
+  }
+
+  // group events
+  for (let g of groupEvents) {
+    const loc = getDetailPathForItem({
+      ...g,
+      group_slug: g.groups?.slug,
+      isGroupEvent: true,
+    })
+    if (!loc) continue
+    addUrlEntry({
+      loc,
+      changefreq: 'weekly',
+      priority: '0.6',
+    })
+  }
+
+  // recurring series
+  for (let r of recurringEvents) {
+    const loc = getDetailPathForItem({
+      ...r,
+      isRecurring: true,
+    })
+    if (!loc) continue
+    addUrlEntry({
+      loc,
+      changefreq: 'weekly',
+      priority: '0.6',
     })
   }
 
