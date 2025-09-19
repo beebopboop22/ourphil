@@ -53,6 +53,8 @@ const dayViewLabels = {
 
 const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
 const CANONICAL_URL = 'https://ourphilly.org/this-weekend-in-philadelphia/';
+const MAX_EVENT_DURATION_DAYS = 30;
+const MAX_EVENT_DURATION_MS = MAX_EVENT_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 function formatTime(timeStr) {
   if (!timeStr) return '';
@@ -362,6 +364,7 @@ export default function ThisWeekendInPhiladelphia() {
             if (!startDate || !endDateRaw) return null;
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
+            if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
             return {
               id: evt.id,
               title: evt.name,
@@ -394,6 +397,7 @@ export default function ThisWeekendInPhiladelphia() {
             if (!startDate || !endDateRaw) return null;
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
+            if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
             let imageUrl = '';
             const storageKey = evt.big_board_posts?.[0]?.image_url;
             if (storageKey) {
@@ -435,6 +439,7 @@ export default function ThisWeekendInPhiladelphia() {
             if (!startDate || !endDateRaw) return null;
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
+            if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
             return {
               id: evt.id,
               title: evt['E Name'],
@@ -463,6 +468,7 @@ export default function ThisWeekendInPhiladelphia() {
             if (!startDate || !endDateRaw) return null;
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
+            if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
             const href = getDetailPathForItem({
               ...evt,
               group_slug: group?.slug,
