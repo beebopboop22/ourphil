@@ -1,44 +1,80 @@
 {
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
       "source": "/events/:slug",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/seasonal/:slug",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/big-board/:slug",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/groups/:slug",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/groups/:slug/events/:eventId",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/series/:slug",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/series/:slug/:date",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/sports/:id",
-      "destination": "/index.html"
+      "destination": "/"
+    },
+    {
+      "source": "/outlets/:slug",
+      "destination": "/"
+    },
+    {
+      "source": "/u/:slug",
+      "destination": "/"
+    },
+    {
+      "source": "/moments/:id",
+      "destination": "/"
+    },
+    {
+      "source": "/tags/:slug",
+      "destination": "/"
+    },
+    {
+      "source": "/groups/type/:tagSlug",
+      "destination": "/"
+    },
+    {
+      "source": "/:venue",
+      "destination": "/",
+      "missing": [
+        { "type": "file" },
+        { "type": "dir" }
+      ]
     },
     {
       "source": "/:venue/:slug",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/:path*",
-      "destination": "/index.html"
+      "destination": "/",
+      "missing": [
+        { "type": "file" },
+        { "type": "dir" }
+      ]
     }
   ],
   "redirects": [
