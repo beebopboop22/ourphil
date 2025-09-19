@@ -14,6 +14,7 @@ import { Clock } from 'lucide-react'
 import useEventFavorite from './utils/useEventFavorite'
 import { AuthContext } from './AuthProvider'
 import { getDetailPathForItem } from './utils/eventDetailPaths.js'
+import { ALL_EVENTS_SELECT, normalizeAllEvents } from './utils/allEvents.js'
 
 // ── Helpers to parse dates ────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -289,7 +290,7 @@ export default function TagPage() {
         byType.all_events?.length
           ? supabase
               .from('all_events')
-              .select('id,name,slug,image,start_date,venue_id(name,slug)')
+              .select(ALL_EVENTS_SELECT)
               .in('id', byType.all_events)
           : { data: [] },
         recurringIds.length
@@ -398,28 +399,17 @@ export default function TagPage() {
         }
       }))
 
-      setAllEvents((aeRes.data || []).map(ev => {
-        const start = parseISODateLocal(ev.start_date)
-        const venueSlug = ev.venue_id?.slug || null
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            venue_slug: venueSlug,
-            venues: ev.venue_id
-              ? { name: ev.venue_id.name, slug: venueSlug }
-              : null,
-          }) || '/'
+      const normalizedAllEvents = normalizeAllEvents(aeRes.data)
+      setAllEvents(normalizedAllEvents.map(evt => {
+        const start = parseISODateLocal(evt.start_date)
+        const end = parseISODateLocal(evt.end_date || evt.start_date)
+        const detailPath = getDetailPathForItem(evt)
+        const externalHref = evt.link && evt.link.startsWith('http') ? evt.link : null
         return {
-          id: ev.id,
-          title: ev.name,
-          imageUrl: ev.image || '',
+          ...evt,
           start,
-          start_date: ev.start_date,
-          slug: ev.slug,
-          venues: ev.venue_id
-            ? { name: ev.venue_id.name, slug: venueSlug }
-            : null,
-          href,
+          end,
+          href: detailPath || externalHref || '/',
         }
       }))
 

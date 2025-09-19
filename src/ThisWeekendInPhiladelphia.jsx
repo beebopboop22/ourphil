@@ -10,6 +10,7 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import { ALL_EVENTS_SELECT, normalizeAllEvents } from './utils/allEvents.js';
 import {
   PHILLY_TIME_ZONE,
   parseISODate,
@@ -269,24 +270,7 @@ export default function ThisWeekendInPhiladelphia() {
   useEffect(() => {
     const fetchAllEvents = supabase
       .from('all_events')
-      .select(`
-        id,
-        name,
-        description,
-        image,
-        start_date,
-        end_date,
-        start_time,
-        end_time,
-        slug,
-        venue_id,
-        venues:venue_id (
-          name,
-          slug,
-          latitude,
-          longitude
-        )
-      `)
+      .select(ALL_EVENTS_SELECT)
       .order('start_date', { ascending: true });
 
     const fetchBigBoard = supabase
@@ -357,7 +341,8 @@ export default function ThisWeekendInPhiladelphia() {
       .then(([allRes, bigRes, tradRes, groupRes, recurringRes]) => {
         if (cancelled) return;
 
-        const allRecords = (allRes.data || [])
+        const normalizedAllEvents = normalizeAllEvents(allRes.data);
+        const allRecords = normalizedAllEvents
           .map(evt => {
             const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
             const endDateRaw = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE);
@@ -365,27 +350,13 @@ export default function ThisWeekendInPhiladelphia() {
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
             if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
+            const detailPath = getDetailPathForItem(evt);
+            const externalHref = evt.link && evt.link.startsWith('http') ? evt.link : null;
             return {
-              id: evt.id,
-              title: evt.name,
-              name: evt.name,
-              description: evt.description,
-              imageUrl: evt.image || '',
-              start_date: evt.start_date,
-              end_date: evt.end_date,
+              ...evt,
               startDate,
               endDate,
-              start_time: evt.start_time,
-              end_time: evt.end_time,
-              slug: evt.slug,
-              venues: evt.venues,
-              isTradition: false,
-              isBigBoard: false,
-              isGroupEvent: false,
-              isRecurring: false,
-              isSports: false,
-              source_table: 'all_events',
-              taggableId: String(evt.id),
+              href: detailPath || externalHref || null,
             };
           })
           .filter(Boolean);
