@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import useEventFavorite from './utils/useEventFavorite'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 function parseISODateLocal(str) {
   if (!str) return null
@@ -56,18 +57,12 @@ export default function SavedEventCard({ event, onRemove }) {
 
   const img = imageUrl || image || ''
   const isRecurring = source_table === 'recurring_events'
-  const link =
-    source_table === 'big_board_events'
-      ? `/big-board/${slug}`
-      : source_table === 'events'
-        ? `/events/${slug}`
-        : source_table === 'group_events'
-          ? `/groups/${group?.slug}/events/${id}`
-          : source_table === 'recurring_events'
-            ? `/series/${slug}/${start_date}`
-            : source_table === 'all_events'
-              ? `/${venues?.slug || ''}/${slug}`
-              : '/'
+  const detailPath =
+    getDetailPathForItem({
+      ...event,
+      group_slug: group?.slug,
+      venue_slug: venues?.slug,
+    }) || '/'
 
   const d = source_table === 'events'
     ? parseMMDDYYYY(start_date)
@@ -86,7 +81,7 @@ export default function SavedEventCard({ event, onRemove }) {
 
   return (
     <Link
-      to={link}
+      to={detailPath}
       className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col"
     >
       <div className="relative w-full h-48">

@@ -6,6 +6,7 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import Seo from './components/Seo.jsx';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 import {
   PHILLY_TIME_ZONE,
   monthSlugToIndex,
@@ -196,6 +197,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
                   <div className="divide-y divide-gray-200">
                     {monthlyEvents.map(evt => {
                       const summary = evt.description?.trim() || 'Details coming soon.';
+                      const detailPath = getDetailPathForItem(evt) || '/';
                       return (
                         <article key={evt.id} className="flex flex-col md:flex-row gap-4 px-6 py-6">
                           <div className="md:w-48 w-full flex-shrink-0">
@@ -210,7 +212,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
                           </div>
                           <div className="flex-1 flex flex-col">
                             <Link
-                              to={`/events/${evt.slug}`}
+                              to={detailPath}
                               className="text-2xl font-semibold text-[#28313e] hover:underline"
                             >
                               {evt.title}

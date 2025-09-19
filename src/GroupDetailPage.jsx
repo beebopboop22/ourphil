@@ -11,6 +11,7 @@ import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites'
 import OutletsList from './OutletsList'
 import Voicemail from './Voicemail'
 import Footer from './Footer'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 export default function GroupDetailPage() {
   const { slug } = useParams()
@@ -382,7 +383,13 @@ export default function GroupDetailPage() {
       return (
         <Link
           key={evt.id}
-          to={`/groups/${group.slug}/events/${evt.id}`}
+          to={
+            getDetailPathForItem({
+              ...evt,
+              group_slug: group.slug,
+              isGroupEvent: true,
+            }) || '/'
+          }
           className="relative block bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
         >
           {/* Date badge */}

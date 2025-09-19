@@ -4,6 +4,7 @@ import { AuthContext } from './AuthProvider';
 import { Link, useNavigate } from 'react-router-dom';
 import useEventFavorite from './utils/useEventFavorite';
 import { FaStar } from 'react-icons/fa';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -95,7 +96,7 @@ export default function UpcomingTraditionsScroller() {
                   return (
                     <div className="w-40 flex-shrink-0 flex flex-col">
                       <Link
-                        to={`/events/${evt.slug}`}
+                        to={getDetailPathForItem(evt) || '/'}
                         className={`block relative w-full h-24 rounded-lg overflow-hidden shadow ${
                           isFavorite ? 'ring-2 ring-indigo-600' : ''
                         }`}
