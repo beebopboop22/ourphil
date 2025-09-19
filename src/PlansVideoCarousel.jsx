@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import { RRule } from 'rrule'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 const parseDate = datesStr => {
   if (!datesStr) return null
@@ -43,11 +44,17 @@ const expandRecurring = (rows, windowStart = null, windowEnd = null) => {
     }
     dates.forEach(d => {
       const dateStr = d.toISOString().slice(0, 10)
+      const detailPath =
+        getDetailPathForItem({
+          ...r,
+          slug: r.slug,
+          start_date: dateStr,
+        }) || `/series/${r.slug}/${dateStr}`
       out.push({
         key: `re-${r.id}-${dateStr}`,
         id: r.id,
         type: 'recurring_events',
-        slug: `/series/${r.slug}/${dateStr}`,
+        slug: detailPath,
         name: r.name,
         start: d,
         end: d,
@@ -218,11 +225,16 @@ export default function PlansVideoCarousel({
           ;(eRes.data || []).forEach(e => {
             const start = parseDate(e.Dates)
             const end = e['End Date'] ? parseDate(e['End Date']) : start
+            const detailPath =
+              getDetailPathForItem({
+                ...e,
+                slug: e.slug,
+              }) || `/events/${e.slug}`
             merged.push({
               key: `ev-${e.id}`,
               id: e.id,
               type: 'events',
-              slug: `/events/${e.slug}`,
+              slug: detailPath,
               name: e['E Name'],
               start,
               end,
@@ -237,11 +249,16 @@ export default function PlansVideoCarousel({
             const image = key
               ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
               : ''
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                isBigBoard: true,
+              }) || `/big-board/${ev.slug}`
             merged.push({
               key: `bb-${ev.id}`,
               id: ev.id,
               type: 'big_board_events',
-              slug: `/big-board/${ev.slug}`,
+              slug: detailPath,
               name: ev.title,
               start,
               end,
@@ -252,11 +269,19 @@ export default function PlansVideoCarousel({
           ;(aeRes.data || []).forEach(ev => {
             const start = parseLocalYMD(ev.start_date)
             const venueSlug = ev.venue_id?.slug
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                venue_slug: venueSlug,
+                venues: ev.venue_id
+                  ? { name: ev.venue_id.name, slug: venueSlug }
+                  : null,
+              }) || (venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`)
             merged.push({
               key: `ae-${ev.id}`,
               id: ev.id,
               type: 'all_events',
-              slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+              slug: detailPath,
               name: ev.name,
               start,
               end: start,
@@ -272,12 +297,18 @@ export default function PlansVideoCarousel({
             else if (ev.image_url)
               image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
             const groupSlug = groupMap[ev.group_id]
-            if (groupSlug) {
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                group_slug: groupSlug,
+                isGroupEvent: true,
+              }) || (groupSlug ? `/groups/${groupSlug}/events/${ev.slug}` : null)
+            if (detailPath) {
               merged.push({
                 key: `ge-${ev.id}`,
                 id: ev.id,
                 type: 'group_events',
-                slug: `/groups/${groupSlug}/events/${ev.slug}`,
+                slug: detailPath,
                 name: ev.title,
                 start,
                 end,
@@ -357,11 +388,16 @@ export default function PlansVideoCarousel({
           ;(eRes.data || []).forEach(e => {
             const start = parseDate(e.Dates)
             const end = e['End Date'] ? parseDate(e['End Date']) : start
+            const detailPath =
+              getDetailPathForItem({
+                ...e,
+                slug: e.slug,
+              }) || `/events/${e.slug}`
             merged.push({
               key: `ev-${e.id}`,
               id: e.id,
               type: 'events',
-              slug: `/events/${e.slug}`,
+              slug: detailPath,
               name: e['E Name'],
               start,
               end,
@@ -376,11 +412,16 @@ export default function PlansVideoCarousel({
             const image = key
               ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
               : ''
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                isBigBoard: true,
+              }) || `/big-board/${ev.slug}`
             merged.push({
               key: `bb-${ev.id}`,
               id: ev.id,
               type: 'big_board_events',
-              slug: `/big-board/${ev.slug}`,
+              slug: detailPath,
               name: ev.title,
               start,
               end,
@@ -391,11 +432,19 @@ export default function PlansVideoCarousel({
           ;(aeRes.data || []).forEach(ev => {
             const start = parseLocalYMD(ev.start_date)
             const venueSlug = ev.venue_id?.slug
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                venue_slug: venueSlug,
+                venues: ev.venue_id
+                  ? { name: ev.venue_id.name, slug: venueSlug }
+                  : null,
+              }) || (venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`)
             merged.push({
               key: `ae-${ev.id}`,
               id: ev.id,
               type: 'all_events',
-              slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+              slug: detailPath,
               name: ev.name,
               start,
               end: start,
@@ -411,12 +460,18 @@ export default function PlansVideoCarousel({
             else if (ev.image_url)
               image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
             const groupSlug = groupMap[ev.group_id]
-            if (groupSlug) {
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                group_slug: groupSlug,
+                isGroupEvent: true,
+              }) || (groupSlug ? `/groups/${groupSlug}/events/${ev.slug}` : null)
+            if (detailPath) {
               merged.push({
                 key: `ge-${ev.id}`,
                 id: ev.id,
                 type: 'group_events',
-                slug: `/groups/${groupSlug}/events/${ev.slug}`,
+                slug: detailPath,
                 name: ev.title,
                 start,
                 end,
@@ -446,11 +501,16 @@ export default function PlansVideoCarousel({
             ;(eRes || []).forEach(e => {
               const start = parseDate(e.Dates)
               const end = e['End Date'] ? parseDate(e['End Date']) : start
+              const detailPath =
+                getDetailPathForItem({
+                  ...e,
+                  slug: e.slug,
+                }) || `/events/${e.slug}`
               merged.push({
                 key: `ev-${e.id}`,
                 id: e.id,
                 type: 'events',
-                slug: `/events/${e.slug}`,
+                slug: detailPath,
                 name: e['E Name'],
                 start,
                 end,
@@ -502,11 +562,16 @@ export default function PlansVideoCarousel({
             ;(eRes.data || []).forEach(e => {
               const start = parseDate(e.Dates)
               const end = e['End Date'] ? parseDate(e['End Date']) : start
+              const detailPath =
+                getDetailPathForItem({
+                  ...e,
+                  slug: e.slug,
+                }) || `/events/${e.slug}`
               merged.push({
                 key: `ev-${e.id}`,
                 id: e.id,
                 type: 'events',
-                slug: `/events/${e.slug}`,
+                slug: detailPath,
                 name: e['E Name'],
                 start,
                 end,
@@ -514,59 +579,78 @@ export default function PlansVideoCarousel({
                 description: e['E Description'] || ''
               })
             })
-          ;(bbRes.data || []).forEach(ev => {
-            const start = parseLocalYMD(ev.start_date)
-            const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
-            const key = ev.big_board_posts?.[0]?.image_url
-            const image = key
-              ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
-              : ''
-            merged.push({
-              key: `bb-${ev.id}`,
-              id: ev.id,
-              type: 'big_board_events',
-              slug: `/big-board/${ev.slug}`,
-              name: ev.title,
-              start,
-              end,
-              image,
-              description: ev.description || ''
-            })
-          })
-          ;(aeRes.data || []).forEach(ev => {
-            const start = parseLocalYMD(ev.start_date)
-            const venueSlug = ev.venue_id?.slug
-            merged.push({
-              key: `ae-${ev.id}`,
-              id: ev.id,
-              type: 'all_events',
-              slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
-              name: ev.name,
-              start,
-              end: start,
-              image: ev.image || '',
-              description: ev.description || ''
-            })
-          })
-          ;(geRes.data || []).forEach(ev => {
-            const start = parseLocalYMD(ev.start_date)
-            const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
-            let image = ''
-            if (ev.image_url?.startsWith('http')) image = ev.image_url
-            else if (ev.image_url)
-              image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
-            const groupSlug = groupMap[ev.group_id]
-            if (groupSlug) {
+            ;(bbRes.data || []).forEach(ev => {
+              const start = parseLocalYMD(ev.start_date)
+              const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
+              const key = ev.big_board_posts?.[0]?.image_url
+              const image = key
+                ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
+                : ''
+              const detailPath =
+                getDetailPathForItem({
+                  ...ev,
+                  isBigBoard: true,
+                }) || `/big-board/${ev.slug}`
               merged.push({
-                key: `ge-${ev.id}`,
+                key: `bb-${ev.id}`,
                 id: ev.id,
-                type: 'group_events',
-                slug: `/groups/${groupSlug}/events/${ev.slug}`,
+                type: 'big_board_events',
+                slug: detailPath,
                 name: ev.title,
                 start,
                 end,
                 image,
                 description: ev.description || ''
+              })
+            })
+            ;(aeRes.data || []).forEach(ev => {
+              const start = parseLocalYMD(ev.start_date)
+              const venueSlug = ev.venue_id?.slug
+              const detailPath =
+                getDetailPathForItem({
+                  ...ev,
+                  venue_slug: venueSlug,
+                  venues: ev.venue_id
+                    ? { name: ev.venue_id.name, slug: venueSlug }
+                    : null,
+                }) || (venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`)
+              merged.push({
+                key: `ae-${ev.id}`,
+                id: ev.id,
+                type: 'all_events',
+                slug: detailPath,
+                name: ev.name,
+                start,
+                end: start,
+                image: ev.image || '',
+                description: ev.description || ''
+              })
+            })
+            ;(geRes.data || []).forEach(ev => {
+              const start = parseLocalYMD(ev.start_date)
+              const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
+              let image = ''
+              if (ev.image_url?.startsWith('http')) image = ev.image_url
+              else if (ev.image_url)
+                image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
+              const groupSlug = groupMap[ev.group_id]
+              const detailPath =
+                getDetailPathForItem({
+                  ...ev,
+                  group_slug: groupSlug,
+                  isGroupEvent: true,
+                }) || (groupSlug ? `/groups/${groupSlug}/events/${ev.slug}` : null)
+              if (detailPath) {
+                merged.push({
+                  key: `ge-${ev.id}`,
+                  id: ev.id,
+                  type: 'group_events',
+                  slug: detailPath,
+                  name: ev.title,
+                  start,
+                  end,
+                  image,
+                  description: ev.description || ''
               })
             }
           })
@@ -655,11 +739,16 @@ export default function PlansVideoCarousel({
           ;(eRes.data || []).forEach(e => {
             const start = parseDate(e.Dates)
             const end = e['End Date'] ? parseDate(e['End Date']) : start
+            const detailPath =
+              getDetailPathForItem({
+                ...e,
+                slug: e.slug,
+              }) || `/events/${e.slug}`
             merged.push({
               key: `ev-${e.id}`,
               id: e.id,
               type: 'events',
-              slug: `/events/${e.slug}`,
+              slug: detailPath,
               name: e['E Name'],
               start,
               end,
@@ -676,11 +765,16 @@ export default function PlansVideoCarousel({
             const image = key
               ? supabase.storage.from('big-board').getPublicUrl(key).data.publicUrl
               : ''
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                isBigBoard: true,
+              }) || `/big-board/${ev.slug}`
             merged.push({
               key: `bb-${ev.id}`,
               id: ev.id,
               type: 'big_board_events',
-              slug: `/big-board/${ev.slug}`,
+              slug: detailPath,
               name: ev.title,
               start,
               end,
@@ -693,11 +787,19 @@ export default function PlansVideoCarousel({
           ;(aeRes.data || []).forEach(ev => {
             const start = parseLocalYMD(ev.start_date)
             const venueSlug = ev.venue_id?.slug
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                venue_slug: venueSlug,
+                venues: ev.venue_id
+                  ? { name: ev.venue_id.name, slug: venueSlug }
+                  : null,
+              }) || (venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`)
             merged.push({
               key: `ae-${ev.id}`,
               id: ev.id,
               type: 'all_events',
-              slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+              slug: detailPath,
               name: ev.name,
               start,
               end: start,
@@ -715,12 +817,18 @@ export default function PlansVideoCarousel({
             else if (ev.image_url)
               image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
             const groupSlug = groupMap[ev.group_id]
-            if (groupSlug) {
+            const detailPath =
+              getDetailPathForItem({
+                ...ev,
+                group_slug: groupSlug,
+                isGroupEvent: true,
+              }) || (groupSlug ? `/groups/${groupSlug}/events/${ev.slug}` : null)
+            if (detailPath) {
               merged.push({
                 key: `ge-${ev.id}`,
                 id: ev.id,
                 type: 'group_events',
-                slug: `/groups/${groupSlug}/events/${ev.slug}`,
+                slug: detailPath,
                 name: ev.title,
                 start,
                 end,

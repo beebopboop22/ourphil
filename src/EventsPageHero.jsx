@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import { Link } from 'react-router-dom'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 // Only Philly teams
 const teamSlugs = [
@@ -174,11 +175,12 @@ export default function EventsPageHero() {
             {events.map((evt, i) => {
               // Compute “Today / Tomorrow / This …” text
               const { text: relativeDay } = getBubble(evt.start, evt.isActive)
+              const detailPath = getDetailPathForItem(evt) || '/'
 
               return (
                 <Link
                   key={evt.id}
-                  to={`/events/${evt.slug}`}
+                  to={detailPath}
                   className="relative w-full flex-shrink-0 h-full block"
                   style={{ minWidth: '100%' }}
                 >

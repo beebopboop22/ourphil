@@ -6,13 +6,24 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import { RRule } from 'rrule';
-import { Helmet } from 'react-helmet';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
 import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
+import Seo from './components/Seo.jsx';
+import {
+  SITE_BASE_URL,
+  DEFAULT_OG_IMAGE,
+  ensureAbsoluteUrl,
+  buildEventSeriesJsonLd,
+  buildIsoDateTime,
+} from './utils/seoHelpers.js';
+
+const FALLBACK_SERIES_TITLE = 'Recurring Event – Our Philly';
+const FALLBACK_SERIES_DESCRIPTION =
+  'Explore recurring events and weekly traditions happening around Philadelphia.';
 
 export default function RecurringEventPage() {
   const { slug, date } = useParams();
@@ -104,19 +115,6 @@ export default function RecurringEventPage() {
     if (navigator.share) navigator.share({ title, url }).catch(console.error);
     else copyLinkFallback(url);
   }
-
-  const gcalLink = (() => {
-    const next = date || occurrences[0]?.toISOString().slice(0,10);
-    if (!series || !next) return '#';
-    const start = next.replace(/-/g, '');
-    const url = window.location.href;
-    return (
-      'https://www.google.com/calendar/render?action=TEMPLATE' +
-      `&text=${encodeURIComponent(series.name)}` +
-      `&dates=${start}/${start}` +
-      `&details=${encodeURIComponent('Details: ' + url)}`
-    );
-  })();
 
   // Fetch series + tags
   useEffect(() => {
@@ -266,9 +264,84 @@ export default function RecurringEventPage() {
       });
   }, [communityEvents]);
 
-  if (loading) return <div className="py-20 text-center">Loading…</div>;
-  if (error)   return <div className="py-20 text-center text-red-600">{error}</div>;
-  if (!series) return null;
+  const fallbackDate = date || '';
+  const fallbackCanonicalPath = fallbackDate
+    ? `/series/${slug}/${fallbackDate}`
+    : `/series/${slug}`;
+  const fallbackCanonicalUrl = `${SITE_BASE_URL}${fallbackCanonicalPath}`;
+
+  if (loading || error || !series) {
+    const message = loading
+      ? 'Loading…'
+      : error || 'Series not found.';
+    const messageClass = loading ? 'text-gray-500' : 'text-red-600';
+    return (
+      <div className="flex flex-col min-h-screen bg-white">
+        <Seo
+          title={FALLBACK_SERIES_TITLE}
+          description={FALLBACK_SERIES_DESCRIPTION}
+          canonicalUrl={fallbackCanonicalUrl}
+          ogImage={DEFAULT_OG_IMAGE}
+          ogType="event"
+        />
+        <Navbar />
+        <main className="flex-grow flex items-center justify-center mt-32">
+          <div className={`text-2xl ${messageClass}`}>{message}</div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  const activeDate = date || occurrences[0]?.toISOString().slice(0, 10) || series.start_date;
+  const canonicalPath = activeDate
+    ? `/series/${slug}/${activeDate}`
+    : `/series/${slug}`;
+  const canonicalUrl = `${SITE_BASE_URL}${canonicalPath}`;
+  const seriesImage = ensureAbsoluteUrl(series.image_url) || DEFAULT_OG_IMAGE;
+  const seriesDescription = series.description || FALLBACK_SERIES_DESCRIPTION;
+  const seoTitle = series.name
+    ? `${series.name} – Our Philly`
+    : FALLBACK_SERIES_TITLE;
+
+  const startIso = buildIsoDateTime(activeDate, series.start_time);
+  const endIso = buildIsoDateTime(activeDate, series.end_time);
+  const subEvents = occurrences.slice(0, 6).map(dt => {
+    const dateStr = dt.toISOString().slice(0, 10);
+    const start = buildIsoDateTime(dateStr, series.start_time);
+    const end = buildIsoDateTime(dateStr, series.end_time);
+    return {
+      name: `${series.name} – ${dt.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+      })}`,
+      startDate: start || dateStr,
+      endDate: end,
+      locationName: series.address || 'Philadelphia',
+    };
+  });
+
+  const jsonLd = buildEventSeriesJsonLd({
+    name: series.name,
+    canonicalUrl,
+    description: seriesDescription,
+    locationName: series.address || 'Philadelphia',
+    image: seriesImage,
+    subEvents,
+  });
+
+  const gcalLink = (() => {
+    const next = activeDate;
+    if (!series || !next) return '#';
+    const start = next.replace(/-/g, '');
+    return (
+      'https://www.google.com/calendar/render?action=TEMPLATE' +
+      `&text=${encodeURIComponent(series.name)}` +
+      `&dates=${start}/${start}` +
+      `&details=${encodeURIComponent('Details: ' + canonicalUrl)}`
+    );
+  })();
 
   // Compute whenText
   const whenText = date
@@ -288,16 +361,19 @@ export default function RecurringEventPage() {
     .slice(0,3);
 
   return (
-    <>
-      <Helmet>
-        <title>{series.name} | Our Philly</title>
-        <meta name="description" content={series.description || ''} />
-      </Helmet>
+    <div className="flex flex-col min-h-screen bg-white">
+      <Seo
+        title={seoTitle}
+        description={seriesDescription}
+        canonicalUrl={canonicalUrl}
+        ogImage={seriesImage}
+        ogType="event"
+        jsonLd={jsonLd}
+      />
 
-      <div className="flex flex-col min-h-screen bg-white">
-        <Navbar />
+      <Navbar />
 
-        <main className="flex-grow mt-32">
+      <main className="flex-grow mt-32">
           {/* Hero banner */}
           <div
             className="w-full h-[40vh] bg-cover bg-center"
@@ -596,12 +672,11 @@ export default function RecurringEventPage() {
           )}
 
           <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
-        </main>
+      </main>
 
-        <Footer />
-        <FloatingAddButton onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}} />
-        <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
-      </div>
-    </>
+      <Footer />
+      <FloatingAddButton onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}} />
+      <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
+    </div>
   );
 }

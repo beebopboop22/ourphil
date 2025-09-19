@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import EventFavorite from './EventFavorite.jsx';
 import { Link } from 'react-router-dom';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 
 const MonthlyEvents = () => {
   const { user } = useContext(AuthContext);
@@ -112,11 +113,12 @@ const MonthlyEvents = () => {
         <div className="flex gap-4 pb-2">
           {events.map(evt => {
             const count = favCounts[evt.id] || 0;
+            const detailPath = getDetailPathForItem(evt) || '/';
 
             return (
               <Link
                 key={evt.id}
-                to={`/events/${evt.id}`}
+                to={detailPath}
                 className="relative min-w-[250px] max-w-[250px] bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-105 overflow-hidden flex flex-col h-[360px]"
               >
                 {evt.isActive && (

@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import { Link, useNavigate } from 'react-router-dom';
 import useEventFavorite from './utils/useEventFavorite';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -131,7 +132,7 @@ export default function HeroLanding({ fullWidth = false }) {
                       return (
                         <div className="w-[260px] flex-shrink-0">
                           <Link
-                            to={`/events/${evt.slug}`}
+                            to={getDetailPathForItem(evt) || '/'}
                             className={`relative block h-[380px] rounded-2xl overflow-hidden shadow-lg transition ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`}
                           >
                             <img

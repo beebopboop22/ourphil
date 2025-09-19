@@ -6,6 +6,7 @@ import { Clock } from 'lucide-react';
 import { RRule } from 'rrule';
 import useEventFavorite from './utils/useEventFavorite';
 import { AuthContext } from './AuthProvider';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -191,13 +192,18 @@ export default function TaggedEventsScroller({
         (eRes.data || []).forEach(e => {
           const start = parseDate(e.Dates);
           const end   = e['End Date'] ? parseDate(e['End Date']) : start;
+          const href =
+            getDetailPathForItem({
+              ...e,
+              slug: e.slug,
+            }) || '/';
           merged.push({
             id: e.id,
             source_table: 'events',
             title: e['E Name'],
             imageUrl: e['E Image'] || '',
             start, end,
-            href: `/events/${e.slug}`,
+            href,
           });
         });
 
@@ -209,13 +215,18 @@ export default function TaggedEventsScroller({
             : '';
           const start = parseLocalYMD(ev.start_date);
           const end   = ev.end_date ? parseLocalYMD(ev.end_date) : start;
+          const href =
+            getDetailPathForItem({
+              ...ev,
+              isBigBoard: true,
+            }) || '/';
           merged.push({
             id: ev.id,
             source_table: 'big_board_events',
             title: ev.title,
             imageUrl: url,
             start, end,
-            href: `/big-board/${ev.slug}`,
+            href,
           });
         });
 
@@ -223,6 +234,14 @@ export default function TaggedEventsScroller({
         (aeRes.data || []).forEach(ev => {
           const start = parseLocalYMD(ev.start_date);
           const venueSlug = ev.venue_id?.slug;
+          const href =
+            getDetailPathForItem({
+              ...ev,
+              venue_slug: venueSlug,
+              venues: ev.venue_id
+                ? { name: ev.venue_id.name, slug: venueSlug }
+                : null,
+            }) || '/';
           merged.push({
             id: ev.id,
             source_table: 'all_events',
@@ -230,7 +249,7 @@ export default function TaggedEventsScroller({
             imageUrl: ev.image || '',
             start,
             end: start,
-            href: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+            href,
           });
         });
 
@@ -250,15 +269,19 @@ export default function TaggedEventsScroller({
           }
 
           const groupSlug = groupMap[ev.group_id];
+          const href =
+            getDetailPathForItem({
+              ...ev,
+              group_slug: groupSlug,
+              isGroupEvent: true,
+            }) || '/';
           merged.push({
             id: ev.id,
             source_table: 'group_events',
             title: ev.title,
             imageUrl: url,
             start, end,
-            href: groupSlug
-              ? `/groups/${groupSlug}/events/${ev.slug}`
-              : '/',
+            href,
           });
         });
 
@@ -282,6 +305,11 @@ export default function TaggedEventsScroller({
             }
             sgEvents.forEach(e => {
               const start = new Date(e.datetime_local);
+              const href =
+                getDetailPathForItem({
+                  isSports: true,
+                  slug: e.id,
+                }) || `/sports/${e.id}`;
               merged.push({
                 id: `sg-${e.id}`,
                 source_table: 'sg_events',
@@ -289,7 +317,7 @@ export default function TaggedEventsScroller({
                 imageUrl: e.performers?.[0]?.image || '',
                 start,
                 end: start,
-                href: `/sports/${e.id}`,
+                href,
                 url: e.url,
               });
             });
