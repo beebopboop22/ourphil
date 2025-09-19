@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { Link } from 'react-router-dom';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 
 export default function SimilarEventsScroller({ tagSlugs = [], excludeId }) {
   const [events, setEvents] = useState([]);
@@ -87,28 +88,31 @@ export default function SimilarEventsScroller({ tagSlugs = [], excludeId }) {
       ) : (
         <div className="overflow-x-auto scrollbar-hide">
           <div className="flex gap-4 pb-4 px-2">
-            {events.map(ev => (
-              <Link
-                key={ev.id}
-                to={`/events/${ev.slug}`}
-                className="relative w-[240px] h-[340px] flex-shrink-0 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-transform hover:scale-105 bg-white"
-              >
-                {ev['E Image'] && (
-                  <img
-                    src={ev['E Image']}
-                    alt={ev['E Name']}
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <h3 className="absolute bottom-16 left-3 right-3 text-center text-white text-xl font-bold z-20 leading-tight">
-                  {ev['E Name']}
-                </h3>
-                <span className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-sm font-semibold px-3 py-1 rounded-full z-20">
-                  {getBubble(ev.start)}
-                </span>
-              </Link>
-            ))}
+            {events.map(ev => {
+              const detailPath = getDetailPathForItem(ev) || '/';
+              return (
+                <Link
+                  key={ev.id}
+                  to={detailPath}
+                  className="relative w-[240px] h-[340px] flex-shrink-0 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-transform hover:scale-105 bg-white"
+                >
+                  {ev['E Image'] && (
+                    <img
+                      src={ev['E Image']}
+                      alt={ev['E Name']}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  <h3 className="absolute bottom-16 left-3 right-3 text-center text-white text-xl font-bold z-20 leading-tight">
+                    {ev['E Name']}
+                  </h3>
+                  <span className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-sm font-semibold px-3 py-1 rounded-full z-20">
+                    {getBubble(ev.start)}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}

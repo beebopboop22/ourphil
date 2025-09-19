@@ -4,11 +4,25 @@ import { useParams, Link } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import TaggedEventsScroller from './TaggedEventsScroller.jsx';
+import Seo from './components/Seo.jsx';
+import {
+  SITE_BASE_URL,
+  DEFAULT_OG_IMAGE,
+  ensureAbsoluteUrl,
+  buildEventJsonLd,
+  buildIsoDateTime,
+} from './utils/seoHelpers.js';
+
+const FALLBACK_SPORTS_TITLE = 'Philadelphia Sports Event – Our Philly';
+const FALLBACK_SPORTS_DESCRIPTION =
+  'Find upcoming games and Philadelphia sports action with Our Philly.';
 
 export default function SportsEventPage() {
   const { id } = useParams();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const canonicalUrl = `${SITE_BASE_URL}/sports/${id}`;
 
 
   useEffect(() => {
@@ -32,9 +46,16 @@ export default function SportsEventPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="flex flex-col min-h-screen bg-white">
+        <Seo
+          title={FALLBACK_SPORTS_TITLE}
+          description={FALLBACK_SPORTS_DESCRIPTION}
+          canonicalUrl={canonicalUrl}
+          ogImage={DEFAULT_OG_IMAGE}
+          ogType="event"
+        />
         <Navbar />
-        <div className="pt-32 text-center">Loading...</div>
+        <div className="flex-grow flex items-center justify-center mt-32 text-2xl text-gray-500">Loading...</div>
         <Footer />
       </div>
     );
@@ -42,9 +63,16 @@ export default function SportsEventPage() {
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="flex flex-col min-h-screen bg-white">
+        <Seo
+          title={FALLBACK_SPORTS_TITLE}
+          description={FALLBACK_SPORTS_DESCRIPTION}
+          canonicalUrl={canonicalUrl}
+          ogImage={DEFAULT_OG_IMAGE}
+          ogType="event"
+        />
         <Navbar />
-        <div className="pt-32 text-center">Event not found.</div>
+        <div className="flex-grow flex items-center justify-center mt-32 text-2xl text-red-600">Event not found.</div>
         <Footer />
       </div>
     );
@@ -55,6 +83,7 @@ export default function SportsEventPage() {
   const home = performers.find(p => p.home_team) || performers.find(p => p.name.startsWith('Philadelphia')) || performers[0] || {};
   const away = performers.find(p => p.id !== home.id) || {};
   const image = home.image || away.image || '';
+  const eventImage = ensureAbsoluteUrl(image) || DEFAULT_OG_IMAGE;
   const heroUrl = 'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/sports-complex.jpg';
 
   const handleShare = () => {
@@ -75,8 +104,32 @@ export default function SportsEventPage() {
   const prefix = diffDays === 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : dt.toLocaleDateString('en-US', { weekday: 'long' });
   const whenWhere = `${prefix}, ${dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric' })}${event.venue?.name ? `, ${event.venue.name}` : ''}`;
 
+  const seoDescription = event.description || FALLBACK_SPORTS_DESCRIPTION;
+  const startIso = buildIsoDateTime(event.datetime_local);
+  const eventJsonLd = buildEventJsonLd({
+    name: event.short_title || event.title || 'Philadelphia Sports Event',
+    canonicalUrl,
+    startDate: startIso || event.datetime_local,
+    endDate: startIso,
+    locationName: event.venue?.name || 'Philadelphia',
+    description: seoDescription,
+    image: eventImage,
+  });
+  const seoTitle = event.short_title
+    ? `${event.short_title} – Our Philly`
+    : FALLBACK_SPORTS_TITLE;
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
+      <Seo
+        title={seoTitle}
+        description={seoDescription}
+        canonicalUrl={canonicalUrl}
+        ogImage={eventImage}
+        ogType="event"
+        jsonLd={eventJsonLd}
+      />
+
       <Navbar />
       <main className="flex-grow relative mt-32">
         <div

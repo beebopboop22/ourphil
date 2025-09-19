@@ -17,24 +17,17 @@ import useEventFavorite from './utils/useEventFavorite';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
 import Seo from './components/Seo.jsx';
 import { parseEventDateValue } from './utils/dateUtils';
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_BASE_URL,
+  ensureAbsoluteUrl,
+  buildEventJsonLd,
+} from './utils/seoHelpers.js';
 import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
 
-const SITE_BASE_URL = 'https://ourphilly.org';
-const DEFAULT_OG_IMAGE = `${SITE_BASE_URL}/og-image.png`;
 const FALLBACK_EVENT_TITLE = 'Philadelphia Event Details – Our Philly';
 const FALLBACK_EVENT_DESCRIPTION =
   'Discover upcoming Philadelphia events and traditions with Our Philly.';
-
-function getAbsoluteUrl(url) {
-  if (!url) return null;
-  try {
-    const trimmed = String(url).trim();
-    if (!trimmed) return null;
-    return new URL(trimmed, SITE_BASE_URL).href;
-  } catch {
-    return null;
-  }
-}
 
 function buildShortDescription(text, maxLength = 160) {
   if (!text) return '';
@@ -394,7 +387,7 @@ export default function EventDetailPage() {
     typeof locationNameRaw === 'string' && locationNameRaw.trim()
       ? locationNameRaw.trim()
       : 'Philadelphia';
-  const absoluteImage = getAbsoluteUrl(event?.['E Image']);
+  const absoluteImage = ensureAbsoluteUrl(event?.['E Image']);
   const ogImage = absoluteImage || DEFAULT_OG_IMAGE;
   const heroImage = event?.['E Image'] || DEFAULT_OG_IMAGE;
 
@@ -403,42 +396,18 @@ export default function EventDetailPage() {
     : FALLBACK_EVENT_TITLE;
   const seoDescription = shortDescription || FALLBACK_EVENT_DESCRIPTION;
 
-  const eventJsonLd = eventName && isoStartDate
-    ? (() => {
-        const data = {
-          '@context': 'https://schema.org',
-          '@type': 'Event',
+  const eventJsonLd =
+    eventName && isoStartDate
+      ? buildEventJsonLd({
           name: eventName,
-          url: canonicalUrl,
+          canonicalUrl,
           startDate: isoStartDate,
-          endDate: isoEndDate || isoStartDate,
-          eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-          location: {
-            '@type': 'Place',
-            name: locationName,
-            address: {
-              '@type': 'PostalAddress',
-              addressLocality: 'Philadelphia',
-              addressRegion: 'PA',
-              addressCountry: 'US',
-            },
-          },
-          organizer: {
-            '@type': 'Organization',
-            name: 'Our Philly',
-            url: SITE_BASE_URL,
-          },
-        };
-        if (shortDescription) {
-          data.description = shortDescription;
-        }
-        const jsonImage = absoluteImage || DEFAULT_OG_IMAGE;
-        if (jsonImage) {
-          data.image = [jsonImage];
-        }
-        return data;
-      })()
-    : null;
+          endDate: isoEndDate,
+          locationName,
+          description: shortDescription,
+          image: absoluteImage || DEFAULT_OG_IMAGE,
+        })
+      : null;
 
   if (!event) {
     return (

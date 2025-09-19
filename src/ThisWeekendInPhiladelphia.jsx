@@ -9,6 +9,7 @@ import Seo from './components/Seo.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 import {
   PHILLY_TIME_ZONE,
   parseISODate,
@@ -221,6 +222,11 @@ export default function ThisWeekendInPhiladelphia() {
             const title =
               event.short_title ||
               `${(home.name || '').replace(/^Philadelphia\s+/, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/, '')}`;
+            const href =
+              getDetailPathForItem({
+                isSports: true,
+                slug: event.id,
+              }) || `/sports/${event.id}`;
             return {
               id: `sg-${event.id}`,
               title,
@@ -229,7 +235,8 @@ export default function ThisWeekendInPhiladelphia() {
               start_time: dt.toTimeString().slice(0, 5),
               startDate,
               endDate,
-              href: `/sports/${event.id}`,
+              href,
+              slug: event.id,
               url: event.url,
               isSports: true,
               isBigBoard: false,
@@ -456,6 +463,11 @@ export default function ThisWeekendInPhiladelphia() {
             if (!startDate || !endDateRaw) return null;
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
+            const href = getDetailPathForItem({
+              ...evt,
+              group_slug: group?.slug,
+              isGroupEvent: true,
+            });
             return {
               id: evt.id,
               title: evt.title,
@@ -468,7 +480,9 @@ export default function ThisWeekendInPhiladelphia() {
               endDate,
               start_time: evt.start_time,
               end_time: evt.end_time,
-              href: group?.slug ? `/groups/${group.slug}/events/${evt.id}` : null,
+              href: href || null,
+              group_slug: group?.slug || null,
+              slug: evt.slug || String(evt.id),
               groupName: group?.Name || group?.name || '',
               isTradition: false,
               isBigBoard: false,
@@ -704,10 +718,11 @@ export default function ThisWeekendInPhiladelphia() {
       .map((evt, index) => {
         const overlapDay = days.find(day => overlaps(evt.startDate, evt.endDate, day, setEndOfDay(new Date(day))));
         const label = formatWeekdayAbbrev(overlapDay || evt.startDate, PHILLY_TIME_ZONE);
+        const detailPath = getDetailPathForItem(evt) || '/';
         return (
           <React.Fragment key={evt.id}>
             {index > 0 && ', '}
-            <Link to={`/events/${evt.slug}`} className="text-indigo-600 hover:underline">
+            <Link to={detailPath} className="text-indigo-600 hover:underline">
               {evt.title} ({label})
             </Link>
           </React.Fragment>
@@ -750,7 +765,7 @@ export default function ThisWeekendInPhiladelphia() {
                 .slice(0, 12)
                 .map(e => (
                   <li key={e.slug}>
-                    <Link to={`/events/${e.slug}`} className="text-indigo-700 hover:underline">
+                    <Link to={getDetailPathForItem(e) || '/'} className="text-indigo-700 hover:underline">
                       {e['E Name'] || e.name || e.title}
                     </Link>
                   </li>
@@ -874,14 +889,13 @@ export default function ThisWeekendInPhiladelphia() {
                       : formatMonthDay(startDate, PHILLY_TIME_ZONE);
                   const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : '';
                   const Wrapper = Link;
-                  let linkProps = { to: '/' };
-                  if (evt.isGroupEvent && evt.href) linkProps = { to: evt.href };
-                  else if (evt.isRecurring && evt.slug && evt.start_date) linkProps = { to: evt.link || `/series/${evt.slug}/${evt.start_date}` };
-                  else if (evt.isTradition && evt.slug) linkProps = { to: `/events/${evt.slug}` };
-                  else if (evt.isBigBoard && evt.slug) linkProps = { to: `/big-board/${evt.slug}` };
-                  else if (evt.isSports && evt.href) linkProps = { to: evt.href };
-                  else if (evt.venues?.slug && evt.slug) linkProps = { to: `/${evt.venues.slug}/${evt.slug}` };
-                  else if (evt.slug) linkProps = { to: `/events/${evt.slug}` };
+                  const detailPath =
+                    evt.href ||
+                    getDetailPathForItem({
+                      ...evt,
+                      venue_slug: evt.venues?.slug,
+                    }) || '/';
+                  const linkProps = { to: detailPath };
 
                   return (
                     <FavoriteState

@@ -13,6 +13,7 @@ import { RRule } from 'rrule'
 import { Clock } from 'lucide-react'
 import useEventFavorite from './utils/useEventFavorite'
 import { AuthContext } from './AuthProvider'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 // ── Helpers to parse dates ────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -316,6 +317,11 @@ export default function TagPage() {
       setTraditions((trRes.data || []).map(e => {
         const start = parseDate(e.Dates)
         const end   = parseDate(e['End Date']) || start
+        const href =
+          getDetailPathForItem({
+            ...e,
+            slug: e.slug,
+          }) || '/'
         return {
           id: e.id,
           title: e['E Name'],
@@ -325,7 +331,7 @@ export default function TagPage() {
           start_date: start ? start.toISOString().slice(0,10) : null,
           end_date: end ? end.toISOString().slice(0,10) : null,
           slug: e.slug,
-          href: `/events/${e.slug}`,
+          href,
           isTradition: true,
         }
       }))
@@ -340,6 +346,11 @@ export default function TagPage() {
           : ''
         const start = parseISODateLocal(ev.start_date)
         const end   = parseISODateLocal(ev.end_date || ev.start_date)
+        const href =
+          getDetailPathForItem({
+            ...ev,
+            isBigBoard: true,
+          }) || '/'
         return {
           id: ev.id,
           title: ev.title,
@@ -350,7 +361,7 @@ export default function TagPage() {
           end_date: ev.end_date || ev.start_date,
           slug: ev.slug,
           owner_id: owner,
-          href: `/big-board/${ev.slug}`,
+          href,
           isBigBoard: true,
         }
       }))
@@ -367,6 +378,12 @@ export default function TagPage() {
                 .getPublicUrl(ev.image_url).data.publicUrl
         }
         const slug = groupSlugMap[ev.group_id]
+        const href =
+          getDetailPathForItem({
+            ...ev,
+            group_slug: slug,
+            isGroupEvent: true,
+          }) || '/'
         return {
           id: ev.id,
           title: ev.title,
@@ -376,7 +393,7 @@ export default function TagPage() {
           start_date: ev.start_date,
           end_date: ev.end_date || ev.start_date,
           group_slug: slug,
-          href: `/groups/${slug}/events/${ev.id}`,
+          href,
           isGroupEvent: true,
         }
       }))
@@ -384,6 +401,14 @@ export default function TagPage() {
       setAllEvents((aeRes.data || []).map(ev => {
         const start = parseISODateLocal(ev.start_date)
         const venueSlug = ev.venue_id?.slug || null
+        const href =
+          getDetailPathForItem({
+            ...ev,
+            venue_slug: venueSlug,
+            venues: ev.venue_id
+              ? { name: ev.venue_id.name, slug: venueSlug }
+              : null,
+          }) || '/'
         return {
           id: ev.id,
           title: ev.name,
@@ -394,7 +419,7 @@ export default function TagPage() {
           venues: ev.venue_id
             ? { name: ev.venue_id.name, slug: venueSlug }
             : null,
-          href: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+          href,
         }
       }))
 

@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import { Link } from 'react-router-dom'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 // ─── Helpers ──────────────────────────────────────────────
 const parseDate = datesStr => {
@@ -126,11 +127,15 @@ export default function SocialVideoCarousel({ tag }) {
         const merged = []
 
         ;(eRes.data || []).forEach(e => {
+          const detailPath = getDetailPathForItem({
+            source_table: 'events',
+            slug: e.slug,
+          })
           const start = parseDate(e.Dates)
           const end = e['End Date'] ? parseDate(e['End Date']) : start
           merged.push({
             key: `ev-${e.id}`,
-            slug: `/events/${e.slug}`,
+            slug: detailPath || '/events',
             name: e['E Name'],
             start, end,
             image: e['E Image'] || '',
@@ -138,6 +143,10 @@ export default function SocialVideoCarousel({ tag }) {
         })
 
         ;(bbRes.data || []).forEach(ev => {
+          const detailPath = getDetailPathForItem({
+            source_table: 'big_board_events',
+            slug: ev.slug,
+          })
           const start = parseLocalYMD(ev.start_date)
           const end = ev.end_date ? parseLocalYMD(ev.end_date) : start
           const key = ev.big_board_posts?.[0]?.image_url
@@ -146,7 +155,7 @@ export default function SocialVideoCarousel({ tag }) {
             : ''
           merged.push({
             key: `bb-${ev.id}`,
-            slug: `/big-board/${ev.slug}`,
+            slug: detailPath || '/big-board',
             name: ev.title,
             start, end,
             image,
@@ -154,11 +163,15 @@ export default function SocialVideoCarousel({ tag }) {
         })
 
         ;(aeRes.data || []).forEach(ev => {
+          const detailPath = getDetailPathForItem({
+            slug: ev.slug,
+            venues: { slug: ev.venue_id?.slug },
+          })
           const start = parseLocalYMD(ev.start_date)
           const venueSlug = ev.venue_id?.slug
           merged.push({
             key: `ae-${ev.id}`,
-            slug: venueSlug ? `/${venueSlug}/${ev.slug}` : `/${ev.slug}`,
+            slug: detailPath || `/${ev.slug}`,
             name: ev.name,
             start,
             end: start,
@@ -175,9 +188,15 @@ export default function SocialVideoCarousel({ tag }) {
             image = supabase.storage.from('big-board').getPublicUrl(ev.image_url).data.publicUrl
           const groupSlug = groupMap[ev.group_id]
           if (groupSlug) {
+            const detailPath = getDetailPathForItem({
+              source_table: 'group_events',
+              id: ev.id,
+              group_slug: groupSlug,
+              slug: ev.slug,
+            })
             merged.push({
               key: `ge-${ev.id}`,
-              slug: `/groups/${groupSlug}/events/${ev.slug}`,
+              slug: detailPath || `/groups/${groupSlug}`,
               name: ev.title,
               start, end,
               image,

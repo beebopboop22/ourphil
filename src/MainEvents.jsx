@@ -25,6 +25,7 @@ const EventsMap = lazy(() => import('./EventsMap'));
 import 'mapbox-gl/dist/mapbox-gl.css'
 import RecurringEventsScroller from './RecurringEventsScroller'
 import useEventFavorite from './utils/useEventFavorite.js'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 import { AuthContext } from './AuthProvider'
 import { FaStar } from 'react-icons/fa';
 import FallingPills from './FallingPills';
@@ -168,20 +169,24 @@ function UpcomingSidebarBulletin({ previewCount = 10 }) {
         {events.map((evt, idx) => {
           const isActive = evt.start && evt.end && today0 >= evt.start && today0 <= evt.end;
           const bgCls = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-          const href = evt.slug
-            ? evt.slug.startsWith('http')
-              ? evt.slug
-              : `/events/${evt.slug}`
-            : null;
-          const Wrapper = href ? 'a' : 'div';
-          const linkProps = href
-            ? { href, ...(href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {}) }
-            : {};
+          const detailPath = getDetailPathForItem(evt);
+          const externalHref =
+            !detailPath && typeof evt.slug === 'string' && evt.slug.trim().startsWith('http')
+              ? evt.slug.trim()
+              : null;
+          const Wrapper = detailPath ? Link : externalHref ? 'a' : 'div';
+          const linkProps = detailPath
+            ? { to: detailPath }
+            : externalHref
+              ? { href: externalHref, target: '_blank', rel: 'noopener noreferrer' }
+              : {};
           return React.createElement(
             Wrapper,
             {
               key: evt.id,
-              className: `${bgCls} flex items-center space-x-4 border-b border-gray-200 py-3 px-2 ${href ? 'hover:bg-gray-100 cursor-pointer' : ''}`,
+              className: `${bgCls} flex items-center space-x-4 border-b border-gray-200 py-3 px-2 ${
+                detailPath || externalHref ? 'hover:bg-gray-100 cursor-pointer' : ''
+              }`,
               ...linkProps,
             },
             isActive && <span className="block w-3 h-3 bg-green-500 rounded-full animate-ping flex-shrink-0" />,
@@ -1049,19 +1054,29 @@ const tradFiltered = tradData
 setTraditionEvents(tradFiltered);
 
 // ── Community Group Events ────────────────────────────────────────
-const geData = (geRes.data || []).map(ev => ({
-  id: ev.id,
-  title: ev.title,
-  description: ev.description,
-  imageUrl: ev.groups?.imag || '',          // fall back to group image
-  start_date: ev.start_date,
-  end_date: ev.end_date,
-  href: `/groups/${ev.groups.slug}/events/${ev.id}`,
-  isBigBoard: false,
-  isTradition: false,
-  isGroupEvent: true,                                       // tag it for styling
-  groupName: ev.groups?.[0]?.Name,                          // to display “by [Group]”
-}));
+const geData = (geRes.data || []).map(ev => {
+  const groupRecord = Array.isArray(ev.groups) ? ev.groups[0] : ev.groups;
+  const groupSlug = groupRecord?.slug;
+  const detailPath =
+    getDetailPathForItem({
+      ...ev,
+      group_slug: groupSlug,
+      isGroupEvent: true,
+    }) || (groupSlug ? `/groups/${groupSlug}/events/${ev.id}` : '/');
+  return {
+    id: ev.id,
+    title: ev.title,
+    description: ev.description,
+    imageUrl: ev.groups?.imag || '',
+    start_date: ev.start_date,
+    end_date: ev.end_date,
+    href: detailPath,
+    isBigBoard: false,
+    isTradition: false,
+    isGroupEvent: true,
+    groupName: groupRecord?.Name,
+  };
+});
 setGroupEvents(geData);
 
     // <<< store the raw recurring series
@@ -1540,19 +1555,8 @@ if (loading) {
           const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : '';
 
           const Wrapper = Link;
-          const linkProps = evt.isGroupEvent
-            ? { to: evt.href }
-            : evt.isRecurring
-              ? { to: `/series/${evt.slug}/${evt.start_date}` }
-              : evt.isTradition
-                ? { to: `/events/${evt.slug}` }
-                : evt.isBigBoard
-                  ? { to: `/big-board/${evt.slug}` }
-                  : evt.isSports
-                    ? { to: evt.href }
-                    : evt.venues?.slug && evt.slug
-                      ? { to: `/${evt.venues.slug}/${evt.slug}` }
-                      : { to: '/' };
+          const detailPath = getDetailPathForItem(evt);
+          const linkProps = detailPath ? { to: detailPath } : { to: '/' };
 
 
           const tagKey = evt.isRecurring ? String(evt.id).split('::')[0] : evt.id;
