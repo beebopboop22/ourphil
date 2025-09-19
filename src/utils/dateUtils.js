@@ -80,13 +80,26 @@ export function parseMonthDayYear(value, timeZone = PHILLY_TIME_ZONE) {
 
 export function parseISODate(value, timeZone = PHILLY_TIME_ZONE) {
   if (!value) return null;
-  const parts = value.split('-').map(Number);
-  if (parts.length !== 3) return null;
-  const [year, month, day] = parts;
-  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null;
-  const utc = new Date(Date.UTC(year, month - 1, day, 5, 0, 0));
-  const zoned = getZonedDate(utc, timeZone);
-  return setStartOfDay(zoned);
+
+  if (value instanceof Date) {
+    return setStartOfDay(value);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null;
+    const utc = new Date(Date.UTC(year, month - 1, day, 5, 0, 0));
+    const zoned = getZonedDate(utc, timeZone);
+    return setStartOfDay(zoned);
+  }
+
+  return null;
 }
 
 export function parseEventDateValue(value, timeZone = PHILLY_TIME_ZONE) {
