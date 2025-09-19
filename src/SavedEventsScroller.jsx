@@ -12,8 +12,20 @@ function parseMMDDYYYY(str) {
 
 function parseISODateLocal(str) {
   if (!str) return null
-  const [y, m, d] = str.split('-').map(Number)
-  return new Date(y, m - 1, d)
+  if (str instanceof Date) {
+    return new Date(str.getFullYear(), str.getMonth(), str.getDate())
+  }
+  if (typeof str === 'string') {
+    const match = str.trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (!match) return null
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null
+    const date = new Date(year, month - 1, day)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  return null
 }
 
 function getBubble(date) {
