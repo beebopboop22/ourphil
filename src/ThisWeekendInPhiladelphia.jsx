@@ -21,6 +21,7 @@ import {
   formatMonthDay,
   formatDateRangeForTitle,
   getZonedDate,
+  getWeekendWindow,
 } from './utils/dateUtils';
 
 const pillStyles = [
@@ -122,22 +123,8 @@ export default function ThisWeekendInPhiladelphia() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const { weekendStart, weekendEnd } = useMemo(() => {
-    const zonedNow = getZonedDate(new Date(), PHILLY_TIME_ZONE);
-    const day = zonedNow.getDay();
-    const friday = setStartOfDay(zonedNow);
-    if (day >= 1 && day <= 4) {
-      friday.setDate(friday.getDate() + (5 - day));
-    } else if (day === 0) {
-      friday.setDate(friday.getDate() - 2);
-    } else if (day === 6) {
-      friday.setDate(friday.getDate() - 1);
-    }
-    const sunday = new Date(friday);
-    sunday.setDate(friday.getDate() + 2);
-    return {
-      weekendStart: friday,
-      weekendEnd: setEndOfDay(sunday),
-    };
+    const { start, end } = getWeekendWindow(new Date(), PHILLY_TIME_ZONE);
+    return { weekendStart: new Date(start), weekendEnd: new Date(end) };
   }, []);
   const weekendStartMs = weekendStart.getTime();
   const weekendEndMs = weekendEnd.getTime();
@@ -360,9 +347,9 @@ export default function ThisWeekendInPhiladelphia() {
         const allRecords = (allRes.data || [])
           .map(evt => {
             const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
-            const endDateRaw = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE);
-            if (!startDate || !endDateRaw) return null;
-            const endDate = setEndOfDay(new Date(endDateRaw));
+            if (!startDate) return null;
+            const endDateBase = parseISODate(evt.end_date, PHILLY_TIME_ZONE) || startDate;
+            const endDate = setEndOfDay(new Date(endDateBase));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
             if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
             return {
@@ -393,9 +380,9 @@ export default function ThisWeekendInPhiladelphia() {
         const bigRecords = (bigRes.data || [])
           .map(evt => {
             const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
-            const endDateRaw = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE);
-            if (!startDate || !endDateRaw) return null;
-            const endDate = setEndOfDay(new Date(endDateRaw));
+            if (!startDate) return null;
+            const endDateBase = parseISODate(evt.end_date, PHILLY_TIME_ZONE) || startDate;
+            const endDate = setEndOfDay(new Date(endDateBase));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
             if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
             let imageUrl = '';
@@ -464,9 +451,9 @@ export default function ThisWeekendInPhiladelphia() {
           .map(evt => {
             const group = resolveGroup(evt.groups);
             const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
-            const endDateRaw = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE);
-            if (!startDate || !endDateRaw) return null;
-            const endDate = setEndOfDay(new Date(endDateRaw));
+            if (!startDate) return null;
+            const endDateBase = parseISODate(evt.end_date, PHILLY_TIME_ZONE) || startDate;
+            const endDate = setEndOfDay(new Date(endDateBase));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
             if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
             const href = getDetailPathForItem({

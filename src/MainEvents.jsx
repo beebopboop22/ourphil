@@ -38,6 +38,7 @@ import {
   getMonthWindow,
   getZonedDate,
   parseMonthDayYear,
+  parseISODate,
   overlaps,
 } from './utils/dateUtils';
  
@@ -65,10 +66,22 @@ const popularTags = [
 
 // ── Helpers ───────────────────────────────
 function parseISODateLocal(str) {
-  // Parse 'YYYY-MM-DD' as local date, NOT UTC.
+  // Parse 'YYYY-MM-DD' (optionally with time) as local date, NOT UTC.
   if (!str) return null;
-  const [y, m, d] = str.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  if (str instanceof Date) {
+    return new Date(str.getFullYear(), str.getMonth(), str.getDate());
+  }
+  if (typeof str === 'string') {
+    const match = str.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null;
+    const dt = new Date(year, month - 1, day);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  return null;
 }
 
 function formatTime(timeStr) {
@@ -810,14 +823,8 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
 
   // "weekend" start/end
   const getWeekend = () => {
-    const d = new Date(); d.setHours(0, 0, 0, 0);
-    const sat = new Date(d);
-    sat.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7));
-    const sun = new Date(sat);
-    sun.setDate(sat.getDate() + 1);
-    sat.setHours(0, 0, 0, 0);
-    sun.setHours(0, 0, 0, 0);
-    return [sat, sun];
+    const { start, end } = getWeekendWindow(new Date(), PHILLY_TIME_ZONE);
+    return [new Date(start), new Date(end)];
   };
   // Navigation for pills/date changes
   const goTo = (option, dateVal) => {
@@ -940,24 +947,23 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
         })) || [];
 
         let filtered = [];
-        if (selectedOption === 'weekend') {
-          const satStr = weekendStart.toISOString().slice(0, 10);
-          const sunStr = weekendEnd.toISOString().slice(0, 10);
+        if (selectedOption === 'weekend' && weekendStart && weekendEnd) {
+          const weekendStartBoundary = setStartOfDay(new Date(weekendStart));
+          const weekendEndBoundary = setEndOfDay(new Date(weekendEnd));
           filtered = allData.filter(evt => {
-            const dbStart = evt.start_date;
-            const dbEnd = evt.end_date || evt.start_date;
-            const coversSat = dbStart <= satStr && dbEnd >= satStr;
-            const coversSun = dbStart <= sunStr && dbEnd >= sunStr;
-            return coversSat || coversSun;
+            const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
+            if (!startDate) return false;
+            const endDate = parseISODate(evt.end_date, PHILLY_TIME_ZONE) || startDate;
+            return overlaps(startDate, endDate, weekendStartBoundary, weekendEndBoundary);
           });
         } else if (filterDay) {
-          const dayStr = filterDay.toISOString().slice(0, 10);
+          const dayStart = setStartOfDay(new Date(filterDay));
+          const dayEnd = setEndOfDay(new Date(filterDay));
           filtered = allData.filter(evt => {
-            const dbStart = evt.start_date;
-            const dbEnd = evt.end_date || evt.start_date;
-            const isStartDay = dbStart === dayStr;
-            const inRange = dbStart <= dayStr && dbEnd >= dayStr;
-            return isStartDay || inRange;
+            const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
+            if (!startDate) return false;
+            const endDate = parseISODate(evt.end_date, PHILLY_TIME_ZONE) || startDate;
+            return overlaps(startDate, endDate, dayStart, dayEnd);
           });
         }
         setEvents(filtered);
