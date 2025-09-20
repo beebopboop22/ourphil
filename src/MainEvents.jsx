@@ -1541,10 +1541,36 @@ if (loading) {
       
           <div className="flex flex-col min-h-screen overflow-x-visible">
             <Navbar />
-      
-            <div className="mt-32"></div>
-      
-            <div className="relative mt-12">
+
+            <div className="flex-1 pt-28 sm:pt-32">
+              <section className="px-4 mb-12">
+                <Link
+                  to="/this-weekend-in-philadelphia/"
+                  className="block group"
+                >
+                  <div className="max-w-screen-xl mx-auto">
+                    <div className="relative overflow-hidden rounded-3xl bg-[#bf3d35] text-white px-6 py-10 sm:px-12 sm:py-12 shadow-xl transition-transform duration-300 group-hover:-translate-y-1 group-hover:shadow-2xl">
+                      <div className="absolute -top-20 -right-10 w-48 h-48 bg-white/20 rounded-full blur-3xl"></div>
+                      <div className="absolute -bottom-24 -left-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+                      <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h2 className="text-3xl sm:text-5xl font-[Barrio] uppercase tracking-wider">
+                            THIS WEEKEND IN THE CITY
+                          </h2>
+                          <p className="mt-3 text-lg sm:text-xl font-semibold">
+                            {weekendPromoLabel}
+                          </p>
+                        </div>
+                        <span className="inline-flex items-center justify-center self-start sm:self-auto px-6 py-3 rounded-full bg-white text-[#bf3d35] font-semibold uppercase tracking-wide shadow-lg transition-colors duration-300 group-hover:bg-[#ffe1dd] group-hover:text-[#7f2622]">
+                          Plan my weekend →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              </section>
+
+              <div className="relative mt-12">
               <FallingPills />
               <div className="relative z-10 text-center">
                 <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
@@ -1924,64 +1950,12 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
       
             {/* ─── Recent Activity ─── */}
             <RecentActivity />
-            <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
-              <h2 className="text-black text-4xl font-[Barrio] mb-4 text-left">
-                Your Upcoming Plans
-              </h2>
-              {loadingSaved ? null : user ? (
-                savedEvents.length ? (
-                  <>
-                    <SavedEventsScroller events={savedEvents} />
-                    <p className="text-gray-600 mt-2">
-                      <Link to="/profile" className="text-indigo-600 underline">
-                        See more plans on your profile
-                      </Link>
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-gray-600">
-                    You don't have any plans yet! Add some to get started.
-                  </p>
-                )
-              ) : (
-                <p className="text-gray-600">
-                  <Link to="/login" className="text-indigo-600 underline">Log in</Link> to add events to your plans.
-                </p>
-              )}
-            </section>
-            <section className="px-4 mb-12">
-              <Link
-                to="/this-weekend-in-philadelphia/"
-                className="block group"
-              >
-                <div className="max-w-screen-xl mx-auto">
-                  <div className="relative overflow-hidden rounded-3xl bg-[#bf3d35] text-white px-6 py-10 sm:px-12 sm:py-12 shadow-xl transition-transform duration-300 group-hover:-translate-y-1 group-hover:shadow-2xl">
-                    <div className="absolute -top-20 -right-10 w-48 h-48 bg-white/20 rounded-full blur-3xl"></div>
-                    <div className="absolute -bottom-24 -left-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-                    <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h2 className="text-3xl sm:text-5xl font-[Barrio] uppercase tracking-wider">
-                          THIS WEEKEND IN THE CITY
-                        </h2>
-                        <p className="mt-3 text-lg sm:text-xl font-semibold">
-                          {weekendPromoLabel}
-                        </p>
-                      </div>
-                      <span className="inline-flex items-center justify-center self-start sm:self-auto px-6 py-3 rounded-full bg-white text-[#bf3d35] font-semibold uppercase tracking-wide shadow-lg transition-colors duration-300 group-hover:bg-[#ffe1dd] group-hover:text-[#7f2622]">
-                        Plan my weekend →
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </section>
-            <HeroLanding fullWidth />
             <section
               aria-labelledby="other-guides-heading"
-              className="mt-16 overflow-hidden bg-slate-900 text-white"
+              className="overflow-hidden bg-slate-900 text-white"
               style={{ marginInline: 'calc(50% - 50vw)', width: '100vw' }}
             >
-              <div className="px-6 py-10 sm:px-10">
+              <div className="px-6 pb-10 pt-0 sm:px-10">
                 <div className="mx-auto flex max-w-screen-xl flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                   <div className="space-y-3 text-left">
                     <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-200">
@@ -2046,6 +2020,32 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 </div>
               </div>
             </section>
+            <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
+              <h2 className="text-black text-4xl font-[Barrio] mb-4 text-left">
+                Your Upcoming Plans
+              </h2>
+              {loadingSaved ? null : user ? (
+                savedEvents.length ? (
+                  <>
+                    <SavedEventsScroller events={savedEvents} />
+                    <p className="text-gray-600 mt-2">
+                      <Link to="/profile" className="text-indigo-600 underline">
+                        See more plans on your profile
+                      </Link>
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-gray-600">
+                    You don't have any plans yet! Add some to get started.
+                  </p>
+                )
+              ) : (
+                <p className="text-gray-600">
+                  <Link to="/login" className="text-indigo-600 underline">Log in</Link> to add events to your plans.
+                </p>
+              )}
+            </section>
+            <HeroLanding fullWidth />
             <TaggedEventScroller
               tags={['birds']}
               fullWidth
@@ -2106,15 +2106,17 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
             />
             <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
 
+          </div>
+
             {/* ─── Floating “+” (always on top) ─── */}
             <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
-      
+
             {/* ─── PostFlyerModal ─── */}
             <PostFlyerModal
               isOpen={showFlyerModal}
               onClose={() => setShowFlyerModal(false)}
             />
-      
+
             <Footer />
           </div>
         </>
