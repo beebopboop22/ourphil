@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { RRule } from 'rrule';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import FloatingAddButton from './FloatingAddButton';
+import PostFlyerModal from './PostFlyerModal';
 import Seo from './components/Seo.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
@@ -134,6 +136,7 @@ export default function createMonthlyGuidePage(config) {
     const { user } = useContext(AuthContext);
     const params = useParams();
     const navigate = useNavigate();
+    const [showFlyerModal, setShowFlyerModal] = useState(false);
 
     const viewParam = params.view;
     const viewMatch = useMemo(() => {
@@ -892,14 +895,12 @@ export default function createMonthlyGuidePage(config) {
                   </a>
                 </div>
                 <p className="mt-3 text-sm text-gray-600 text-center">
-                  Planning sooner? Explore the{' '}
                   <Link
                     to="/this-weekend-in-philadelphia/"
                     className="text-indigo-600 hover:text-indigo-800 font-semibold"
                   >
-                    This Weekend in Philadelphia guide
+                    Weekend Guide: Explore all of This Weekend's Events in Philly.
                   </Link>
-                  .
                 </p>
 
                 {navLinks.length > 0 && (
@@ -1109,6 +1110,11 @@ export default function createMonthlyGuidePage(config) {
             <p className="text-center text-sm text-gray-500">{concludingText}</p>
           </div>
         </main>
+        <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
+        <PostFlyerModal
+          isOpen={showFlyerModal}
+          onClose={() => setShowFlyerModal(false)}
+        />
         <Footer />
       </div>
     );
