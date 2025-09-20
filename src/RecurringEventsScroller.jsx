@@ -101,7 +101,13 @@ export default function RecurringEventsScroller({
 
   return (
     <section className="py-8">
-      <h2 className="text-3xl font-[Barrio] font-bold text-center mb-6">{header}</h2>
+      {header ? (
+        typeof header === 'string' ? (
+          <h2 className="text-3xl font-[Barrio] font-bold text-center mb-6">{header}</h2>
+        ) : (
+          header
+        )
+      ) : null}
 
       {/* Filters: horizontally scrollable on mobile */}
       <div className="overflow-x-auto scrollbar-hide px-4 mb-8">
