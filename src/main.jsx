@@ -57,6 +57,10 @@ import ThisWeekendInPhiladelphia from './ThisWeekendInPhiladelphia.jsx';
 import ThisMonthInPhiladelphia from './ThisMonthInPhiladelphia.jsx';
 import PhiladelphiaEventsIndex from './PhiladelphiaEventsIndex.jsx';
 import FamilyFriendlyMonthlyPage from './FamilyFriendlyMonthlyPage.jsx';
+import ArtsCultureMonthlyPage from './ArtsCultureMonthlyPage.jsx';
+import FoodDrinkMonthlyPage from './FoodDrinkMonthlyPage.jsx';
+import FitnessWellnessMonthlyPage from './FitnessWellnessMonthlyPage.jsx';
+import MusicMonthlyPage from './MusicMonthlyPage.jsx';
 import AllGuidesPage from './AllGuidesPage.jsx';
 import ViewRouter from './ViewRouter.jsx';
 import HeadProvider from './components/HeadProvider.jsx'
@@ -94,6 +98,22 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route
               path="/family-friendly-events-in-philadelphia-:month-:year/"
               element={<FamilyFriendlyMonthlyPage />}
+            />
+            <Route
+              path="/arts-culture-events-in-philadelphia-:month-:year/"
+              element={<ArtsCultureMonthlyPage />}
+            />
+            <Route
+              path="/food-drink-events-in-philadelphia-:month-:year/"
+              element={<FoodDrinkMonthlyPage />}
+            />
+            <Route
+              path="/fitness-events-in-philadelphia-:month-:year/"
+              element={<FitnessWellnessMonthlyPage />}
+            />
+            <Route
+              path="/music-events-in-philadelphia-:month-:year/"
+              element={<MusicMonthlyPage />}
             />
             <Route path="/all-guides/" element={<AllGuidesPage />} />
             <Route path="/:view" element={<ViewRouter />} />

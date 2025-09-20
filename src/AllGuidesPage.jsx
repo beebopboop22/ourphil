@@ -19,6 +19,18 @@ export default function AllGuidesPage() {
   const familyFriendlyPath = monthSlug
     ? `/family-friendly-events-in-philadelphia-${monthSlug}-${year}/`
     : '/family-friendly-events-in-philadelphia/';
+  const artsCulturePath = monthSlug
+    ? `/arts-culture-events-in-philadelphia-${monthSlug}-${year}/`
+    : '/arts-culture-events-in-philadelphia/';
+  const foodDrinkPath = monthSlug
+    ? `/food-drink-events-in-philadelphia-${monthSlug}-${year}/`
+    : '/food-drink-events-in-philadelphia/';
+  const fitnessPath = monthSlug
+    ? `/fitness-events-in-philadelphia-${monthSlug}-${year}/`
+    : '/fitness-events-in-philadelphia/';
+  const musicPath = monthSlug
+    ? `/music-events-in-philadelphia-${monthSlug}-${year}/`
+    : '/music-events-in-philadelphia/';
   const traditionsPath = monthSlug
     ? `/philadelphia-events-${monthSlug}-${year}/`
     : '/philadelphia-events/';
@@ -38,6 +50,26 @@ export default function AllGuidesPage() {
       label: `Family-Friendly – ${monthLabel}`,
       description: 'Kid-approved events, storytimes, and hands-on adventures happening throughout the city this month.',
       href: familyFriendlyPath,
+    },
+    {
+      label: `Arts & Culture – ${monthLabel}`,
+      description: 'Gallery openings, markets, and performances to fill your cultural calendar this month.',
+      href: artsCulturePath,
+    },
+    {
+      label: `Food & Drink – ${monthLabel}`,
+      description: 'Tastings, pop-ups, and happy hours happening around the city this month.',
+      href: foodDrinkPath,
+    },
+    {
+      label: `Fitness & Wellness – ${monthLabel}`,
+      description: 'Group workouts, outdoor classes, and mindful meetups to stay active this month.',
+      href: fitnessPath,
+    },
+    {
+      label: `Music – ${monthLabel}`,
+      description: 'Concerts, festivals, and live music picks happening across Philadelphia this month.',
+      href: musicPath,
     },
   ];
 

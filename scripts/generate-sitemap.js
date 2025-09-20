@@ -10,6 +10,7 @@ import {
   indexToMonthSlug,
 } from '../src/utils/dateUtils.js'
 import getDetailPathForItem from '../src/utils/eventDetailPaths.js'
+import { MONTHLY_GUIDE_CONFIGS, MONTHLY_GUIDE_ORDER } from '../src/monthlyGuideConfigs.js'
 
 // Load .env into process.env
 dotenv.config()
@@ -59,24 +60,36 @@ if (currentMonthlyPath && currentMonthlyLabel) {
 }
 
 const MONTH_WINDOW = 2
-const familyFriendlyMonths = []
+const guideMonths = {}
+for (let key of MONTHLY_GUIDE_ORDER) {
+  guideMonths[key] = []
+}
+
 for (let offset = -MONTH_WINDOW; offset <= MONTH_WINDOW; offset += 1) {
   const ref = new Date(zonedNow)
   ref.setMonth(ref.getMonth() + offset)
   const slug = indexToMonthSlug(ref.getMonth() + 1)
   if (!slug) continue
-  familyFriendlyMonths.push({
-    path: `/family-friendly-events-in-philadelphia-${slug}-${ref.getFullYear()}/`,
-    label: formatMonthYear(ref, PHILLY_TIME_ZONE),
-    offset,
-  })
+  const label = formatMonthYear(ref, PHILLY_TIME_ZONE)
+  const year = ref.getFullYear()
+  for (let key of MONTHLY_GUIDE_ORDER) {
+    const config = MONTHLY_GUIDE_CONFIGS[key]
+    guideMonths[key].push({
+      path: `/${config.pathSegment}-${slug}-${year}/`,
+      label,
+      offset,
+      navLabel: config.navLabel,
+    })
+  }
 }
 
-const currentFamilyMonth = familyFriendlyMonths.find(entry => entry.offset === 0)
-if (currentFamilyMonth) {
-  console.log(
-    `ℹ️ Including family-friendly guide for ${currentFamilyMonth.label}: ${HOST}${currentFamilyMonth.path.slice(1)}`
-  )
+for (let key of MONTHLY_GUIDE_ORDER) {
+  const currentEntry = guideMonths[key].find(entry => entry.offset === 0)
+  if (currentEntry) {
+    console.log(
+      `ℹ️ Including ${MONTHLY_GUIDE_CONFIGS[key].navLabel} guide for ${currentEntry.label}: ${HOST}${currentEntry.path.slice(1)}`
+    )
+  }
 }
 
 function toAbsoluteUrl(value) {
@@ -177,12 +190,14 @@ async function buildSitemap() {
     })
   }
 
-  for (let entry of familyFriendlyMonths) {
-    addUrlEntry({
-      loc: entry.path,
-      changefreq: 'monthly',
-      priority: '0.7',
-    })
+  for (let key of MONTHLY_GUIDE_ORDER) {
+    for (let entry of guideMonths[key]) {
+      addUrlEntry({
+        loc: entry.path,
+        changefreq: 'monthly',
+        priority: '0.7',
+      })
+    }
   }
 
   // all_events
