@@ -80,10 +80,11 @@ export function parseMonthDayYear(value, timeZone = PHILLY_TIME_ZONE) {
 
 export function parseISODate(value, timeZone = PHILLY_TIME_ZONE) {
   if (!value) return null;
-  const parts = value.split('-').map(Number);
-  if (parts.length !== 3) return null;
-  const [year, month, day] = parts;
-  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.length >= 10 ? trimmed.slice(0, 10) : trimmed;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+  const [year, month, day] = normalized.split('-').map(Number);
   const utc = new Date(Date.UTC(year, month - 1, day, 5, 0, 0));
   const zoned = getZonedDate(utc, timeZone);
   return setStartOfDay(zoned);

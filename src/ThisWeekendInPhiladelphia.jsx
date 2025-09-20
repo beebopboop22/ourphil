@@ -56,6 +56,14 @@ const CANONICAL_URL = 'https://ourphilly.org/this-weekend-in-philadelphia/';
 const MAX_EVENT_DURATION_DAYS = 30;
 const MAX_EVENT_DURATION_MS = MAX_EVENT_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
+const normalizeIsoDateString = value => {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.length >= 10 ? trimmed.slice(0, 10) : trimmed;
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+};
+
 function formatTime(timeStr) {
   if (!timeStr) return '';
   const [hoursStr, minutesStr] = timeStr.split(':');
@@ -359,8 +367,12 @@ export default function ThisWeekendInPhiladelphia() {
 
         const allRecords = (allRes.data || [])
           .map(evt => {
-            const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
-            const endDateRaw = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE);
+            const startIso = normalizeIsoDateString(evt.start_date);
+            if (!startIso) return null;
+            const endIso = normalizeIsoDateString(evt.end_date || evt.start_date) || startIso;
+            if (startIso !== endIso) return null;
+            const startDate = parseISODate(startIso, PHILLY_TIME_ZONE);
+            const endDateRaw = parseISODate(endIso, PHILLY_TIME_ZONE);
             if (!startDate || !endDateRaw) return null;
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
