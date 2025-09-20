@@ -166,6 +166,11 @@ export function formatMonthYear(date, timeZone = PHILLY_TIME_ZONE) {
   return formatterFromDate(date, timeZone, { month: 'long', year: 'numeric' });
 }
 
+export function formatMonthName(date, timeZone = PHILLY_TIME_ZONE) {
+  if (!date) return '';
+  return formatterFromDate(date, timeZone, { month: 'long' });
+}
+
 const MONTH_SLUGS = [
   'january',
   'february',
