@@ -56,6 +56,8 @@ import AboutPage from './AboutPage.jsx'
 import ThisWeekendInPhiladelphia from './ThisWeekendInPhiladelphia.jsx';
 import ThisMonthInPhiladelphia from './ThisMonthInPhiladelphia.jsx';
 import PhiladelphiaEventsIndex from './PhiladelphiaEventsIndex.jsx';
+import MonthlyCategoryEventsPage from './MonthlyCategoryEventsPage.jsx';
+import AllGuidesPage from './AllGuidesPage.jsx';
 import ViewRouter from './ViewRouter.jsx';
 import HeadProvider from './components/HeadProvider.jsx'
 import SlashGuard from './components/SlashGuard.jsx'
@@ -89,6 +91,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               path="/philadelphia-events-:month-:year/"
               element={<ThisMonthInPhiladelphia />}
             />
+            <Route
+              path="/:categorySlug-events-in-philadelphia-:month-:year/"
+              element={<MonthlyCategoryEventsPage />}
+            />
+            <Route path="/all-guides/" element={<AllGuidesPage />} />
             <Route path="/:view" element={<ViewRouter />} />
             <Route path="/old" element={<App />} />
             <Route path="/sports" element={<SportsPage />} />

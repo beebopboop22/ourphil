@@ -1,3 +1,5 @@
+/* eslint-env node */
+/* eslint-disable no-console */
 // scripts/generate-sitemap.js
 import fs from 'fs'
 import path from 'path'
@@ -10,6 +12,7 @@ import {
   indexToMonthSlug,
 } from '../src/utils/dateUtils.js'
 import getDetailPathForItem from '../src/utils/eventDetailPaths.js'
+import { CATEGORY_ORDER } from '../src/utils/monthlyCategoryConfig.js'
 
 // Load .env into process.env
 dotenv.config()
@@ -48,7 +51,21 @@ if (currentMonthlyPath) {
     priority: '0.8',
     changefreq: 'monthly',
   })
+
+  CATEGORY_ORDER.forEach(cat => {
+    staticPages.push({
+      path: `/${cat.slug}-events-in-philadelphia-${currentMonthSlug}-${currentYear}/`,
+      priority: '0.8',
+      changefreq: 'weekly',
+    })
+  })
 }
+
+staticPages.push({
+  path: '/all-guides/',
+  priority: '0.7',
+  changefreq: 'weekly',
+})
 
 if (currentMonthlyPath && currentMonthlyLabel) {
   console.log(
