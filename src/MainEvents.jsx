@@ -18,7 +18,19 @@ import SeasonalEventsGrid from './SeasonalEvents';
 import FloatingAddButton from './FloatingAddButton'
 import PostFlyerModal from './PostFlyerModal'
 import NewsletterSection from './NewsletterSection';
-import { XCircle, Filter, List } from 'lucide-react';
+import {
+  XCircle,
+  Filter,
+  List,
+  CalendarRange,
+  Sparkles,
+  UtensilsCrossed,
+  Music,
+  Palette,
+  HeartPulse,
+  Users,
+  ArrowUpRight,
+} from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
 const EventsMap = lazy(() => import('./EventsMap'));
@@ -39,6 +51,9 @@ import {
   getZonedDate,
   parseMonthDayYear,
   overlaps,
+  formatMonthYear,
+  formatMonthName,
+  indexToMonthSlug,
 } from './utils/dateUtils';
  
 // Shared styles for tag "pills"
@@ -266,8 +281,116 @@ export default function MainEvents() {
 
   const nowInPhilly = useMemo(() => getZonedDate(new Date(), PHILLY_TIME_ZONE), []);
   const currentMonthName = useMemo(
-    () => nowInPhilly.toLocaleString('en-US', { month: 'long' }),
+    () => formatMonthName(nowInPhilly, PHILLY_TIME_ZONE),
     [nowInPhilly]
+  );
+  const currentMonthYearLabel = useMemo(
+    () => formatMonthYear(nowInPhilly, PHILLY_TIME_ZONE),
+    [nowInPhilly]
+  );
+  const currentMonthSlug = useMemo(
+    () => indexToMonthSlug(nowInPhilly.getMonth() + 1),
+    [nowInPhilly]
+  );
+  const currentYear = nowInPhilly.getFullYear();
+
+  const traditionsHref = currentMonthSlug
+    ? `/philadelphia-events-${currentMonthSlug}-${currentYear}/`
+    : '/philadelphia-events/';
+
+  const monthlyGuidePaths = useMemo(
+    () => ({
+      family: currentMonthSlug
+        ? `/family-friendly-events-in-philadelphia-${currentMonthSlug}-${currentYear}/`
+        : '/family-friendly-events-in-philadelphia/',
+      arts: currentMonthSlug
+        ? `/arts-culture-events-in-philadelphia-${currentMonthSlug}-${currentYear}/`
+        : '/arts-culture-events-in-philadelphia/',
+      food: currentMonthSlug
+        ? `/food-drink-events-in-philadelphia-${currentMonthSlug}-${currentYear}/`
+        : '/food-drink-events-in-philadelphia/',
+      fitness: currentMonthSlug
+        ? `/fitness-events-in-philadelphia-${currentMonthSlug}-${currentYear}/`
+        : '/fitness-events-in-philadelphia/',
+      music: currentMonthSlug
+        ? `/music-events-in-philadelphia-${currentMonthSlug}-${currentYear}/`
+        : '/music-events-in-philadelphia/',
+    }),
+    [currentMonthSlug, currentYear]
+  );
+
+  const otherGuides = useMemo(
+    () => [
+      {
+        key: 'weekend',
+        title: 'This Weekend in Philadelphia',
+        description:
+          'Plan a perfect Philly weekend with festivals, markets, and neighborhood gems.',
+        href: '/this-weekend-in-philadelphia/',
+        icon: CalendarRange,
+        iconLabel: 'Weekend guide',
+        iconBg: 'bg-pink-500/20 text-pink-100',
+      },
+      {
+        key: 'traditions',
+        title: currentMonthName ? `${currentMonthName}'s Traditions` : 'Monthly Traditions',
+        description:
+          'Signature festivals and perennial favorites happening across the city this month.',
+        href: traditionsHref,
+        icon: Sparkles,
+        iconLabel: 'Traditions guide',
+        iconBg: 'bg-amber-500/20 text-amber-100',
+      },
+      {
+        key: 'family',
+        title: `Family-Friendly – ${currentMonthYearLabel}`,
+        description:
+          'Storytimes, hands-on workshops, and kid-approved outings for the whole crew.',
+        href: monthlyGuidePaths.family,
+        icon: Users,
+        iconLabel: 'Family guide',
+        iconBg: 'bg-sky-500/20 text-sky-100',
+      },
+      {
+        key: 'arts',
+        title: `Arts & Culture – ${currentMonthYearLabel}`,
+        description:
+          'Gallery nights, theater picks, and creative showcases to inspire your month.',
+        href: monthlyGuidePaths.arts,
+        icon: Palette,
+        iconLabel: 'Arts guide',
+        iconBg: 'bg-purple-500/20 text-purple-100',
+      },
+      {
+        key: 'food',
+        title: `Food & Drink – ${currentMonthYearLabel}`,
+        description: "Pop-ups, tastings, and happy hours to savor the city's flavor.",
+        href: monthlyGuidePaths.food,
+        icon: UtensilsCrossed,
+        iconLabel: 'Food guide',
+        iconBg: 'bg-orange-500/20 text-orange-100',
+      },
+      {
+        key: 'fitness',
+        title: `Fitness & Wellness – ${currentMonthYearLabel}`,
+        description:
+          'Group workouts, mindful meetups, and movement-forward community gatherings.',
+        href: monthlyGuidePaths.fitness,
+        icon: HeartPulse,
+        iconLabel: 'Fitness guide',
+        iconBg: 'bg-emerald-500/20 text-emerald-100',
+      },
+      {
+        key: 'music',
+        title: `Music – ${currentMonthYearLabel}`,
+        description: 'Concerts, festivals, and intimate shows to soundtrack your month.',
+        href: monthlyGuidePaths.music,
+        icon: Music,
+        iconLabel: 'Music guide',
+        iconBg: 'bg-indigo-500/20 text-indigo-100',
+      },
+    ],
+    [currentMonthName, currentMonthYearLabel, monthlyGuidePaths, traditionsHref]
   );
 
    // Recurring‐series state
@@ -1519,12 +1642,68 @@ if (loading) {
             />
 
             <main className="container mx-auto px-4 py-8">
-  <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">
-    {headerText}
-  </h2>
+              <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">{headerText}</h2>
 
-  {!loading && (
-    <>
+              <section
+                aria-labelledby="other-guides-heading"
+                className="mt-8"
+              >
+                <div className="rounded-3xl border border-slate-800/20 bg-slate-900 text-white shadow-xl overflow-hidden">
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between px-6 py-8 sm:px-8">
+                    <div className="max-w-2xl">
+                      <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-200">
+                        More ways to explore
+                      </p>
+                      <h2
+                        id="other-guides-heading"
+                        className="mt-2 text-2xl sm:text-3xl font-semibold text-white"
+                      >
+                        Other Our Philly guides
+                      </h2>
+                      <p className="mt-3 text-sm sm:text-base text-indigo-100 leading-6">
+                        Find the roundup that fits your mood&mdash;from monthly traditions to family-friendly picks and late-night shows.
+                      </p>
+                    </div>
+                    <Link
+                      to="/all-guides/"
+                      className="inline-flex items-center gap-2 self-start rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                    >
+                      Browse all guides
+                      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </div>
+                  <div className="border-t border-white/10 bg-white/5 px-6 py-6 sm:px-8">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {otherGuides.map(guide => {
+                        const Icon = guide.icon;
+                        return (
+                          <Link
+                            key={guide.key}
+                            to={guide.href}
+                            className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 p-5 transition-transform duration-200 hover:-translate-y-1 hover:bg-slate-900/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                          >
+                            <div>
+                              <span className={`inline-flex items-center justify-center rounded-xl p-3 ${guide.iconBg}`}>
+                                <Icon className="h-6 w-6" aria-hidden="true" />
+                                <span className="sr-only">{guide.iconLabel}</span>
+                              </span>
+                              <h3 className="mt-4 text-lg font-semibold text-white">{guide.title}</h3>
+                              <p className="mt-2 text-sm leading-6 text-indigo-100">{guide.description}</p>
+                            </div>
+                            <span className="mt-6 inline-flex items-center text-sm font-semibold text-indigo-100 transition group-hover:text-white">
+                              Explore guide
+                              <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {!loading && (
+                <>
   
 
     {/* MAP GOES HERE */}
