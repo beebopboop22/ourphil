@@ -64,10 +64,19 @@ const popularTags = [
 
 
 // ── Helpers ───────────────────────────────
+function normalizeIsoDateString(value) {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.length >= 10 ? trimmed.slice(0, 10) : trimmed;
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
 function parseISODateLocal(str) {
-  // Parse 'YYYY-MM-DD' as local date, NOT UTC.
-  if (!str) return null;
-  const [y, m, d] = str.split('-').map(Number);
+  // Parse 'YYYY-MM-DD' (optionally prefixed ISO string) as local date, NOT UTC.
+  const normalized = normalizeIsoDateString(str);
+  if (!normalized) return null;
+  const [y, m, d] = normalized.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
@@ -932,6 +941,20 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
         // ----- ALL_EVENTS FILTERING -----
         const allData = allEventsRes.data || [];
 
+        const singleDayAllEvents = allData
+          .map(evt => {
+            const startNormalized = normalizeIsoDateString(evt.start_date);
+            if (!startNormalized) return null;
+            const endNormalized = normalizeIsoDateString(evt.end_date || evt.start_date) || startNormalized;
+            if (startNormalized !== endNormalized) return null;
+            const startDate = parseISODateLocal(startNormalized);
+            if (!startDate) return null;
+            const startBoundary = setStartOfDay(startDate);
+            const endBoundary = setEndOfDay(startDate);
+            return { event: evt, startBoundary, endBoundary };
+          })
+          .filter(Boolean);
+
         // tag every “all_events” row
         const allTagged = allEventsRes.data?.map(evt => ({
             ...evt,
@@ -939,28 +962,18 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
             isTradition: false
         })) || [];
 
-        let filtered = [];
+        let filtered = singleDayAllEvents;
         if (selectedOption === 'weekend') {
-          const satStr = weekendStart.toISOString().slice(0, 10);
-          const sunStr = weekendEnd.toISOString().slice(0, 10);
-          filtered = allData.filter(evt => {
-            const dbStart = evt.start_date;
-            const dbEnd = evt.end_date || evt.start_date;
-            const coversSat = dbStart <= satStr && dbEnd >= satStr;
-            const coversSun = dbStart <= sunStr && dbEnd >= sunStr;
-            return coversSat || coversSun;
-          });
+          filtered = singleDayAllEvents.filter(({ startBoundary, endBoundary }) =>
+            overlaps(startBoundary, endBoundary, weekendStart, weekendEnd)
+          );
         } else if (filterDay) {
-          const dayStr = filterDay.toISOString().slice(0, 10);
-          filtered = allData.filter(evt => {
-            const dbStart = evt.start_date;
-            const dbEnd = evt.end_date || evt.start_date;
-            const isStartDay = dbStart === dayStr;
-            const inRange = dbStart <= dayStr && dbEnd >= dayStr;
-            return isStartDay || inRange;
-          });
+          const selectedDayStart = setStartOfDay(filterDay);
+          filtered = singleDayAllEvents.filter(({ startBoundary }) =>
+            startBoundary.getTime() === selectedDayStart.getTime()
+          );
         }
-        setEvents(filtered);
+        setEvents(filtered.map(({ event }) => event));
 
        // ----- BIG BOARD EVENTS FILTERING -----
 let bigData = bigBoardRes.data || [];
