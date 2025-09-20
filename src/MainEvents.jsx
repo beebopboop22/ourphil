@@ -932,33 +932,29 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
         // ----- ALL_EVENTS FILTERING -----
         const allData = allEventsRes.data || [];
 
-        // tag every “all_events” row
-        const allTagged = allEventsRes.data?.map(evt => ({
-            ...evt,
-            isBigBoard: false,
-            isTradition: false
-        })) || [];
+        const singleDayEvents = allData.filter(evt => {
+          const start = (evt.start_date || '').trim();
+          const rawEnd = (evt.end_date || '').trim();
+          const effectiveEnd = rawEnd || start;
+          return !!start && effectiveEnd === start;
+        });
 
         let filtered = [];
         if (selectedOption === 'weekend') {
           const satStr = weekendStart.toISOString().slice(0, 10);
           const sunStr = weekendEnd.toISOString().slice(0, 10);
-          filtered = allData.filter(evt => {
-            const dbStart = evt.start_date;
-            const dbEnd = evt.end_date || evt.start_date;
-            const coversSat = dbStart <= satStr && dbEnd >= satStr;
-            const coversSun = dbStart <= sunStr && dbEnd >= sunStr;
-            return coversSat || coversSun;
+          filtered = singleDayEvents.filter(evt => {
+            const dbDate = (evt.start_date || '').slice(0, 10);
+            return dbDate === satStr || dbDate === sunStr;
           });
         } else if (filterDay) {
           const dayStr = filterDay.toISOString().slice(0, 10);
-          filtered = allData.filter(evt => {
-            const dbStart = evt.start_date;
-            const dbEnd = evt.end_date || evt.start_date;
-            const isStartDay = dbStart === dayStr;
-            const inRange = dbStart <= dayStr && dbEnd >= dayStr;
-            return isStartDay || inRange;
+          filtered = singleDayEvents.filter(evt => {
+            const dbDate = (evt.start_date || '').slice(0, 10);
+            return dbDate === dayStr;
           });
+        } else {
+          filtered = singleDayEvents;
         }
         setEvents(filtered);
 
