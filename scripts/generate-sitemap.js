@@ -42,6 +42,8 @@ const staticPages = [
   { path: '/this-weekend-in-philadelphia/', priority: '0.8', changefreq: 'weekly' },
 ]
 
+staticPages.push({ path: '/all-guides/', priority: '0.6', changefreq: 'weekly' })
+
 if (currentMonthlyPath) {
   staticPages.push({
     path: currentMonthlyPath,
@@ -53,6 +55,27 @@ if (currentMonthlyPath) {
 if (currentMonthlyPath && currentMonthlyLabel) {
   console.log(
     `ℹ️ Including monthly page for ${currentMonthlyLabel}: ${HOST}${currentMonthlyPath.slice(1)}`
+  )
+}
+
+const MONTH_WINDOW = 2
+const familyFriendlyMonths = []
+for (let offset = -MONTH_WINDOW; offset <= MONTH_WINDOW; offset += 1) {
+  const ref = new Date(zonedNow)
+  ref.setMonth(ref.getMonth() + offset)
+  const slug = indexToMonthSlug(ref.getMonth() + 1)
+  if (!slug) continue
+  familyFriendlyMonths.push({
+    path: `/family-friendly-events-in-philadelphia-${slug}-${ref.getFullYear()}/`,
+    label: formatMonthYear(ref, PHILLY_TIME_ZONE),
+    offset,
+  })
+}
+
+const currentFamilyMonth = familyFriendlyMonths.find(entry => entry.offset === 0)
+if (currentFamilyMonth) {
+  console.log(
+    `ℹ️ Including family-friendly guide for ${currentFamilyMonth.label}: ${HOST}${currentFamilyMonth.path.slice(1)}`
   )
 }
 
@@ -151,6 +174,14 @@ async function buildSitemap() {
       loc: page.path,
       changefreq: page.changefreq,
       priority: page.priority,
+    })
+  }
+
+  for (let entry of familyFriendlyMonths) {
+    addUrlEntry({
+      loc: entry.path,
+      changefreq: 'monthly',
+      priority: '0.7',
     })
   }
 
