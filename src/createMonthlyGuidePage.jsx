@@ -20,6 +20,7 @@ import {
   parseISODate,
   parseMonthDayYear,
   formatMonthYear,
+  formatMonthName,
   formatEventDateRange,
   getZonedDate,
 } from './utils/dateUtils';
@@ -694,6 +695,7 @@ export default function createMonthlyGuidePage(config) {
     }, [errorLogMessage, hasValidParams, monthEnd, monthEndMs, monthStart, monthStartMs, tagSlugs]);
 
     const monthLabel = monthStart ? formatMonthYear(monthStart, PHILLY_TIME_ZONE) : '';
+    const monthName = monthStart ? formatMonthName(monthStart, PHILLY_TIME_ZONE) : '';
     const monthSlug = monthIndex ? indexToMonthSlug(monthIndex) : null;
     const canonicalUrl = hasValidParams && monthSlug
       ? `${canonicalBase}${monthSlug}-${yearNum}/`
@@ -736,7 +738,7 @@ export default function createMonthlyGuidePage(config) {
       const links = [
         {
           key: 'all',
-          label: 'All Events',
+          label: monthName ? `${monthName}'s Traditions` : 'Monthly Traditions',
           path: `/philadelphia-events-${monthSlug}-${yearNum}/`,
         },
         ...MONTHLY_GUIDE_ORDER.map(orderKey => {
@@ -749,7 +751,7 @@ export default function createMonthlyGuidePage(config) {
         }),
       ];
       return links;
-    }, [hasValidParams, monthSlug, yearNum]);
+    }, [hasValidParams, monthSlug, monthName, yearNum]);
 
     const peerLinks = useMemo(
       () => navLinks.filter(link => link.key !== guideKey),
