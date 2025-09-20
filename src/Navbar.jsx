@@ -2,13 +2,14 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
-import { FaTiktok, FaInstagram } from 'react-icons/fa';
+import { FaInstagram } from 'react-icons/fa';
 import SubmitGroupModal from './SubmitGroupModal';
 import PostFlyerModal from './PostFlyerModal';
 import { AuthContext } from './AuthProvider';
 import { supabase } from './supabaseClient';
 import NavTagMenu from './NavTagMenu';
 import LoginPromptModal from './LoginPromptModal';
+import { getZonedDate, PHILLY_TIME_ZONE, indexToMonthSlug } from './utils/dateUtils';
 
 export default function Navbar({ style }) {
   const { user } = useContext(AuthContext);
@@ -56,6 +57,39 @@ export default function Navbar({ style }) {
     location.pathname.startsWith('/this-weekend-in-philadelphia') ||
     location.pathname.startsWith('/philadelphia-events');
 
+  const now = getZonedDate(new Date(), PHILLY_TIME_ZONE);
+  const monthSlug = indexToMonthSlug(now.getMonth() + 1);
+  const currentYear = now.getFullYear();
+  const traditionsPath = monthSlug
+    ? `/philadelphia-events-${monthSlug}-${currentYear}/`
+    : '/philadelphia-events/';
+  const familyGuidePath = monthSlug
+    ? `/family-friendly-events-in-philadelphia-${monthSlug}-${currentYear}/`
+    : '/family-friendly-events-in-philadelphia/';
+  const artsGuidePath = monthSlug
+    ? `/arts-culture-events-in-philadelphia-${monthSlug}-${currentYear}/`
+    : '/arts-culture-events-in-philadelphia/';
+  const foodGuidePath = monthSlug
+    ? `/food-drink-events-in-philadelphia-${monthSlug}-${currentYear}/`
+    : '/food-drink-events-in-philadelphia/';
+  const fitnessGuidePath = monthSlug
+    ? `/fitness-events-in-philadelphia-${monthSlug}-${currentYear}/`
+    : '/fitness-events-in-philadelphia/';
+  const musicGuidePath = monthSlug
+    ? `/music-events-in-philadelphia-${monthSlug}-${currentYear}/`
+    : '/music-events-in-philadelphia/';
+
+  const guideMenuLinks = [
+    { label: 'All Guides', href: '/all-guides/' },
+    { label: 'This Weekend in Philadelphia', href: '/this-weekend-in-philadelphia/' },
+    { label: 'Philly Traditions Calendar', href: traditionsPath },
+    { label: 'Family-Friendly Guide', href: familyGuidePath },
+    { label: 'Arts Guide', href: artsGuidePath },
+    { label: 'Food & Drink Guide', href: foodGuidePath },
+    { label: 'Fitness & Wellness Guide', href: fitnessGuidePath },
+    { label: 'Music Guide', href: musicGuidePath },
+  ];
+
   return (
     <>
       <nav className="fixed top-0 w-full bg-white shadow z-50" style={style}>
@@ -73,14 +107,6 @@ export default function Navbar({ style }) {
           <div className="hidden md:flex items-center space-x-8 text-base">
             {/* Social links */}
             <div className="flex items-center space-x-4">
-              <a
-                href="https://www.tiktok.com/@ourphilly?lang=en"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="TikTok"
-              >
-                <FaTiktok className="w-5 h-5 text-gray-700 hover:text-gray-900 transition" />
-              </a>
               <a
                 href="https://www.instagram.com/ourphillydotorg/"
                 target="_blank"
@@ -107,9 +133,19 @@ export default function Navbar({ style }) {
                 className="relative"
                 onMouseEnter={() => setGuidesOpen(true)}
                 onMouseLeave={() => setGuidesOpen(false)}
+                onBlur={event => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setGuidesOpen(false);
+                  }
+                }}
               >
                 <button
-                  onClick={() => setGuidesOpen(open => !open)}
+                  type="button"
+                  onClick={() => {
+                    setGuidesOpen(false);
+                    navigate('/all-guides/');
+                  }}
+                  onFocus={() => setGuidesOpen(true)}
                   className={`flex items-center space-x-1 ${
                     exploreActive ? 'text-gray-900 font-semibold' : 'text-gray-700'
                   } hover:text-gray-900 transition`}
@@ -123,27 +159,16 @@ export default function Navbar({ style }) {
                 </button>
                 {guidesOpen && (
                   <div className="absolute right-0 mt-3 w-64 bg-white border border-gray-200 rounded-xl shadow-lg py-3 z-50">
-                    <Link
-                      to="/this-weekend-in-philadelphia/"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
-                      onClick={() => setGuidesOpen(false)}
-                    >
-                      This Weekend in Philadelphia
-                    </Link>
-                    <Link
-                      to="/philadelphia-events/"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
-                      onClick={() => setGuidesOpen(false)}
-                    >
-                      Philly Traditions Calendar
-                    </Link>
-                    <Link
-                      to="/all-guides/"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
-                      onClick={() => setGuidesOpen(false)}
-                    >
-                      All Guides
-                    </Link>
+                    {guideMenuLinks.map(link => (
+                      <Link
+                        key={link.href}
+                        to={link.href}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
+                        onClick={() => setGuidesOpen(false)}
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
                   </div>
                 )}
               </li>
@@ -225,14 +250,6 @@ export default function Navbar({ style }) {
           <div className="md:hidden bg-white shadow-lg px-4 py-6 space-y-4 text-base font-medium">
             <div className="flex space-x-4">
               <a
-                href="https://www.tiktok.com/@ourphilly?lang=en"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="TikTok"
-              >
-                <FaTiktok className="w-5 h-5 text-gray-700 hover:text-gray-900" />
-              </a>
-              <a
                 href="https://www.instagram.com/ourphillydotorg/"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -242,18 +259,11 @@ export default function Navbar({ style }) {
               </a>
             </div>
             <Link
-              to="/this-weekend-in-philadelphia/"
+              to="/all-guides/"
               className="block"
               onClick={() => setMenuOpen(false)}
             >
-              This Weekend in Philly
-            </Link>
-            <Link
-              to="/philadelphia-events/"
-              className="block"
-              onClick={() => setMenuOpen(false)}
-            >
-              Philly Traditions Calendar
+              All Guides
             </Link>
             <Link to="/groups" className="block" onClick={() => setMenuOpen(false)}>
               Claim Your Group
