@@ -21,6 +21,7 @@ import {
   formatMonthDay,
   formatDateRangeForTitle,
   getZonedDate,
+  normalizeIsoDateString,
 } from './utils/dateUtils';
 
 const pillStyles = [
@@ -359,8 +360,12 @@ export default function ThisWeekendInPhiladelphia() {
 
         const allRecords = (allRes.data || [])
           .map(evt => {
-            const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
-            const endDateRaw = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE);
+            const startIso = normalizeIsoDateString(evt.start_date);
+            if (!startIso) return null;
+            const endIso = normalizeIsoDateString(evt.end_date || evt.start_date) || startIso;
+            if (startIso !== endIso) return null;
+            const startDate = parseISODate(startIso, PHILLY_TIME_ZONE);
+            const endDateRaw = parseISODate(endIso, PHILLY_TIME_ZONE);
             if (!startDate || !endDateRaw) return null;
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;

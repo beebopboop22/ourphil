@@ -55,6 +55,28 @@ export function getZonedDate(date = new Date(), timeZone = PHILLY_TIME_ZONE) {
   );
 }
 
+export function normalizeIsoDateString(value) {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === 'number') {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toISOString().slice(0, 10);
+    }
+  }
+
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+}
+
 export function setStartOfDay(date) {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);
@@ -79,11 +101,9 @@ export function parseMonthDayYear(value, timeZone = PHILLY_TIME_ZONE) {
 }
 
 export function parseISODate(value, timeZone = PHILLY_TIME_ZONE) {
-  if (!value) return null;
-  const parts = value.split('-').map(Number);
-  if (parts.length !== 3) return null;
-  const [year, month, day] = parts;
-  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null;
+  const normalized = normalizeIsoDateString(value);
+  if (!normalized) return null;
+  const [year, month, day] = normalized.split('-').map(Number);
   const utc = new Date(Date.UTC(year, month - 1, day, 5, 0, 0));
   const zoned = getZonedDate(utc, timeZone);
   return setStartOfDay(zoned);
