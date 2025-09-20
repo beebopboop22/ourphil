@@ -713,6 +713,29 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
   const [savedEvents, setSavedEvents] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
 
+  const savedPlansDescription = useMemo(() => {
+    if (loadingSaved) {
+      return 'Loading your saved plans…';
+    }
+
+    if (!user) {
+      return (
+        <>
+          <Link to="/login" className="text-indigo-600 underline">
+            Log in
+          </Link>{' '}
+          to add events to your plans.
+        </>
+      );
+    }
+
+    if (!savedEvents.length) {
+      return "You don't have any plans yet! Add some to get started.";
+    }
+
+    return 'A quick look at the events you have coming up next.';
+  }, [loadingSaved, user, savedEvents.length]);
+
   useEffect(() => {
     if (!user) {
       setSavedEvents([]);
@@ -1668,7 +1691,15 @@ if (loading) {
             />
 
             <main className="container mx-auto px-4 py-8">
-              <h2 className="text-3xl font-semibold mb-4 text-[#28313e]">{headerText}</h2>
+              <div className="mb-8 space-y-3 text-left">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">
+                  Plan your week
+                </p>
+                <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">
+                  Upcoming Plans, Festivals, and Philly Traditions
+                </h2>
+                <p className="text-sm text-gray-600 sm:text-base">{headerText}</p>
+              </div>
 
               {!loading && (
                 <>
@@ -2021,31 +2052,40 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
               </div>
             </section>
             <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
-              <h2 className="text-black text-4xl font-[Barrio] mb-4 text-left">
-                Your Upcoming Plans
-              </h2>
-              {loadingSaved ? null : user ? (
-                savedEvents.length ? (
-                  <>
-                    <SavedEventsScroller events={savedEvents} />
-                    <p className="text-gray-600 mt-2">
-                      <Link to="/profile" className="text-indigo-600 underline">
-                        See more plans on your profile
-                      </Link>
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-gray-600">
-                    You don't have any plans yet! Add some to get started.
-                  </p>
-                )
-              ) : (
-                <p className="text-gray-600">
-                  <Link to="/login" className="text-indigo-600 underline">Log in</Link> to add events to your plans.
+              <div className="space-y-3 text-left mb-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">
+                  Saved agenda
                 </p>
+                <h2 className="text-black text-4xl font-[Barrio] text-left">
+                  Your Upcoming Plans
+                </h2>
+                <p className="text-sm text-gray-600 sm:text-base">{savedPlansDescription}</p>
+              </div>
+              {!loadingSaved && user && savedEvents.length > 0 && (
+                <>
+                  <SavedEventsScroller events={savedEvents} />
+                  <p className="text-gray-600 mt-2">
+                    <Link to="/profile" className="text-indigo-600 underline">
+                      See more plans on your profile
+                    </Link>
+                  </p>
+                </>
               )}
             </section>
             <HeroLanding fullWidth />
+            <section className="w-full max-w-screen-xl mx-auto px-4 mt-16">
+              <div className="space-y-3 text-left mb-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">
+                  Seasonal spotlights
+                </p>
+                <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">
+                  Seasonal Tag Scrollers
+                </h2>
+                <p className="text-sm text-gray-600 sm:text-base">
+                  Skim curated tags to match the vibes of the moment.
+                </p>
+              </div>
+            </section>
             <TaggedEventScroller
               tags={['birds']}
               fullWidth
@@ -2104,7 +2144,24 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 </Link>
               }
             />
-            <RecurringEventsScroller windowStart={startOfWeek} windowEnd={endOfWeek} eventType="open_mic" header="Karaoke, Bingo, Open Mics Coming Up..." />
+            <RecurringEventsScroller
+              windowStart={startOfWeek}
+              windowEnd={endOfWeek}
+              eventType="open_mic"
+              header={(
+                <div className="max-w-screen-xl mx-auto px-4 space-y-3 text-left mb-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">
+                    Weekly regulars
+                  </p>
+                  <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">
+                    Karaoke, Bingo, Open Mics & Other Weeklies
+                  </h2>
+                  <p className="text-sm text-gray-600 sm:text-base">
+                    Drop into rotating open mics, karaoke nights, and game sessions that come back every week.
+                  </p>
+                </div>
+              )}
+            />
 
           </div>
 
