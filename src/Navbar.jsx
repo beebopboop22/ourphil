@@ -1,5 +1,5 @@
 // src/Navbar.jsx
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { FaInstagram } from 'react-icons/fa';
@@ -11,7 +11,7 @@ import NavTagMenu from './NavTagMenu';
 import LoginPromptModal from './LoginPromptModal';
 import { getZonedDate, PHILLY_TIME_ZONE, indexToMonthSlug } from './utils/dateUtils';
 
-export default function Navbar({ style }) {
+export default function Navbar({ style, bottomBanner }) {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
@@ -21,10 +21,39 @@ export default function Navbar({ style }) {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const navRef = useRef(null);
+  const [navHeight, setNavHeight] = useState(0);
 
   useEffect(() => {
     setGuidesOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const measure = () => {
+      if (navRef.current) {
+        setNavHeight(navRef.current.getBoundingClientRect().height);
+      }
+    };
+
+    measure();
+
+    let observer;
+    if (typeof ResizeObserver !== 'undefined' && navRef.current) {
+      observer = new ResizeObserver(measure);
+      observer.observe(navRef.current);
+    }
+
+    window.addEventListener('resize', measure);
+
+    return () => {
+      window.removeEventListener('resize', measure);
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -90,9 +119,11 @@ export default function Navbar({ style }) {
     { label: 'Music Guide', href: musicGuidePath },
   ];
 
+  const navOffset = navHeight || 128;
+
   return (
     <>
-      <nav className="fixed top-0 w-full bg-white shadow z-50" style={style}>
+      <nav ref={navRef} className="fixed top-0 w-full bg-white shadow z-50" style={style}>
         <div className="max-w-screen-xl mx-auto flex items-center justify-between h-20 px-4">
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
@@ -305,6 +336,17 @@ export default function Navbar({ style }) {
           </div>
         )}
       </nav>
+
+      {bottomBanner && (
+        <div
+          className="relative z-40 bg-[#bf3d35] text-white shadow-lg"
+          style={{ marginTop: navOffset }}
+        >
+          <div className="max-w-screen-xl mx-auto px-4">
+            {bottomBanner}
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {showSubmitModal && <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />}

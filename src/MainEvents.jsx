@@ -1530,6 +1530,24 @@ if (loading) {
     : base
 }
 
+let headerHeadline = 'Upcoming Plans, Festivals, and Philly Traditions'
+if (!loading) {
+  if (selectedOption === 'today') {
+    headerHeadline = 'Events Today in Philadelphia'
+  } else if (selectedOption === 'tomorrow') {
+    headerHeadline = 'Events Tomorrow in Philadelphia'
+  } else if (selectedOption === 'weekend') {
+    headerHeadline = 'Events This Weekend in Philadelphia'
+  } else if (selectedOption === 'custom') {
+    const fallbackDate = customDate ? new Date(customDate) : null
+    const readableDate = headerDateStr
+      || (fallbackDate && !Number.isNaN(fallbackDate.getTime())
+        ? fallbackDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+        : 'your selected date')
+    headerHeadline = `Events on ${readableDate} in Philadelphia`
+  }
+}
+
 
 
     let pageTitle;
@@ -1569,6 +1587,39 @@ if (loading) {
       ? `${monthlyTraditionsCount} tradition${monthlyTraditionsCount === 1 ? '' : 's'} this month`
       : 'No traditions listed yet — check back soon!';
 
+  const guidePromoBanner = (
+    <div className="grid grid-cols-2 divide-x divide-white/20">
+      <Link
+        to="/this-weekend-in-philadelphia/"
+        className="flex min-w-0 items-center justify-between gap-3 px-3 py-3 text-left transition duration-200 hover:bg-[#a8322c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:px-6 sm:py-5"
+      >
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80 sm:text-xs sm:tracking-[0.2em]">
+            Explore the Weekend Guide
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-snug sm:text-base">
+            {weekendPromoLabel}
+          </p>
+        </div>
+        <ArrowUpRight className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5" aria-hidden="true" />
+      </Link>
+      <Link
+        to={traditionsHref}
+        className="flex min-w-0 items-center justify-between gap-3 px-3 py-3 text-left transition duration-200 hover:bg-[#a8322c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:px-6 sm:py-5"
+      >
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80 sm:text-xs sm:tracking-[0.2em]">
+            This Month's Traditions
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-snug sm:text-base">
+            {monthlyTraditionsPromoLabel}
+          </p>
+        </div>
+        <ArrowUpRight className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5" aria-hidden="true" />
+      </Link>
+    </div>
+  );
+
   
 
       return (
@@ -1583,123 +1634,97 @@ if (loading) {
           </Helmet>
       
           <div className="flex flex-col min-h-screen overflow-x-visible">
-            <Navbar />
+            <Navbar bottomBanner={guidePromoBanner} />
 
-            <div className="flex-1 pt-28 sm:pt-32">
-              <section className="px-4 mb-12">
-                <Link
-                  to="/this-weekend-in-philadelphia/"
-                  className="block group"
-                >
-                  <div className="max-w-screen-xl mx-auto">
-                    <div className="relative overflow-hidden rounded-3xl bg-[#bf3d35] text-white px-6 py-10 sm:px-12 sm:py-12 shadow-xl transition-transform duration-300 group-hover:-translate-y-1 group-hover:shadow-2xl">
-                      <div className="absolute -top-20 -right-10 w-48 h-48 bg-white/20 rounded-full blur-3xl"></div>
-                      <div className="absolute -bottom-24 -left-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-                      <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <h2 className="text-3xl sm:text-5xl font-[Barrio] uppercase tracking-wider">
-                            THIS WEEKEND IN THE CITY
-                          </h2>
-                          <p className="mt-3 text-lg sm:text-xl font-semibold">
-                            {weekendPromoLabel}
-                          </p>
-                        </div>
-                        <span className="inline-flex items-center justify-center self-start sm:self-auto px-6 py-3 rounded-full bg-white text-[#bf3d35] font-semibold uppercase tracking-wide shadow-lg transition-colors duration-300 group-hover:bg-[#ffe1dd] group-hover:text-[#7f2622]">
-                          Plan my weekend →
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </section>
-
-              <div className="relative mt-12">
-              <FallingPills />
-              <div className="relative z-10 text-center">
-                <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
-              </div>
-
-              {/* ─── Filters Bar ─── */}
-              <div className="relative z-10 container mx-auto px-4 mt-12">
-                <div className="flex justify-end items-center gap-2 mb-4">
-                  {hasFilters && (
-                    <button
-                      onClick={clearFilters}
-                      className="text-sm text-gray-500 hover:underline"
-                    >
-                      Clear filters
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setIsListView(v => !v)}
-                    className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-indigo-600 rounded-full shadow-lg"
-                  >
-                    <List className="w-4 h-4" />
-                    {isListView ? 'Card View' : 'List View'}
-                  </button>
-                  <button
-                    onClick={() => setIsFiltersOpen(true)}
-                    className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-indigo-600 rounded-full shadow-lg"
-                  >
-                    <Filter className="w-4 h-4" />
-                    {`Filters${selectedTags.length ? ` (${selectedTags.length})` : ''}`}
-                  </button>
+            <div className="flex-1 pt-12 sm:pt-16">
+              <div className="relative mt-10 sm:mt-12">
+                <FallingPills />
+                <div className="relative z-10 text-center">
+                  <h2 className="text-4xl sm:text-5xl font-[Barrio] font-black text-indigo-900">PICK YOUR DATES!</h2>
                 </div>
-                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap pb-2">
-                  {['today', 'tomorrow', 'weekend'].map(opt => (
-                    <button
-                      key={opt}
-                      onClick={() => { setSelectedOption(opt); goTo(opt); }}
-                      className={`text-sm px-3 py-1 rounded-full border-2 font-semibold shadow-lg transition-transform duration-200 flex-shrink-0 ${
-                        selectedOption === opt
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
-                      }`}
-                    >
-                      {opt === 'today' ? 'Today'
-                        : opt === 'tomorrow' ? 'Tomorrow'
-                        : 'This Weekend'}
-                    </button>
-                  ))}
-                  <DatePicker
-                    selected={new Date(customDate)}
-                    onChange={date => {
-                      const iso = date.toISOString().slice(0, 10)
-                      setCustomDate(iso)
-                      setSelectedOption('custom')
-                      goTo('custom', iso)
-                    }}
-                    dateFormat="yyyy-MM-dd"
-                    placeholderText="Pick a date"
-                    className="text-sm px-3 py-1 border-2 border-indigo-600 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200 flex-shrink-0 bg-white text-indigo-600"
-                    wrapperClassName="flex-shrink-0"
-                    calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
-                    popperClassName="z-50"
-                  />
-                  <span className="text-sm text-gray-700 font-semibold flex-shrink-0">Filter by tags:</span>
-                  {popularTags.map((tag, i) => {
-                    const isSel = selectedTags.includes(tag.slug)
-                    return (
+
+                {/* ─── Filters Bar ─── */}
+                <div className="relative z-10 container mx-auto px-4 mt-12">
+                  <div className="flex justify-end items-center gap-2 mb-4">
+                    {hasFilters && (
                       <button
-                        key={tag.slug}
-                        onClick={() => handleTagToggle(tag.slug, !isSel)}
-                        className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold shadow-lg hover:opacity-80 transition flex-shrink-0 ${isSel ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
+                        onClick={clearFilters}
+                        className="text-sm text-gray-500 hover:underline"
                       >
-                        #{tag.label}
+                        Clear filters
                       </button>
-                    )
-                  })}
-                  {selectedTags.length > 0 && (
+                    )}
                     <button
-                      onClick={() => setSelectedTags([])}
-                      className="ml-2 text-gray-500 hover:text-gray-700 flex-shrink-0"
-                      aria-label="Clear filters"
+                      onClick={() => setIsListView(v => !v)}
+                      className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-indigo-600 rounded-full shadow-lg"
                     >
-                      <XCircle className="w-5 h-5" />
+                      <List className="w-4 h-4" />
+                      {isListView ? 'Card View' : 'List View'}
                     </button>
-                  )}
+                    <button
+                      onClick={() => setIsFiltersOpen(true)}
+                      className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-indigo-600 rounded-full shadow-lg"
+                    >
+                      <Filter className="w-4 h-4" />
+                      {`Filters${selectedTags.length ? ` (${selectedTags.length})` : ''}`}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap pb-2">
+                    {['today', 'tomorrow', 'weekend'].map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => { setSelectedOption(opt); goTo(opt); }}
+                        className={`text-sm px-3 py-1 rounded-full border-2 font-semibold shadow-lg transition-transform duration-200 flex-shrink-0 ${
+                          selectedOption === opt
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
+                        }`}
+                      >
+                        {opt === 'today' ? 'Today'
+                          : opt === 'tomorrow' ? 'Tomorrow'
+                          : 'This Weekend'}
+                      </button>
+                    ))}
+                    <DatePicker
+                      selected={new Date(customDate)}
+                      onChange={date => {
+                        const iso = date.toISOString().slice(0, 10)
+                        setCustomDate(iso)
+                        setSelectedOption('custom')
+                        goTo('custom', iso)
+                      }}
+                      dateFormat="yyyy-MM-dd"
+                      placeholderText="Pick a date"
+                      className="text-sm px-3 py-1 border-2 border-indigo-600 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200 flex-shrink-0 bg-white text-indigo-600"
+                      wrapperClassName="flex-shrink-0"
+                      calendarClassName="bg-white shadow-lg rounded-lg p-2 text-base"
+                      popperClassName="z-50"
+                    />
+                    <span className="text-sm text-gray-700 font-semibold flex-shrink-0">Filter by tags:</span>
+                    {popularTags.map((tag, i) => {
+                      const isSel = selectedTags.includes(tag.slug)
+                      return (
+                        <button
+                          key={tag.slug}
+                          onClick={() => handleTagToggle(tag.slug, !isSel)}
+                          className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold shadow-lg hover:opacity-80 transition flex-shrink-0 ${isSel ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
+                        >
+                          #{tag.label}
+                        </button>
+                      )
+                    })}
+                    {selectedTags.length > 0 && (
+                      <button
+                        onClick={() => setSelectedTags([])}
+                        className="ml-2 text-gray-500 hover:text-gray-700 flex-shrink-0"
+                        aria-label="Clear filters"
+                      >
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+                
             </div>
 
             <TagFilterModal
@@ -1716,7 +1741,7 @@ if (loading) {
                   Make Your Philly Plans
                 </p>
                 <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">
-                  Upcoming Plans, Festivals, and Philly Traditions
+                  {headerHeadline}
                 </h2>
                 <p className="text-sm text-gray-600 sm:text-base">{headerText}</p>
               </div>
@@ -2120,28 +2145,7 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 }
               />
             ))}
-            <section className="px-4 mt-12 mb-8">
-              <Link to="/philadelphia-events/" className="block group">
-                <div className="max-w-screen-xl mx-auto">
-                  <div className="relative overflow-hidden rounded-3xl bg-[#bf3d35] text-white px-6 py-10 sm:px-12 sm:py-12 shadow-xl transition-transform duration-300 group-hover:-translate-y-1 group-hover:shadow-2xl">
-                    <div className="absolute inset-y-0 right-0 w-40 bg-white/10 blur-3xl rounded-l-full"></div>
-                    <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h2 className="text-3xl sm:text-5xl font-[Barrio] uppercase tracking-wider">
-                          {`PHILLY TRADITIONS: ${currentMonthName.toUpperCase()} EDITION`}
-                        </h2>
-                        <p className="mt-3 text-lg sm:text-xl font-semibold">
-                          {monthlyTraditionsPromoLabel}
-                        </p>
-                      </div>
-                      <span className="inline-flex items-center justify-center self-start sm:self-auto px-6 py-3 rounded-full bg-white text-[#bf3d35] font-semibold uppercase tracking-wide shadow-lg transition-colors duration-300 group-hover:bg-[#ffe1dd] group-hover:text-[#7f2622]">
-                        View the calendar →
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </section>
+            
             <RecurringEventsScroller
               windowStart={startOfWeek}
               windowEnd={endOfWeek}
