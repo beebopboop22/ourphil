@@ -65,6 +65,8 @@ import AllGuidesPage from './AllGuidesPage.jsx';
 import ViewRouter from './ViewRouter.jsx';
 import HeadProvider from './components/HeadProvider.jsx'
 import SlashGuard from './components/SlashGuard.jsx'
+import CommunityIndexPage from './CommunityIndexPage.jsx'
+import { COMMUNITY_REGIONS } from './communityIndexData.js'
 
 
 
@@ -116,6 +118,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={<MusicMonthlyPage />}
             />
             <Route path="/all-guides/" element={<AllGuidesPage />} />
+            {COMMUNITY_REGIONS.map(region => (
+              <Route
+                key={region.slug}
+                path={`/${region.slug}/`}
+                element={<CommunityIndexPage region={region} />}
+              />
+            ))}
             <Route path="/:view" element={<ViewRouter />} />
             <Route path="/old" element={<App />} />
             <Route path="/sports" element={<SportsPage />} />
