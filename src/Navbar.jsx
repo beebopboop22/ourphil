@@ -11,7 +11,7 @@ import NavTagMenu from './NavTagMenu';
 import LoginPromptModal from './LoginPromptModal';
 import { getZonedDate, PHILLY_TIME_ZONE, indexToMonthSlug } from './utils/dateUtils';
 
-export default function Navbar({ style }) {
+export default function Navbar({ style, bottomBanner }) {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
@@ -244,6 +244,14 @@ export default function Navbar({ style }) {
         </div>
 
         <NavTagMenu />
+
+        {bottomBanner && (
+          <div className="bg-[#bf3d35] text-white shadow-lg">
+            <div className="max-w-screen-xl mx-auto px-4">
+              {bottomBanner}
+            </div>
+          </div>
+        )}
 
         {/* Mobile slide-out */}
         {menuOpen && (
