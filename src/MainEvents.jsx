@@ -30,6 +30,7 @@ import {
   HeartPulse,
   Users,
   ArrowUpRight,
+  MapPin,
 } from 'lucide-react';
 import { RRule } from 'rrule';
 import TaggedEventScroller from './TaggedEventsScroller';
@@ -42,6 +43,7 @@ import { AuthContext } from './AuthProvider'
 import { FaStar } from 'react-icons/fa';
 import FallingPills from './FallingPills';
 import SavedEventsScroller from './SavedEventsScroller';
+import { COMMUNITY_REGIONS } from './communityIndexData.js';
 import {
   getWeekendWindow,
   PHILLY_TIME_ZONE,
@@ -412,6 +414,18 @@ export default function MainEvents() {
     ],
     [currentMonthName, currentMonthYearLabel, monthlyGuidePaths, traditionsHref]
   );
+
+  const communityGuideCards = useMemo(() => {
+    const iconStyles = ['bg-white/20 text-white'];
+    return COMMUNITY_REGIONS.map((region, index) => ({
+      key: region.key,
+      title: region.name,
+      href: `/${region.slug}/`,
+      icon: MapPin,
+      iconLabel: `${region.name} community index`,
+      iconBg: iconStyles[index % iconStyles.length],
+    }));
+  }, []);
 
    // Recurring‐series state
  const [recurringRaw, setRecurringRaw]   = useState([]);
@@ -2145,7 +2159,68 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 }
               />
             ))}
-            
+
+            <section
+              aria-labelledby="community-indexes-heading"
+              className="overflow-hidden bg-[#bf3d35] text-white"
+              style={{ marginInline: 'calc(50% - 50vw)', width: '100vw' }}
+            >
+              <div className="px-6 pb-10 pt-8 sm:px-10">
+                <div className="mx-auto flex max-w-screen-xl flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="space-y-3 text-left">
+                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/70">
+                      In Your Area
+                    </p>
+                    <h2
+                      id="community-indexes-heading"
+                      className="text-2xl font-semibold sm:text-3xl"
+                    >
+                      Community Indexes
+                    </h2>
+                    <p className="max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
+                      Explore our community indexes to discover groups and upcoming traditions in your area.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="relative">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#bf3d35] via-[#bf3d35]/80 to-transparent"
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#bf3d35] via-[#bf3d35]/80 to-transparent"
+                />
+                <div className="overflow-x-auto pb-10">
+                  <div className="flex gap-4 px-6 sm:px-10 snap-x snap-mandatory">
+                    {communityGuideCards.map(card => {
+                      const Icon = card.icon;
+                      return (
+                        <Link
+                          key={card.key}
+                          to={card.href}
+                          className="group relative flex min-h-[160px] min-w-[210px] flex-shrink-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/10 p-5 text-left shadow-lg transition-transform duration-200 hover:-translate-y-1 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white snap-start"
+                        >
+                          <div className="flex items-start gap-4">
+                            <span className={`inline-flex items-center justify-center rounded-xl p-3 ${card.iconBg}`}>
+                              <Icon className="h-6 w-6" aria-hidden="true" />
+                              <span className="sr-only">{card.iconLabel}</span>
+                            </span>
+                            <h3 className="text-lg font-semibold text-white">{card.title}</h3>
+                          </div>
+                          <span className="mt-6 inline-flex items-center text-sm font-semibold text-white/80 transition group-hover:text-white">
+                            Explore groups & traditions
+                            <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <RecurringEventsScroller
               windowStart={startOfWeek}
               windowEnd={endOfWeek}
