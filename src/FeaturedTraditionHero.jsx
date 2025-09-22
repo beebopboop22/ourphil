@@ -144,6 +144,7 @@ export default function FeaturedTraditionHero() {
             "E Name",
             "E Description",
             "E Image",
+            Headline,
             Dates,
             "End Date",
             address,
@@ -235,6 +236,17 @@ export default function FeaturedTraditionHero() {
     [event]
   );
 
+  const headline = useMemo(() => {
+    if (!event) return '';
+    const candidates = [event?.Headline, event?.headline, event?.['E Name'], event?.name, event?.title];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+    return '';
+  }, [event]);
+
   const title = useMemo(() => {
     if (!event) return '';
     const candidates = [event['E Name'], event.name, event.title];
@@ -245,6 +257,8 @@ export default function FeaturedTraditionHero() {
     }
     return '';
   }, [event]);
+
+  const displayTitle = headline || title;
 
   const description = useMemo(() => {
     if (!event) return '';
@@ -283,13 +297,13 @@ export default function FeaturedTraditionHero() {
 
   const venueLabel = useMemo(() => getVenueLabel(event), [event]);
 
-  const ogTitle = title ? `${title} – Our Philly` : 'Our Philly';
+  const ogTitle = displayTitle ? `${displayTitle} – Our Philly` : 'Our Philly';
   const ogDescription = description || 'Discover Philadelphia traditions with Our Philly.';
 
   const jsonLd = useMemo(() => {
-    if (!event || !title || !canonicalUrl) return null;
+    if (!event || !displayTitle || !canonicalUrl) return null;
     return buildEventJsonLd({
-      name: title,
+      name: title || displayTitle,
       canonicalUrl,
       startDate: buildIsoDateTime(startDateRaw || startDateTime, startTimeRaw) || startDateTime || startDateRaw,
       endDate: buildIsoDateTime(endDateRaw || endDateTime, endTimeRaw) || endDateTime || endDateRaw,
@@ -300,6 +314,7 @@ export default function FeaturedTraditionHero() {
   }, [
     event,
     title,
+    displayTitle,
     canonicalUrl,
     startDateRaw,
     startDateTime,
@@ -322,7 +337,7 @@ export default function FeaturedTraditionHero() {
     );
   }
 
-  if (!event || !title || !detailPath) {
+  if (!event || !displayTitle || !detailPath) {
     return null;
   }
 
@@ -343,7 +358,7 @@ export default function FeaturedTraditionHero() {
       <div className={`relative isolate w-full overflow-hidden ${SECTION_BG} text-white`}>
         <img
           src={imageUrl}
-          alt={title}
+          alt={displayTitle}
           loading="eager"
           fetchPriority="high"
           className={`absolute inset-0 h-full w-full object-cover ${HERO_MIN_HEIGHT}`}
@@ -353,7 +368,7 @@ export default function FeaturedTraditionHero() {
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-amber-300">Featured Tradition</p>
             <h1 className="mt-3 text-4xl font-[Barrio] font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
-              Mi Gentes!
+              {displayTitle}
             </h1>
           </div>
           <div className="max-w-3xl space-y-4">
@@ -361,7 +376,7 @@ export default function FeaturedTraditionHero() {
               to={detailPath}
               className="inline-flex items-center gap-2 text-3xl font-bold text-white transition hover:text-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-300 sm:text-4xl"
             >
-              {title}
+              {title || displayTitle}
             </Link>
             {formattedDate && (
               <p className="text-lg font-semibold text-white/90">{formattedDate}</p>
