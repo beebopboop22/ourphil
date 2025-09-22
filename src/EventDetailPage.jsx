@@ -1,5 +1,5 @@
 // src/EventDetailPage.jsx
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -8,10 +8,6 @@ import { AuthContext } from './AuthProvider';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import HeroLanding from './HeroLanding';
-import GroupMatchPromo from './GroupMatchPromo';
-import GroupMatchWizard from './GroupMatchWizard';
-import SubmitGroupModal from './SubmitGroupModal';
-import TaggedEventScroller from './TaggedEventsScroller';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
@@ -28,6 +24,11 @@ import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react'
 const FALLBACK_EVENT_TITLE = 'Philadelphia Event Details – Our Philly';
 const FALLBACK_EVENT_DESCRIPTION =
   'Discover upcoming Philadelphia events and traditions with Our Philly.';
+
+function normalizeNationality(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
 
 function buildShortDescription(text, maxLength = 160) {
   if (!text) return '';
@@ -72,16 +73,44 @@ export default function EventDetailPage() {
   const [tagMap, setTagMap] = useState({});
   const [eventTags, setEventTags] = useState([]);
   const [allTags, setAllTags] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [showMatchModal, setShowMatchModal] = useState(false);
-  const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const openAddGroup = () => {
-    setShowMatchModal(false);
-    setShowSubmitModal(true);
-  };
-  const reviewPhotoUrls = React.useMemo(() =>
-    reviews.flatMap(r => r.photo_urls || []),
-  [reviews]);
+  const [matchingGroups, setMatchingGroups] = useState([]);
+  const reviewPhotoUrls = useMemo(
+    () => reviews.flatMap(r => r.photo_urls || []),
+    [reviews],
+  );
+  const eventNationality = useMemo(() => {
+    if (!event) return '';
+    const candidates = [event?.Nationality, event?.nationality];
+    for (const candidate of candidates) {
+      const normalized = normalizeNationality(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return '';
+  }, [event]);
+  const isFeaturedTradition = useMemo(() => {
+    if (!event) return false;
+    const raw = event?.Promoted ?? event?.promoted ?? null;
+    if (typeof raw === 'string') {
+      return raw.trim().toLowerCase() === 'yes';
+    }
+    if (typeof raw === 'boolean') {
+      return raw;
+    }
+    return false;
+  }, [event]);
+  const communityCalloutLabel = useMemo(() => {
+    if (matchingGroups.length > 0) {
+      const label = matchingGroups
+        .map(group => normalizeNationality(group?.Nationality))
+        .find(Boolean);
+      if (label) {
+        return label;
+      }
+    }
+    return eventNationality;
+  }, [matchingGroups, eventNationality]);
 
   const pillStyles = [
     'bg-red-100 text-red-800',
@@ -186,12 +215,35 @@ export default function EventDetailPage() {
   }, []);
 
   useEffect(() => {
-    async function fetchGroups() {
-      const { data, error } = await supabase.from('groups').select('*');
-      if (!error) setGroups(data || []);
+    if (!isFeaturedTradition) {
+      setMatchingGroups([]);
+      return;
     }
-    fetchGroups();
-  }, []);
+    if (!eventNationality) {
+      setMatchingGroups([]);
+      return;
+    }
+    let isActive = true;
+    supabase
+      .from('groups')
+      .select('id, Name, slug, imag, Nationality')
+      .eq('Nationality', eventNationality)
+      .order('Name', { ascending: true })
+      .limit(6)
+      .then(({ data, error }) => {
+        if (!isActive) return;
+        if (error) {
+          console.error('Failed to load related groups', error);
+          setMatchingGroups([]);
+          return;
+        }
+        const filtered = Array.isArray(data) ? data.filter(Boolean) : [];
+        setMatchingGroups(filtered);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [eventNationality, isFeaturedTradition]);
 
   useEffect(() => {
     if (!event) return;
@@ -610,6 +662,48 @@ export default function EventDetailPage() {
           </div>
         </div>
 
+        {isFeaturedTradition && matchingGroups.length > 0 && (
+          <div className="max-w-4xl mx-auto mt-10 px-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Communities</p>
+              <h2 className="mt-2 text-2xl font-bold text-slate-900">
+                {communityCalloutLabel ? `Also tagged ${communityCalloutLabel}` : 'Also tagged'}
+              </h2>
+              <p className="text-sm text-slate-600">Connect with local groups sharing this tradition.</p>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                {matchingGroups.map(group => (
+                  <Link
+                    key={group.id}
+                    to={group.slug ? `/groups/${group.slug}` : '/groups'}
+                    className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-400 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                  >
+                    <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
+                      {group.imag ? (
+                        <img
+                          src={group.imag}
+                          alt={group.Name}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-slate-500">
+                          {group.Name?.charAt(0) || '?'}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold text-slate-900 group-hover:text-indigo-600">
+                        {group.Name || 'Community Group'}
+                      </p>
+                      <p className="text-sm text-slate-500">{group.Nationality || eventNationality}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Reviews */}
         <section className="max-w-4xl mx-auto py-10 px-4">
           <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-8">Photos, Photos, Photos</h2>
@@ -773,31 +867,6 @@ export default function EventDetailPage() {
 
         <hr className="my-8 border-gray-200" />
 
-        <div className="max-w-screen-xl mx-auto px-4">
-          <GroupMatchPromo
-            groups={groups}
-            onStart={() => setShowMatchModal(true)}
-            onAddGroup={openAddGroup}
-          />
-        </div>
-
-        <hr className="my-8 border-gray-200" />
-
-        <TaggedEventScroller
-          tags={['nomnomslurp']}
-          fullWidth
-          header={
-            <Link
-              to="/tags/nomnomslurp"
-              className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
-            >
-              #NomNomSlurp
-            </Link>
-          }
-        />
-
-        <hr className="my-8 border-gray-200" />
-
         {/* More Upcoming Community Submissions */}
         <div className="border-t border-gray-200 mt-8 pt-6 px-4 pb-10 max-w-screen-xl mx-auto">
           <h2 className="text-3xl sm:text-4xl text-center font-[Barrio] text-gray-800 mb-8">
@@ -879,16 +948,6 @@ export default function EventDetailPage() {
         )}
 
         <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
-
-        {showMatchModal && (
-          <GroupMatchWizard
-            onClose={() => setShowMatchModal(false)}
-            onAddGroup={openAddGroup}
-          />
-        )}
-        {showSubmitModal && (
-          <SubmitGroupModal onClose={() => setShowSubmitModal(false)} />
-        )}
       </main>
 
       <Footer />
