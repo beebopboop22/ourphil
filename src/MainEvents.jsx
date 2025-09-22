@@ -11,6 +11,7 @@ import RecentActivity from './RecentActivity';
 import EventsPageHero from './EventsPageHero';
 import CityHolidayAlert from './CityHolidayAlert';
 import HeroLanding from './HeroLanding';
+import FeaturedTraditionHero from './FeaturedTraditionHero';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css'
 import SportsEventsGrid from './SportsEventsGrid';
@@ -1650,6 +1651,8 @@ if (!loading) {
           <div className="flex flex-col min-h-screen overflow-x-visible">
             <Navbar bottomBanner={guidePromoBanner} />
 
+            <FeaturedTraditionHero />
+
             <div className="flex-1 pt-12 sm:pt-16">
               <div className="relative mt-10 sm:mt-12">
                 <FallingPills />
@@ -2110,56 +2113,6 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 </div>
               </div>
             </section>
-            <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
-              <div className="space-y-3 text-left mb-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">
-                  Saved agenda
-                </p>
-                <h2 className="text-black text-4xl font-[Barrio] text-left">
-                  Your Upcoming Plans
-                </h2>
-                <p className="text-sm text-gray-600 sm:text-base">{savedPlansDescription}</p>
-              </div>
-              {!loadingSaved && user && savedEvents.length > 0 && (
-                <>
-                  <SavedEventsScroller events={savedEvents} />
-                  <p className="text-gray-600 mt-2">
-                    <Link to="/profile" className="text-indigo-600 underline">
-                      See more plans on your profile
-                    </Link>
-                  </p>
-                </>
-              )}
-            </section>
-            <HeroLanding fullWidth />
-            {taggedScrollerConfigs.map(({ slug, eyebrow, headline, description }) => (
-              <TaggedEventScroller
-                key={slug}
-                tags={[slug]}
-                fullWidth
-                header={
-                  <Link
-                    to={`/tags/${slug}`}
-                    className="block w-full max-w-screen-xl mx-auto px-4 mb-6 space-y-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                  >
-                    {eyebrow && (
-                      <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">
-                        {eyebrow}
-                      </p>
-                    )}
-                    <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">
-                      {headline}
-                    </h2>
-                    {description && (
-                      <p className="text-sm text-gray-600 sm:text-base">
-                        {description}
-                      </p>
-                    )}
-                  </Link>
-                }
-              />
-            ))}
-
             <section
               aria-labelledby="community-indexes-heading"
               className="overflow-hidden bg-[#bf3d35] text-white"
@@ -2220,6 +2173,55 @@ const mapped = allPagedEvents.filter(e => e.latitude && e.longitude);
                 </div>
               </div>
             </section>
+            <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
+              <div className="space-y-3 text-left mb-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">
+                  Saved agenda
+                </p>
+                <h2 className="text-black text-4xl font-[Barrio] text-left">
+                  Your Upcoming Plans
+                </h2>
+                <p className="text-sm text-gray-600 sm:text-base">{savedPlansDescription}</p>
+              </div>
+              {!loadingSaved && user && savedEvents.length > 0 && (
+                <>
+                  <SavedEventsScroller events={savedEvents} />
+                  <p className="text-gray-600 mt-2">
+                    <Link to="/profile" className="text-indigo-600 underline">
+                      See more plans on your profile
+                    </Link>
+                  </p>
+                </>
+              )}
+            </section>
+            <HeroLanding fullWidth />
+            {taggedScrollerConfigs.map(({ slug, eyebrow, headline, description }) => (
+              <TaggedEventScroller
+                key={slug}
+                tags={[slug]}
+                fullWidth
+                header={
+                  <Link
+                    to={`/tags/${slug}`}
+                    className="block w-full max-w-screen-xl mx-auto px-4 mb-6 space-y-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                  >
+                    {eyebrow && (
+                      <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">
+                        {eyebrow}
+                      </p>
+                    )}
+                    <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">
+                      {headline}
+                    </h2>
+                    {description && (
+                      <p className="text-sm text-gray-600 sm:text-base">
+                        {description}
+                      </p>
+                    )}
+                  </Link>
+                }
+              />
+            ))}
 
             <RecurringEventsScroller
               windowStart={startOfWeek}
