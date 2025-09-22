@@ -11,6 +11,7 @@ import RecentActivity from './RecentActivity';
 import EventsPageHero from './EventsPageHero';
 import CityHolidayAlert from './CityHolidayAlert';
 import HeroLanding from './HeroLanding';
+import FeaturedTraditionHero from './FeaturedTraditionHero';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css'
 import SportsEventsGrid from './SportsEventsGrid';
@@ -1649,6 +1650,8 @@ if (!loading) {
       
           <div className="flex flex-col min-h-screen overflow-x-visible">
             <Navbar bottomBanner={guidePromoBanner} />
+
+            <FeaturedTraditionHero />
 
             <div className="flex-1 pt-12 sm:pt-16">
               <div className="relative mt-10 sm:mt-12">
