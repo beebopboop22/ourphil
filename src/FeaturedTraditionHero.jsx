@@ -106,14 +106,10 @@ function normalizeNationality(value) {
   return value.trim();
 }
 
-const NATIONALITY_TAG_OVERRIDES = {
-  'Puerto Rican': 'Puerto Rico',
-};
-
 function formatNationalityTag(value) {
   const normalized = normalizeNationality(value);
   if (!normalized) return '';
-  return NATIONALITY_TAG_OVERRIDES[normalized] || normalized;
+  return normalized;
 }
 
 export default function FeaturedTraditionHero() {
@@ -125,7 +121,15 @@ export default function FeaturedTraditionHero() {
 
   const favoriteState = useEventFavorite({ event_id: event?.id, source_table: 'events' });
   const eventNationality = useMemo(() => normalizeNationality(event?.Nationality || event?.nationality), [event]);
-  const calloutTagLabel = useMemo(() => formatNationalityTag(eventNationality), [eventNationality]);
+  const calloutTagLabel = useMemo(() => {
+    const groupLabel = groupMatches
+      .map(group => normalizeNationality(group?.Nationality))
+      .find(Boolean);
+    if (groupLabel) {
+      return groupLabel;
+    }
+    return formatNationalityTag(eventNationality);
+  }, [groupMatches, eventNationality]);
 
   useEffect(() => {
     let isActive = true;
