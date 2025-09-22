@@ -7,6 +7,9 @@ import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import Seo from './components/Seo.jsx';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import PromotedEventHero from './PromotedEventHero';
+import PromotedEventCard from './PromotedEventCard';
+import { usePromotedEvent } from './utils/usePromotedEvent';
 import {
   PHILLY_TIME_ZONE,
   monthSlugToIndex,
@@ -36,6 +39,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
   const params = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const { promotedEvent } = usePromotedEvent();
 
   const viewParam = params.view;
   const viewMatch = useMemo(() => {
@@ -69,6 +73,15 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
   const [monthlyEvents, setMonthlyEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [ogImage, setOgImage] = useState(DEFAULT_OG_IMAGE);
+
+  const promotedEventId = promotedEvent ? String(promotedEvent.id) : null;
+  const displayMonthlyEvents = useMemo(
+    () =>
+      promotedEventId
+        ? monthlyEvents.filter(evt => String(evt.id) !== promotedEventId)
+        : monthlyEvents,
+    [monthlyEvents, promotedEventId]
+  );
 
   useEffect(() => {
     if (hasValidParams || monthSlugOverride || yearOverride) return;
@@ -147,11 +160,11 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
 
   useEffect(() => {
     if (!hasValidParams) return;
-    const firstWithImage = monthlyEvents.find(evt => evt.imageUrl);
+    const firstWithImage = displayMonthlyEvents.find(evt => evt.imageUrl);
     if (firstWithImage?.imageUrl) {
       setOgImage(firstWithImage.imageUrl);
     }
-  }, [monthlyEvents, hasValidParams]);
+  }, [displayMonthlyEvents, hasValidParams]);
 
   const monthLabel = monthStart ? formatMonthYear(monthStart, PHILLY_TIME_ZONE) : '';
   const canonicalSlug = monthIndex ? indexToMonthSlug(monthIndex) : null;
@@ -167,7 +180,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
     ? `Explore ${monthLabel} events in Philadelphia, including traditions, festivals, and family-friendly plans.`
     : GENERIC_DESCRIPTION;
 
-  const countText = hasValidParams && monthLabel ? `${monthlyEvents.length} traditions in ${monthLabel}!` : '';
+  const countText = hasValidParams && monthLabel ? `${displayMonthlyEvents.length} traditions in ${monthLabel}!` : '';
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -179,6 +192,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
         ogType="website"
       />
       <Navbar />
+      <PromotedEventHero event={promotedEvent} pageName="monthly" className="mt-6" />
       <main className="flex-1 pt-36 md:pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-5xl">
           {hasValidParams ? (
@@ -188,14 +202,16 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
                 Browse traditions, festivals, and family-friendly events happening throughout {monthLabel}.
               </p>
 
+              <PromotedEventCard event={promotedEvent} pageName="monthly" className="mt-10" />
+
               <section className="mt-10 bg-white border border-gray-200 rounded-2xl shadow-sm">
                 {loading ? (
                   <p className="p-6 text-gray-500">Loading {monthLabel} traditions…</p>
-                ) : monthlyEvents.length === 0 ? (
+                ) : displayMonthlyEvents.length === 0 ? (
                   <p className="p-6 text-gray-500">No traditions posted yet for {monthLabel}. Check back soon.</p>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {monthlyEvents.map(evt => {
+                    {displayMonthlyEvents.map(evt => {
                       const summary = evt.description?.trim() || 'Details coming soon.';
                       const detailPath = getDetailPathForItem(evt) || '/';
                       return (

@@ -32,13 +32,15 @@ import GroupProgressBar from './GroupProgressBar';
 import PlatformPromoBillboard from './PlatformPromoBillboard';
 import GroupRecommender from './components/GroupRecommender';
 import EventsGrid from './EventsGrid';
-import SeasonalEventsGrid from './SeasonalEvents'; 
+import SeasonalEventsGrid from './SeasonalEvents';
 import Bulletin from './Bulletin';
 import NewsletterBar from './NewsletterBar';
 import RecentActivity from './RecentActivity';
 import BigBoardEventsGrid from './BigBoardEventsGrid';
 import CityHolidayAlert from './CityHolidayAlert';
 import MoreEventsBanner from './MoreEventsBanner';
+import PromotedEventHero from './PromotedEventHero';
+import { usePromotedEvent } from './utils/usePromotedEvent';
 
 
 
@@ -51,6 +53,7 @@ function App() {
   const [allGroups, setAllGroups] = useState([]);
   const [typeCounts, setTypeCounts] = useState({});
   const [isAdmin, setIsAdmin] = useState(false);
+  const { promotedEvent } = usePromotedEvent();
 
   useEffect(() => {
     async function loadGroups() {
@@ -127,11 +130,12 @@ function App() {
      
       
       <div className="overflow-x-hidden  min-h-screen flex flex-col bg-white-100 pt-20 relative">
-        <Navbar /> 
+        <Navbar />
         <CityHolidayAlert />
+        <PromotedEventHero event={promotedEvent} pageName="home" className="mt-6" />
 
 
-          
+
 <div className="relative flex flex-col md:flex-row items-center justify-center mt-12 mb-1">
   {/* we need a positioning context for the line + mascot */}
   <div className="relative inline-block text-center">

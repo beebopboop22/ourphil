@@ -44,6 +44,8 @@ import { FaStar } from 'react-icons/fa';
 import FallingPills from './FallingPills';
 import SavedEventsScroller from './SavedEventsScroller';
 import { COMMUNITY_REGIONS } from './communityIndexData.js';
+import PromotedEventCard from './PromotedEventCard';
+import { usePromotedEvent } from './utils/usePromotedEvent';
 import {
   getWeekendWindow,
   PHILLY_TIME_ZONE,
@@ -292,6 +294,7 @@ export default function MainEvents() {
   const params = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const { promotedEvent } = usePromotedEvent();
 
   const weekendBaseRef = useRef({
     loaded: false,
@@ -1348,14 +1351,32 @@ useEffect(() => {
 }, [selectedOption, customDate, params.view, sportsEventsRaw]);
 
 
+  const promotedEventId = promotedEvent ? String(promotedEvent.id) : null;
+
+  const displayTraditionEvents = useMemo(
+    () =>
+      promotedEventId
+        ? traditionEvents.filter(evt => String(evt.id) !== promotedEventId)
+        : traditionEvents,
+    [traditionEvents, promotedEventId]
+  );
+
+  const displayPrimaryEvents = useMemo(
+    () =>
+      promotedEventId
+        ? events.filter(evt => String(evt.id) !== promotedEventId)
+        : events,
+    [events, promotedEventId]
+  );
+
   // Combine all events
   const combinedEvents = [
     ...sportsEvents,
     ...bigBoardEvents,
     ...groupEvents,
     ...recurringOccs,
-    ...traditionEvents,
-    ...events
+    ...displayTraditionEvents,
+    ...displayPrimaryEvents
   ];
 
   // Filter by selected tags
@@ -1524,7 +1545,7 @@ if (!loading) {
   }
 }
 // how many of our results are “traditions”?
-const traditionsCount = traditionEvents.length;
+const traditionsCount = displayTraditionEvents.length;
 
 // after you’ve calculated headerDateStr and traditionsCount…
 let headerText
@@ -1759,6 +1780,12 @@ if (!loading) {
                 </h2>
                 <p className="text-sm text-gray-600 sm:text-base">{headerText}</p>
               </div>
+
+              <PromotedEventCard
+                event={promotedEvent}
+                pageName={selectedOption || 'list'}
+                className="mb-12"
+              />
 
               {!loading && (
                 <>

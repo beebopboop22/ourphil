@@ -10,6 +10,9 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import PromotedEventHero from './PromotedEventHero';
+import PromotedEventCard from './PromotedEventCard';
+import { usePromotedEvent } from './utils/usePromotedEvent';
 import {
   PHILLY_TIME_ZONE,
   parseISODate,
@@ -121,6 +124,7 @@ function resolveGroup(groups) {
 export default function ThisWeekendInPhiladelphia() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { promotedEvent } = usePromotedEvent();
   const { weekendStart, weekendEnd } = useMemo(() => {
     const zonedNow = getZonedDate(new Date(), PHILLY_TIME_ZONE);
     const day = zonedNow.getDay();
@@ -585,16 +589,34 @@ export default function ThisWeekendInPhiladelphia() {
     setSportsEvents(filtered);
   }, [sportsEventsRaw, weekendStart, weekendEnd]);
 
+  const promotedEventId = promotedEvent ? String(promotedEvent.id) : null;
+
+  const displayTraditionEvents = useMemo(
+    () =>
+      promotedEventId
+        ? traditionEvents.filter(evt => String(evt.id) !== promotedEventId)
+        : traditionEvents,
+    [traditionEvents, promotedEventId]
+  );
+
+  const displayAllEvents = useMemo(
+    () =>
+      promotedEventId
+        ? allEventsData.filter(evt => String(evt.id) !== promotedEventId)
+        : allEventsData,
+    [allEventsData, promotedEventId]
+  );
+
   const combinedEvents = useMemo(
     () => [
       ...sportsEvents,
       ...bigBoardEvents,
       ...groupEvents,
       ...recurringEvents,
-      ...traditionEvents,
-      ...allEventsData,
+      ...displayTraditionEvents,
+      ...displayAllEvents,
     ],
-    [sportsEvents, bigBoardEvents, groupEvents, recurringEvents, traditionEvents, allEventsData]
+    [sportsEvents, bigBoardEvents, groupEvents, recurringEvents, displayTraditionEvents, displayAllEvents]
   );
 
   const weekendEventCount = combinedEvents.length;
@@ -718,7 +740,7 @@ export default function ThisWeekendInPhiladelphia() {
       d.setDate(d.getDate() + offset);
       return d;
     });
-    return traditionEvents
+    return displayTraditionEvents
       .slice()
       .sort((a, b) => (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0))
       .map((evt, index) => {
@@ -734,7 +756,7 @@ export default function ThisWeekendInPhiladelphia() {
           </React.Fragment>
         );
       });
-  }, [traditionEvents, weekendStart]);
+  }, [displayTraditionEvents, weekendStart]);
 
   const rangeForTitle = formatDateRangeForTitle(weekendStart, weekendEnd, PHILLY_TIME_ZONE);
 
@@ -754,6 +776,7 @@ export default function ThisWeekendInPhiladelphia() {
         ogType="website"
       />
       <Navbar />
+      <PromotedEventHero event={promotedEvent} pageName="weekend" className="mt-6" />
       <main className="flex-1 pt-36 md:pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-6xl">
           <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
@@ -763,13 +786,15 @@ export default function ThisWeekendInPhiladelphia() {
             Use this guide from the most comprehensive events calendar in Philadelphia to plan your {introRange} adventures. We curated {formattedWeekendEventCount} festivals, markets, concerts, and family-friendly events for you to make the most of your weekend.
           </p>
 
+          <PromotedEventCard event={promotedEvent} pageName="weekend" className="mt-10" />
+
           <section className="max-w-4xl mx-auto px-4 mt-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-2">Philly Traditions This Weekend</h2>
             <ul className="flex flex-wrap gap-3 text-sm">
-              {traditionEvents
-                .filter(evt => evt?.slug)
-                .slice(0, 12)
-                .map(e => (
+            {displayTraditionEvents
+              .filter(evt => evt?.slug)
+              .slice(0, 12)
+              .map(e => (
                   <li key={e.slug}>
                     <Link to={getDetailPathForItem(e) || '/'} className="text-indigo-700 hover:underline">
                       {e['E Name'] || e.name || e.title}
