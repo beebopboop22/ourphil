@@ -5,6 +5,7 @@ import { RRule } from 'rrule';
 import { FaStar } from 'react-icons/fa';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import FeaturedTraditionHero from './FeaturedTraditionHero';
 import Seo from './components/Seo.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
@@ -754,6 +755,7 @@ export default function ThisWeekendInPhiladelphia() {
         ogType="website"
       />
       <Navbar />
+      <FeaturedTraditionHero />
       <main className="flex-1 pt-36 md:pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-6xl">
           <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
