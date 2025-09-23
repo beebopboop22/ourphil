@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import MainEvents from './MainEvents.jsx';
+import DayEventsPage from './DayEventsPage.jsx';
 import ThisMonthInPhiladelphia from './ThisMonthInPhiladelphia.jsx';
 import FamilyFriendlyMonthlyPage from './FamilyFriendlyMonthlyPage.jsx';
 import ArtsCultureMonthlyPage from './ArtsCultureMonthlyPage.jsx';
@@ -34,6 +34,6 @@ export default function ViewRouter() {
     return <Component />;
   }
 
-  return <MainEvents />;
+  return <DayEventsPage />;
 }
 
