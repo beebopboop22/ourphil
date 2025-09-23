@@ -1113,31 +1113,41 @@ const hasFilters = selectedTags.length > 0 || selectedOption !== 'today';
         // ----- ALL_EVENTS FILTERING -----
         const allData = allEventsRes.data || [];
 
-        const singleDayEvents = allData.filter(evt => {
-          const start = (evt.start_date || '').trim();
-          const rawEnd = (evt.end_date || '').trim();
-          const effectiveEnd = rawEnd || start;
-          return !!start && effectiveEnd === start;
-        });
+        const toDateOnlyString = (value) => {
+          if (!value) return '';
+          const str = typeof value === 'string' ? value : String(value);
+          return str.slice(0, 10);
+        };
 
-        let filtered = [];
-        if (selectedOption === 'weekend') {
-          const satStr = weekendStart.toISOString().slice(0, 10);
-          const sunStr = weekendEnd.toISOString().slice(0, 10);
-          filtered = singleDayEvents.filter(evt => {
-            const dbDate = (evt.start_date || '').slice(0, 10);
-            return dbDate === satStr || dbDate === sunStr;
-          });
+        const normalizedAllEvents = allData
+          .map(evt => {
+            const startStr = toDateOnlyString(evt.start_date);
+            const endStr = toDateOnlyString(evt.end_date);
+            const start = parseISODateLocal(startStr);
+            if (!start) return null;
+            const end = endStr ? parseISODateLocal(endStr) : start;
+            return {
+              ...evt,
+              start_date: startStr,
+              end_date: endStr || null,
+              _startDate: start,
+              _endDate: end,
+            };
+          })
+          .filter(Boolean);
+
+        let filtered = normalizedAllEvents;
+        if (selectedOption === 'weekend' && weekendStart && weekendEnd) {
+          filtered = normalizedAllEvents.filter(evt =>
+            evt._startDate <= weekendEnd && evt._endDate >= weekendStart
+          );
         } else if (filterDay) {
-          const dayStr = filterDay.toISOString().slice(0, 10);
-          filtered = singleDayEvents.filter(evt => {
-            const dbDate = (evt.start_date || '').slice(0, 10);
-            return dbDate === dayStr;
-          });
-        } else {
-          filtered = singleDayEvents;
+          filtered = normalizedAllEvents.filter(evt =>
+            filterDay >= evt._startDate && filterDay <= evt._endDate
+          );
         }
-        setEvents(filtered);
+
+        setEvents(filtered.map(({ _startDate, _endDate, ...rest }) => rest));
 
        // ----- BIG BOARD EVENTS FILTERING -----
 let bigData = bigBoardRes.data || [];
