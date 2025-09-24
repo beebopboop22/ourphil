@@ -57,6 +57,15 @@ const CANONICAL_URL = 'https://ourphilly.org/this-weekend-in-philadelphia/';
 const MAX_EVENT_DURATION_DAYS = 30;
 const MAX_EVENT_DURATION_MS = MAX_EVENT_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
+function toPhillyISODate(date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
 function formatTime(timeStr) {
   if (!timeStr) return '';
   const [hoursStr, minutesStr] = timeStr.split(':');
@@ -358,14 +367,28 @@ export default function ThisWeekendInPhiladelphia() {
       .then(([allRes, bigRes, tradRes, groupRes, recurringRes]) => {
         if (cancelled) return;
 
+        const weekendStartKey = toPhillyISODate(weekendStart);
+        const weekendEndKey = toPhillyISODate(weekendEnd);
+
         const allRecords = (allRes.data || [])
           .map(evt => {
-            const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
-            const endDateRaw = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE);
-            if (!startDate || !endDateRaw) return null;
-            const endDate = setEndOfDay(new Date(endDateRaw));
-            if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
-            if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
+            const startKey = (evt.start_date || '').slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(startKey)) return null;
+            const rawEnd = (evt.end_date || evt.start_date || '').slice(0, 10);
+            const endKey = /^\d{4}-\d{2}-\d{2}$/.test(rawEnd) ? rawEnd : startKey;
+            if (startKey > weekendEndKey || endKey < weekendStartKey) {
+              return null;
+            }
+
+            const spanDays =
+              Math.floor((Date.parse(endKey) - Date.parse(startKey)) / (1000 * 60 * 60 * 24)) + 1;
+            if (spanDays > MAX_EVENT_DURATION_DAYS) return null;
+
+            const [ys, ms, ds] = startKey.split('-').map(Number);
+            const [ye, me, de] = endKey.split('-').map(Number);
+            const startDate = setStartOfDay(new Date(ys, ms - 1, ds));
+            const endDate = setEndOfDay(new Date(ye, me - 1, de));
+
             return {
               id: evt.id,
               title: evt.name,
@@ -755,8 +778,10 @@ export default function ThisWeekendInPhiladelphia() {
         ogType="website"
       />
       <Navbar />
-      <FeaturedTraditionHero />
-      <main className="flex-1 pt-36 md:pt-40 pb-16">
+      <div className="pt-24 sm:pt-28">
+        <FeaturedTraditionHero />
+      </div>
+      <main className="flex-1 pb-16 pt-12 md:pt-16">
         <div className="container mx-auto px-4 max-w-6xl">
           <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
             Things to Do in Philadelphia This Weekend
