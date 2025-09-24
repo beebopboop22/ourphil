@@ -180,8 +180,10 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
         ogType="website"
       />
       <Navbar />
-      <FeaturedTraditionHero />
-      <main className="flex-1 pt-36 md:pt-40 pb-16">
+      <div className="pt-24 sm:pt-28">
+        <FeaturedTraditionHero />
+      </div>
+      <main className="flex-1 pb-16 pt-12 md:pt-16">
         <div className="container mx-auto px-4 max-w-5xl">
           {hasValidParams ? (
             <>
