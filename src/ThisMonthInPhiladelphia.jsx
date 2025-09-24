@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import FeaturedTraditionHero from './FeaturedTraditionHero';
+import TopQuickLinks from './TopQuickLinks';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
@@ -180,8 +181,11 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
         ogType="website"
       />
       <Navbar />
-      <FeaturedTraditionHero />
-      <main className="flex-1 pt-36 md:pt-40 pb-16">
+      <div className="pt-24 sm:pt-28 space-y-6">
+        <TopQuickLinks />
+        <FeaturedTraditionHero />
+      </div>
+      <main className="flex-1 pb-16 pt-12 md:pt-16">
         <div className="container mx-auto px-4 max-w-5xl">
           {hasValidParams ? (
             <>
