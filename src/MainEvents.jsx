@@ -681,9 +681,9 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
             ? Array.from({ length: 4 }).map((_, idx) => (
                 <div
                   key={idx}
-                  className="min-w-[80vw] flex-shrink-0 snap-start sm:min-w-0 sm:flex-shrink"
+                  className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink"
                 >
-                  <div className="h-[18rem] rounded-2xl bg-gray-100 animate-pulse" />
+                  <div className="h-[18rem] w-full rounded-2xl bg-gray-100 animate-pulse" />
                 </div>
               ))
             : data.items.map(event => {
@@ -695,7 +695,7 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
                 return (
                   <div
                     key={event.id}
-                    className="min-w-[80vw] flex-shrink-0 snap-start sm:min-w-0 sm:flex-shrink"
+                    className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink"
                   >
                     <EventCard event={event} tags={eventTags} />
                   </div>
