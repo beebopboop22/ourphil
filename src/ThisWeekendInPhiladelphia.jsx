@@ -56,6 +56,7 @@ const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
 const CANONICAL_URL = 'https://ourphilly.org/this-weekend-in-philadelphia/';
 const MAX_EVENT_DURATION_DAYS = 30;
 const MAX_EVENT_DURATION_MS = MAX_EVENT_DURATION_DAYS * 24 * 60 * 60 * 1000;
+const MAX_ALL_EVENT_DURATION_DAYS = 10;
 
 function toPhillyISODate(date) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -277,12 +278,24 @@ export default function ThisWeekendInPhiladelphia() {
   }, []);
 
   useEffect(() => {
-    const fetchAllEvents = supabase
+    const fridayStart = setStartOfDay(new Date(weekendStart));
+    const saturdayStart = setStartOfDay(new Date(fridayStart));
+    saturdayStart.setDate(fridayStart.getDate() + 1);
+    const sundayStart = setStartOfDay(new Date(fridayStart));
+    sundayStart.setDate(fridayStart.getDate() + 2);
+    const saturdayKey = toPhillyISODate(saturdayStart);
+    const sundayKey = toPhillyISODate(sundayStart);
+    const weekendDayKeys = [saturdayKey, sundayKey];
+    const weekendRangeStartKey = saturdayKey;
+    const weekendRangeEndKey = sundayKey;
+
+    let fetchAllEvents = supabase
       .from('all_events')
       .select(`
         id,
         name,
         description,
+        link,
         image,
         start_date,
         end_date,
@@ -296,8 +309,18 @@ export default function ThisWeekendInPhiladelphia() {
           latitude,
           longitude
         )
-      `)
-      .order('start_date', { ascending: true });
+      `);
+
+    if (weekendRangeStartKey && weekendRangeEndKey) {
+      fetchAllEvents = fetchAllEvents
+        .lte('start_date', weekendRangeEndKey)
+        .or(
+          `and(end_date.is.null,start_date.gte.${weekendRangeStartKey},start_date.lte.${weekendRangeEndKey}),` +
+            `end_date.gte.${weekendRangeStartKey}`
+        );
+    }
+
+    fetchAllEvents = fetchAllEvents.order('start_date', { ascending: true }).limit(5000);
 
     const fetchBigBoard = supabase
       .from('big_board_events')
@@ -367,22 +390,26 @@ export default function ThisWeekendInPhiladelphia() {
       .then(([allRes, bigRes, tradRes, groupRes, recurringRes]) => {
         if (cancelled) return;
 
-        const weekendStartKey = toPhillyISODate(weekendStart);
-        const weekendEndKey = toPhillyISODate(weekendEnd);
-
-        const allRecords = (allRes.data || [])
+        const rawAllEvents = allRes.data || [];
+        const allRecords = rawAllEvents
           .map(evt => {
             const startKey = (evt.start_date || '').slice(0, 10);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(startKey)) return null;
             const rawEnd = (evt.end_date || evt.start_date || '').slice(0, 10);
             const endKey = /^\d{4}-\d{2}-\d{2}$/.test(rawEnd) ? rawEnd : startKey;
-            if (startKey > weekendEndKey || endKey < weekendStartKey) {
-              return null;
-            }
+            if (!weekendRangeStartKey || !weekendRangeEndKey) return null;
 
-            const spanDays =
-              Math.floor((Date.parse(endKey) - Date.parse(startKey)) / (1000 * 60 * 60 * 24)) + 1;
-            if (spanDays > MAX_EVENT_DURATION_DAYS) return null;
+            const overlapsWeekendDay = weekendDayKeys.some(day => startKey <= day && endKey >= day);
+            if (!overlapsWeekendDay) return null;
+
+            const startMs = Date.parse(startKey);
+            const endMs = Date.parse(endKey);
+            if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+
+            const spanDays = Math.floor(Math.max(0, endMs - startMs) / (1000 * 60 * 60 * 24)) + 1;
+            const isShortEvent = spanDays <= MAX_ALL_EVENT_DURATION_DAYS;
+            const startsOnWeekendDay = weekendDayKeys.includes(startKey);
+            if (!isShortEvent && !startsOnWeekendDay) return null;
 
             const [ys, ms, ds] = startKey.split('-').map(Number);
             const [ye, me, de] = endKey.split('-').map(Number);
@@ -394,6 +421,7 @@ export default function ThisWeekendInPhiladelphia() {
               title: evt.name,
               name: evt.name,
               description: evt.description,
+              link: evt.link,
               imageUrl: evt.image || '',
               start_date: evt.start_date,
               end_date: evt.end_date,
@@ -413,6 +441,10 @@ export default function ThisWeekendInPhiladelphia() {
             };
           })
           .filter(Boolean);
+
+        console.log(
+          `[Weekend] all_events rows fetched: ${rawAllEvents.length}, after weekend filter: ${allRecords.length}`
+        );
 
         const bigRecords = (bigRes.data || [])
           .map(evt => {
