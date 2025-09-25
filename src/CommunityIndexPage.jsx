@@ -441,7 +441,6 @@ export default function CommunityIndexPage({ region }) {
       if (!map.has(key)) {
         const label = start.toLocaleDateString('en-US', {
           month: 'long',
-          year: 'numeric',
         })
         map.set(key, label)
       }
@@ -581,38 +580,40 @@ export default function CommunityIndexPage({ region }) {
             ) : (
               <>
                 {groupTypeOptions.length > 0 && (
-                  <div className="flex flex-wrap gap-3 mb-8">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGroupTypeFilter('all')
-                        setShowAllGroups(false)
-                      }}
-                      className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
-                        groupTypeFilter === 'all'
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
-                      }`}
-                    >
-                      All types
-                    </button>
-                    {groupTypeOptions.map(type => (
+                  <div className="mb-8 -mx-4 sm:mx-0">
+                    <div className="flex gap-3 overflow-x-auto flex-nowrap pb-2 px-4 sm:px-0">
                       <button
-                        key={type}
                         type="button"
                         onClick={() => {
-                          setGroupTypeFilter(type)
+                          setGroupTypeFilter('all')
                           setShowAllGroups(false)
                         }}
-                        className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
-                          groupTypeFilter === type
+                        className={`px-4 py-2 rounded-full border text-sm font-medium transition flex-shrink-0 whitespace-nowrap ${
+                          groupTypeFilter === 'all'
                             ? 'bg-indigo-600 text-white border-indigo-600'
                             : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
                         }`}
                       >
-                        {type}
+                        All types
                       </button>
-                    ))}
+                      {groupTypeOptions.map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => {
+                            setGroupTypeFilter(type)
+                            setShowAllGroups(false)
+                          }}
+                          className={`px-4 py-2 rounded-full border text-sm font-medium transition flex-shrink-0 whitespace-nowrap ${
+                            groupTypeFilter === type
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
