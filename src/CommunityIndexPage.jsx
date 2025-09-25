@@ -108,8 +108,6 @@ function formatDateRange(start, end) {
   if (sameDay) {
     return start.toLocaleDateString('en-US', {
       month: 'long',
-      day: 'numeric',
-      year: 'numeric',
     })
   }
 
@@ -120,24 +118,22 @@ function formatDateRange(start, end) {
 
   if (sameYear && sameMonth) {
     const monthName = start.toLocaleDateString('en-US', { month: 'long' })
-    return `${monthName} ${start.getDate()}–${end.getDate()}, ${startYear}`
+    return `${monthName} ${start.getDate()}–${end.getDate()}`
   }
 
   if (sameYear) {
     const startLabel = start.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
     const endLabel = end.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
-    return `${startLabel} – ${endLabel}, ${startYear}`
+    return `${startLabel} – ${endLabel}`
   }
 
   const startLabel = start.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
-    year: 'numeric',
   })
   const endLabel = end.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
-    year: 'numeric',
   })
   return `${startLabel} – ${endLabel}`
 }
