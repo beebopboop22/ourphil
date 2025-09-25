@@ -8,10 +8,16 @@ import GroupProgressBar from './GroupProgressBar'
 import { AuthContext } from './AuthProvider'
 import GroupEventModal from './GroupEventModal'
 import { getMyFavorites, addFavorite, removeFavorite } from './utils/favorites'
-import OutletsList from './OutletsList'
-import Voicemail from './Voicemail'
 import Footer from './Footer'
 import { getDetailPathForItem } from './utils/eventDetailPaths.js'
+
+const buildSummary = text => {
+  if (typeof text !== 'string') return ''
+  const trimmed = text.trim()
+  if (!trimmed) return ''
+  if (trimmed.length <= 160) return trimmed
+  return `${trimmed.slice(0, 157)}…`
+}
 
 export default function GroupDetailPage() {
   const { slug } = useParams()
@@ -20,8 +26,10 @@ export default function GroupDetailPage() {
   // ── Local state ─────────────────────────────────────────────────────────
   const [group, setGroup] = useState(null)
   const [relatedGroups, setRelatedGroups] = useState([])
-  const [suggestedOutlets, setSuggestedOutlets] = useState([])
-  const [loadingOutlets, setLoadingOutlets] = useState(true)
+  const [selectedRelatedTag, setSelectedRelatedTag] = useState('')
+  const [relatedVisibleCount, setRelatedVisibleCount] = useState(5)
+  const [relatedLoading, setRelatedLoading] = useState(false)
+  const [relatedCache, setRelatedCache] = useState({})
   const [favCount, setFavCount] = useState(0)
   const [myFavId, setMyFavId] = useState(null)
   const [toggling, setToggling] = useState(false)
@@ -55,16 +63,6 @@ export default function GroupDetailPage() {
         setMyFavId(mine?.id ?? null)
       }
 
-      if (grp?.Type) {
-        const firstType = grp.Type.split(',').map(t => t.trim())[0]
-        const { data: rel } = await supabase
-          .from('groups')
-          .select('*')
-          .ilike('Type', `%${firstType}%`)
-          .neq('slug', slug)
-        setRelatedGroups(rel || [])
-      }
-
       if (user) {
         const { data } = await supabase
           .from('group_claim_requests')
@@ -86,21 +84,83 @@ export default function GroupDetailPage() {
     fetchData()
   }, [slug, user])
 
-  // ── Fetch news outlets based on group area ───────────────────────────────
+  // ── Handle related tags selection ───────────────────────────────────────
   useEffect(() => {
-    if (!group) return
-    setLoadingOutlets(true)
+    if (!group?.Type) {
+      setSelectedRelatedTag('')
+      setRelatedGroups([])
+      setRelatedVisibleCount(5)
+      return
+    }
+    const available = group.Type.split(',').map(t => t.trim()).filter(Boolean)
+    if (!available.length) {
+      setSelectedRelatedTag('')
+      setRelatedGroups([])
+      setRelatedVisibleCount(5)
+      return
+    }
+    setSelectedRelatedTag(prev => (prev && available.includes(prev) ? prev : available[0]))
+  }, [group?.Type])
+
+  useEffect(() => {
+    setRelatedCache({})
+    setRelatedVisibleCount(5)
+  }, [group?.id])
+
+  useEffect(() => {
+    setRelatedVisibleCount(5)
+  }, [selectedRelatedTag])
+
+  useEffect(() => {
+    const availableTypes = group?.Type
+      ? group.Type.split(',').map(t => t.trim()).filter(Boolean)
+      : []
+
+    if (!group || !selectedRelatedTag || !availableTypes.includes(selectedRelatedTag)) {
+      setRelatedGroups([])
+      setRelatedLoading(false)
+      setRelatedVisibleCount(5)
+      return
+    }
+
+    const cached = relatedCache[selectedRelatedTag]
+    if (cached) {
+      setRelatedGroups(cached)
+      setRelatedLoading(false)
+      setRelatedVisibleCount(5)
+      return
+    }
+
+    let isCancelled = false
+    setRelatedLoading(true)
+
     supabase
-      .from('news_outlets')
-      .select('*')
-      .eq('area', group.Area)
-      .limit(10)
+      .from('groups')
+      .select('id, Name, slug, imag, Description, Type')
+      .ilike('Type', `%${selectedRelatedTag}%`)
+      .neq('slug', slug)
+      .limit(12)
       .then(({ data, error }) => {
-        if (error) console.error(error)
-        else setSuggestedOutlets(data)
+        if (isCancelled) return
+        if (error) {
+          console.error('Error loading related groups:', error)
+          setRelatedGroups([])
+          setRelatedVisibleCount(5)
+          return
+        }
+        const filtered = (data || []).filter(g => g.slug !== slug)
+        setRelatedGroups(filtered)
+        setRelatedCache(prev => ({ ...prev, [selectedRelatedTag]: filtered }))
+        setRelatedVisibleCount(5)
       })
-      .finally(() => setLoadingOutlets(false))
-  }, [group])
+      .finally(() => {
+        if (!isCancelled) setRelatedLoading(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [group?.id, selectedRelatedTag, slug, relatedCache])
 
   // ── Favorite toggle handler ─────────────────────────────────────────────
   const toggleFav = async () => {
@@ -140,7 +200,7 @@ export default function GroupDetailPage() {
     return <div className="text-center py-20 text-gray-500">Loading Group…</div>
   }
 
-  const types = group.Type?.split(',').map(t => t.trim()) || []
+  const types = group.Type?.split(',').map(t => t.trim()).filter(Boolean) || []
   const metaDesc = group.Description?.length > 140
     ? group.Description.slice(0, 137) + '…'
     : group.Description
@@ -428,56 +488,115 @@ export default function GroupDetailPage() {
 </section>
 
 
-      {/* ── Related Groups Strip ────────────────────────────────────────── */}
-      {relatedGroups.length > 0 && (
-        <div className="max-w-screen-xl mx-auto px-4 mt-16">
-          <h2 className="text-4xl font-[Barrio] text-gray-800 text-center mb-6">
-            More in {types.slice(0, 2).join(', ')}
-          </h2>
-          <div className="overflow-x-auto">
-            <div className="flex space-x-4 py-4">
-              {relatedGroups.map(g => (
-                <Link
-                  key={g.id}
-                  to={`/groups/${g.slug}`}
-                  className="flex-shrink-0 w-40 h-64 bg-white rounded-lg shadow overflow-hidden flex flex-col"
+      {types.length > 0 && (
+        <section className="max-w-screen-xl mx-auto px-4 mt-16">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800">
+              More in {selectedRelatedTag || types[0]}
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {types.map(type => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedRelatedTag(type)}
+                  className={`px-4 py-2 rounded-full border text-sm font-semibold transition ${
+                    selectedRelatedTag === type
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
+                  }`}
                 >
-                  <img
-                    src={g.imag}
-                    alt={g.Name}
-                    className="w-full h-20 object-cover"
-                  />
-                  <div className="px-2 py-2 flex-1 flex flex-col items-center text-center">
-                    <h3 className="text-sm font-semibold truncate w-full">
-                      {g.Name}
-                    </h3>
-                    <p className="text-xs text-gray-600 mt-1 flex-1 overflow-hidden line-clamp-2 w-full">
-                      {g.Description}
-                    </p>
-                  </div>
-                </Link>
+                  #{type}
+                </button>
               ))}
             </div>
           </div>
-        </div>
-      )}
 
-      {/* ── Outlets You Might Like ───────────────────────────────────────── */}
-      {suggestedOutlets.length > 0 && (
-        <section className="w-full bg-neutral-100 pt-12 pb-12">
-          <div className="relative w-screen left-1/2 right-1/2 mx-[-50vw] overflow-x-auto overflow-y-hidden">
-            <div className="flex space-x-4 flex-nowrap px-4">
-              {loadingOutlets ? (
-                <p className="text-center w-full">Loading…</p>
-              ) : (
-                <OutletsList outlets={suggestedOutlets} isAdmin={false} />
+          {relatedLoading ? (
+            <p className="text-center text-gray-500 mt-8">Loading…</p>
+          ) : relatedGroups.length === 0 ? (
+            <p className="text-center text-gray-500 mt-8">No related groups yet.</p>
+          ) : (
+            <>
+              <ul className="mt-8 space-y-5">
+                {relatedGroups.slice(0, relatedVisibleCount).map(g => {
+                  const groupTypes = g?.Type
+                    ? g.Type.split(',').map(type => type.trim()).filter(Boolean)
+                    : []
+                  const summary = buildSummary(g.Description || '')
+
+                  return (
+                    <li
+                      key={g.id}
+                      className="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow transition"
+                    >
+                      <Link
+                        to={`/groups/${g.slug}`}
+                        className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="flex flex-1 items-start gap-4">
+                          <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-indigo-50">
+                            {g.imag ? (
+                              <img
+                                src={g.imag}
+                                alt={g.Name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-xs text-indigo-400">
+                                No photo yet
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">
+                              Local Group
+                            </p>
+                            <h3 className="text-lg font-semibold text-gray-900">{g.Name}</h3>
+                            {summary && (
+                              <p className="mt-2 text-sm text-gray-600">{summary}</p>
+                            )}
+                            {groupTypes.length > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {groupTypes.map(type => (
+                                  <span
+                                    key={`${g.id}-${type}`}
+                                    className="rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"
+                                  >
+                                    {type}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-sm font-medium text-indigo-600 whitespace-nowrap">
+                          View group →
+                        </span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+              {selectedRelatedTag && relatedGroups.length > relatedVisibleCount && (
+                <div className="mt-6 mb-16 text-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRelatedVisibleCount(count =>
+                        Math.min(count + 5, relatedGroups.length)
+                      )
+                    }
+                    className="inline-flex items-center justify-center rounded-full border border-indigo-200 px-5 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50"
+                  >
+                    View more groups
+                  </button>
+                </div>
               )}
-            </div>
-          </div>
+            </>
+          )}
         </section>
       )}
-
-      <Voicemail />
       <Footer />
     </div>
   )
