@@ -212,6 +212,10 @@ export default function CommunityIndexPage({ region }) {
   const [groups, setGroups] = useState([])
   const [upcoming, setUpcoming] = useState([])
   const [photos, setPhotos] = useState([])
+  const [groupTypeFilter, setGroupTypeFilter] = useState('all')
+  const [showAllGroups, setShowAllGroups] = useState(false)
+  const [traditionMonthFilter, setTraditionMonthFilter] = useState('all')
+  const [showAllTraditions, setShowAllTraditions] = useState(false)
 
   const aliasSet = useMemo(() => {
     const aliases = region?.areaAliases || []
@@ -397,8 +401,68 @@ export default function CommunityIndexPage({ region }) {
 
   const traditionsCount = traditions.length
   const groupsCount = groups.length
-  const allGroups = groups
-  const allTraditions = traditions
+
+  useEffect(() => {
+    setGroupTypeFilter('all')
+    setShowAllGroups(false)
+    setTraditionMonthFilter('all')
+    setShowAllTraditions(false)
+  }, [region])
+
+  const groupTypeOptions = useMemo(() => {
+    const set = new Set()
+    groups.forEach(group => {
+      if (!group?.Type) return
+      group.Type.split(',').forEach(part => {
+        const trimmed = part.trim()
+        if (trimmed) set.add(trimmed)
+      })
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [groups])
+
+  const filteredGroups = useMemo(() => {
+    if (groupTypeFilter === 'all') return groups
+    const target = groupTypeFilter.toLowerCase()
+    return groups.filter(group =>
+      group?.Type?.split(',').some(type => type.trim().toLowerCase() === target)
+    )
+  }, [groups, groupTypeFilter])
+
+  const visibleGroups = showAllGroups ? filteredGroups : filteredGroups.slice(0, 5)
+  const hasMoreGroups = filteredGroups.length > visibleGroups.length
+
+  const monthOptions = useMemo(() => {
+    const map = new Map()
+    traditions.forEach(tradition => {
+      const start = tradition.__startDate
+      if (!start) return
+      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`
+      if (!map.has(key)) {
+        const label = start.toLocaleDateString('en-US', {
+          month: 'long',
+          year: 'numeric',
+        })
+        map.set(key, label)
+      }
+    })
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  }, [traditions])
+
+  const filteredTraditions = useMemo(() => {
+    if (traditionMonthFilter === 'all') return traditions
+    return traditions.filter(tradition => {
+      const start = tradition.__startDate
+      if (!start) return false
+      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`
+      return key === traditionMonthFilter
+    })
+  }, [traditions, traditionMonthFilter])
+
+  const visibleTraditions = showAllTraditions
+    ? filteredTraditions
+    : filteredTraditions.slice(0, 5)
+  const hasMoreTraditions = filteredTraditions.length > visibleTraditions.length
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
@@ -512,44 +576,119 @@ export default function CommunityIndexPage({ region }) {
             </div>
             {loading ? (
               <p className="text-gray-600">Loading groups…</p>
-            ) : allGroups.length === 0 ? (
+            ) : groups.length === 0 ? (
               <p className="text-gray-600">No groups have been added for this region yet. Know one? Sign up and share it.</p>
             ) : (
-              <div className="-mx-4 sm:mx-0">
-                <div className="flex gap-6 overflow-x-auto pb-4 px-4 sm:px-0">
-                  {allGroups.map(group => (
-                    <div key={group.id} className="shrink-0 w-72 sm:w-80 lg:w-96">
-                      <Link
-                        to={`/groups/${group.slug}`}
-                        className="bg-indigo-50/40 hover:bg-indigo-100 transition border border-indigo-100 rounded-2xl overflow-hidden flex flex-col h-full"
+              <>
+                {groupTypeOptions.length > 0 && (
+                  <div className="flex flex-wrap gap-3 mb-8">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGroupTypeFilter('all')
+                        setShowAllGroups(false)
+                      }}
+                      className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
+                        groupTypeFilter === 'all'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
+                      }`}
+                    >
+                      All types
+                    </button>
+                    {groupTypeOptions.map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => {
+                          setGroupTypeFilter(type)
+                          setShowAllGroups(false)
+                        }}
+                        className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
+                          groupTypeFilter === type
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
+                        }`}
                       >
-                        <div className="aspect-square bg-white overflow-hidden">
-                          {group.imag ? (
-                            <img
-                              src={group.imag}
-                              alt={group.Name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-indigo-400 text-sm">No photo yet</div>
-                          )}
-                        </div>
-                        <div className="p-5 flex-1 flex flex-col">
-                          <p className="text-xs uppercase tracking-wide text-indigo-500">Local Group</p>
-                          <h3 className="mt-2 text-lg font-semibold text-gray-900">{group.Name}</h3>
-                          {group.Type && (
-                            <p className="mt-2 text-xs font-medium text-indigo-700 uppercase">{group.Type}</p>
-                          )}
-                          <p className="mt-3 text-sm text-gray-700 flex-1">
-                            {buildSummary(group.Description || '')}
-                          </p>
-                        </div>
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {filteredGroups.length === 0 ? (
+                  <p className="text-gray-600">No groups match the selected filters yet. Try a different tag.</p>
+                ) : (
+                  <div className="max-w-4xl mx-auto">
+                    <ul className="space-y-5">
+                      {visibleGroups.map(group => {
+                        const types = group?.Type
+                          ? group.Type.split(',').map(type => type.trim()).filter(Boolean)
+                          : []
+                        return (
+                          <li
+                            key={group.id}
+                            className="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow transition"
+                          >
+                            <Link
+                              to={`/groups/${group.slug}`}
+                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5"
+                            >
+                              <div className="flex items-start gap-4 flex-1">
+                                <div className="w-20 h-20 rounded-xl overflow-hidden bg-indigo-50 flex-shrink-0">
+                                  {group.imag ? (
+                                    <img
+                                      src={group.imag}
+                                      alt={group.Name}
+                                      className="w-full h-full object-cover"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-xs text-indigo-400">
+                                      No photo yet
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-xs uppercase tracking-wide text-indigo-500">Local Group</p>
+                                  <h3 className="text-lg font-semibold text-gray-900">{group.Name}</h3>
+                                  {group.Description && (
+                                    <p className="mt-2 text-sm text-gray-600">{buildSummary(group.Description)}</p>
+                                  )}
+                                  {types.length > 0 && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      {types.map(type => (
+                                        <span
+                                          key={`${group.id}-${type}`}
+                                          className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-full"
+                                        >
+                                          {type}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-sm font-medium text-indigo-600 whitespace-nowrap">View group →</span>
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    {hasMoreGroups && (
+                      <div className="mt-6 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setShowAllGroups(prev => !prev)}
+                          className="px-4 py-2 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium text-sm transition"
+                        >
+                          {showAllGroups ? 'Show fewer groups' : 'Show more groups'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>
@@ -559,17 +698,55 @@ export default function CommunityIndexPage({ region }) {
             <h2 className="text-3xl font-[Barrio] text-gray-900">All Traditions</h2>
             {loading ? (
               <p className="mt-6 text-gray-600">Loading traditions…</p>
-            ) : allTraditions.length === 0 ? (
+            ) : traditions.length === 0 ? (
               <p className="mt-6 text-gray-600">We have not logged any traditions here yet. Add one to help neighbors discover it.</p>
             ) : (
-              <div className="mt-8 flex justify-center">
-                <ul className="w-full max-w-2xl space-y-5 text-left">
-                  {allTraditions.map(tradition => {
-                    const href = getDetailPathForItem({ ...tradition, source_table: 'events' }) || '/events'
-                    const start = tradition.__startDate
-                    const end = tradition.__endDate || tradition.__startDate
-                    const image = tradition['E Image'] || tradition.image_url || tradition.image
-                    const description = tradition['E Description'] || tradition.description || ''
+              <>
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTraditionMonthFilter('all')
+                      setShowAllTraditions(false)
+                    }}
+                    className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
+                      traditionMonthFilter === 'all'
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
+                    }`}
+                  >
+                    All months
+                  </button>
+                  {monthOptions.map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setTraditionMonthFilter(value)
+                        setShowAllTraditions(false)
+                      }}
+                      className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
+                        traditionMonthFilter === value
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {filteredTraditions.length === 0 ? (
+                  <p className="mt-6 text-gray-600">No traditions match this month yet. Try another filter or explore upcoming picks above.</p>
+                ) : (
+                  <div className="mt-8 flex justify-center">
+                    <ul className="w-full max-w-2xl space-y-5 text-left">
+                      {visibleTraditions.map(tradition => {
+                          const href = getDetailPathForItem({ ...tradition, source_table: 'events' }) || '/events'
+                          const start = tradition.__startDate
+                          const end = tradition.__endDate || tradition.__startDate
+                          const image = tradition['E Image'] || tradition.image_url || tradition.image
+                          const description = tradition['E Description'] || tradition.description || ''
                     return (
                       <li key={tradition.id} className="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow transition">
                         <Link to={href} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5">
@@ -602,9 +779,23 @@ export default function CommunityIndexPage({ region }) {
                         </Link>
                       </li>
                     )
-                  })}
-                </ul>
-              </div>
+                      })}
+                    </ul>
+                  </div>
+                )}
+
+                {hasMoreTraditions && filteredTraditions.length > 0 && (
+                  <div className="mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllTraditions(prev => !prev)}
+                      className="px-4 py-2 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium text-sm transition"
+                    >
+                      {showAllTraditions ? 'Show fewer traditions' : 'Show more traditions'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>
