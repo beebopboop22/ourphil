@@ -6,6 +6,7 @@ import Seo from './components/Seo.jsx'
 import { supabase } from './supabaseClient'
 import { COMMUNITY_REGIONS } from './communityIndexData.js'
 import { getDetailPathForItem } from './utils/eventDetailPaths.js'
+import { RRule } from 'rrule'
 
 const REVIEW_CHUNK_SIZE = 50
 const SITE_BASE_URL = 'https://www.ourphilly.org'
@@ -50,6 +51,9 @@ function rowMatchesRegion(row, aliasSet) {
     'quadrant',
     'location_area',
     'locationArea',
+    'area_display',
+    'Area_display',
+    'AreaDisplay',
   ]
   possibleKeys.forEach(key => {
     if (row[key]) candidates.push(row[key])
@@ -142,6 +146,204 @@ function formatDateRange(start, end) {
   return `${startLabel} – ${endLabel}`
 }
 
+const WEEKDAY_DISPLAY_ORDER = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+]
+
+const RRULE_WEEKDAY_TO_NAME = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+]
+
+const WEEKDAY_SYNONYMS = {
+  sun: 'Sunday',
+  sunday: 'Sunday',
+  mon: 'Monday',
+  monday: 'Monday',
+  tue: 'Tuesday',
+  tues: 'Tuesday',
+  tuesday: 'Tuesday',
+  wed: 'Wednesday',
+  weds: 'Wednesday',
+  wednesday: 'Wednesday',
+  thu: 'Thursday',
+  thur: 'Thursday',
+  thurs: 'Thursday',
+  thursday: 'Thursday',
+  fri: 'Friday',
+  friday: 'Friday',
+  sat: 'Saturday',
+  saturday: 'Saturday',
+}
+
+function normalizeWeekdayName(value) {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'number' && value >= 0 && value <= 6) {
+    return WEEKDAY_DISPLAY_ORDER[value]
+  }
+  const trimmed = String(value).trim().toLowerCase()
+  if (!trimmed) return null
+  return WEEKDAY_SYNONYMS[trimmed] || null
+}
+
+function sortUniqueWeekdays(days) {
+  const unique = Array.from(new Set(days))
+  return unique.sort(
+    (a, b) => WEEKDAY_DISPLAY_ORDER.indexOf(a) - WEEKDAY_DISPLAY_ORDER.indexOf(b)
+  )
+}
+
+function extractWeekdaysFromRrule(rruleString) {
+  if (!rruleString) return []
+  try {
+    const options = RRule.parseString(rruleString)
+    const { byweekday } = options
+    const weekdays = Array.isArray(byweekday)
+      ? byweekday
+      : byweekday
+        ? [byweekday]
+        : []
+    const names = weekdays
+      .map(entry => {
+        if (typeof entry === 'number') {
+          return RRULE_WEEKDAY_TO_NAME[entry] || null
+        }
+        if (typeof entry === 'object' && entry !== null && 'weekday' in entry) {
+          const index = entry.weekday
+          return RRULE_WEEKDAY_TO_NAME[index] || null
+        }
+        return null
+      })
+      .filter(Boolean)
+    return sortUniqueWeekdays(names)
+  } catch (err) {
+    console.error('RRULE parse error', err)
+    return []
+  }
+}
+
+function extractWeekdays(row) {
+  if (!row) return []
+  const candidateKeys = [
+    'day_of_week',
+    'days_of_week',
+    'Day_of_week',
+    'DayOfWeek',
+    'DaysOfWeek',
+    'dayOfWeek',
+  ]
+  const names = []
+  candidateKeys.forEach(key => {
+    if (!row[key]) return
+    const value = row[key]
+    if (Array.isArray(value)) {
+      value.forEach(item => {
+        const name = normalizeWeekdayName(item)
+        if (name) names.push(name)
+      })
+    } else if (typeof value === 'string') {
+      value
+        .split(/[,&/|;]+| and | AND |\n/g)
+        .map(part => normalizeWeekdayName(part))
+        .filter(Boolean)
+        .forEach(name => names.push(name))
+    } else {
+      const name = normalizeWeekdayName(value)
+      if (name) names.push(name)
+    }
+  })
+  if (names.length) {
+    return sortUniqueWeekdays(names)
+  }
+  return extractWeekdaysFromRrule(row.rrule)
+}
+
+function formatWeekdayList(days) {
+  if (!days || days.length === 0) return 'Day varies'
+  if (days.length === 1) return days[0]
+  if (days.length === 2) return `${days[0]} & ${days[1]}`
+  return `${days.slice(0, -1).join(', ')} & ${days[days.length - 1]}`
+}
+
+function formatTimeOfDay(time) {
+  if (!time) return null
+  const [hourStr, minuteStr = '0'] = time.split(':')
+  const hour = Number(hourStr)
+  if (Number.isNaN(hour)) return null
+  const minute = Number(minuteStr)
+  const normalizedMinute = Number.isNaN(minute) ? 0 : minute
+  const suffix = hour >= 12 ? 'p.m.' : 'a.m.'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${String(normalizedMinute).padStart(2, '0')} ${suffix}`
+}
+
+function FilterModal({ title, description, options, selectedValue, onSelect, onClose }) {
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    function handleKey(event) {
+      if (event.key === 'Escape') {
+        onClose?.()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
+            {description && <p className="mt-2 text-sm text-gray-600">{description}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+          >
+            Close
+          </button>
+        </div>
+        <div className="mt-6 space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+          {options.map(option => {
+            const isActive = option.value === selectedValue
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onSelect(option.value)
+                  onClose?.()
+                }}
+                className={`w-full text-left px-4 py-3 rounded-2xl border transition font-medium ${
+                  isActive
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function resolveBigBoardUrl(raw) {
   if (!raw) return null
   if (/^https?:\/\//i.test(raw)) {
@@ -212,10 +414,16 @@ export default function CommunityIndexPage({ region }) {
   const [groups, setGroups] = useState([])
   const [upcoming, setUpcoming] = useState([])
   const [photos, setPhotos] = useState([])
+  const [weeklyEvents, setWeeklyEvents] = useState([])
+  const [weeklyEventDayFilter, setWeeklyEventDayFilter] = useState('all')
+  const [weeklyEventsVisibleCount, setWeeklyEventsVisibleCount] = useState(5)
   const [groupTypeFilter, setGroupTypeFilter] = useState('all')
-  const [showAllGroups, setShowAllGroups] = useState(false)
+  const [groupsVisibleCount, setGroupsVisibleCount] = useState(5)
   const [traditionMonthFilter, setTraditionMonthFilter] = useState('all')
-  const [showAllTraditions, setShowAllTraditions] = useState(false)
+  const [traditionsVisibleCount, setTraditionsVisibleCount] = useState(5)
+  const [showWeeklyFilterModal, setShowWeeklyFilterModal] = useState(false)
+  const [showGroupFilterModal, setShowGroupFilterModal] = useState(false)
+  const [showTraditionFilterModal, setShowTraditionFilterModal] = useState(false)
 
   const aliasSet = useMemo(() => {
     const aliases = region?.areaAliases || []
@@ -235,7 +443,7 @@ export default function CommunityIndexPage({ region }) {
       setLoading(true)
       setError(null)
       try {
-        const [traditionsRes, groupsRes, postsRes] = await Promise.all([
+        const [traditionsRes, groupsRes, postsRes, recurringRes] = await Promise.all([
           supabase.from('events').select('*'),
           supabase.from('groups').select('*'),
           supabase
@@ -245,6 +453,7 @@ export default function CommunityIndexPage({ region }) {
             )
             .order('created_at', { ascending: false })
             .limit(60),
+          supabase.from('recurring_events').select('*').eq('is_active', true),
         ])
 
         if (!isActive) return
@@ -252,6 +461,7 @@ export default function CommunityIndexPage({ region }) {
         if (traditionsRes.error) console.error('Traditions load error', traditionsRes.error)
         if (groupsRes.error) console.error('Groups load error', groupsRes.error)
         if (postsRes.error) console.error('Community photo load error', postsRes.error)
+        if (recurringRes.error) console.error('Recurring events load error', recurringRes.error)
 
         const traditionRows = Array.isArray(traditionsRes.data) ? traditionsRes.data : []
         const enrichedTraditions = traditionRows
@@ -288,6 +498,74 @@ export default function CommunityIndexPage({ region }) {
             return nameA.localeCompare(nameB)
           })
         setGroups(filteredGroups)
+
+        const recurringRows = Array.isArray(recurringRes.data) ? recurringRes.data : []
+        const regionRecurring = recurringRows
+          .filter(row => rowMatchesRegion(row, aliasSet))
+          .map(row => {
+            const days = extractWeekdays(row)
+            return { ...row, __days: days }
+          })
+          .sort((a, b) => {
+            const dayA = a.__days && a.__days.length ? WEEKDAY_DISPLAY_ORDER.indexOf(a.__days[0]) : 99
+            const dayB = b.__days && b.__days.length ? WEEKDAY_DISPLAY_ORDER.indexOf(b.__days[0]) : 99
+            if (dayA !== dayB) return dayA - dayB
+            const nameA = (a.name || a.Name || '').toLowerCase()
+            const nameB = (b.name || b.Name || '').toLowerCase()
+            return nameA.localeCompare(nameB)
+          })
+
+        let tagMap = new Map()
+        const recurringIds = regionRecurring
+          .map(row => row.id)
+          .filter(id => typeof id === 'number' || typeof id === 'string')
+
+        if (recurringIds.length) {
+          const { data: taggingsData, error: taggingsError } = await supabase
+            .from('taggings')
+            .select('tag_id, taggable_id')
+            .eq('taggable_type', 'recurring_events')
+            .in('taggable_id', recurringIds)
+          if (!isActive) return
+          if (taggingsError) {
+            console.error('Recurring event taggings load error', taggingsError)
+          } else {
+            const tagIds = Array.from(new Set((taggingsData || []).map(t => t.tag_id))).filter(Boolean)
+            if (tagIds.length) {
+              const { data: tagsData, error: tagsError } = await supabase
+                .from('tags')
+                .select('id, name')
+                .in('id', tagIds)
+              if (!isActive) return
+              if (tagsError) {
+                console.error('Tags load error', tagsError)
+              } else {
+                const tagNameMap = new Map()
+                ;(tagsData || []).forEach(tag => {
+                  if (tag?.id) {
+                    tagNameMap.set(tag.id, tag.name)
+                  }
+                })
+                tagMap = taggingsData.reduce((acc, tagging) => {
+                  const list = acc.get(tagging.taggable_id) || []
+                  const tagName = tagNameMap.get(tagging.tag_id)
+                  if (tagName) {
+                    list.push(tagName)
+                    acc.set(tagging.taggable_id, list)
+                  }
+                  return acc
+                }, new Map())
+              }
+            }
+          }
+        }
+
+        const enrichedRecurring = regionRecurring.map(row => {
+          const rawTags = tagMap.get(row.id) || []
+          const tags = rawTags.slice().sort((a, b) => a.localeCompare(b))
+          return { ...row, __tags: tags }
+        })
+        setWeeklyEvents(enrichedRecurring)
 
         const today = new Date()
         today.setHours(0, 0, 0, 0)
@@ -373,6 +651,7 @@ export default function CommunityIndexPage({ region }) {
         setGroups([])
         setUpcoming([])
         setPhotos([])
+        setWeeklyEvents([])
       } finally {
         if (isActive) setLoading(false)
       }
@@ -401,13 +680,36 @@ export default function CommunityIndexPage({ region }) {
 
   const traditionsCount = traditions.length
   const groupsCount = groups.length
+  const weeklyEventsCount = weeklyEvents.length
+
+  const scrollToSection = sectionId => {
+    if (typeof document === 'undefined') return
+    const element = document.getElementById(sectionId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 
   useEffect(() => {
     setGroupTypeFilter('all')
-    setShowAllGroups(false)
+    setGroupsVisibleCount(5)
     setTraditionMonthFilter('all')
-    setShowAllTraditions(false)
+    setTraditionsVisibleCount(5)
+    setWeeklyEventDayFilter('all')
+    setWeeklyEventsVisibleCount(5)
   }, [region])
+
+  useEffect(() => {
+    setGroupsVisibleCount(5)
+  }, [groupTypeFilter])
+
+  useEffect(() => {
+    setTraditionsVisibleCount(5)
+  }, [traditionMonthFilter])
+
+  useEffect(() => {
+    setWeeklyEventsVisibleCount(5)
+  }, [weeklyEventDayFilter])
 
   const groupTypeOptions = useMemo(() => {
     const set = new Set()
@@ -429,8 +731,29 @@ export default function CommunityIndexPage({ region }) {
     )
   }, [groups, groupTypeFilter])
 
-  const visibleGroups = showAllGroups ? filteredGroups : filteredGroups.slice(0, 5)
-  const hasMoreGroups = filteredGroups.length > visibleGroups.length
+  const visibleGroups = filteredGroups.slice(0, groupsVisibleCount)
+  const hasMoreGroups = visibleGroups.length < filteredGroups.length
+
+  const weeklyDayOptions = useMemo(() => {
+    const set = new Set()
+    weeklyEvents.forEach(event => {
+      ;(event.__days || []).forEach(day => set.add(day))
+    })
+    return WEEKDAY_DISPLAY_ORDER.filter(day => set.has(day))
+  }, [weeklyEvents])
+
+  const filteredWeeklyEvents = useMemo(() => {
+    if (weeklyEventDayFilter === 'all') return weeklyEvents
+    return weeklyEvents.filter(event => (event.__days || []).includes(weeklyEventDayFilter))
+  }, [weeklyEvents, weeklyEventDayFilter])
+
+  const visibleWeeklyEvents = filteredWeeklyEvents.slice(0, weeklyEventsVisibleCount)
+  const hasMoreWeeklyEvents = visibleWeeklyEvents.length < filteredWeeklyEvents.length
+
+  const weeklyFilterOptions = useMemo(
+    () => [{ value: 'all', label: 'All days' }, ...weeklyDayOptions.map(day => ({ value: day, label: day }))],
+    [weeklyDayOptions]
+  )
 
   const monthOptions = useMemo(() => {
     const map = new Map()
@@ -448,6 +771,11 @@ export default function CommunityIndexPage({ region }) {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
   }, [traditions])
 
+  const monthLabelMap = useMemo(
+    () => Object.fromEntries(monthOptions),
+    [monthOptions]
+  )
+
   const filteredTraditions = useMemo(() => {
     if (traditionMonthFilter === 'all') return traditions
     return traditions.filter(tradition => {
@@ -458,10 +786,18 @@ export default function CommunityIndexPage({ region }) {
     })
   }, [traditions, traditionMonthFilter])
 
-  const visibleTraditions = showAllTraditions
-    ? filteredTraditions
-    : filteredTraditions.slice(0, 5)
-  const hasMoreTraditions = filteredTraditions.length > visibleTraditions.length
+  const visibleTraditions = filteredTraditions.slice(0, traditionsVisibleCount)
+  const hasMoreTraditions = visibleTraditions.length < filteredTraditions.length
+
+  const groupFilterOptions = useMemo(
+    () => [{ value: 'all', label: 'All types' }, ...groupTypeOptions.map(type => ({ value: type, label: type }))],
+    [groupTypeOptions]
+  )
+
+  const traditionFilterOptions = useMemo(
+    () => [{ value: 'all', label: 'All months' }, ...monthOptions.map(([value, label]) => ({ value, label }))],
+    [monthOptions]
+  )
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
@@ -487,28 +823,45 @@ export default function CommunityIndexPage({ region }) {
               for even more crews to join.
             </p>
 
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div className="rounded-2xl bg-white shadow-sm border border-indigo-100 p-6">
-                <p className="text-sm uppercase tracking-wide text-indigo-500">Traditions</p>
-                <p className="mt-2 text-3xl font-bold text-gray-900">{loading ? '—' : traditionsCount}</p>
-                <p className="mt-2 text-sm text-gray-600">Legacy events and annual staples rooted in {region.name}.</p>
-              </div>
-              <div className="rounded-2xl bg-white shadow-sm border border-indigo-100 p-6">
-                <p className="text-sm uppercase tracking-wide text-indigo-500">Groups</p>
-                <p className="mt-2 text-3xl font-bold text-gray-900">{loading ? '—' : groupsCount}</p>
-                <p className="mt-2 text-sm text-gray-600">Neighborhood collectives, teams, and volunteer crews.</p>
-              </div>
-              <div className="rounded-2xl bg-white shadow-sm border border-indigo-100 p-6">
-                <p className="text-sm uppercase tracking-wide text-indigo-500">Coming Up</p>
-                <p className="mt-2 text-3xl font-bold text-gray-900">{loading ? '—' : upcoming.length || 0}</p>
-                <p className="mt-2 text-sm text-gray-600">Next traditions on the calendar for {region.name}.</p>
-              </div>
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[{
+                label: 'Coming Up',
+                count: upcoming.length || 0,
+                description: `Next traditions on the calendar for ${region.name}.`,
+                target: 'upcoming-section',
+              }, {
+                label: 'Weekly Events',
+                count: weeklyEventsCount,
+                description: 'Recurring happenings and weekly staples to plug into.',
+                target: 'weekly-events-section',
+              }, {
+                label: 'Groups',
+                count: groupsCount,
+                description: 'Neighborhood collectives, teams, and volunteer crews.',
+                target: 'groups-section',
+              }, {
+                label: 'Traditions',
+                count: traditionsCount,
+                description: `Legacy events and annual staples rooted in ${region.name}.`,
+                target: 'traditions-section',
+              }].map(card => (
+                <button
+                  key={card.label}
+                  type="button"
+                  onClick={() => scrollToSection(card.target)}
+                  className="text-left rounded-2xl bg-white shadow-sm border border-indigo-100 p-6 hover:shadow transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                  <p className="text-sm uppercase tracking-wide text-indigo-500">{card.label}</p>
+                  <p className="mt-2 text-3xl font-bold text-gray-900">{loading ? '—' : card.count}</p>
+                  <p className="mt-2 text-sm text-gray-600">{card.description}</p>
+                </button>
+              ))}
             </div>
 
           </div>
         </section>
 
-        <section className="max-w-screen-xl mx-auto px-4 py-16">
+        <section id="upcoming-section" className="max-w-screen-xl mx-auto px-4 py-16">
           <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
             <h2 className="text-3xl font-[Barrio] text-gray-900">Traditions Coming Up in {region.name}</h2>
             <Link to="/this-weekend-in-philadelphia/" className="text-indigo-600 underline text-sm font-medium">
@@ -565,7 +918,160 @@ export default function CommunityIndexPage({ region }) {
           )}
         </section>
 
-        <section className="bg-white border-t border-b border-gray-100">
+        <section
+          id="weekly-events-section"
+          className="bg-white border-t border-b border-gray-100"
+        >
+          <div className="max-w-screen-xl mx-auto px-4 py-16">
+            <h2 className="text-3xl font-[Barrio] text-gray-900">Weekly Events in {region.name}</h2>
+            {loading ? (
+              <p className="mt-6 text-gray-600">Loading weekly events…</p>
+            ) : weeklyEvents.length === 0 ? (
+              <p className="mt-6 text-gray-600">
+                We have not logged any weekly events for this region yet. Add one to help neighbors discover it.
+              </p>
+            ) : (
+              <>
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-gray-600">
+                    Showing{' '}
+                    {weeklyEventDayFilter === 'all'
+                      ? 'all days'
+                      : `${weeklyEventDayFilter} only`}
+                    .
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowWeeklyFilterModal(true)}
+                      className="px-4 py-2 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium text-sm transition"
+                    >
+                      Filter weekly events
+                    </button>
+                    {weeklyEventDayFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setWeeklyEventDayFilter('all')}
+                        className="px-4 py-2 rounded-full border border-transparent bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium text-sm transition"
+                      >
+                        Clear filter
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {filteredWeeklyEvents.length === 0 ? (
+                  <p className="mt-6 text-gray-600">
+                    No weekly events match this day yet. Try another filter.
+                  </p>
+                ) : (
+                  <div className="mt-8 max-w-4xl mx-auto">
+                    <ul className="space-y-5">
+                      {visibleWeeklyEvents.map(event => {
+                        const slug = event.slug || event.Slug
+                        const href = slug ? `/series/${slug}` : '/series'
+                        const image =
+                          event.image_url ||
+                          event.image ||
+                          event.cover_image ||
+                          event.photo_url
+                        const title = event.name || event.Name || 'Weekly Event'
+                        const description =
+                          event.description || event.Description || ''
+                        const daysLabel = formatWeekdayList(event.__days || [])
+                        const timeLabel = formatTimeOfDay(
+                          event.start_time ||
+                            event.startTime ||
+                            event.Start_time ||
+                            event.StartTime ||
+                            event.start ||
+                            event.time
+                        )
+                        const tags = Array.isArray(event.__tags) ? event.__tags : []
+                        return (
+                          <li
+                            key={event.id || slug || title}
+                            className="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow transition"
+                          >
+                            <Link
+                              to={href}
+                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5"
+                            >
+                              <div className="flex items-start gap-4 flex-1">
+                                <div className="w-20 h-20 rounded-xl overflow-hidden bg-indigo-50 flex-shrink-0">
+                                  {image ? (
+                                    <img
+                                      src={image}
+                                      alt={title}
+                                      className="w-full h-full object-cover"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-xs text-indigo-400">
+                                      No photo yet
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-xs uppercase tracking-wide text-indigo-500">
+                                    {daysLabel}
+                                  </p>
+                                  <h3 className="text-lg font-semibold text-gray-900">
+                                    {title}
+                                  </h3>
+                                  {description && (
+                                    <p className="mt-2 text-sm text-gray-600">
+                                      {buildSummary(description)}
+                                    </p>
+                                  )}
+                                  {timeLabel && (
+                                    <p className="mt-2 text-sm text-gray-500">
+                                      Starts at {timeLabel}
+                                    </p>
+                                  )}
+                                  {tags.length > 0 && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      {tags.map(tag => (
+                                        <span
+                                          key={`${event.id || slug}-${tag}`}
+                                          className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-full"
+                                        >
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-sm font-medium text-indigo-600 whitespace-nowrap">
+                                View details →
+                              </span>
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    {hasMoreWeeklyEvents && (
+                      <div className="mt-6 text-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setWeeklyEventsVisibleCount(prev => prev + 5)
+                          }
+                          className="px-4 py-2 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium text-sm transition"
+                        >
+                          Show more weekly events
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+
+        <section id="groups-section" className="bg-white border-t border-b border-gray-100">
           <div className="max-w-screen-xl mx-auto px-4 py-16">
             <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
               <h2 className="text-3xl font-[Barrio] text-gray-900">All Groups</h2>
@@ -580,39 +1086,30 @@ export default function CommunityIndexPage({ region }) {
             ) : (
               <>
                 {groupTypeOptions.length > 0 && (
-                  <div className="mb-8 -mx-4 sm:mx-0">
-                    <div className="flex gap-3 overflow-x-auto flex-nowrap pb-2 px-4 sm:px-0">
+                  <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-gray-600">
+                      Showing{' '}
+                      {groupTypeFilter === 'all'
+                        ? 'all group types'
+                        : `${groupTypeFilter} groups`}.
+                    </p>
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => {
-                          setGroupTypeFilter('all')
-                          setShowAllGroups(false)
-                        }}
-                        className={`px-4 py-2 rounded-full border text-sm font-medium transition flex-shrink-0 whitespace-nowrap ${
-                          groupTypeFilter === 'all'
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
-                        }`}
+                        onClick={() => setShowGroupFilterModal(true)}
+                        className="px-4 py-2 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium text-sm transition"
                       >
-                        All types
+                        Filter groups
                       </button>
-                      {groupTypeOptions.map(type => (
+                      {groupTypeFilter !== 'all' && (
                         <button
-                          key={type}
                           type="button"
-                          onClick={() => {
-                            setGroupTypeFilter(type)
-                            setShowAllGroups(false)
-                          }}
-                          className={`px-4 py-2 rounded-full border text-sm font-medium transition flex-shrink-0 whitespace-nowrap ${
-                            groupTypeFilter === type
-                              ? 'bg-indigo-600 text-white border-indigo-600'
-                              : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
-                          }`}
+                          onClick={() => setGroupTypeFilter('all')}
+                          className="px-4 py-2 rounded-full border border-transparent bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium text-sm transition"
                         >
-                          {type}
+                          Clear filter
                         </button>
-                      ))}
+                      )}
                     </div>
                   </div>
                 )}
@@ -680,10 +1177,10 @@ export default function CommunityIndexPage({ region }) {
                       <div className="mt-6 text-center">
                         <button
                           type="button"
-                          onClick={() => setShowAllGroups(prev => !prev)}
+                          onClick={() => setGroupsVisibleCount(prev => prev + 5)}
                           className="px-4 py-2 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium text-sm transition"
                         >
-                          {showAllGroups ? 'Show fewer groups' : 'Show more groups'}
+                          Show more groups
                         </button>
                       </div>
                     )}
@@ -694,7 +1191,7 @@ export default function CommunityIndexPage({ region }) {
           </div>
         </section>
 
-        <section className="max-w-screen-xl mx-auto px-4 py-16">
+        <section id="traditions-section" className="max-w-screen-xl mx-auto px-4 py-16">
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-3xl font-[Barrio] text-gray-900">All Traditions</h2>
             {loading ? (
@@ -703,39 +1200,34 @@ export default function CommunityIndexPage({ region }) {
               <p className="mt-6 text-gray-600">We have not logged any traditions here yet. Add one to help neighbors discover it.</p>
             ) : (
               <>
-                <div className="mt-6 flex flex-wrap justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTraditionMonthFilter('all')
-                      setShowAllTraditions(false)
-                    }}
-                    className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
-                      traditionMonthFilter === 'all'
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
-                    }`}
-                  >
-                    All months
-                  </button>
-                  {monthOptions.map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => {
-                        setTraditionMonthFilter(value)
-                        setShowAllTraditions(false)
-                      }}
-                      className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
-                        traditionMonthFilter === value
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'border-indigo-100 text-indigo-600 hover:bg-indigo-50'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                {monthOptions.length > 0 && (
+                  <div className="mt-6 flex flex-col items-center gap-3">
+                    <p className="text-sm text-gray-600">
+                      Showing{' '}
+                      {traditionMonthFilter === 'all'
+                        ? 'all months'
+                        : `${monthLabelMap[traditionMonthFilter] || 'selected month'} traditions`}.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowTraditionFilterModal(true)}
+                        className="px-4 py-2 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium text-sm transition"
+                      >
+                        Filter traditions
+                      </button>
+                      {traditionMonthFilter !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setTraditionMonthFilter('all')}
+                          className="px-4 py-2 rounded-full border border-transparent bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium text-sm transition"
+                        >
+                          Clear filter
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {filteredTraditions.length === 0 ? (
                   <p className="mt-6 text-gray-600">No traditions match this month yet. Try another filter or explore upcoming picks above.</p>
@@ -789,10 +1281,10 @@ export default function CommunityIndexPage({ region }) {
                   <div className="mt-6">
                     <button
                       type="button"
-                      onClick={() => setShowAllTraditions(prev => !prev)}
+                      onClick={() => setTraditionsVisibleCount(prev => prev + 5)}
                       className="px-4 py-2 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium text-sm transition"
                     >
-                      {showAllTraditions ? 'Show fewer traditions' : 'Show more traditions'}
+                      Show more traditions
                     </button>
                   </div>
                 )}
@@ -873,6 +1365,36 @@ export default function CommunityIndexPage({ region }) {
         )}
       </main>
       <Footer />
+      {showWeeklyFilterModal && weeklyFilterOptions.length > 0 && (
+        <FilterModal
+          title="Filter weekly events"
+          description="Choose a day of the week to narrow the list."
+          options={weeklyFilterOptions}
+          selectedValue={weeklyEventDayFilter}
+          onSelect={value => setWeeklyEventDayFilter(value)}
+          onClose={() => setShowWeeklyFilterModal(false)}
+        />
+      )}
+      {showGroupFilterModal && groupFilterOptions.length > 0 && (
+        <FilterModal
+          title="Filter groups"
+          description="Pick a group type to focus on crews you care about."
+          options={groupFilterOptions}
+          selectedValue={groupTypeFilter}
+          onSelect={value => setGroupTypeFilter(value)}
+          onClose={() => setShowGroupFilterModal(false)}
+        />
+      )}
+      {showTraditionFilterModal && traditionFilterOptions.length > 0 && (
+        <FilterModal
+          title="Filter traditions"
+          description="Choose a month to explore traditions happening then."
+          options={traditionFilterOptions}
+          selectedValue={traditionMonthFilter}
+          onSelect={value => setTraditionMonthFilter(value)}
+          onClose={() => setShowTraditionFilterModal(false)}
+        />
+      )}
     </div>
   )
 }
