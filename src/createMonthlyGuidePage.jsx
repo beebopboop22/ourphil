@@ -33,6 +33,9 @@ import {
 } from './utils/seoHelpers.js';
 import { MONTHLY_GUIDE_CONFIGS, MONTHLY_GUIDE_ORDER } from './monthlyGuideConfigs.js';
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MAX_ALL_EVENT_LENGTH_DAYS = 3;
+
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
   return children(state);
@@ -127,6 +130,9 @@ export default function createMonthlyGuidePage(config) {
     faq,
     errorLogMessage,
     pathSegment,
+    filterByTags = true,
+    allowedSources = null,
+    showTicketsButton = false,
   } = config;
 
   const canonicalBase = `${SITE_BASE_URL}/${pathSegment}-`;
@@ -224,6 +230,13 @@ export default function createMonthlyGuidePage(config) {
 
       (async () => {
         try {
+          const tagsPromise = filterByTags && tagSlugs?.length
+            ? supabase
+                .from('tags')
+                .select('id, slug')
+                .in('slug', tagSlugs)
+            : Promise.resolve({ data: [] });
+
           const [allRes, bigRes, tradRes, groupRes, recurringRes, seasonalRes, tagRes] = await Promise.all([
             supabase
               .from('all_events')
@@ -231,6 +244,7 @@ export default function createMonthlyGuidePage(config) {
               id,
               name,
               description,
+              link,
               image,
               start_date,
               end_date,
@@ -329,27 +343,21 @@ export default function createMonthlyGuidePage(config) {
             `)
               .lte('start_date', endIso)
               .or(`end_date.gte.${startIso},end_date.is.null`),
-            supabase
-              .from('tags')
-              .select('id, slug')
-              .in('slug', tagSlugs),
+            tagsPromise,
           ]);
 
           if (cancelled) return;
-
-          const tagRows = tagRes.data || [];
-          const allowedTagIds = tagRows.map(row => row.id);
-          if (!allowedTagIds.length) {
-            setEvents([]);
-            setLoading(false);
-            return;
-          }
 
           const allRecords = (allRes.data || [])
             .map(evt => {
               const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
               const endDateBase = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE) || startDate;
               if (!startDate || !endDateBase) return null;
+              const spanMs = endDateBase.getTime() - startDate.getTime();
+              const durationDays = Math.floor(spanMs / MS_PER_DAY) + 1;
+              if (Number.isFinite(durationDays) && durationDays > MAX_ALL_EVENT_LENGTH_DAYS) {
+                return null;
+              }
               const endDate = setEndOfDay(new Date(endDateBase));
               if (!overlaps(startDate, endDate, monthStart, monthEnd)) return null;
               const detailPath = getDetailPathForItem({
@@ -368,11 +376,12 @@ export default function createMonthlyGuidePage(config) {
                 end_date: evt.end_date,
                 start_time: evt.start_time,
                 end_time: evt.end_time,
-                slug: evt.slug,
-                venueName: evt.venues?.name || '',
-                detailPath: detailPath || null,
-                source_table: 'all_events',
-                taggableId: String(evt.id),
+              slug: evt.slug,
+              venueName: evt.venues?.name || '',
+              detailPath: detailPath || null,
+              source_table: 'all_events',
+              externalUrl: evt.link || null,
+              taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: false,
                 isBigBoard: false,
@@ -411,10 +420,11 @@ export default function createMonthlyGuidePage(config) {
                 end_date: evt.end_date,
                 start_time: evt.start_time,
                 end_time: evt.end_time,
-                slug: evt.slug,
-                detailPath: detailPath || null,
-                source_table: 'big_board_events',
-                taggableId: String(evt.id),
+              slug: evt.slug,
+              detailPath: detailPath || null,
+              source_table: 'big_board_events',
+              externalUrl: null,
+              taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: false,
                 isBigBoard: true,
@@ -445,10 +455,11 @@ export default function createMonthlyGuidePage(config) {
                 endDate,
                 start_date: evt.Dates,
                 end_date: evt['End Date'],
-                slug: evt.slug,
-                detailPath: detailPath || null,
-                source_table: 'events',
-                taggableId: String(evt.id),
+              slug: evt.slug,
+              detailPath: detailPath || null,
+              source_table: 'events',
+              externalUrl: null,
+              taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: true,
                 isBigBoard: false,
@@ -491,10 +502,11 @@ export default function createMonthlyGuidePage(config) {
                 start_time: evt.start_time,
                 end_time: evt.end_time,
                 slug: evt.slug,
-                groupName: evt.groups?.Name || '',
-                detailPath: detailPath || null,
-                source_table: 'group_events',
-                taggableId: String(evt.id),
+              groupName: evt.groups?.Name || '',
+              detailPath: detailPath || null,
+              source_table: 'group_events',
+              externalUrl: null,
+              taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: false,
                 isBigBoard: false,
@@ -526,10 +538,11 @@ export default function createMonthlyGuidePage(config) {
                 start_date: evt.start_date,
                 end_date: evt.end_date,
                 slug: evt.slug,
-                venueName: evt.location || '',
-                detailPath: detailPath || null,
-                source_table: 'seasonal_events',
-                taggableId: String(evt.id),
+              venueName: evt.location || '',
+              detailPath: detailPath || null,
+              source_table: 'seasonal_events',
+              externalUrl: null,
+              taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: false,
                 isBigBoard: false,
@@ -594,6 +607,7 @@ export default function createMonthlyGuidePage(config) {
                 venueName: series.address || '',
                 detailPath: detailPath || null,
                 source_table: 'recurring_events',
+                externalUrl: series.link || null,
                 taggableId: String(series.id),
                 favoriteId: String(series.id),
                 isTradition: false,
@@ -614,13 +628,79 @@ export default function createMonthlyGuidePage(config) {
             ...recurringOccurrences,
           ];
 
+          const finalizeEvents = eventList => {
+            const sorted = eventList
+              .slice()
+              .sort((a, b) => {
+                const diff = (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0);
+                if (diff !== 0) return diff;
+                const timeDiff = (a.start_time || '').localeCompare(b.start_time || '');
+                if (timeDiff !== 0) return timeDiff;
+                return (a.title || '').localeCompare(b.title || '');
+              });
+
+            const dedupedMap = new Map();
+            sorted.forEach(evt => {
+              const key = evt.detailPath || `${evt.source_table}:${evt.id}`;
+              if (!dedupedMap.has(key)) {
+                dedupedMap.set(key, evt);
+              }
+            });
+
+            const dedupedList = Array.from(dedupedMap.values());
+            setEvents(dedupedList);
+            const firstWithImage = dedupedList.find(evt => evt.imageUrl);
+            if (firstWithImage?.imageUrl) {
+              setOgImage(firstWithImage.imageUrl);
+            } else {
+              setOgImage(DEFAULT_OG_IMAGE);
+            }
+            return dedupedList;
+          };
+
           if (!combined.length) {
             setEvents([]);
+            setOgImage(DEFAULT_OG_IMAGE);
             setLoading(false);
             return;
           }
 
-          const idsByType = combined.reduce((acc, evt) => {
+          const allowedSourceSet = allowedSources?.length ? new Set(allowedSources) : null;
+          const filteredCombined = allowedSourceSet
+            ? combined.filter(evt => allowedSourceSet.has(evt.source_table))
+            : combined;
+
+          if (!filteredCombined.length) {
+            setEvents([]);
+            setOgImage(DEFAULT_OG_IMAGE);
+            setLoading(false);
+            return;
+          }
+
+          if (!filterByTags) {
+            finalizeEvents(filteredCombined);
+            setLoading(false);
+            return;
+          }
+
+          if (tagRes.error) {
+            console.error('Failed to load tags', tagRes.error);
+            setEvents([]);
+            setOgImage(DEFAULT_OG_IMAGE);
+            setLoading(false);
+            return;
+          }
+
+          const tagRows = tagRes.data || [];
+          const allowedTagIds = tagRows.map(row => row.id);
+          if (!allowedTagIds.length) {
+            setEvents([]);
+            setOgImage(DEFAULT_OG_IMAGE);
+            setLoading(false);
+            return;
+          }
+
+          const idsByType = filteredCombined.reduce((acc, evt) => {
             const type = evt.source_table;
             if (!type || !evt.taggableId) return acc;
             if (!acc[type]) acc[type] = new Set();
@@ -651,38 +731,13 @@ export default function createMonthlyGuidePage(config) {
             allowedByType[type] = new Set((res.data || []).map(row => String(row.taggable_id)));
           });
 
-          const filtered = combined.filter(evt => {
+          const tagFiltered = filteredCombined.filter(evt => {
             const type = evt.source_table;
             const key = String(evt.taggableId);
             return allowedByType[type]?.has(key);
           });
 
-          const sorted = filtered
-            .slice()
-            .sort((a, b) => {
-              const diff = (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0);
-              if (diff !== 0) return diff;
-              const timeDiff = (a.start_time || '').localeCompare(b.start_time || '');
-              if (timeDiff !== 0) return timeDiff;
-              return (a.title || '').localeCompare(b.title || '');
-            });
-
-          const dedupedMap = new Map();
-          sorted.forEach(evt => {
-            const key = evt.detailPath || `${evt.source_table}:${evt.id}`;
-            if (!dedupedMap.has(key)) {
-              dedupedMap.set(key, evt);
-            }
-          });
-
-          const dedupedList = Array.from(dedupedMap.values());
-          setEvents(dedupedList);
-          const firstWithImage = dedupedList.find(evt => evt.imageUrl);
-          if (firstWithImage?.imageUrl) {
-            setOgImage(firstWithImage.imageUrl);
-          } else {
-            setOgImage(DEFAULT_OG_IMAGE);
-          }
+          finalizeEvents(tagFiltered);
           setLoading(false);
         } catch (error) {
           if (cancelled) return;
@@ -695,7 +750,17 @@ export default function createMonthlyGuidePage(config) {
       return () => {
         cancelled = true;
       };
-    }, [errorLogMessage, hasValidParams, monthEnd, monthEndMs, monthStart, monthStartMs, tagSlugs]);
+    }, [
+      allowedSources,
+      errorLogMessage,
+      filterByTags,
+      hasValidParams,
+      monthEnd,
+      monthEndMs,
+      monthStart,
+      monthStartMs,
+      tagSlugs,
+    ]);
 
     const monthLabel = monthStart ? formatMonthYear(monthStart, PHILLY_TIME_ZONE) : '';
     const monthName = monthStart ? formatMonthName(monthStart, PHILLY_TIME_ZONE) : '';
@@ -876,8 +941,8 @@ export default function createMonthlyGuidePage(config) {
                   {hero.heading(monthLabel)}
                 </h1>
                 <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
-                  {totalEvents ? hero.withCount(totalEvents, monthLabel) : hero.withoutCount(monthLabel)}{' '}
-                  {hero.tagLine}
+                  {totalEvents ? hero.withCount(totalEvents, monthLabel) : hero.withoutCount(monthLabel)}
+                  {hero.tagLine ? ` ${hero.tagLine}` : ''}
                 </p>
                 <p className="mt-2 text-sm text-gray-500 text-center">Updated {updatedStamp}</p>
                 <div className="mt-4 flex justify-center gap-4">
@@ -1023,7 +1088,7 @@ export default function createMonthlyGuidePage(config) {
                                 </p>
                               )}
                               <p className="mt-2 text-sm text-gray-600 line-clamp-3">{summary}</p>
-                              <div className="mt-4">
+                              <div className="mt-4 flex flex-wrap gap-2">
                                 <FavoriteState event_id={evt.favoriteId} source_table={evt.source_table}>
                                   {({ isFavorite, toggleFavorite, loading: favLoading }) => (
                                     <button
@@ -1046,6 +1111,16 @@ export default function createMonthlyGuidePage(config) {
                                     </button>
                                   )}
                                 </FavoriteState>
+                                {showTicketsButton && evt.externalUrl && (
+                                  <a
+                                    href={evt.externalUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center px-4 py-2 border border-[#28313e] rounded-full font-semibold text-[#28313e] hover:bg-[#28313e] hover:text-white transition-colors"
+                                  >
+                                    Tickets
+                                  </a>
+                                )}
                               </div>
                             </div>
                           </article>
