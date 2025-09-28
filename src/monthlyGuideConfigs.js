@@ -1,4 +1,4 @@
-export const MONTHLY_GUIDE_ORDER = ['family', 'artsCulture', 'foodDrink', 'fitnessWellness', 'music'];
+export const MONTHLY_GUIDE_ORDER = ['family', 'artsCulture', 'foodDrink', 'fitnessWellness', 'music', 'showRollCall'];
 
 export const MONTHLY_GUIDE_CONFIGS = {
   family: {
@@ -285,6 +285,65 @@ export const MONTHLY_GUIDE_CONFIGS = {
         `We refresh this guide as new events are published and last updated it on ${updatedStamp}. Bookmark it to catch new concerts each week.`,
     },
     errorLogMessage: 'Error loading music events',
+  },
+  showRollCall: {
+    key: 'showRollCall',
+    navLabel: 'Show Roll Call',
+    pathSegment: 'philadelphia-show-roll-call',
+    tagSlugs: [],
+    viewRegex: /^philadelphia-show-roll-call-([a-z-]+)-(\d{4})$/i,
+    fallbackDescription:
+      'Track every concert hitting Philadelphia this month with our always-updated show roll call.',
+    seoTitle: monthLabel => `Philadelphia Show Roll Call – ${monthLabel}`,
+    seoTitleFallback: 'Philadelphia Show Roll Call – Our Philly',
+    seoDescription: monthLabel =>
+      `Browse every concert happening in Philadelphia this ${monthLabel}: venue listings, ticket links, and what\'s on this weekend & today.`,
+    jsonLdName: monthLabel => `Philadelphia Show Roll Call – ${monthLabel}`,
+    hero: {
+      heading: monthLabel => `Philadelphia Show Roll Call – ${monthLabel}`,
+      withCount: (count, monthLabel) =>
+        `Browse ${count} concerts and live shows happening across Philadelphia in ${monthLabel}.`,
+      withoutCount: monthLabel =>
+        `Browse concerts and live shows happening across Philadelphia in ${monthLabel}.`,
+    },
+    weekend: {
+      summary: 'Concerts and shows happening Friday through Sunday in Philadelphia.',
+      intro: 'Shows this weekend include: ',
+      empty: "We don't have any shows listed for this weekend yet—check back soon.",
+    },
+    today: {
+      heading: 'Shows happening today',
+      summary: 'Quick look at tonight’s concerts across Philly.',
+      intro: 'Shows today include: ',
+      empty: "No shows are listed for today—browse the full roll call below for more concerts.",
+    },
+    monthEmpty: monthLabel =>
+      `No shows are listed for ${monthLabel} yet. Check back soon or submit one!`,
+    loadingText: 'Loading shows…',
+    concludingText:
+      'Our Philly tracks concerts and live shows across Philadelphia so you never miss a lineup.',
+    faq: {
+      monthlyQuestion: monthLabel => `What concerts are happening in Philadelphia in ${monthLabel}?`,
+      monthlyAnswerWithEvents: (count, monthLabel) =>
+        `Our Philly’s show roll call tracks ${count} concerts and live performances happening across Philadelphia in ${monthLabel}, pulling listings from venue calendars and ticketing pages.`,
+      monthlyAnswerWithoutEvents: monthLabel =>
+        `Our Philly’s show roll call tracks concerts and live performances happening across Philadelphia in ${monthLabel}, pulling listings from venue calendars and ticketing pages.`,
+      weekendQuestion: 'Which concerts are happening in Philadelphia this weekend?',
+      weekendAnswerWithEvents: names => `Concerts this weekend include ${names}.`,
+      weekendAnswerWithoutEvents:
+        'We’re gathering this weekend’s shows—check back soon or browse the monthly roll call below.',
+      todayQuestion: 'What concerts are happening in Philadelphia today?',
+      todayAnswerWithEvents: names => `Concerts today include ${names}.`,
+      todayAnswerWithoutEvents:
+        'No shows are listed for today yet—check back later or explore the monthly roll call for more concerts.',
+      updatedQuestion: 'How often is the Philadelphia show roll call updated?',
+      updatedAnswer: updatedStamp =>
+        `We refresh this show roll call as new concerts are added and last updated it on ${updatedStamp}. Check back each week for the latest listings.`,
+    },
+    errorLogMessage: 'Error loading show roll call events',
+    filterByTags: false,
+    allowedSources: ['all_events'],
+    showTicketsButton: true,
   },
 };
 

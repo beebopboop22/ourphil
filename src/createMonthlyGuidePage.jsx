@@ -33,6 +33,11 @@ import {
 } from './utils/seoHelpers.js';
 import { MONTHLY_GUIDE_CONFIGS, MONTHLY_GUIDE_ORDER } from './monthlyGuideConfigs.js';
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MAX_ALL_EVENT_LENGTH_DAYS = 3;
+const DEFAULT_VISIBLE_BATCH = 50;
+const ALL_EVENTS_PAGE_SIZE = 200;
+
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
   return children(state);
@@ -127,6 +132,9 @@ export default function createMonthlyGuidePage(config) {
     faq,
     errorLogMessage,
     pathSegment,
+    filterByTags = true,
+    allowedSources = null,
+    showTicketsButton = false,
   } = config;
 
   const canonicalBase = `${SITE_BASE_URL}/${pathSegment}-`;
@@ -170,6 +178,7 @@ export default function createMonthlyGuidePage(config) {
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(false);
     const [ogImage, setOgImage] = useState(DEFAULT_OG_IMAGE);
+    const [visibleCount, setVisibleCount] = useState(DEFAULT_VISIBLE_BATCH);
 
     const todayWindow = useMemo(() => {
       const zonedNow = getZonedDate(new Date(), PHILLY_TIME_ZONE);
@@ -212,25 +221,33 @@ export default function createMonthlyGuidePage(config) {
         setEvents([]);
         setLoading(false);
         setOgImage(DEFAULT_OG_IMAGE);
+        setVisibleCount(DEFAULT_VISIBLE_BATCH);
         return;
       }
 
       let cancelled = false;
       setLoading(true);
       setOgImage(DEFAULT_OG_IMAGE);
+      setVisibleCount(DEFAULT_VISIBLE_BATCH);
 
       const startIso = monthStart.toISOString().slice(0, 10);
       const endIso = monthEnd.toISOString().slice(0, 10);
 
       (async () => {
         try {
-          const [allRes, bigRes, tradRes, groupRes, recurringRes, seasonalRes, tagRes] = await Promise.all([
-            supabase
-              .from('all_events')
-              .select(`
+          const tagsPromise = filterByTags && tagSlugs?.length
+            ? supabase
+                .from('tags')
+                .select('id, slug')
+                .in('slug', tagSlugs)
+            : Promise.resolve({ data: [] });
+
+          const fetchAllEventsForMonth = async () => {
+            const selection = `
               id,
               name,
               description,
+              link,
               image,
               start_date,
               end_date,
@@ -241,9 +258,32 @@ export default function createMonthlyGuidePage(config) {
                 name,
                 slug
               )
-            `)
-              .lte('start_date', endIso)
-              .or(`end_date.gte.${startIso},end_date.is.null`),
+            `;
+            const aggregated = [];
+            let page = 0;
+            while (true) {
+              const from = page * ALL_EVENTS_PAGE_SIZE;
+              const to = from + ALL_EVENTS_PAGE_SIZE - 1;
+              const { data, error } = await supabase
+                .from('all_events')
+                .select(selection)
+                .lte('start_date', endIso)
+                .or(`end_date.gte.${startIso},end_date.is.null`)
+                .order('start_date', { ascending: true })
+                .range(from, to);
+              if (error) throw error;
+              if (!data?.length) break;
+              aggregated.push(...data);
+              if (data.length < ALL_EVENTS_PAGE_SIZE) {
+                break;
+              }
+              page += 1;
+            }
+            return aggregated;
+          };
+
+          const [allRows, bigRes, tradRes, groupRes, recurringRes, seasonalRes, tagRes] = await Promise.all([
+            fetchAllEventsForMonth(),
             supabase
               .from('big_board_events')
               .select(`
@@ -329,27 +369,21 @@ export default function createMonthlyGuidePage(config) {
             `)
               .lte('start_date', endIso)
               .or(`end_date.gte.${startIso},end_date.is.null`),
-            supabase
-              .from('tags')
-              .select('id, slug')
-              .in('slug', tagSlugs),
+            tagsPromise,
           ]);
 
           if (cancelled) return;
 
-          const tagRows = tagRes.data || [];
-          const allowedTagIds = tagRows.map(row => row.id);
-          if (!allowedTagIds.length) {
-            setEvents([]);
-            setLoading(false);
-            return;
-          }
-
-          const allRecords = (allRes.data || [])
+          const allRecords = (allRows || [])
             .map(evt => {
               const startDate = parseISODate(evt.start_date, PHILLY_TIME_ZONE);
               const endDateBase = parseISODate(evt.end_date || evt.start_date, PHILLY_TIME_ZONE) || startDate;
               if (!startDate || !endDateBase) return null;
+              const spanMs = endDateBase.getTime() - startDate.getTime();
+              const durationDays = Math.floor(spanMs / MS_PER_DAY) + 1;
+              if (Number.isFinite(durationDays) && durationDays > MAX_ALL_EVENT_LENGTH_DAYS) {
+                return null;
+              }
               const endDate = setEndOfDay(new Date(endDateBase));
               if (!overlaps(startDate, endDate, monthStart, monthEnd)) return null;
               const detailPath = getDetailPathForItem({
@@ -372,6 +406,7 @@ export default function createMonthlyGuidePage(config) {
                 venueName: evt.venues?.name || '',
                 detailPath: detailPath || null,
                 source_table: 'all_events',
+                externalUrl: evt.link || null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: false,
@@ -414,6 +449,7 @@ export default function createMonthlyGuidePage(config) {
                 slug: evt.slug,
                 detailPath: detailPath || null,
                 source_table: 'big_board_events',
+                externalUrl: null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: false,
@@ -448,6 +484,7 @@ export default function createMonthlyGuidePage(config) {
                 slug: evt.slug,
                 detailPath: detailPath || null,
                 source_table: 'events',
+                externalUrl: null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: true,
@@ -494,6 +531,7 @@ export default function createMonthlyGuidePage(config) {
                 groupName: evt.groups?.Name || '',
                 detailPath: detailPath || null,
                 source_table: 'group_events',
+                externalUrl: null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: false,
@@ -529,6 +567,7 @@ export default function createMonthlyGuidePage(config) {
                 venueName: evt.location || '',
                 detailPath: detailPath || null,
                 source_table: 'seasonal_events',
+                externalUrl: null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
                 isTradition: false,
@@ -594,6 +633,7 @@ export default function createMonthlyGuidePage(config) {
                 venueName: series.address || '',
                 detailPath: detailPath || null,
                 source_table: 'recurring_events',
+                externalUrl: series.link || null,
                 taggableId: String(series.id),
                 favoriteId: String(series.id),
                 isTradition: false,
@@ -614,13 +654,83 @@ export default function createMonthlyGuidePage(config) {
             ...recurringOccurrences,
           ];
 
+          const finalizeEvents = eventList => {
+            const sorted = eventList
+              .slice()
+              .sort((a, b) => {
+                const diff = (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0);
+                if (diff !== 0) return diff;
+                const timeDiff = (a.start_time || '').localeCompare(b.start_time || '');
+                if (timeDiff !== 0) return timeDiff;
+                return (a.title || '').localeCompare(b.title || '');
+              });
+
+            const dedupedMap = new Map();
+            sorted.forEach(evt => {
+              const key = evt.detailPath || `${evt.source_table}:${evt.id}`;
+              if (!dedupedMap.has(key)) {
+                dedupedMap.set(key, evt);
+              }
+            });
+
+            const dedupedList = Array.from(dedupedMap.values());
+            setEvents(dedupedList);
+            const firstWithImage = dedupedList.find(evt => evt.imageUrl);
+            if (firstWithImage?.imageUrl) {
+              setOgImage(firstWithImage.imageUrl);
+            } else {
+              setOgImage(DEFAULT_OG_IMAGE);
+            }
+            return dedupedList;
+          };
+
           if (!combined.length) {
             setEvents([]);
+            setOgImage(DEFAULT_OG_IMAGE);
+            setLoading(false);
+            setVisibleCount(DEFAULT_VISIBLE_BATCH);
+            return;
+          }
+
+          const allowedSourceSet = allowedSources?.length ? new Set(allowedSources) : null;
+          const filteredCombined = allowedSourceSet
+            ? combined.filter(evt => allowedSourceSet.has(evt.source_table))
+            : combined;
+
+          if (!filteredCombined.length) {
+            setEvents([]);
+            setOgImage(DEFAULT_OG_IMAGE);
+            setLoading(false);
+            setVisibleCount(DEFAULT_VISIBLE_BATCH);
+            return;
+          }
+
+          if (!filterByTags) {
+            finalizeEvents(filteredCombined);
             setLoading(false);
             return;
           }
 
-          const idsByType = combined.reduce((acc, evt) => {
+          if (tagRes.error) {
+            console.error('Failed to load tags', tagRes.error);
+            setEvents([]);
+            setOgImage(DEFAULT_OG_IMAGE);
+            setLoading(false);
+            setVisibleCount(DEFAULT_VISIBLE_BATCH);
+            return;
+          }
+
+          const tagRows = tagRes.data || [];
+          const allowedTagIds = tagRows.map(row => row.id);
+          if (!allowedTagIds.length) {
+            setEvents([]);
+            setOgImage(DEFAULT_OG_IMAGE);
+            setLoading(false);
+            setVisibleCount(DEFAULT_VISIBLE_BATCH);
+            return;
+          }
+
+          const idsByType = filteredCombined.reduce((acc, evt) => {
             const type = evt.source_table;
             if (!type || !evt.taggableId) return acc;
             if (!acc[type]) acc[type] = new Set();
@@ -651,51 +761,37 @@ export default function createMonthlyGuidePage(config) {
             allowedByType[type] = new Set((res.data || []).map(row => String(row.taggable_id)));
           });
 
-          const filtered = combined.filter(evt => {
+          const tagFiltered = filteredCombined.filter(evt => {
             const type = evt.source_table;
             const key = String(evt.taggableId);
             return allowedByType[type]?.has(key);
           });
 
-          const sorted = filtered
-            .slice()
-            .sort((a, b) => {
-              const diff = (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0);
-              if (diff !== 0) return diff;
-              const timeDiff = (a.start_time || '').localeCompare(b.start_time || '');
-              if (timeDiff !== 0) return timeDiff;
-              return (a.title || '').localeCompare(b.title || '');
-            });
-
-          const dedupedMap = new Map();
-          sorted.forEach(evt => {
-            const key = evt.detailPath || `${evt.source_table}:${evt.id}`;
-            if (!dedupedMap.has(key)) {
-              dedupedMap.set(key, evt);
-            }
-          });
-
-          const dedupedList = Array.from(dedupedMap.values());
-          setEvents(dedupedList);
-          const firstWithImage = dedupedList.find(evt => evt.imageUrl);
-          if (firstWithImage?.imageUrl) {
-            setOgImage(firstWithImage.imageUrl);
-          } else {
-            setOgImage(DEFAULT_OG_IMAGE);
-          }
+          finalizeEvents(tagFiltered);
           setLoading(false);
         } catch (error) {
           if (cancelled) return;
           console.error(errorLogMessage, error);
           setEvents([]);
           setLoading(false);
+          setVisibleCount(DEFAULT_VISIBLE_BATCH);
         }
       })();
 
       return () => {
         cancelled = true;
       };
-    }, [errorLogMessage, hasValidParams, monthEnd, monthEndMs, monthStart, monthStartMs, tagSlugs]);
+    }, [
+      allowedSources,
+      errorLogMessage,
+      filterByTags,
+      hasValidParams,
+      monthEnd,
+      monthEndMs,
+      monthStart,
+      monthStartMs,
+      tagSlugs,
+    ]);
 
     const monthLabel = monthStart ? formatMonthYear(monthStart, PHILLY_TIME_ZONE) : '';
     const monthName = monthStart ? formatMonthName(monthStart, PHILLY_TIME_ZONE) : '';
@@ -709,6 +805,15 @@ export default function createMonthlyGuidePage(config) {
     const computedSeoDescription = hasValidParams && monthLabel ? seoDescription(monthLabel) : fallbackDescription;
 
     const totalEvents = events.length;
+    const visibleEvents = useMemo(() => events.slice(0, visibleCount), [events, visibleCount]);
+    const showLoadMore = visibleCount < events.length;
+
+    const handleLoadMore = () => {
+      setVisibleCount(prev => {
+        const next = prev + DEFAULT_VISIBLE_BATCH;
+        return next >= events.length ? events.length : next;
+      });
+    };
 
     const weekendEvents = useMemo(() => {
       if (!events.length || !weekendWindow.start || !weekendWindow.end) return [];
@@ -876,8 +981,8 @@ export default function createMonthlyGuidePage(config) {
                   {hero.heading(monthLabel)}
                 </h1>
                 <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
-                  {totalEvents ? hero.withCount(totalEvents, monthLabel) : hero.withoutCount(monthLabel)}{' '}
-                  {hero.tagLine}
+                  {totalEvents ? hero.withCount(totalEvents, monthLabel) : hero.withoutCount(monthLabel)}
+                  {hero.tagLine ? ` ${hero.tagLine}` : ''}
                 </p>
                 <p className="mt-2 text-sm text-gray-500 text-center">Updated {updatedStamp}</p>
                 <div className="mt-4 flex justify-center gap-4">
@@ -971,87 +1076,112 @@ export default function createMonthlyGuidePage(config) {
                   ) : events.length === 0 ? (
                     <p className="p-6 text-gray-500">{monthEmptyMessage}</p>
                   ) : (
-                    <div className="divide-y divide-gray-200">
-                      {events.map(evt => {
-                        const detailPath = evt.detailPath || '/';
-                        const summary = evt.description?.trim() || 'Details coming soon.';
-                        return (
-                          <article key={`${evt.source_table}-${evt.id}`} className="flex flex-col md:flex-row gap-4 px-6 py-6">
-                            <div className="md:w-48 w-full flex-shrink-0">
-                              <div className="relative w-full overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
-                                <img
-                                  src={evt.imageUrl || DEFAULT_OG_IMAGE}
-                                  alt={evt.title}
-                                  loading="lazy"
-                                  className="absolute inset-0 h-full w-full object-cover"
-                                />
-                                {evt.isTradition && (
-                                  <span className="absolute top-2 left-2 bg-yellow-100 text-yellow-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                                    Tradition
-                                  </span>
-                                )}
-                                {evt.isBigBoard && (
-                                  <span className="absolute top-2 right-2 bg-indigo-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                                    Submission
-                                  </span>
-                                )}
-                                {evt.isGroupEvent && (
-                                  <span className="absolute bottom-2 left-2 bg-green-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                                    Group Event
-                                  </span>
-                                )}
-                                {evt.isSeasonal && (
-                                  <span className="absolute bottom-2 right-2 bg-orange-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                                    Seasonal
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex-1 flex flex-col">
-                              <Link
-                                to={detailPath}
-                                className="text-2xl font-semibold text-[#28313e] hover:underline"
-                              >
-                                {evt.title}
-                              </Link>
-                              <p className="mt-2 text-sm font-semibold text-gray-700">
-                                {formatEventDateRange(evt.startDate, evt.endDate, PHILLY_TIME_ZONE)}
-                              </p>
-                              {(evt.venueName || evt.groupName) && (
-                                <p className="mt-1 text-sm text-gray-500">
-                                  {evt.venueName || evt.groupName}
-                                </p>
-                              )}
-                              <p className="mt-2 text-sm text-gray-600 line-clamp-3">{summary}</p>
-                              <div className="mt-4">
-                                <FavoriteState event_id={evt.favoriteId} source_table={evt.source_table}>
-                                  {({ isFavorite, toggleFavorite, loading: favLoading }) => (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (!user) {
-                                          navigate('/login');
-                                          return;
-                                        }
-                                        toggleFavorite();
-                                      }}
-                                      disabled={favLoading}
-                                      className={`inline-flex items-center px-4 py-2 border border-indigo-600 rounded-full font-semibold transition-colors ${
-                                        isFavorite
-                                          ? 'bg-indigo-600 text-white'
-                                          : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
-                                      }`}
-                                    >
-                                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                                    </button>
+                    <>
+                      <div className="divide-y divide-gray-200">
+                        {visibleEvents.map(evt => {
+                          const detailPath = evt.detailPath || '/';
+                          const summary = evt.description?.trim() || 'Details coming soon.';
+                          return (
+                            <article
+                              key={`${evt.source_table}-${evt.id}`}
+                              className="flex flex-col md:flex-row gap-4 px-6 py-6"
+                            >
+                              <div className="md:w-48 w-full flex-shrink-0">
+                                <div className="relative w-full overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
+                                  <img
+                                    src={evt.imageUrl || DEFAULT_OG_IMAGE}
+                                    alt={evt.title}
+                                    loading="lazy"
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                  />
+                                  {evt.isTradition && (
+                                    <span className="absolute top-2 left-2 bg-yellow-100 text-yellow-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                      Tradition
+                                    </span>
                                   )}
-                                </FavoriteState>
+                                  {evt.isBigBoard && (
+                                    <span className="absolute top-2 right-2 bg-indigo-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                      Submission
+                                    </span>
+                                  )}
+                                  {evt.isGroupEvent && (
+                                    <span className="absolute bottom-2 left-2 bg-green-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                      Group Event
+                                    </span>
+                                  )}
+                                  {evt.isSeasonal && (
+                                    <span className="absolute bottom-2 right-2 bg-orange-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                      Seasonal
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
+                              <div className="flex-1 flex flex-col">
+                                <Link
+                                  to={detailPath}
+                                  className="text-2xl font-semibold text-[#28313e] hover:underline"
+                                >
+                                  {evt.title}
+                                </Link>
+                                <p className="mt-2 text-sm font-semibold text-gray-700">
+                                  {formatEventDateRange(evt.startDate, evt.endDate, PHILLY_TIME_ZONE)}
+                                </p>
+                                {(evt.venueName || evt.groupName) && (
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    {evt.venueName || evt.groupName}
+                                  </p>
+                                )}
+                                <p className="mt-2 text-sm text-gray-600 line-clamp-3">{summary}</p>
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  <FavoriteState event_id={evt.favoriteId} source_table={evt.source_table}>
+                                    {({ isFavorite, toggleFavorite, loading: favLoading }) => (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!user) {
+                                            navigate('/login');
+                                            return;
+                                          }
+                                          toggleFavorite();
+                                        }}
+                                        disabled={favLoading}
+                                        className={`inline-flex items-center px-4 py-2 border border-indigo-600 rounded-full font-semibold transition-colors ${
+                                          isFavorite
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                                        }`}
+                                      >
+                                        {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                                      </button>
+                                    )}
+                                  </FavoriteState>
+                                  {showTicketsButton && evt.externalUrl && (
+                                    <a
+                                      href={evt.externalUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center px-4 py-2 border border-[#28313e] rounded-full font-semibold text-[#28313e] hover:bg-[#28313e] hover:text-white transition-colors"
+                                    >
+                                      Tickets
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                      {showLoadMore && (
+                        <div className="border-t border-gray-200 px-6 py-6 text-center">
+                          <button
+                            type="button"
+                            onClick={handleLoadMore}
+                            className="inline-flex items-center px-4 py-2 border border-indigo-600 rounded-full font-semibold text-indigo-600 hover:bg-indigo-600 hover:text-white transition-colors"
+                          >View more events
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </section>
 
