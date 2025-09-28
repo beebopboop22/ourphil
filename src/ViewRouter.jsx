@@ -7,6 +7,7 @@ import ArtsCultureMonthlyPage from './ArtsCultureMonthlyPage.jsx';
 import FoodDrinkMonthlyPage from './FoodDrinkMonthlyPage.jsx';
 import FitnessWellnessMonthlyPage from './FitnessWellnessMonthlyPage.jsx';
 import MusicMonthlyPage from './MusicMonthlyPage.jsx';
+import ShowRollCallMonthlyPage from './ShowRollCallMonthlyPage.jsx';
 import { MONTHLY_GUIDE_CONFIGS } from './monthlyGuideConfigs.js';
 
 const MONTH_VIEW_REGEX = /^philadelphia-events-([a-z-]+)-(\d{4})$/i;
@@ -17,6 +18,7 @@ const GUIDE_ROUTES = [
   { regex: MONTHLY_GUIDE_CONFIGS.foodDrink.viewRegex, Component: FoodDrinkMonthlyPage },
   { regex: MONTHLY_GUIDE_CONFIGS.fitnessWellness.viewRegex, Component: FitnessWellnessMonthlyPage },
   { regex: MONTHLY_GUIDE_CONFIGS.music.viewRegex, Component: MusicMonthlyPage },
+  { regex: MONTHLY_GUIDE_CONFIGS.showRollCall.viewRegex, Component: ShowRollCallMonthlyPage },
 ];
 
 export default function ViewRouter() {

@@ -31,6 +31,9 @@ export default function AllGuidesPage() {
   const musicPath = monthSlug
     ? `/music-events-in-philadelphia-${monthSlug}-${year}/`
     : '/music-events-in-philadelphia/';
+  const showRollCallPath = monthSlug
+    ? `/philadelphia-show-roll-call-${monthSlug}-${year}/`
+    : '/philadelphia-show-roll-call/';
   const traditionsPath = monthSlug
     ? `/philadelphia-events-${monthSlug}-${year}/`
     : '/philadelphia-events/';
@@ -70,6 +73,11 @@ export default function AllGuidesPage() {
       label: `Music – ${monthLabel}`,
       description: 'Concerts, festivals, and live music picks happening across Philadelphia this month.',
       href: musicPath,
+    },
+    {
+      label: `Show Roll Call – ${monthLabel}`,
+      description: 'A month-long concert roll call with every show we can find plus direct ticket links.',
+      href: showRollCallPath,
     },
   ];
 
