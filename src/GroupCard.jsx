@@ -143,7 +143,7 @@ export default function GroupCard({ group, isAdmin, featuredGroupId }) {
           alt={group.Name}
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
         {/* Click overlay */}
         <Link to={`/groups/${group.slug}`} className="absolute inset-0 z-10" />
