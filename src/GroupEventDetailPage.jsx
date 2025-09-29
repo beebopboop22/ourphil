@@ -1,6 +1,7 @@
 // src/GroupEventDetailPage.jsx
 import React, { useEffect, useState, useContext } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { CalendarCheck } from 'lucide-react'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import Footer from './Footer'
@@ -9,6 +10,8 @@ import { AuthContext } from './AuthProvider'
 import EventFavorite from './EventFavorite.jsx'
 import CommentsSection from './CommentsSection'
 import Seo from './components/Seo.jsx'
+import PlansCard from './components/PlansCard.jsx'
+import useEventFavorite from './utils/useEventFavorite'
 import {
   SITE_BASE_URL,
   DEFAULT_OG_IMAGE,
@@ -16,6 +19,7 @@ import {
   buildEventJsonLd,
   buildIsoDateTime,
 } from './utils/seoHelpers.js'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 const FALLBACK_GROUP_EVENT_TITLE = 'Group Event – Our Philly'
 const FALLBACK_GROUP_EVENT_DESCRIPTION =
@@ -50,11 +54,27 @@ function formatTime(t) {
   return `${h}:${String(m).padStart(2,'0')} ${ampm}`
 }
 
+function parseLegacyDate(str) {
+  if (!str) return null
+  const [first] = str.split(/through|–|-/)
+  const parts = first.trim().split('/')
+  if (parts.length !== 3) return null
+  const [m, d, y] = parts.map(Number)
+  const dt = new Date(y, m - 1, d)
+  return isNaN(dt) ? null : dt
+}
+
+function resolveGroupEventImage(imageUrl) {
+  if (!imageUrl) return ''
+  if (imageUrl.startsWith('http')) return imageUrl
+  const { data } = supabase.storage.from('big-board').getPublicUrl(imageUrl)
+  return data?.publicUrl || ''
+}
+
 export default function GroupEventDetailPage() {
   const { slug, eventId } = useParams()
   const navigate = useNavigate()
   const { user } = useContext(AuthContext)
-
   const [group, setGroup] = useState(null)
   const [evt,   setEvt]   = useState(null)
   const [loading, setLoading] = useState(true)
@@ -68,6 +88,14 @@ export default function GroupEventDetailPage() {
 
   const [subs, setSubs]             = useState([])
   const [loadingSubs, setLoadingSubs] = useState(true)
+  const [moreEvents, setMoreEvents] = useState([])
+  const [loadingMoreEvents, setLoadingMoreEvents] = useState(false)
+
+  const {
+    isFavorite,
+    toggleFavorite,
+    loading: togglingFavorite,
+  } = useEventFavorite({ event_id: evt?.id, source_table: 'group_events' })
 
   // ── LOAD GROUP, EVENT, TAGS, IMAGE ─────────────────────────────────
   useEffect(() => {
@@ -76,7 +104,7 @@ export default function GroupEventDetailPage() {
       // 1) group
       const { data: grp } = await supabase
         .from('groups')
-        .select('id,Name,slug,Description')
+        .select('id,Name,slug,Description,imag')
         .eq('slug', slug)
         .single()
 
@@ -160,6 +188,51 @@ export default function GroupEventDetailPage() {
     }
     loadSubs()
   }, [])
+
+  useEffect(() => {
+    if (!group?.id || !evt?.id) return
+    let active = true
+
+    const loadMore = async () => {
+      setLoadingMoreEvents(true)
+      try {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const todayStr = today.toISOString().slice(0, 10)
+        const { data, error } = await supabase
+          .from('group_events')
+          .select('*')
+          .eq('group_id', group.id)
+          .neq('id', evt.id)
+          .gte('start_date', todayStr)
+          .order('start_date', { ascending: true })
+          .limit(4)
+        if (error) throw error
+        const mapped = (data || []).map(item => {
+          const image =
+            resolveGroupEventImage(item.image_url) || evt.image || group.imag || ''
+          const href =
+            getDetailPathForItem({
+              ...item,
+              group_slug: group.slug,
+              isGroupEvent: true,
+            }) || `/groups/${group.slug}/events/${item.id}`
+          return { ...item, image, href }
+        })
+        if (active) setMoreEvents(mapped)
+      } catch (err) {
+        console.error('Error loading more group events:', err)
+        if (active) setMoreEvents([])
+      } finally {
+        if (active) setLoadingMoreEvents(false)
+      }
+    }
+
+    loadMore()
+    return () => {
+      active = false
+    }
+  }, [group?.id, group?.slug, group?.imag, evt?.id, evt?.image])
 
   // ── EDIT HANDLERS ─────────────────────────────────────────────────
   const startEditing = () => {
@@ -485,6 +558,20 @@ export default function GroupEventDetailPage() {
                       </p>
                     )}
 
+                    <button
+                      type="button"
+                      onClick={toggleFavorite}
+                      disabled={togglingFavorite}
+                      className={`w-full flex items-center justify-center gap-2 rounded-lg border border-indigo-600 px-4 py-2 font-semibold transition-colors ${
+                        isFavorite
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white text-indigo-600 hover:bg-indigo-50'
+                      } disabled:opacity-50`}
+                    >
+                      <CalendarCheck className="w-5 h-5" />
+                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                    </button>
+
                     {selectedTags.length > 0 && (
                       <div className="mb-4">
                         <h2 className="text-sm font-medium text-gray-700 mb-1">Tags</h2>
@@ -534,7 +621,52 @@ export default function GroupEventDetailPage() {
 
         <CommentsSection source_table="group_events" event_id={evt.id} />
 
-        <section className="w-full bg-neutral-100 py-12">
+        {(loadingMoreEvents || moreEvents.length > 0) && (
+          <section className="w-full bg-neutral-100 py-12 border-t border-neutral-200">
+            <div className="max-w-7xl mx-auto px-4">
+              <h2 className="text-2xl font-semibold text-center mb-6">
+                More from {group?.Name || 'this group'}
+              </h2>
+              {loadingMoreEvents ? (
+                <p className="text-center text-gray-500">Loading…</p>
+              ) : moreEvents.length === 0 ? (
+                <p className="text-center text-gray-600">
+                  No other upcoming events from this group.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {moreEvents.map(ev => {
+                    const start = parseYMD(ev.start_date)
+                    const dateLabel = start
+                      ? start.toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                        })
+                      : ''
+                    const timeLabel = formatTime(ev.start_time)
+                    const secondary = [timeLabel, ev.address].filter(Boolean).join(' · ')
+                    return (
+                      <PlansCard
+                        key={ev.id}
+                        title={ev.title}
+                        imageUrl={ev.image}
+                        href={ev.href}
+                        badge={{ label: 'Group Event', className: 'bg-emerald-500 text-white' }}
+                        meta={dateLabel}
+                        secondaryMeta={secondary}
+                        eventId={ev.id}
+                        sourceTable="group_events"
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        <section className="w-full bg-neutral-100 py-12 border-t border-neutral-200">
           <div className="max-w-7xl mx-auto px-4">
             <h2 className="text-2xl font-semibold text-center mb-6">
               Upcoming Community Submissions
@@ -549,33 +681,22 @@ export default function GroupEventDetailPage() {
                   const d = parseYMD(s.start_date)
                   const label = d
                     ? d.toLocaleDateString('en-US', {
+                        weekday: 'short',
                         month: 'short',
                         day: 'numeric',
                       })
                     : ''
                   return (
-                    <Link
+                    <PlansCard
                       key={s.id}
-                      to={`/big-board/${s.slug}`}
-                      className="bg-white rounded-lg shadow hover:shadow-lg overflow-hidden"
-                    >
-                      <div className="relative h-32 bg-gray-100">
-                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1 z-10">
-                          COMMUNITY SUBMISSION
-                        </div>
-                        {s.image && (
-                          <img
-                            src={s.image}
-                            alt={s.title}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
-                      </div>
-                      <div className="p-4 text-center">
-                        <h3 className="font-semibold mb-1 line-clamp-2">{s.title}</h3>
-                        <p className="text-sm text-gray-600">{label}</p>
-                      </div>
-                    </Link>
+                      title={s.title}
+                      imageUrl={s.image}
+                      href={`/big-board/${s.slug}`}
+                      badge="Submission"
+                      meta={label}
+                      eventId={s.id}
+                      sourceTable="big_board_events"
+                    />
                   )
                 })}
               </div>
