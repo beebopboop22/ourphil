@@ -16,6 +16,7 @@ import {
   buildEventJsonLd,
   buildIsoDateTime,
 } from './utils/seoHelpers.js'
+import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 
 const FALLBACK_GROUP_EVENT_TITLE = 'Group Event – Our Philly'
 const FALLBACK_GROUP_EVENT_DESCRIPTION =
@@ -50,6 +51,23 @@ function formatTime(t) {
   return `${h}:${String(m).padStart(2,'0')} ${ampm}`
 }
 
+function parseLegacyDate(str) {
+  if (!str) return null
+  const [first] = str.split(/through|–|-/)
+  const parts = first.trim().split('/')
+  if (parts.length !== 3) return null
+  const [m, d, y] = parts.map(Number)
+  const dt = new Date(y, m - 1, d)
+  return isNaN(dt) ? null : dt
+}
+
+function resolveGroupEventImage(imageUrl) {
+  if (!imageUrl) return ''
+  if (imageUrl.startsWith('http')) return imageUrl
+  const { data } = supabase.storage.from('big-board').getPublicUrl(imageUrl)
+  return data?.publicUrl || ''
+}
+
 export default function GroupEventDetailPage() {
   const { slug, eventId } = useParams()
   const navigate = useNavigate()
@@ -68,6 +86,10 @@ export default function GroupEventDetailPage() {
 
   const [subs, setSubs]             = useState([])
   const [loadingSubs, setLoadingSubs] = useState(true)
+  const [moreEvents, setMoreEvents] = useState([])
+  const [loadingMoreEvents, setLoadingMoreEvents] = useState(false)
+  const [traditions, setTraditions] = useState([])
+  const [loadingTraditions, setLoadingTraditions] = useState(false)
 
   // ── LOAD GROUP, EVENT, TAGS, IMAGE ─────────────────────────────────
   useEffect(() => {
@@ -76,7 +98,7 @@ export default function GroupEventDetailPage() {
       // 1) group
       const { data: grp } = await supabase
         .from('groups')
-        .select('id,Name,slug,Description')
+        .select('id,Name,slug,Description,imag')
         .eq('slug', slug)
         .single()
 
@@ -159,6 +181,110 @@ export default function GroupEventDetailPage() {
       setLoadingSubs(false)
     }
     loadSubs()
+  }, [])
+
+  useEffect(() => {
+    if (!group?.id || !evt?.id) return
+    let active = true
+
+    const loadMore = async () => {
+      setLoadingMoreEvents(true)
+      try {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const todayStr = today.toISOString().slice(0, 10)
+        const { data, error } = await supabase
+          .from('group_events')
+          .select('*')
+          .eq('group_id', group.id)
+          .neq('id', evt.id)
+          .gte('start_date', todayStr)
+          .order('start_date', { ascending: true })
+          .limit(3)
+        if (error) throw error
+        const mapped = (data || []).map(item => {
+          const image =
+            resolveGroupEventImage(item.image_url) || evt.image || group.imag || ''
+          const href =
+            getDetailPathForItem({
+              ...item,
+              group_slug: group.slug,
+              isGroupEvent: true,
+            }) || `/groups/${group.slug}/events/${item.id}`
+          return { ...item, image, href }
+        })
+        if (active) setMoreEvents(mapped)
+      } catch (err) {
+        console.error('Error loading more group events:', err)
+        if (active) setMoreEvents([])
+      } finally {
+        if (active) setLoadingMoreEvents(false)
+      }
+    }
+
+    loadMore()
+    return () => {
+      active = false
+    }
+  }, [group?.id, group?.slug, group?.imag, evt?.id, evt?.image])
+
+  useEffect(() => {
+    let active = true
+
+    const loadTraditions = async () => {
+      setLoadingTraditions(true)
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select('id, slug, "E Name", "E Description", Dates, "End Date", "E Image"')
+          .order('Dates', { ascending: true })
+          .limit(200)
+        if (error) throw error
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const upcoming = (data || [])
+          .map(row => {
+            const start = parseLegacyDate(row.Dates)
+            const end = row['End Date'] ? parseLegacyDate(row['End Date']) : start
+            return { row, start, end }
+          })
+          .filter(({ start, end }) => {
+            if (!start) return false
+            if (start >= today) return true
+            return end ? end >= today : false
+          })
+          .slice(0, 12)
+          .map(({ row, start, end }) => {
+            const href =
+              getDetailPathForItem({
+                ...row,
+                slug: row.slug,
+                source_table: 'events',
+                isTradition: true,
+              }) || `/events/${row.slug}`
+            return {
+              id: row.id,
+              title: row['E Name'],
+              image: row['E Image'] || '',
+              description: row['E Description'] || '',
+              start,
+              end,
+              href,
+            }
+          })
+        if (active) setTraditions(upcoming)
+      } catch (err) {
+        console.error('Error loading traditions:', err)
+        if (active) setTraditions([])
+      } finally {
+        if (active) setLoadingTraditions(false)
+      }
+    }
+
+    loadTraditions()
+    return () => {
+      active = false
+    }
   }, [])
 
   // ── EDIT HANDLERS ─────────────────────────────────────────────────
@@ -534,7 +660,60 @@ export default function GroupEventDetailPage() {
 
         <CommentsSection source_table="group_events" event_id={evt.id} />
 
-        <section className="w-full bg-neutral-100 py-12">
+        {(loadingMoreEvents || moreEvents.length > 0) && (
+          <section className="w-full bg-neutral-100 py-12 border-t border-neutral-200">
+            <div className="max-w-7xl mx-auto px-4">
+              <h2 className="text-2xl font-semibold text-center mb-6">
+                More from {group?.Name || 'this group'}
+              </h2>
+              {loadingMoreEvents ? (
+                <p className="text-center text-gray-500">Loading…</p>
+              ) : moreEvents.length === 0 ? (
+                <p className="text-center text-gray-600">
+                  No other upcoming events from this group.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {moreEvents.map(ev => {
+                    const start = parseYMD(ev.start_date)
+                    const label = start
+                      ? start.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })
+                      : ''
+                    return (
+                      <Link
+                        key={ev.id}
+                        to={ev.href}
+                        className="bg-white rounded-lg shadow hover:shadow-lg overflow-hidden"
+                      >
+                        <div className="relative h-32 bg-gray-100">
+                          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1 z-10">
+                            GROUP EVENT
+                          </div>
+                          {ev.image && (
+                            <img
+                              src={ev.image}
+                              alt={ev.title}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                        <div className="p-4 text-center">
+                          <h3 className="font-semibold mb-1 line-clamp-2">{ev.title}</h3>
+                          <p className="text-sm text-gray-600">{label}</p>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        <section className="w-full bg-neutral-100 py-12 border-t border-neutral-200">
           <div className="max-w-7xl mx-auto px-4">
             <h2 className="text-2xl font-semibold text-center mb-6">
               Upcoming Community Submissions
@@ -573,6 +752,54 @@ export default function GroupEventDetailPage() {
                       </div>
                       <div className="p-4 text-center">
                         <h3 className="font-semibold mb-1 line-clamp-2">{s.title}</h3>
+                        <p className="text-sm text-gray-600">{label}</p>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="w-full bg-neutral-100 py-12 border-t border-neutral-200">
+          <div className="max-w-7xl mx-auto px-4">
+            <h2 className="text-2xl font-semibold text-center mb-6">
+              Upcoming Philly Traditions
+            </h2>
+            {loadingTraditions ? (
+              <p className="text-center text-gray-500">Loading…</p>
+            ) : traditions.length === 0 ? (
+              <p className="text-center text-gray-600">No upcoming traditions.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {traditions.map(trad => {
+                  const label = trad.start
+                    ? trad.start.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })
+                    : ''
+                  return (
+                    <Link
+                      key={trad.id}
+                      to={trad.href}
+                      className="bg-white rounded-lg shadow hover:shadow-lg overflow-hidden"
+                    >
+                      <div className="relative h-32 bg-gray-100">
+                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white text-xs uppercase text-center py-1 z-10">
+                          PHILLY TRADITION
+                        </div>
+                        {trad.image && (
+                          <img
+                            src={trad.image}
+                            alt={trad.title}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="p-4 text-center">
+                        <h3 className="font-semibold mb-1 line-clamp-2">{trad.title}</h3>
                         <p className="text-sm text-gray-600">{label}</p>
                       </div>
                     </Link>

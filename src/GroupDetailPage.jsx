@@ -413,79 +413,79 @@ export default function GroupDetailPage() {
       </div>
 
       {/* ── Events Grid ──────────────────────────────────────────────────── */}
-<section className="mt-12 max-w-screen-xl mx-auto px-4">
-  <h2 className="text-2xl font-bold mb-6">Upcoming Events</h2>
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-    {events.map(evt => {
-      const start = new Date(evt.start_date);
-      const end   = evt.end_date ? new Date(evt.end_date) : null;
-      const today = new Date();
-      const isOngoing = start <= today && (!end || end > today);
+      <section className="mt-12 max-w-screen-xl mx-auto px-4 pb-12">
+        <h2 className="text-2xl font-bold mb-6">Upcoming Events</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {events.map(evt => {
+            const start = new Date(evt.start_date)
+            const end = evt.end_date ? new Date(evt.end_date) : null
+            const today = new Date()
+            const isOngoing = start <= today && (!end || end > today)
 
-      // Determine image URL: if it's already a full URL, use it; otherwise
-      // treat it as a key in your 'big-board' bucket.
-      let imageUrl;
-      if (evt.image_url) {
-        if (evt.image_url.startsWith('http')) {
-          imageUrl = evt.image_url;
-        } else {
-          imageUrl = supabase
-            .storage
-            .from('big-board')
-            .getPublicUrl(evt.image_url)
-            .data
-            .publicUrl;
-        }
-      } else {
-        imageUrl = group.imag;
-      }
+            // Determine image URL: if it's already a full URL, use it; otherwise
+            // treat it as a key in your 'big-board' bucket.
+            let imageUrl
+            if (evt.image_url) {
+              if (evt.image_url.startsWith('http')) {
+                imageUrl = evt.image_url
+              } else {
+                imageUrl = supabase
+                  .storage
+                  .from('big-board')
+                  .getPublicUrl(evt.image_url)
+                  .data
+                  .publicUrl
+              }
+            } else {
+              imageUrl = group.imag
+            }
 
-      return (
-        <Link
-          key={evt.id}
-          to={
-            getDetailPathForItem({
-              ...evt,
-              group_slug: group.slug,
-              isGroupEvent: true,
-            }) || '/'
-          }
-          className="relative block bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
-        >
-          {/* Date badge */}
-          <div className="absolute top-2 left-2 bg-indigo-600 text-white p-2 rounded">
-            <div className="text-lg font-bold">{start.getDate()}</div>
-            <div className="uppercase text-xs">
-              {start.toLocaleString('en-US', { month: 'short' })}
-            </div>
-          </div>
+            return (
+              <Link
+                key={evt.id}
+                to={
+                  getDetailPathForItem({
+                    ...evt,
+                    group_slug: group.slug,
+                    isGroupEvent: true,
+                  }) || '/'
+                }
+                className="relative block bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition"
+              >
+                {/* Date badge */}
+                <div className="absolute top-2 left-2 bg-indigo-600 text-white p-2 rounded">
+                  <div className="text-lg font-bold">{start.getDate()}</div>
+                  <div className="uppercase text-xs">
+                    {start.toLocaleString('en-US', { month: 'short' })}
+                  </div>
+                </div>
 
-          {/* Event image */}
-          <div className="h-40 bg-gray-100">
-            <img
-              src={imageUrl}
-              alt={evt.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
+                {/* Event image */}
+                <div className="h-40 bg-gray-100">
+                  <img
+                    src={imageUrl}
+                    alt={evt.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
 
-          {/* Event details */}
-          <div className="p-4">
-            <h3 className="font-semibold text-lg truncate">{evt.title}</h3>
-            <p className="text-sm mt-1 line-clamp-3">{evt.description}</p>
-            {isOngoing && (
-              <span className="inline-block mt-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">
-                Ends in{' '}
-                {Math.ceil(((end || start) - today) / (1000 * 60 * 60 * 24))}{' '}
-                days
-              </span>
-            )}
-          </div>
-        </Link>
-      );
-    })}
-  </div>
-</section>
+                {/* Event details */}
+                <div className="p-4">
+                  <h3 className="font-semibold text-lg truncate">{evt.title}</h3>
+                  <p className="text-sm mt-1 line-clamp-3">{evt.description}</p>
+                  {isOngoing && (
+                    <span className="inline-block mt-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">
+                      Ends in{' '}
+                      {Math.ceil(((end || start) - today) / (1000 * 60 * 60 * 24))}{' '}
+                      days
+                    </span>
+                  )}
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      </section>
 
 
       {types.length > 0 && (
