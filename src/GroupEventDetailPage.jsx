@@ -109,11 +109,38 @@ export default function GroupEventDetailPage() {
         .single()
 
       // 2) event
-      const { data: ev } = await supabase
-        .from('group_events')
+      let ev = null
+      const { data: slugMatches, error: slugErr } = await supabase
+        .from('group_events_calendar')
         .select('*')
-        .eq('id', eventId)
-        .single()
+        .eq('slug', eventId)
+        .limit(1)
+      if (slugErr) throw slugErr
+      if (slugMatches?.length) {
+        ev = slugMatches[0]
+      } else if (/^\d+$/.test(eventId || '')) {
+        const orFilters = [`id.eq.${eventId}`]
+        const numericId = Number(eventId)
+        if (Number.isFinite(numericId) && String(numericId) !== eventId) {
+          orFilters.push(`id.eq.${numericId}`)
+        }
+        const { data: idMatches, error: idErr } = await supabase
+          .from('group_events_calendar')
+          .select('*')
+          .or(orFilters.join(','))
+          .limit(1)
+        if (idErr) throw idErr
+        ev = idMatches?.[0] || null
+      }
+
+      if (!ev) {
+        setGroup(grp)
+        setEvt(null)
+        setSelectedTags([])
+        setTagsList([])
+        setLoading(false)
+        return
+      }
 
       // 3) existing taggings
       const { data: tgs } = await supabase
@@ -200,7 +227,7 @@ export default function GroupEventDetailPage() {
         today.setHours(0, 0, 0, 0)
         const todayStr = today.toISOString().slice(0, 10)
         const { data, error } = await supabase
-          .from('group_events')
+          .from('group_events_calendar')
           .select('*')
           .eq('group_id', group.id)
           .neq('id', evt.id)
@@ -304,7 +331,7 @@ export default function GroupEventDetailPage() {
       }
 
       // 4) update state & exit edit mode
-      setEvt({ ...updated, image: publicUrl })
+      setEvt(prev => ({ ...(prev || {}), ...updated, image: publicUrl }))
       setIsEditing(false)
     } catch(err) {
       alert(err.message)

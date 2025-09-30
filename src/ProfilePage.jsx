@@ -236,7 +236,7 @@ export default function ProfilePage() {
       }
       if (idsByTable.group_events?.length) {
         const { data } = await supabase
-          .from('group_events')
+          .from('group_events_calendar')
           .select('id,slug,title,start_date,start_time,groups(Name,slug,imag)')
           .in('id', idsByTable.group_events);
         data?.forEach(ev => {
@@ -365,7 +365,7 @@ export default function ProfilePage() {
       });
 
       const { data: ge, error: geErr } = await supabase
-        .from('group_events')
+        .from('group_events_calendar')
         .select('id,slug,title,start_date,start_time,groups(slug,imag)')
         .eq('user_id', user.id)
         .gte('start_date', today)

@@ -103,7 +103,7 @@ export default function SocialVideoCarousel({ tag }) {
             : { data: [] },
           idsByType.group_events.length
             ? supabase
-                .from('group_events')
+                .from('group_events_calendar')
                 .select('id, title, slug, start_date, end_date, image_url, group_id')
                 .in('id', idsByType.group_events)
             : { data: [] },

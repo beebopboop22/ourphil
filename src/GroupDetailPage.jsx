@@ -51,6 +51,23 @@ export default function GroupDetailPage() {
   const [events, setEvents] = useState([])
   const [showEventModal, setShowEventModal] = useState(false)
 
+  async function fetchUpcomingEventsForGroup(groupId) {
+    const today = new Date().toISOString().slice(0, 10)
+    const { data, error } = await supabase
+      .from('group_events_calendar')
+      .select('*')
+      .eq('group_id', groupId)
+      .gte('start_date', today)
+      .order('start_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .limit(50)
+    if (error) {
+      console.error('Error loading upcoming group events:', error)
+      return []
+    }
+    return data || []
+  }
+
   // ── Fetch group, favorites, related groups, approval & events ────────────
   useEffect(() => {
     async function fetchData() {
@@ -84,12 +101,8 @@ export default function GroupDetailPage() {
         setIsApprovedForGroup(!!data)
       }
 
-      const { data: evts } = await supabase
-        .from('group_events')
-        .select('*')
-        .eq('group_id', grp.id)
-        .order('start_date', { ascending: true })
-      setEvents(evts || [])
+      const evts = await fetchUpcomingEventsForGroup(grp.id)
+      setEvents(evts)
     }
     fetchData()
   }, [slug, user])
@@ -380,12 +393,7 @@ export default function GroupDetailPage() {
                   groupId={group.id}
                   userId={user.id}
                   onSuccess={() => {
-                    supabase
-                      .from('group_events')
-                      .select('*')
-                      .eq('group_id', group.id)
-                      .order('start_date', { ascending: true })
-                      .then(({ data }) => setEvents(data || []))
+                    fetchUpcomingEventsForGroup(group.id).then(setEvents)
                     setShowEventModal(false)
                   }}
                 />

@@ -70,7 +70,7 @@ export default function PublicProfilePage() {
 
       // group events
         const { data: ge, error: geErr } = await supabase
-          .from('group_events')
+          .from('group_events_calendar')
           .select('id,slug,title,start_date,start_time,groups(slug,imag)')
           .eq('user_id', profile.id)
           .gte('start_date', today)

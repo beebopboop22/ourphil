@@ -290,7 +290,7 @@ async function fetchBaseData() {
       `)
       .order('Dates', { ascending: true }),
     supabase
-      .from('group_events')
+      .from('group_events_calendar')
       .select(`
         *,
         groups(Name, imag, slug, status)
@@ -1104,7 +1104,7 @@ export default function MainEvents() {
         }
         if (idsByTable.group_events?.length) {
           const { data } = await supabase
-            .from('group_events')
+            .from('group_events_calendar')
             .select('id,slug,title,start_date,start_time,groups(imag,slug)')
             .in('id', idsByTable.group_events);
           data?.forEach(event => {

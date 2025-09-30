@@ -70,7 +70,7 @@ export default function GroupMatchWizard({ onClose, onAddGroup }) {
     if (!allSelected && !selectedTags.length && !selectedArea) return;
     const [{ data: groupData }, { data: eventData }] = await Promise.all([
       supabase.from('groups').select('*'),
-      supabase.from('group_events').select('group_id, start_date'),
+      supabase.from('group_events_calendar').select('group_id, start_date'),
     ]);
 
     const now = new Date();

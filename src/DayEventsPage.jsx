@@ -260,7 +260,7 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
       `)
       .order('Dates', { ascending: true }),
     supabase
-      .from('group_events')
+      .from('group_events_calendar')
       .select(`
         *,
         groups(Name, imag, slug)

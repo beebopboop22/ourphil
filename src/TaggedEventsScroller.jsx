@@ -156,7 +156,7 @@ export default function TaggedEventsScroller({
             : { data: [] },
           geIds.length
             ? supabase
-                .from('group_events')
+                .from('group_events_calendar')
                 .select(`
                   id,
                   title,

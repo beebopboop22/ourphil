@@ -139,7 +139,7 @@ async function buildSitemap() {
 
   // 5) group events ➔ /groups/group-slug/events/event-id
   const { data: groupEvents = [], error: groupErr } = await supabase
-    .from('group_events')
+    .from('group_events_calendar')
     .select('id, slug, group_id, groups:group_id (slug)')
   if (groupErr) throw groupErr
 
