@@ -282,7 +282,7 @@ export default function TagPage() {
           : { data: [] },
         byType.group_events?.length
           ? supabase
-              .from('group_events')
+              .from('group_events_calendar')
               .select('id,title,start_date,end_date,image_url,group_id')
               .in('id', byType.group_events)
           : { data: [] },

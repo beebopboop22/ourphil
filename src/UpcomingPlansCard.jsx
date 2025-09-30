@@ -138,7 +138,7 @@ export default function UpcomingPlansCard({ slug, hideActions = false }) {
       }
       if (idsByTable.group_events?.length) {
         const { data } = await supabase
-          .from('group_events')
+          .from('group_events_calendar')
           .select('id,slug,title,start_date,start_time,groups(imag,slug)')
           .in('id', idsByTable.group_events);
         data?.forEach(ev => {

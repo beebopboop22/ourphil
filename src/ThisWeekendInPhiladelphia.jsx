@@ -356,7 +356,7 @@ export default function ThisWeekendInPhiladelphia() {
       .order('Dates', { ascending: true });
 
     const fetchGroupEvents = supabase
-      .from('group_events')
+      .from('group_events_calendar')
       .select(`
         *,
         groups(Name, imag, slug)

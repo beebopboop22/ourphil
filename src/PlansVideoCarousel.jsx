@@ -198,7 +198,7 @@ export default function PlansVideoCarousel({
               .from('all_events')
               .select('id, slug, name, start_date, image, description, venue_id(slug)'),
             supabase
-              .from('group_events')
+              .from('group_events_calendar')
               .select('id, title, slug, description, start_date, end_date, image_url, group_id'),
             supabase
               .from('recurring_events')
@@ -364,7 +364,7 @@ export default function PlansVideoCarousel({
               .from('all_events')
               .select('id, slug, name, start_date, image, description, venue_id(slug)'),
             supabase
-              .from('group_events')
+              .from('group_events_calendar')
               .select('id, title, slug, description, start_date, end_date, image_url, group_id'),
             supabase
               .from('recurring_events')
@@ -538,7 +538,7 @@ export default function PlansVideoCarousel({
               .from('all_events')
               .select('id, slug, name, start_date, image, description, venue_id(slug)'),
             supabase
-              .from('group_events')
+              .from('group_events_calendar')
               .select('id, title, slug, description, start_date, end_date, image_url, group_id'),
             supabase
               .from('recurring_events')
@@ -710,7 +710,7 @@ export default function PlansVideoCarousel({
             : { data: [] },
           allowedTypes.includes('group_events') && idsByType.group_events.length
             ? supabase
-                .from('group_events')
+                .from('group_events_calendar')
                 .select('id, title, slug, description, start_date, end_date, image_url, group_id')
                 .in('id', idsByType.group_events)
             : { data: [] },

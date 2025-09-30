@@ -316,7 +316,7 @@ export default function createMonthlyGuidePage(config) {
               slug
             `),
             supabase
-              .from('group_events')
+              .from('group_events_calendar')
               .select(`
               id,
               title,
