@@ -40,6 +40,7 @@ import {
   setEndOfDay,
   getZonedDate,
   formatMonthDay,
+  formatLongWeekday,
   formatMonthName,
   formatMonthYear,
   indexToMonthSlug,
@@ -140,6 +141,45 @@ function formatTime(timeStr) {
 
 function cloneDate(date) {
   return new Date(date.getTime());
+}
+
+function formatFeaturedCommunityDateLabel(startDateInput) {
+  if (!startDateInput) return '';
+  const startDate =
+    startDateInput instanceof Date
+      ? startDateInput
+      : parseISODateInPhilly(startDateInput);
+  if (!startDate || Number.isNaN(startDate.getTime())) {
+    return '';
+  }
+
+  const nowInPhilly = getZonedDate(new Date(), PHILLY_TIME_ZONE);
+  const today = setStartOfDay(nowInPhilly);
+  const eventDay = setStartOfDay(startDate);
+  const diffDays = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  const monthDay = formatMonthDay(eventDay, PHILLY_TIME_ZONE);
+
+  if (diffDays === 0) {
+    return `Today, ${monthDay}`;
+  }
+
+  if (diffDays === 1) {
+    return `Tomorrow, ${monthDay}`;
+  }
+
+  const startOfWeekInPhilly = setStartOfDay(cloneDate(today));
+  startOfWeekInPhilly.setDate(startOfWeekInPhilly.getDate() - startOfWeekInPhilly.getDay());
+  const endOfWeekInPhilly = setEndOfDay(cloneDate(startOfWeekInPhilly));
+  endOfWeekInPhilly.setDate(endOfWeekInPhilly.getDate() + 6);
+
+  const weekday = formatLongWeekday(eventDay, PHILLY_TIME_ZONE);
+  const prefix =
+    eventDay.getTime() >= startOfWeekInPhilly.getTime() && eventDay.getTime() <= endOfWeekInPhilly.getTime()
+      ? 'This '
+      : '';
+
+  return `${prefix}${weekday}, ${monthDay}`;
 }
 
 async function fetchSportsEvents() {
@@ -545,7 +585,7 @@ function formatSummary(config, total, traditions, start, end) {
   return `${base}!`;
 }
 
-function EventCard({ event, tags = [] }) {
+function EventCard({ event, tags = [], showDatePill = false }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const { isFavorite, toggleFavorite, loading } = useEventFavorite({
@@ -559,6 +599,9 @@ function EventCard({ event, tags = [] }) {
   const badges = event.badges || [];
   const tagList = tags || [];
   const timeLabel = event.start_time ? formatTime(event.start_time) : '';
+  const datePillLabel = showDatePill
+    ? formatFeaturedCommunityDateLabel(event.start_date || event.startDate)
+    : '';
 
   const handleFavoriteClick = e => {
     e.preventDefault();
@@ -585,6 +628,11 @@ function EventCard({ event, tags = [] }) {
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+        {datePillLabel && (
+          <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[0.65rem] font-semibold text-indigo-900 shadow-sm backdrop-blur">
+            {datePillLabel}
+          </div>
+        )}
         {isFavorite && canFavorite && (
           <div className="absolute right-3 top-3 rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow">
             In the plans!
@@ -741,7 +789,11 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
                     key={event.id}
                     className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink"
                   >
-                    <EventCard event={event} tags={eventTags} />
+                    <EventCard
+                      event={event}
+                      tags={eventTags}
+                      showDatePill={config.key === 'featured-community'}
+                    />
                   </div>
                 );
               })}
