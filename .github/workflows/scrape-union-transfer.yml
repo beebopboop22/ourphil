@@ -1,0 +1,32 @@
+name: "Union Transfer Scraper"
+
+on:
+  schedule:
+    # Every day at 04:10 UTC (overnight US ET)
+    - cron: "10 4 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  scrape-union-transfer:
+    name: Run Union Transfer scraper
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/scrape-union-transfer.py
