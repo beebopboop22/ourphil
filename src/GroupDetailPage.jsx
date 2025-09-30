@@ -85,7 +85,7 @@ export default function GroupDetailPage() {
       }
 
       const { data: evts } = await supabase
-        .from('group_events')
+        .from('group_events_calendar')
         .select('*')
         .eq('group_id', grp.id)
         .order('start_date', { ascending: true })

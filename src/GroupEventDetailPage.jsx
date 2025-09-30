@@ -110,9 +110,9 @@ export default function GroupEventDetailPage() {
 
       // 2) event
       const { data: ev } = await supabase
-        .from('group_events')
+        .from('group_events_calendar')
         .select('*')
-        .eq('id', eventId)
+        .eq('slug', eventId)
         .single()
 
       // 3) existing taggings
@@ -200,7 +200,7 @@ export default function GroupEventDetailPage() {
         today.setHours(0, 0, 0, 0)
         const todayStr = today.toISOString().slice(0, 10)
         const { data, error } = await supabase
-          .from('group_events')
+          .from('group_events_calendar')
           .select('*')
           .eq('group_id', group.id)
           .neq('id', evt.id)
