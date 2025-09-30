@@ -84,11 +84,15 @@ export default function GroupDetailPage() {
         setIsApprovedForGroup(!!data)
       }
 
+      const today = new Date().toISOString().slice(0, 10)
       const { data: evts } = await supabase
-        .from('group_events')
+        .from('group_events_calendar')
         .select('*')
         .eq('group_id', grp.id)
+        .gte('start_date', today)
         .order('start_date', { ascending: true })
+        .order('start_time', { ascending: true })
+        .limit(50)
       setEvents(evts || [])
     }
     fetchData()
