@@ -20,6 +20,24 @@ const buildSummary = text => {
   return `${trimmed.slice(0, 157)}…`
 }
 
+const parseDate = value => {
+  if (!value) return null
+  if (typeof value === 'string') {
+    if (value.includes('-')) {
+      const [year, month, day] = value.split('-').map(Number)
+      if ([year, month, day].some(Number.isNaN)) return null
+      return new Date(year, month - 1, day)
+    }
+    if (value.includes('/')) {
+      const [month, day, year] = value.split('/').map(Number)
+      if ([year, month, day].some(Number.isNaN)) return null
+      return new Date(year, month - 1, day)
+    }
+  }
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 const formatTimeLabel = time => {
   if (!time) return ''
   const [hours, minutes] = time.split(':').map(Number)
@@ -84,11 +102,15 @@ export default function GroupDetailPage() {
         setIsApprovedForGroup(!!data)
       }
 
+      const today = new Date().toISOString().slice(0, 10)
       const { data: evts } = await supabase
-        .from('group_events')
+        .from('group_events_calendar')
         .select('*')
         .eq('group_id', grp.id)
+        .gte('start_date', today)
         .order('start_date', { ascending: true })
+        .order('start_time', { ascending: true })
+        .limit(50)
       setEvents(evts || [])
     }
     fetchData()
@@ -427,8 +449,8 @@ export default function GroupDetailPage() {
         <h2 className="text-2xl font-bold mb-6">Upcoming Events</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map(evt => {
-            const start = evt.start_date ? new Date(evt.start_date) : null
-            const end = evt.end_date ? new Date(evt.end_date) : null
+            const start = parseDate(evt.start_date)
+            const end = parseDate(evt.end_date)
             const dateLabel = start
               ? end && end.toDateString() !== start.toDateString()
                 ? `${start.toLocaleDateString('en-US', {
