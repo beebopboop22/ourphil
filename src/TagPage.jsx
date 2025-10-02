@@ -553,9 +553,27 @@ export default function TagPage() {
     ...recEventsList,
   ]
   const today0 = new Date(); today0.setHours(0,0,0,0)
+
+  const isUpcoming = evt => {
+    const start = evt.start || null
+    const end = evt.end || start
+    if (!start && !end) return false
+    if (start && start >= today0) return true
+    if (end && end >= today0) return true
+    return false
+  }
+
+  const getSortDate = evt => {
+    const start = evt.start || null
+    const end = evt.end || start
+    if (start && start >= today0) return start
+    if (end && end >= today0) return end
+    return start || end || today0
+  }
+
   const upcoming = allList
-    .filter(e => e.start && e.start >= today0)
-    .sort((a,b) => a.start - b.start)
+    .filter(isUpcoming)
+    .sort((a,b) => getSortDate(a) - getSortDate(b))
 
   // ── slice for see-more ────────────────────────────────────────
   const displayedEvents = showAllEvents ? upcoming : upcoming.slice(0,16)
