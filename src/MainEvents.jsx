@@ -33,6 +33,7 @@ import { getDetailPathForItem } from './utils/eventDetailPaths';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import { COMMUNITY_REGIONS } from './communityIndexData.js';
+import { isTagActive } from './utils/tagUtils';
 import {
   PHILLY_TIME_ZONE,
   getWeekendWindow,
@@ -566,6 +567,162 @@ function buildFeaturedCommunity(baseData, referenceStart, limit = 4) {
   };
 }
 
+async function fetchActiveSeasonalTags() {
+  const { data, error } = await supabase
+    .from('tags')
+    .select('id, name, slug, rrule, season_start, season_end')
+    .eq('is_seasonal', true);
+  if (error) throw error;
+  return (data || []).filter(isTagActive);
+}
+
+function prepareUpcomingEventCards(baseData, referenceStart) {
+  const startBoundary = referenceStart
+    ? setStartOfDay(cloneDate(referenceStart))
+    : setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE));
+  const rangeEnd = new Date(startBoundary);
+  rangeEnd.setMonth(rangeEnd.getMonth() + 6);
+
+  const result = {
+    all_events: new Map(),
+    events: new Map(),
+    big_board_events: new Map(),
+  };
+
+  const includeEvent = (table, id, card, startDate, endDate) => {
+    if (!card || !startDate) return;
+    const effectiveEnd = endDate || startDate;
+    if (!eventOverlapsRange(startDate, effectiveEnd, startBoundary, rangeEnd)) return;
+    if (!result[table]) {
+      result[table] = new Map();
+    }
+    result[table].set(id, card);
+  };
+
+  (baseData.bigBoard || []).forEach(row => {
+    const start = parseISODateInPhilly(row.start_date);
+    if (!start) return;
+    const end = parseISODateInPhilly(row.end_date || row.start_date) || start;
+    const card = {
+      id: `big-${row.id}`,
+      title: row.title,
+      description: row.description,
+      imageUrl: row.imageUrl,
+      startDate: start,
+      endDate: end,
+      start_time: row.start_time,
+      badges: ['Submission'],
+      detailPath: getDetailPathForItem({ ...row, isBigBoard: true }),
+      source_table: 'big_board_events',
+      favoriteId: row.id,
+      isBigBoard: true,
+    };
+    includeEvent('big_board_events', row.id, card, start, end);
+  });
+
+  (baseData.traditions || []).forEach(row => {
+    const start = parseDate(row.Dates);
+    if (!start) return;
+    const end = parseDate(row['End Date']) || start;
+    const card = {
+      id: `trad-${row.id}`,
+      title: row['E Name'],
+      description: row['E Description'],
+      imageUrl: row['E Image'] || '',
+      startDate: start,
+      endDate: end,
+      slug: row.slug,
+      badges: ['Tradition'],
+      detailPath: getDetailPathForItem({ ...row, isTradition: true }),
+      source_table: 'events',
+      favoriteId: row.id,
+      isTradition: true,
+    };
+    includeEvent('events', row.id, card, start, end);
+  });
+
+  (baseData.allEvents || []).forEach(evt => {
+    const rawStart = (evt.start_date || '').slice(0, 10);
+    const start = parseISODateInPhilly(rawStart);
+    if (!start) return;
+    const end = parseISODateInPhilly((evt.end_date || '').slice(0, 10)) || start;
+    const card = {
+      id: `event-${evt.id}`,
+      title: evt.name,
+      description: evt.description,
+      imageUrl: evt.image || '',
+      startDate: start,
+      endDate: end,
+      start_time: evt.start_time,
+      slug: evt.slug,
+      venues: evt.venue_id,
+      detailPath: getDetailPathForItem(evt),
+      source_table: 'all_events',
+      favoriteId: evt.id,
+    };
+    includeEvent('all_events', evt.id, card, start, end);
+  });
+
+  return result;
+}
+
+async function fetchSeasonalSections(baseData, referenceStart, limit = 4) {
+  try {
+    const seasonalTags = await fetchActiveSeasonalTags();
+    if (!seasonalTags.length) return [];
+
+    const tagIds = seasonalTags.map(tag => tag.id);
+    const { data: taggings, error } = await supabase
+      .from('taggings')
+      .select('tag_id, taggable_type, taggable_id')
+      .in('tag_id', tagIds);
+    if (error) throw error;
+
+    const cardsByType = prepareUpcomingEventCards(baseData, referenceStart);
+    return seasonalTags
+      .map(tag => {
+        const taggedRows = (taggings || []).filter(row => row.tag_id === tag.id);
+        if (!taggedRows.length) {
+          return {
+            tag,
+            data: { items: [], total: 0 },
+          };
+        }
+        const seen = new Set();
+        const items = taggedRows
+          .map(({ taggable_type: table, taggable_id: id }) => {
+            const mapForType = cardsByType[table];
+            if (!mapForType) return null;
+            const card = mapForType.get(id);
+            if (!card) return null;
+            const key = `${card.source_table}:${card.favoriteId}`;
+            if (seen.has(key)) return null;
+            seen.add(key);
+            return card;
+          })
+          .filter(Boolean)
+          .sort((a, b) => {
+            if (a.startDate && b.startDate && a.startDate.getTime() !== b.startDate.getTime()) {
+              return a.startDate - b.startDate;
+            }
+            return (a.start_time || '').localeCompare(b.start_time || '');
+          });
+
+        return {
+          tag,
+          data: {
+            items: items.slice(0, limit),
+            total: items.length,
+          },
+        };
+      })
+      .filter(Boolean);
+  } catch (err) {
+    console.error('Failed to build seasonal sections', err);
+    return [];
+  }
+}
+
 function formatRangeLabel(key, start, end) {
   if (key === 'weekend') {
     return `${formatMonthDay(start, PHILLY_TIME_ZONE)} – ${formatMonthDay(end, PHILLY_TIME_ZONE)}`;
@@ -792,7 +949,7 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
                     <EventCard
                       event={event}
                       tags={eventTags}
-                      showDatePill={config.key === 'featured-community'}
+                      showDatePill={Boolean(config.showDatePill)}
                     />
                   </div>
                 );
@@ -968,6 +1125,7 @@ export default function MainEvents() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [tagMap, setTagMap] = useState({});
   const [featuredCommunity, setFeaturedCommunity] = useState(null);
+  const [seasonalSections, setSeasonalSections] = useState([]);
   const [traditionsThisMonthCount, setTraditionsThisMonthCount] = useState(0);
 
   useEffect(() => {
@@ -975,6 +1133,7 @@ export default function MainEvents() {
     (async () => {
       try {
         setLoading(true);
+        setSeasonalSections([]);
         const baseData = await fetchBaseData();
         if (cancelled) return;
         setSections({
@@ -983,6 +1142,10 @@ export default function MainEvents() {
           weekend: buildEventsForRange(rangeMeta.weekend.start, rangeMeta.weekend.end, baseData),
         });
         setFeaturedCommunity(buildFeaturedCommunity(baseData, rangeMeta.today.start));
+        const seasonal = await fetchSeasonalSections(baseData, rangeMeta.today.start);
+        if (!cancelled) {
+          setSeasonalSections(seasonal);
+        }
         const monthStart = new Date(todayInPhilly.getFullYear(), todayInPhilly.getMonth(), 1);
         const nextMonthStart = new Date(monthStart);
         nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
@@ -1000,6 +1163,7 @@ export default function MainEvents() {
           setError('We had trouble loading events. Please try again soon.');
           setTraditionsThisMonthCount(0);
           setFeaturedCommunity(null);
+          setSeasonalSections([]);
         }
       } finally {
         if (!cancelled) {
@@ -1243,8 +1407,19 @@ export default function MainEvents() {
     if (featuredCommunity?.items?.length) {
       base.push(...featuredCommunity.items);
     }
+    seasonalSections.forEach(section => {
+      if (section?.data?.items?.length) {
+        base.push(...section.data.items);
+      }
+    });
     return base;
-  }, [sections.today.items, sections.tomorrow.items, sections.weekend.items, featuredCommunity]);
+  }, [
+    sections.today.items,
+    sections.tomorrow.items,
+    sections.weekend.items,
+    featuredCommunity,
+    seasonalSections,
+  ]);
 
   const featuredGroupName = featuredCommunity?.group?.name || '';
   const featuredGroupSlug = featuredCommunity?.group?.slug || '';
@@ -1384,6 +1559,7 @@ export default function MainEvents() {
                   }
                   return `Showing ${shown} of ${total} upcoming events from ${featuredSummaryName}.`;
                 },
+                showDatePill: true,
               }}
               data={featuredCommunity}
               loading={loading}
@@ -1392,6 +1568,40 @@ export default function MainEvents() {
               tagMap={tagMap}
             />
           )}
+          {seasonalSections.map(section => {
+            const tagName = section?.tag?.name || '';
+            const hashLower = tagName ? `#${tagName.toLowerCase()}` : '#';
+            const hashLabel = tagName ? `#${tagName}` : '#';
+            return (
+              <EventsSection
+                key={`seasonal-${section.tag?.slug || 'seasonal'}`}
+                config={{
+                  key: `seasonal-${section.tag?.slug || 'seasonal'}`,
+                  eyebrow: 'Seasonal Tag',
+                  headline: `Upcoming in ${hashLabel}`,
+                  cta: `See more tagged ${hashLabel}`,
+                  href: section.tag?.slug ? `/tags/${section.tag.slug}` : '/tags',
+                  getSummary: ({ data }) => {
+                    const total = data?.total || 0;
+                    const shown = data?.items?.length || 0;
+                    if (total === 0) {
+                      return `No upcoming events tagged ${hashLower} yet — check back soon!`;
+                    }
+                    if (total <= shown) {
+                      return `Showing ${total} upcoming event${total === 1 ? '' : 's'} tagged ${hashLower}.`;
+                    }
+                    return `Showing ${shown} of ${total} upcoming events tagged ${hashLower}.`;
+                  },
+                  showDatePill: true,
+                }}
+                data={section.data}
+                loading={loading}
+                rangeStart={rangeMeta.today.start}
+                rangeEnd={rangeMeta.weekend.end}
+                tagMap={tagMap}
+              />
+            );
+          })}
         </div>
 
         <div className="mt-16 flex flex-col gap-0">
