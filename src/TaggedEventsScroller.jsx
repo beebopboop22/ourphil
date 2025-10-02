@@ -7,6 +7,7 @@ import { RRule } from 'rrule';
 import useEventFavorite from './utils/useEventFavorite';
 import { AuthContext } from './AuthProvider';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import { PHILLY_TIME_ZONE, parseEventDateValue, parseISODate } from './utils/dateUtils.js';
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -36,11 +37,47 @@ export default function TaggedEventsScroller({
   );
 
   // ── date parsing & bubble helpers ──────────────────────────────
-  function parseDate(datesStr) {
-    if (!datesStr) return null;
-    const [first] = datesStr.split(/through|–|-/);
-    const [m, d, y] = first.trim().split('/').map(Number);
-    return new Date(y, m - 1, d);
+  function parseTraditionDate(value) {
+    if (!value) return null;
+
+    const direct = (() => {
+      const [first] = String(value).split(/through|–|—|-/);
+      const parts = first.trim().split('/');
+      if (parts.length !== 3) return null;
+      const [m, d, y] = parts.map(Number);
+      const dt = new Date(y, m - 1, d);
+      return Number.isNaN(dt.getTime()) ? null : dt;
+    })();
+
+    if (direct) {
+      return direct;
+    }
+
+    if (value instanceof Date) {
+      return value;
+    }
+
+    const trimmed = String(value).trim();
+    if (!trimmed) return null;
+
+    let candidate = trimmed;
+    if (/through|–|—/i.test(candidate)) {
+      candidate = candidate.split(/through|–|—/i)[0];
+    }
+    if (candidate.includes(' - ')) {
+      candidate = candidate.split(' - ')[0];
+    }
+
+    const isoMatch = candidate.match(/\d{4}-\d{2}-\d{2}/);
+    if (isoMatch) {
+      const parsedIso = parseISODate(isoMatch[0], PHILLY_TIME_ZONE);
+      if (parsedIso) {
+        return parsedIso;
+      }
+    }
+
+    const fallback = parseEventDateValue(candidate, PHILLY_TIME_ZONE) || parseEventDateValue(trimmed, PHILLY_TIME_ZONE);
+    return fallback;
   }
   function parseLocalYMD(str) {
     if (!str) return null;
@@ -190,8 +227,11 @@ export default function TaggedEventsScroller({
 
         // standard events
         (eRes.data || []).forEach(e => {
-          const start = parseDate(e.Dates);
-          const end   = e['End Date'] ? parseDate(e['End Date']) : start;
+          const start = parseTraditionDate(e.Dates);
+          const end   = e['End Date'] ? parseTraditionDate(e['End Date']) : start;
+          if (!start) {
+            return;
+          }
           const href =
             getDetailPathForItem({
               ...e,

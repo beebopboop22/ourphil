@@ -122,6 +122,45 @@ function parseDate(datesStr) {
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
+function parseTraditionDate(value) {
+  if (!value) return null;
+
+  const direct = parseDate(value);
+  if (direct) {
+    return direct;
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  let candidate = trimmed;
+  if (/through|–|—/i.test(candidate)) {
+    candidate = candidate.split(/through|–|—/i)[0];
+  }
+  if (candidate.includes(' - ')) {
+    candidate = candidate.split(' - ')[0];
+  }
+
+  const isoMatch = candidate.match(/\d{4}-\d{2}-\d{2}/);
+  if (isoMatch) {
+    const parsedIso = parseISODate(isoMatch[0], PHILLY_TIME_ZONE);
+    if (parsedIso) {
+      return parsedIso;
+    }
+  }
+
+  const parsedCandidate = parseEventDateValue(candidate, PHILLY_TIME_ZONE);
+  if (parsedCandidate) {
+    return parsedCandidate;
+  }
+
+  return parseEventDateValue(trimmed, PHILLY_TIME_ZONE);
+}
+
 function parseISODateInPhilly(str) {
   if (!str) return null;
   const value = typeof str === 'string' ? str.slice(0, 10) : '';
@@ -407,9 +446,9 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
 
   const traditions = (baseData.traditions || [])
     .map(row => {
-      const start = parseDate(row.Dates);
+      const start = parseTraditionDate(row.Dates);
       if (!start) return null;
-      const end = parseDate(row['End Date']) || start;
+      const end = parseTraditionDate(row['End Date']) || start;
       return {
         id: `trad-${row.id}`,
         sourceId: row.id,
@@ -987,9 +1026,9 @@ export default function MainEvents() {
         const nextMonthStart = new Date(monthStart);
         nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
         const monthlyTraditions = (baseData.traditions || []).filter(row => {
-          const start = parseDate(row.Dates);
+          const start = parseTraditionDate(row.Dates);
           if (!start) return false;
-          const end = parseDate(row['End Date']) || start;
+          const end = parseTraditionDate(row['End Date']) || start;
           return start < nextMonthStart && end >= monthStart;
         }).length;
         setTraditionsThisMonthCount(monthlyTraditions);
