@@ -47,6 +47,7 @@ import {
   parseISODate,
   parseEventDateValue,
 } from './utils/dateUtils';
+import { isTagActive } from './utils/tagUtils';
 
 const SECTION_CONFIGS = [
   {
@@ -566,6 +567,351 @@ function buildFeaturedCommunity(baseData, referenceStart, limit = 4) {
   };
 }
 
+function createBaseDataLookup(baseData = {}) {
+  return {
+    events: new Map((baseData.traditions || []).map(row => [row.id, row])),
+    allEvents: new Map((baseData.allEvents || []).map(row => [row.id, row])),
+    bigBoard: new Map((baseData.bigBoard || []).map(row => [row.id, row])),
+    groupEvents: new Map((baseData.groupEvents || []).map(row => [row.id, row])),
+    recurring: new Map((baseData.recurring || []).map(row => [row.id, row])),
+  };
+}
+
+async function buildSeasonalLookup(taggings = []) {
+  const supportedTypes = new Set([
+    'events',
+    'all_events',
+    'big_board_events',
+    'group_events',
+    'recurring_events',
+  ]);
+
+  const taggingsByTag = {};
+  const idSets = {};
+
+  taggings.forEach(row => {
+    if (!row?.tag_id) return;
+    if (!taggingsByTag[row.tag_id]) {
+      taggingsByTag[row.tag_id] = [];
+    }
+    taggingsByTag[row.tag_id].push(row);
+    const type = row.taggable_type;
+    if (!supportedTypes.has(type)) return;
+    if (!idSets[type]) {
+      idSets[type] = new Set();
+    }
+    if (row.taggable_id != null) {
+      idSets[type].add(row.taggable_id);
+    }
+  });
+
+  const toIds = type => Array.from(idSets[type] || []);
+  const fetchIfNeeded = (type, queryBuilder) => {
+    const ids = toIds(type);
+    return ids.length ? queryBuilder(ids) : Promise.resolve({ data: [] });
+  };
+
+  const [eventsRes, allEventsRes, bigBoardRes, groupEventsRes, recurringRes] = await Promise.all([
+    fetchIfNeeded('events', ids =>
+      supabase
+        .from('events')
+        .select(`
+          id,
+          "E Name",
+          "E Description",
+          Dates,
+          "End Date",
+          "E Image",
+          slug
+        `)
+        .in('id', ids)
+    ),
+    fetchIfNeeded('all_events', ids =>
+      supabase
+        .from('all_events')
+        .select(`
+          id,
+          name,
+          description,
+          link,
+          image,
+          start_date,
+          start_time,
+          end_time,
+          end_date,
+          slug,
+          venue_id(name, slug)
+        `)
+        .in('id', ids)
+    ),
+    fetchIfNeeded('big_board_events', ids =>
+      supabase
+        .from('big_board_events')
+        .select(`
+          id,
+          title,
+          description,
+          start_date,
+          start_time,
+          end_time,
+          end_date,
+          slug,
+          big_board_posts!big_board_posts_event_id_fkey(image_url)
+        `)
+        .in('id', ids)
+    ),
+    fetchIfNeeded('group_events', ids =>
+      supabase
+        .from('group_events')
+        .select(`
+          *,
+          groups(Name, imag, slug, status)
+        `)
+        .in('id', ids)
+    ),
+    fetchIfNeeded('recurring_events', ids =>
+      supabase
+        .from('recurring_events')
+        .select(`
+          id,
+          name,
+          description,
+          address,
+          link,
+          slug,
+          start_date,
+          end_date,
+          start_time,
+          end_time,
+          rrule,
+          image_url
+        `)
+        .in('id', ids)
+        .eq('is_active', true)
+    ),
+  ]);
+
+  if (eventsRes.error) throw eventsRes.error;
+  if (allEventsRes.error) throw allEventsRes.error;
+  if (bigBoardRes.error) throw bigBoardRes.error;
+  if (groupEventsRes.error) throw groupEventsRes.error;
+  if (recurringRes.error) throw recurringRes.error;
+
+  const events = eventsRes.data || [];
+  const allEvents = allEventsRes.data || [];
+  const bigBoard = (bigBoardRes.data || []).map(row => {
+    const storageKey = row.big_board_posts?.[0]?.image_url;
+    let imageUrl = '';
+    if (storageKey) {
+      const {
+        data: { publicUrl } = {},
+      } = supabase.storage.from('big-board').getPublicUrl(storageKey);
+      imageUrl = publicUrl || '';
+    }
+    return {
+      ...row,
+      imageUrl,
+      isBigBoard: true,
+    };
+  });
+  const groupEvents = groupEventsRes.data || [];
+  const recurring = recurringRes.data || [];
+
+  return {
+    lookup: {
+      events: new Map(events.map(row => [row.id, row])),
+      allEvents: new Map(allEvents.map(row => [row.id, row])),
+      bigBoard: new Map(bigBoard.map(row => [row.id, row])),
+      groupEvents: new Map(groupEvents.map(row => [row.id, row])),
+      recurring: new Map(recurring.map(row => [row.id, row])),
+    },
+    taggingsByTag,
+  };
+}
+
+function buildSeasonalSection(tag, taggings, lookup, referenceStart, windowDays = 30) {
+  if (!taggings.length) return null;
+
+  const startBoundary = setStartOfDay(cloneDate(referenceStart));
+  const rangeEnd = setEndOfDay(cloneDate(startBoundary));
+  rangeEnd.setDate(rangeEnd.getDate() + windowDays);
+
+  const seenKeys = new Set();
+  const items = [];
+
+  const addEvent = event => {
+    if (!event) return;
+    const end = event.endDate || event.startDate;
+    if (!end || end < startBoundary) return;
+    const key = event.favoriteId ? `${event.source_table}:${event.favoriteId}` : event.id;
+    if (key && seenKeys.has(key)) return;
+    if (key) seenKeys.add(key);
+    items.push(event);
+  };
+
+  taggings.forEach(({ taggable_id: id, taggable_type: type }) => {
+    if (type === 'events') {
+      const row = lookup.events.get(id);
+      if (!row) return;
+      const start = parseDate(row.Dates);
+      if (!start) return;
+      const end = parseDate(row['End Date']) || start;
+      addEvent({
+        id: `trad-${row.id}`,
+        title: row['E Name'],
+        description: row['E Description'],
+        imageUrl: row['E Image'] || '',
+        startDate: start,
+        endDate: end,
+        slug: row.slug,
+        badges: ['Tradition'],
+        detailPath: getDetailPathForItem(row),
+        source_table: 'events',
+        favoriteId: row.id,
+      });
+      return;
+    }
+
+    if (type === 'all_events') {
+      const row = lookup.allEvents.get(id);
+      if (!row) return;
+      const rawStart = (row.start_date || '').slice(0, 10);
+      const start = parseISODateInPhilly(rawStart);
+      if (!start) return;
+      const end = parseISODateInPhilly((row.end_date || '').slice(0, 10)) || start;
+      addEvent({
+        id: `event-${row.id}`,
+        title: row.name,
+        description: row.description,
+        imageUrl: row.image || '',
+        startDate: start,
+        endDate: end,
+        start_time: row.start_time,
+        slug: row.slug,
+        venues: row.venue_id,
+        detailPath: getDetailPathForItem(row),
+        source_table: 'all_events',
+        favoriteId: row.id,
+      });
+      return;
+    }
+
+    if (type === 'big_board_events') {
+      const row = lookup.bigBoard.get(id);
+      if (!row) return;
+      const start = parseISODateInPhilly(row.start_date);
+      if (!start) return;
+      const end = parseISODateInPhilly(row.end_date || row.start_date) || start;
+      addEvent({
+        id: `big-${row.id}`,
+        title: row.title,
+        description: row.description,
+        imageUrl: row.imageUrl || '',
+        startDate: start,
+        endDate: end,
+        start_time: row.start_time,
+        badges: ['Submission'],
+        detailPath: getDetailPathForItem(row),
+        source_table: 'big_board_events',
+        favoriteId: row.id,
+      });
+      return;
+    }
+
+    if (type === 'group_events') {
+      const row = lookup.groupEvents.get(id);
+      if (!row) return;
+      const mapped = mapGroupEventToCard(row);
+      if (!mapped) return;
+      addEvent({
+        ...mapped,
+        endDate: mapped.endDate || mapped.startDate,
+      });
+      return;
+    }
+
+    if (type === 'recurring_events') {
+      const series = lookup.recurring.get(id);
+      if (!series || !series.rrule || !series.start_date) return;
+      try {
+        const opts = RRule.parseString(series.rrule);
+        opts.dtstart = new Date(`${series.start_date}T${series.start_time || '00:00'}`);
+        if (series.end_date) {
+          opts.until = new Date(`${series.end_date}T23:59:59`);
+        }
+        const rule = new RRule(opts);
+        const occurrences = rule.between(startBoundary, rangeEnd, true).slice(0, 8);
+        occurrences.forEach(occurrence => {
+          const startDate = new Date(occurrence);
+          addEvent({
+            id: `${series.id}::${startDate.toISOString().slice(0, 10)}`,
+            title: series.name,
+            description: series.description,
+            imageUrl: series.image_url || '',
+            startDate,
+            endDate: startDate,
+            start_time: series.start_time,
+            badges: ['Recurring'],
+            detailPath: getDetailPathForItem({
+              id: `${series.id}::${startDate.toISOString().slice(0, 10)}`,
+              slug: series.slug,
+              start_date: startDate.toISOString().slice(0, 10),
+              isRecurring: true,
+            }),
+            source_table: 'recurring_events',
+            favoriteId: series.id,
+          });
+        });
+      } catch (err) {
+        console.error('Error building recurring events for seasonal tag', err);
+      }
+    }
+  });
+
+  const sorted = items
+    .filter(Boolean)
+    .sort(
+      (a, b) =>
+        (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0) ||
+        (a.start_time || '').localeCompare(b.start_time || '')
+    );
+
+  if (!sorted.length) return null;
+
+  const limited = sorted.slice(0, 4);
+  const total = sorted.length;
+  const displayName = tag.name?.startsWith('#') ? tag.name : `#${tag.name || tag.slug}`;
+  const slugLabel = `#${tag.slug}`;
+
+  return {
+    config: {
+      key: `seasonal-${tag.slug}`,
+      eyebrow: 'Seasonal Tag',
+      headline: `Upcoming in ${displayName}`,
+      cta: `See more ${displayName} events`,
+      href: `/tags/${tag.slug}`,
+      showDatePill: true,
+      getSummary: ({ data }) => {
+        const totalCount = data?.total || 0;
+        const shown = data?.items?.length || 0;
+        if (totalCount === 0) {
+          return `No upcoming events tagged ${slugLabel}.`;
+        }
+        if (totalCount <= shown) {
+          return `Showing ${totalCount} upcoming event${totalCount === 1 ? '' : 's'} tagged ${slugLabel}.`;
+        }
+        return `Showing ${shown} of ${totalCount} upcoming events tagged ${slugLabel}.`;
+      },
+    },
+    data: {
+      items: limited,
+      total,
+    },
+    rangeStart: startBoundary,
+    rangeEnd,
+  };
+}
+
 function formatRangeLabel(key, start, end) {
   if (key === 'weekend') {
     return `${formatMonthDay(start, PHILLY_TIME_ZONE)} – ${formatMonthDay(end, PHILLY_TIME_ZONE)}`;
@@ -744,6 +1090,7 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
     : config.getSummary
     ? config.getSummary({ data, rangeStart, rangeEnd })
     : formatSummary(config, data.total, data.traditions, rangeStart, rangeEnd);
+  const shouldShowDatePill = Boolean(config.showDatePill) || config.key === 'featured-community';
 
   return (
     <section className="mt-16">
@@ -792,7 +1139,7 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
                     <EventCard
                       event={event}
                       tags={eventTags}
-                      showDatePill={config.key === 'featured-community'}
+                      showDatePill={shouldShowDatePill}
                     />
                   </div>
                 );
@@ -963,11 +1310,14 @@ export default function MainEvents() {
     tomorrow: { items: [], total: 0, traditions: 0 },
     weekend: { items: [], total: 0, traditions: 0 },
   });
+  const [baseData, setBaseData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [tagMap, setTagMap] = useState({});
   const [featuredCommunity, setFeaturedCommunity] = useState(null);
+  const [seasonalSections, setSeasonalSections] = useState([]);
+  const [loadingSeasonal, setLoadingSeasonal] = useState(false);
   const [traditionsThisMonthCount, setTraditionsThisMonthCount] = useState(0);
 
   useEffect(() => {
@@ -975,18 +1325,19 @@ export default function MainEvents() {
     (async () => {
       try {
         setLoading(true);
-        const baseData = await fetchBaseData();
+        const fetchedBaseData = await fetchBaseData();
         if (cancelled) return;
+        setBaseData(fetchedBaseData);
         setSections({
-          today: buildEventsForRange(rangeMeta.today.start, rangeMeta.today.end, baseData),
-          tomorrow: buildEventsForRange(rangeMeta.tomorrow.start, rangeMeta.tomorrow.end, baseData),
-          weekend: buildEventsForRange(rangeMeta.weekend.start, rangeMeta.weekend.end, baseData),
+          today: buildEventsForRange(rangeMeta.today.start, rangeMeta.today.end, fetchedBaseData),
+          tomorrow: buildEventsForRange(rangeMeta.tomorrow.start, rangeMeta.tomorrow.end, fetchedBaseData),
+          weekend: buildEventsForRange(rangeMeta.weekend.start, rangeMeta.weekend.end, fetchedBaseData),
         });
-        setFeaturedCommunity(buildFeaturedCommunity(baseData, rangeMeta.today.start));
+        setFeaturedCommunity(buildFeaturedCommunity(fetchedBaseData, rangeMeta.today.start));
         const monthStart = new Date(todayInPhilly.getFullYear(), todayInPhilly.getMonth(), 1);
         const nextMonthStart = new Date(monthStart);
         nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
-        const monthlyTraditions = (baseData.traditions || []).filter(row => {
+        const monthlyTraditions = (fetchedBaseData.traditions || []).filter(row => {
           const start = parseDate(row.Dates);
           if (!start) return false;
           const end = parseDate(row['End Date']) || start;
@@ -1010,7 +1361,64 @@ export default function MainEvents() {
     return () => {
       cancelled = true;
     };
-  }, [rangeMeta]);
+  }, [rangeMeta, todayInPhilly]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoadingSeasonal(true);
+        const { data: seasonalTagsData, error: seasonalError } = await supabase
+          .from('tags')
+          .select('id, name, slug, season_start, season_end, rrule')
+          .eq('is_seasonal', true)
+          .order('name');
+        if (seasonalError) throw seasonalError;
+        if (cancelled) return;
+
+        const activeTags = (seasonalTagsData || []).filter(isTagActive);
+        if (!activeTags.length) {
+          setSeasonalSections([]);
+          return;
+        }
+
+        const tagIds = activeTags.map(tag => tag.id);
+        if (!tagIds.length) {
+          setSeasonalSections([]);
+          return;
+        }
+        const { data: taggingsData, error: taggingsError } = await supabase
+          .from('taggings')
+          .select('tag_id, taggable_id, taggable_type')
+          .in('tag_id', tagIds);
+        if (taggingsError) throw taggingsError;
+        if (cancelled) return;
+
+        const { lookup, taggingsByTag } = await buildSeasonalLookup(taggingsData || []);
+        if (cancelled) return;
+
+        const sections = activeTags
+          .map(tag => buildSeasonalSection(tag, taggingsByTag[tag.id] || [], lookup, todayInPhilly))
+          .filter(Boolean);
+
+        if (!cancelled) {
+          setSeasonalSections(sections);
+        }
+      } catch (err) {
+        console.error('Error loading seasonal sections', err);
+        if (!cancelled) {
+          setSeasonalSections([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSeasonal(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [todayInPhilly]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1243,8 +1651,18 @@ export default function MainEvents() {
     if (featuredCommunity?.items?.length) {
       base.push(...featuredCommunity.items);
     }
+    const seasonalItems = seasonalSections.flatMap(section => section.data?.items || []);
+    if (seasonalItems.length) {
+      base.push(...seasonalItems);
+    }
     return base;
-  }, [sections.today.items, sections.tomorrow.items, sections.weekend.items, featuredCommunity]);
+  }, [
+    sections.today.items,
+    sections.tomorrow.items,
+    sections.weekend.items,
+    featuredCommunity,
+    seasonalSections,
+  ]);
 
   const featuredGroupName = featuredCommunity?.group?.name || '';
   const featuredGroupSlug = featuredCommunity?.group?.slug || '';
@@ -1392,6 +1810,17 @@ export default function MainEvents() {
               tagMap={tagMap}
             />
           )}
+          {seasonalSections.map(section => (
+            <EventsSection
+              key={section.config.key}
+              config={section.config}
+              data={section.data}
+              loading={loadingSeasonal}
+              rangeStart={section.rangeStart}
+              rangeEnd={section.rangeEnd}
+              tagMap={tagMap}
+            />
+          ))}
         </div>
 
         <div className="mt-16 flex flex-col gap-0">
