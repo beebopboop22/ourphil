@@ -544,7 +544,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   };
 }
 
-function buildFeaturedCommunity(baseData, referenceStart, limit = 4) {
+function buildFeaturedCommunities(baseData, referenceStart, limit = 4) {
   const startBoundary = referenceStart
     ? setStartOfDay(cloneDate(referenceStart))
     : setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE));
@@ -555,15 +555,26 @@ function buildFeaturedCommunity(baseData, referenceStart, limit = 4) {
     .sort((a, b) => a.startDate - b.startDate || (a.start_time || '').localeCompare(b.start_time || ''));
 
   if (!events.length) {
-    return null;
+    return [];
   }
 
-  const [first] = events;
-  return {
-    group: first.group,
-    items: events.slice(0, limit),
-    total: events.length,
-  };
+  const grouped = new Map();
+  events.forEach(event => {
+    const group = event.group;
+    if (!group) return;
+    const key = group.slug || group.name;
+    if (!key) return;
+    if (!grouped.has(key)) {
+      grouped.set(key, { group, events: [] });
+    }
+    grouped.get(key).events.push(event);
+  });
+
+  return Array.from(grouped.values()).map(({ group, events: groupEvents }) => ({
+    group,
+    items: groupEvents.slice(0, limit),
+    total: groupEvents.length,
+  }));
 }
 
 function formatRangeLabel(key, start, end) {
@@ -967,7 +978,7 @@ export default function MainEvents() {
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [tagMap, setTagMap] = useState({});
-  const [featuredCommunity, setFeaturedCommunity] = useState(null);
+  const [featuredCommunities, setFeaturedCommunities] = useState([]);
   const [traditionsThisMonthCount, setTraditionsThisMonthCount] = useState(0);
 
   useEffect(() => {
@@ -982,7 +993,7 @@ export default function MainEvents() {
           tomorrow: buildEventsForRange(rangeMeta.tomorrow.start, rangeMeta.tomorrow.end, baseData),
           weekend: buildEventsForRange(rangeMeta.weekend.start, rangeMeta.weekend.end, baseData),
         });
-        setFeaturedCommunity(buildFeaturedCommunity(baseData, rangeMeta.today.start));
+        setFeaturedCommunities(buildFeaturedCommunities(baseData, rangeMeta.today.start));
         const monthStart = new Date(todayInPhilly.getFullYear(), todayInPhilly.getMonth(), 1);
         const nextMonthStart = new Date(monthStart);
         nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
@@ -999,7 +1010,7 @@ export default function MainEvents() {
         if (!cancelled) {
           setError('We had trouble loading events. Please try again soon.');
           setTraditionsThisMonthCount(0);
-          setFeaturedCommunity(null);
+          setFeaturedCommunities([]);
         }
       } finally {
         if (!cancelled) {
@@ -1240,15 +1251,13 @@ export default function MainEvents() {
 
   const displayedEvents = useMemo(() => {
     const base = [...sections.today.items, ...sections.tomorrow.items, ...sections.weekend.items];
-    if (featuredCommunity?.items?.length) {
-      base.push(...featuredCommunity.items);
-    }
+    featuredCommunities.forEach(section => {
+      if (section?.items?.length) {
+        base.push(...section.items);
+      }
+    });
     return base;
-  }, [sections.today.items, sections.tomorrow.items, sections.weekend.items, featuredCommunity]);
-
-  const featuredGroupName = featuredCommunity?.group?.name || '';
-  const featuredGroupSlug = featuredCommunity?.group?.slug || '';
-  const featuredSummaryName = featuredGroupName || 'this community';
+  }, [sections.today.items, sections.tomorrow.items, sections.weekend.items, featuredCommunities]);
 
   useEffect(() => {
     if (!displayedEvents.length) {
@@ -1360,38 +1369,47 @@ export default function MainEvents() {
               tagMap={tagMap}
             />
           ))}
-          {featuredCommunity?.items?.length > 0 && (
-            <EventsSection
-              key="featured-community"
-              config={{
-                key: 'featured-community',
-                eyebrow: 'Featured community',
-                headline: featuredGroupName
-                  ? `Upcoming with ${featuredGroupName}`
-                  : 'Featured Community Events',
-                cta: featuredGroupSlug
-                  ? `See more from ${featuredGroupName}`
-                  : 'Explore more communities',
-                href: featuredGroupSlug ? `/groups/${featuredGroupSlug}` : '/groups',
-                getSummary: ({ data }) => {
-                  const total = data?.total || 0;
-                  const shown = data?.items?.length || 0;
-                  if (total === 0) {
-                    return 'No upcoming events yet — check back soon!';
-                  }
-                  if (total <= shown) {
-                    return `Showing ${total} upcoming event${total === 1 ? '' : 's'} from ${featuredSummaryName}.`;
-                  }
-                  return `Showing ${shown} of ${total} upcoming events from ${featuredSummaryName}.`;
-                },
-              }}
-              data={featuredCommunity}
-              loading={loading}
-              rangeStart={rangeMeta.today.start}
-              rangeEnd={rangeMeta.weekend.end}
-              tagMap={tagMap}
-            />
-          )}
+          {featuredCommunities.map((section, index) => {
+            if (!section?.items?.length) {
+              return null;
+            }
+            const featuredGroupName = section.group?.name || '';
+            const featuredGroupSlug = section.group?.slug || '';
+            const featuredSummaryName = featuredGroupName || 'this community';
+            const sectionKey = `featured-community-${featuredGroupSlug || featuredGroupName || index}`;
+            return (
+              <EventsSection
+                key={sectionKey}
+                config={{
+                  key: 'featured-community',
+                  eyebrow: 'Featured community',
+                  headline: featuredGroupName
+                    ? `Upcoming with ${featuredGroupName}`
+                    : 'Featured Community Events',
+                  cta: featuredGroupSlug
+                    ? `See more from ${featuredGroupName}`
+                    : 'Explore more communities',
+                  href: featuredGroupSlug ? `/groups/${featuredGroupSlug}` : '/groups',
+                  getSummary: ({ data }) => {
+                    const total = data?.total || 0;
+                    const shown = data?.items?.length || 0;
+                    if (total === 0) {
+                      return 'No upcoming events yet — check back soon!';
+                    }
+                    if (total <= shown) {
+                      return `Showing ${total} upcoming event${total === 1 ? '' : 's'} from ${featuredSummaryName}.`;
+                    }
+                    return `Showing ${shown} of ${total} upcoming events from ${featuredSummaryName}.`;
+                  },
+                }}
+                data={section}
+                loading={loading}
+                rangeStart={rangeMeta.today.start}
+                rangeEnd={rangeMeta.weekend.end}
+                tagMap={tagMap}
+              />
+            );
+          })}
         </div>
 
         <div className="mt-16 flex flex-col gap-0">
