@@ -14,6 +14,7 @@ import { Clock } from 'lucide-react'
 import useEventFavorite from './utils/useEventFavorite'
 import { AuthContext } from './AuthProvider'
 import { getDetailPathForItem } from './utils/eventDetailPaths.js'
+import { parseEventDateValue } from './utils/dateUtils.js'
 
 // ── Helpers to parse dates ────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -22,14 +23,6 @@ function parseISODateLocal(str) {
   const date = new Date(y, m - 1, d)
   return isNaN(date) ? null : date
 }
-function parseDate(datesStr) {
-  if (!datesStr) return null
-  const [first] = datesStr.split(/through|–|-/)
-  const [m, d, y] = first.trim().split('/').map(Number)
-  const date = new Date(y, m - 1, d)
-  return isNaN(date) ? null : date
-}
-
 function formatTime(t) {
   if (!t) return ''
   const [h, m] = t.split(':')
@@ -271,7 +264,7 @@ export default function TagPage() {
         byType.events?.length
           ? supabase
               .from('events')
-              .select('id,"E Name","E Image",slug,Dates,"End Date"')
+              .select('id,"E Name","E Image",slug,Dates,"Start Date","End Date"')
               .in('id', byType.events)
           : { data: [] },
         byType.big_board_events?.length
@@ -315,8 +308,8 @@ export default function TagPage() {
       setGroups(gRes.data || [])
 
       setTraditions((trRes.data || []).map(e => {
-        const start = parseDate(e.Dates)
-        const end   = parseDate(e['End Date']) || start
+        const start = parseEventDateValue(e['Start Date'] || e.Dates)
+        const end   = parseEventDateValue(e['End Date']) || start
         const href =
           getDetailPathForItem({
             ...e,
@@ -328,8 +321,8 @@ export default function TagPage() {
           imageUrl: e['E Image'] || '',
           start,
           end,
-          start_date: start ? start.toISOString().slice(0,10) : null,
-          end_date: end ? end.toISOString().slice(0,10) : null,
+          start_date: start ? start.toISOString().slice(0,10) : e['Start Date'] || null,
+          end_date: end ? end.toISOString().slice(0,10) : e['End Date'] || null,
           slug: e.slug,
           href,
           isTradition: true,
