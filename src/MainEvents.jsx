@@ -82,21 +82,20 @@ const TAG_PILL_STYLES = [
 
 const taggedScrollerConfigs = [
   {
-    slug: 'birds',
-    eyebrow: 'Seasonal Tag',
-    headline: 'Next in #Birds',
-  },
-  {
     slug: 'arts',
     eyebrow: 'Tag highlight',
     headline: 'Next in Arts',
-    description: 'Plot out gallery walks, performances, and creative nights across the city.',
+    supportingCopy: 'Plot out gallery walks, performances, and creative nights across the city.',
+    ctaLabel: 'See all arts events',
+    ctaHref: '/tags/arts',
   },
   {
     slug: 'nomnomslurp',
     eyebrow: 'Tag highlight',
     headline: 'Next in #NomNomSlurp',
-    description: 'Keep tabs on pop-ups, tastings, and foodie meetups worth savoring next.',
+    supportingCopy: 'Keep tabs on pop-ups, tastings, and foodie meetups worth savoring next.',
+    ctaLabel: 'See all #NomNomSlurp events',
+    ctaHref: '/tags/nomnomslurp',
   },
 ];
 
@@ -1559,41 +1558,27 @@ export default function MainEvents() {
         </section>
 
         <HeroLanding fullWidth />
-        {taggedScrollerConfigs.map(({ slug, eyebrow, headline, description }) => (
+        {taggedScrollerConfigs.map(({ slug, eyebrow, headline, supportingCopy, ctaLabel, ctaHref }) => (
           <TaggedEventScroller
             key={slug}
             tags={[slug]}
-            fullWidth
-            header={
-              <Link
-                to={`/tags/${slug}`}
-                className="block w-full max-w-screen-xl mx-auto px-4 mb-6 space-y-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-              >
-                {eyebrow && (
-                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">{eyebrow}</p>
-                )}
-                <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">{headline}</h2>
-                {description && (
-                  <p className="text-sm text-gray-600 sm:text-base">{description}</p>
-                )}
-              </Link>
-            }
+            variant="section"
+            eyebrow={eyebrow}
+            headline={headline}
+            supportingCopy={supportingCopy}
+            ctaLabel={ctaLabel}
+            ctaHref={ctaHref}
           />
         ))}
 
         <RecurringEventsScroller
           windowStart={startOfWeek}
           windowEnd={endOfWeek}
-          eventType="open_mic"
-          header={(
-            <div className="max-w-screen-xl mx-auto px-4 space-y-3 text-left mb-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Weekly regulars</p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">Karaoke, Bingo, Open Mics & Other Weeklies</h2>
-              <p className="text-sm text-gray-600 sm:text-base">
-                Drop into rotating open mics, karaoke nights, and game sessions that come back every week.
-              </p>
-            </div>
-          )}
+          eyebrow="Weekly regulars"
+          headline="Karaoke, Bingo, Open Mics & Other Weeklies"
+          description="Drop into rotating open mics, karaoke nights, and game sessions that come back every week."
+          ctaLabel="Browse all recurring series"
+          ctaHref="/series"
         />
       </main>
       <FloatingAddButton onClick={() => setShowFlyerModal(true)} />

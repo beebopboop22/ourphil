@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
-import { Clock } from 'lucide-react';
+import { ArrowRight, Clock } from 'lucide-react';
 import { RRule } from 'rrule';
 import useEventFavorite from './utils/useEventFavorite';
 import { AuthContext } from './AuthProvider';
@@ -14,10 +14,16 @@ function FavoriteState({ event_id, source_table, children }) {
 }
 
 export default function TaggedEventsScroller({
-  tags = [],             // array of tag slugs to pull events from
+  tags = [], // array of tag slugs to pull events from
   header,
-  embedded = false,      // if true, omit outer section & header markup
-  fullWidth = true,      // stretch to viewport edges by default
+  embedded = false, // if true, omit outer section & header markup
+  fullWidth = true, // stretch to viewport edges by default
+  variant = 'spotlight',
+  eyebrow,
+  headline,
+  supportingCopy,
+  ctaLabel,
+  ctaHref,
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -151,7 +157,7 @@ export default function TaggedEventsScroller({
           aeIds.length
             ? supabase
                 .from('all_events')
-                .select(`id, slug, name, start_date, image, venue_id(slug)`)
+                .select(`id, slug, name, start_date, image, venue_id(slug, name)`)
                 .in('id', aeIds)
             : { data: [] },
           geIds.length
@@ -250,6 +256,7 @@ export default function TaggedEventsScroller({
             start,
             end: start,
             href,
+            venueName: ev.venue_id?.name || '',
           });
         });
 
@@ -349,6 +356,191 @@ export default function TaggedEventsScroller({
   }, [tagsKey]);
 
   if (tagMeta.isSeasonal && !active) return null;
+
+  const formatDateRangeLabel = (startDate, endDate) => {
+    if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
+      return '';
+    }
+    const end = endDate instanceof Date && !Number.isNaN(endDate.getTime()) ? endDate : startDate;
+    const sameDay = startDate.toDateString() === end.toDateString();
+    const startLabel = startDate.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+    if (sameDay) {
+      return startLabel;
+    }
+    const endLabel = end.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+    return `${startLabel} – ${endLabel}`;
+  };
+
+  if (variant === 'section' && !embedded) {
+    const listLabel = tagMeta.name || (tags[0] ? `#${tags[0]}` : 'this tag');
+    const totalCount = items.length;
+    const cardsToShow = items.slice(0, 8);
+    const summaryText = loading
+      ? 'Loading events…'
+      : totalCount === 0
+      ? `No upcoming events for ${listLabel} yet — check back soon!`
+      : totalCount <= cardsToShow.length
+      ? `Showing ${totalCount} upcoming pick${totalCount === 1 ? '' : 's'} from ${listLabel}.`
+      : `Showing ${cardsToShow.length} of ${totalCount} upcoming picks from ${listLabel}.`;
+    const ctaDestination = ctaHref || (tags.length === 1 ? `/tags/${tags[0]}` : '/tags');
+    const resolvedCtaLabel = ctaLabel || `See all ${listLabel} events`;
+
+    return (
+      <section className="mt-16">
+        <div className="max-w-screen-xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              {eyebrow && (
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">{eyebrow}</p>
+              )}
+              {headline && (
+                <h2 className={`text-2xl sm:text-3xl font-bold text-[#28313e] ${eyebrow ? 'mt-2' : ''}`}>
+                  {headline}
+                </h2>
+              )}
+              <p className="mt-2 text-sm text-gray-600 sm:text-base">{summaryText}</p>
+              {supportingCopy && (
+                <p className="mt-2 text-sm text-gray-600 sm:text-base">{supportingCopy}</p>
+              )}
+            </div>
+            <Link
+              to={ctaDestination}
+              className="inline-flex items-center gap-2 self-start md:self-auto px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-full shadow hover:bg-indigo-700 transition"
+            >
+              {resolvedCtaLabel}
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="mt-8">
+            {loading ? (
+              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink">
+                    <div className="h-[18rem] w-full rounded-2xl bg-gray-100 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : cardsToShow.length === 0 ? (
+              <p className="text-sm text-gray-600 sm:text-base">Check back soon for new events.</p>
+            ) : (
+              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+                {cardsToShow.map(evt => {
+                  const dateLabel = formatDateRangeLabel(evt.start, evt.end);
+                  if (evt.source_table === 'sg_events') {
+                    return (
+                      <div
+                        key={`${evt.id}-${evt.start}`}
+                        className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink"
+                      >
+                        <Link
+                          to={evt.href || '#'}
+                          className="flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl"
+                        >
+                          <div className="relative h-40 w-full overflow-hidden bg-gray-100">
+                            {evt.imageUrl ? (
+                              <img src={evt.imageUrl} alt={evt.title} className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-sm font-semibold text-gray-500">
+                                Photo coming soon
+                              </div>
+                            )}
+                            {dateLabel && (
+                              <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[0.65rem] font-semibold text-indigo-900 shadow-sm backdrop-blur">
+                                {dateLabel}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-1 flex-col items-center px-5 pb-5 pt-4 text-center">
+                            <h3 className="text-base font-semibold text-gray-900 line-clamp-2">{evt.title}</h3>
+                          </div>
+                        </Link>
+                        {evt.url && (
+                          <a
+                            href={evt.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-flex w-full items-center justify-center rounded-md border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-600 hover:text-white"
+                          >
+                            Get Tickets
+                          </a>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <FavoriteState
+                      key={`${evt.id}-${evt.start}`}
+                      event_id={evt.id}
+                      source_table={evt.source_table}
+                    >
+                      {({ isFavorite, toggleFavorite, loading: favLoading }) => (
+                        <div className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink">
+                          <Link
+                            to={evt.href || '#'}
+                            className={`flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl ${
+                              isFavorite ? 'ring-2 ring-indigo-600' : ''
+                            }`}
+                          >
+                            <div className="relative h-40 w-full overflow-hidden bg-gray-100">
+                              {evt.imageUrl ? (
+                                <img src={evt.imageUrl} alt={evt.title} className="h-full w-full object-cover" loading="lazy" />
+                              ) : (
+                                <div className="flex h-full items-center justify-center text-sm font-semibold text-gray-500">
+                                  Photo coming soon
+                                </div>
+                              )}
+                              {dateLabel && (
+                                <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[0.65rem] font-semibold text-indigo-900 shadow-sm backdrop-blur">
+                                  {dateLabel}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-1 flex-col items-center px-5 pb-5 pt-4 text-center">
+                              <div className="flex w-full flex-1 flex-col items-center">
+                                <h3 className="text-base font-semibold text-gray-900 line-clamp-2">{evt.title}</h3>
+                                {evt.venueName && (
+                                  <p className="mt-1 text-sm text-gray-600">at {evt.venueName}</p>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+                          <button
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (!user) {
+                                navigate('/login');
+                                return;
+                              }
+                              toggleFavorite();
+                            }}
+                            disabled={favLoading}
+                            className={`mt-2 inline-flex w-full items-center justify-center rounded-md border border-indigo-600 px-4 py-2 text-sm font-semibold transition ${
+                              isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                            }`}
+                          >
+                            {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                          </button>
+                        </div>
+                      )}
+                    </FavoriteState>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   const baseSectionClass = tagMeta.isSeasonal
     ? 'relative w-full bg-white border-y-4 border-[#004C55] py-16 overflow-hidden'
