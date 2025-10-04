@@ -21,9 +21,43 @@ function normalizeTokens(value) {
     return value.flatMap(normalizeTokens)
   }
   if (typeof value === 'string') {
-    return value
-      .split(/[,&/|;]+| and | AND |\\n/g)
-      .map(part => part.replace(/neighborhood$/i, '').trim().toLowerCase())
+    const trimmed = value.trim()
+
+    if (trimmed) {
+      if (
+        (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+        (trimmed.startsWith('{') && trimmed.endsWith('}'))
+      ) {
+        const jsonCandidate = trimmed
+          .replace(/^{/, '[')
+          .replace(/}$/, ']')
+          .replace(/''/g, "'")
+          .replace(/""/g, '"')
+        try {
+          const parsed = JSON.parse(jsonCandidate)
+          if (Array.isArray(parsed)) {
+            return parsed.flatMap(normalizeTokens)
+          }
+        } catch {}
+      }
+    }
+
+    const normalizedValue = trimmed.replace(/[\u2013\u2014]/g, '-')
+
+    return normalizedValue
+      .split(/(?:\band\b|\bAND\b|[,&/|;+\n-]+)/g)
+      .map(part => {
+        const withoutNeighborhood = part.replace(/neighborhood$/i, '')
+        const cleaned = withoutNeighborhood
+          .replace(/[{}[\]"()]/g, ' ')
+          .trim()
+          .toLowerCase()
+          .replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')
+          .replace(/^the\s+/, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+        return cleaned
+      })
       .filter(Boolean)
   }
   if (typeof value === 'object') {
