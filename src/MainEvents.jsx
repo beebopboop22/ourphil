@@ -348,6 +348,18 @@ function mapGroupEventToCard(evt) {
         status: groupRecord.status || '',
       }
     : null;
+  const rawImage = evt.image_url || evt.image || '';
+  let imageUrl = '';
+  if (rawImage) {
+    if (rawImage.startsWith('http')) {
+      imageUrl = rawImage;
+    } else {
+      const { data } = supabase.storage.from('big-board').getPublicUrl(rawImage);
+      imageUrl = data?.publicUrl || '';
+    }
+  } else if (group?.image) {
+    imageUrl = group.image;
+  }
   const detailPath = getDetailPathForItem({
     ...evt,
     group_slug: group?.slug,
@@ -358,9 +370,10 @@ function mapGroupEventToCard(evt) {
     sourceId: evt.id,
     title: evt.title,
     description: evt.description,
-    imageUrl: group?.image || '',
+    imageUrl,
     startDate: start,
     start_time: evt.start_time,
+    address: evt.address,
     badges: ['Group Event'],
     detailPath,
     source_table: 'group_events',

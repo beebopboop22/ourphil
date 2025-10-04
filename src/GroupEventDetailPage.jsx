@@ -572,6 +572,19 @@ export default function GroupEventDetailPage() {
                       {isFavorite ? 'In the Plans' : 'Add to Plans'}
                     </button>
 
+                    {evt.link && (
+                      <p className="mt-3 text-sm">
+                        <a
+                          href={ensureAbsoluteUrl(evt.link)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                        >
+                          View source
+                        </a>
+                      </p>
+                    )}
+
                     {selectedTags.length > 0 && (
                       <div className="mb-4">
                         <h2 className="text-sm font-medium text-gray-700 mb-1">Tags</h2>
