@@ -115,6 +115,22 @@ export default function GroupEventDetailPage() {
         .eq('id', eventId)
         .single()
 
+      if (!ev) {
+        setEvt(null)
+        setLoading(false)
+        return
+      }
+
+      let eventLink = ev?.link ?? null
+      if (!eventLink) {
+        const { data: baseEvent } = await supabase
+          .from('group_events')
+          .select('link')
+          .eq('id', eventId)
+          .single()
+        eventLink = baseEvent?.link ?? null
+      }
+
       // 3) existing taggings
       const { data: tgs } = await supabase
         .from('taggings')
@@ -145,7 +161,7 @@ export default function GroupEventDetailPage() {
       }
 
       setGroup(grp)
-      setEvt({ ...ev, image: evImgUrl })
+      setEvt({ ...ev, image: evImgUrl, link: eventLink || null })
       setSelectedTags(tgs?.map(x=>x.tag_id) || [])
       setTagsList(allTags || [])
       setLoading(false)
@@ -571,6 +587,19 @@ export default function GroupEventDetailPage() {
                       <CalendarCheck className="w-5 h-5" />
                       {isFavorite ? 'In the Plans' : 'Add to Plans'}
                     </button>
+
+                    {evt.link && (
+                      <p className="mt-3 text-sm">
+                        <a
+                          href={ensureAbsoluteUrl(evt.link)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                        >
+                          View source
+                        </a>
+                      </p>
+                    )}
 
                     {selectedTags.length > 0 && (
                       <div className="mb-4">
