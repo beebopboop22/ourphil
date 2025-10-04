@@ -3,7 +3,7 @@
 
 """
 Scrape Latin Vibes Group (Elementor) tiles and write into public.group_events.
-Keeps ONLY Philadelphia events. We key off `.venuename` so we don't miss cards.
+Keeps ONLY Philadelphia events. Keys off `.venuename` and stores event link.
 
 ENV:
   - SUPABASE_URL
@@ -40,7 +40,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise SystemExit("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in env.")
 sb: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ── HTTP defaults (polite) ─────────────────────────────────────────────────────
+# ── HTTP defaults ──────────────────────────────────────────────────────────────
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -92,7 +92,7 @@ def fetch(url: str):
 def clean_text(html_text: str | None) -> str:
     t = (html_text or "").strip()
     t = re.sub(r"[ \t]+", " ", t)
-    t = t.replace("\u2013", "-").replace("\u2014", "-")
+    t = t.replace("\u2013", "-", 1).replace("\u2014", "-", 1)
     return t
 
 def parse_time_token(token: str) -> tuple[int,int]:
@@ -134,21 +134,16 @@ def parse_datetime_block(block: str) -> tuple[str|None, str|None, str|None, str|
 
 # ── Philly-only filter ─────────────────────────────────────────────────────────
 PHILLY_OK = re.compile(r"\b(philadelphia|phila)\b", re.I)
-ZIP_191 = re.compile(r"\b191\d{2}(?:-\d{4})?\b")  # Philly ZIPs
+ZIP_191 = re.compile(r"\b191\d{2}(?:-\d{4})?\b")
 NON_PHILLY_BLOCKLIST = re.compile(
     r"\b(NYC|New\s*York|Manhattan|Brooklyn|Queens|Bronx|NY\b|NJ\b|Delaware|DE\b|TX\b|Texas|MD\b|Maryland|DC\b|Washington\s*DC)\b",
     re.I
 )
 
 def is_philly_address(text: str) -> bool:
-    """
-    Keep if:
-      - contains 'Philadelphia' or 'Phila' OR has a 191xx ZIP,
-      - and does NOT contain obvious non-Philly markers (NYC/NJ/DE/TX/etc).
-    """
     if not text: return False
     t = clean_text(text)
-    if NON_PHILLY_BLOCKLIST.search(t):  # hard skip
+    if NON_PHILLY_BLOCKLIST.search(t):
         return False
     return bool(PHILLY_OK.search(t) or ZIP_191.search(t))
 
@@ -160,7 +155,7 @@ def extract_card_from_column(col, base_url: str) -> dict | None:
     if not title:
         return None
 
-    # Date/time (look for a strong that has month + time)
+    # Date/time
     dt_el = None
     for cand in col.select(".elementor-widget-text-editor strong"):
         text = cand.get_text(" ", strip=True)
@@ -171,7 +166,7 @@ def extract_card_from_column(col, base_url: str) -> dict | None:
     if dt_el:
         start_date, end_date, start_time, end_time = parse_datetime_block(dt_el.get_text(" ", strip=True))
 
-    # Address block: find <p> containing .venuename; join with <br> text
+    # Address (look for .venuename holder)
     addr_p = None
     for p in col.select(".elementor-widget-text-editor p"):
         if p.select_one(".venuename"):
@@ -180,11 +175,9 @@ def extract_card_from_column(col, base_url: str) -> dict | None:
     venue = None
     address = None
     if addr_p:
-        # Preserve line breaks: get_text with '\n', then pretty join
         raw = addr_p.get_text("\n", strip=True).replace(" ,", ",")
         parts = [s.strip() for s in raw.split("\n") if s.strip()]
         if parts:
-            # e.g., "Brasil’s Nightclub," then "112 Chestnut Street" then "Philadelphia, PA 19106"
             if parts[0].endswith(","):
                 venue = parts[0].rstrip(",").strip()
                 address = ", ".join(parts[1:]) if len(parts) > 1 else None
@@ -195,13 +188,15 @@ def extract_card_from_column(col, base_url: str) -> dict | None:
     if not is_philly_address(address or ""):
         return None
 
-    # Image
+    # Media/link
     img_tag = col.select_one(".elementor-widget-image img")
     image_url = absolute_img_src(img_tag, base_url)
 
-    # Ticket link
     ticket_a = col.select_one(".elementor-widget-button a[href]")
     ticket_url = ticket_a.get("href").strip() if ticket_a else None
+
+    # Prefer ticket link; otherwise fall back to page we scraped
+    event_link = ticket_url or canon_link(base_url)
 
     # Slug
     slug_bits = [title]
@@ -226,6 +221,7 @@ def extract_card_from_column(col, base_url: str) -> dict | None:
         "end_time": end_time,
         "image_url": image_url,
         "slug": slug,
+        "link": event_link,                   # <-- NEW: store link on row
         "_link": canon_link(ticket_url) if ticket_url else None,
     }
 
@@ -236,9 +232,7 @@ def scrape_listing_page(url: str) -> list[dict]:
 
     rows = []
     seen_cols = 0
-    # Go broad: any Elementor "top column" OR "column"
     for col in soup.select("div.elementor-top-column, div.elementor-column"):
-        # only consider columns that actually contain a .venuename
         if not col.select_one(".venuename"):
             continue
         seen_cols += 1
@@ -253,7 +247,6 @@ def scrape_all() -> list[dict]:
     all_rows = []
     for u in LISTING_URLS:
         all_rows.extend(scrape_listing_page(u))
-    # de-dup within this run by link (if present) else slug
     dedup = {}
     for ev in all_rows:
         key = ev.get("_link") or ev["slug"]
@@ -270,7 +263,7 @@ def upsert_group_events(rows: list[dict]) -> None:
     for ev in rows:
         payload = {
             "group_id": ev["group_id"],
-            "user_id": USER_ID,              # REQUIRED (NOT NULL)
+            "user_id": USER_ID,
             "title": ev["title"],
             "description": ev.get("description"),
             "address": ev.get("address"),
@@ -282,6 +275,7 @@ def upsert_group_events(rows: list[dict]) -> None:
             "end_time": ev.get("end_time"),
             "image_url": ev.get("image_url"),
             "slug": ev.get("slug"),
+            "link": ev.get("link"),          # <-- NEW: write into column
         }
 
         try:
