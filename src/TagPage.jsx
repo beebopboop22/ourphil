@@ -14,6 +14,87 @@ import { Clock } from 'lucide-react'
 import useEventFavorite from './utils/useEventFavorite'
 import { AuthContext } from './AuthProvider'
 import { getDetailPathForItem } from './utils/eventDetailPaths.js'
+import { parseEventDateValue } from './utils/dateUtils.js'
+import { normalizeTaggableType } from './utils/taggings.js'
+
+function sanitizeOrdinal(dateStr) {
+  const str = typeof dateStr === 'string' ? dateStr : String(dateStr ?? '')
+  return str.replace(/(\d+)(st|nd|rd|th)/gi, '$1')
+}
+
+function parseLegacyDate(value) {
+  if (!value) return null
+  const trimmed = sanitizeOrdinal(value.trim())
+  if (!trimmed) return null
+  const parsed = parseEventDateValue(trimmed)
+  if (parsed) return parsed
+  const fallback = new Date(trimmed)
+  if (Number.isNaN(fallback.getTime())) return null
+  fallback.setHours(0, 0, 0, 0)
+  return fallback
+}
+
+function extractLegacyRange(eventRow) {
+  const rangeSeparator = /(?:through|to|–|—|\u2013|\u2014|\s+-\s+)/i
+  const primary = eventRow['Start Date'] || eventRow.Dates || ''
+  const explicitEnd = eventRow['End Date'] || ''
+
+  let start = parseLegacyDate(primary)
+  let end = parseLegacyDate(explicitEnd)
+
+  if (!start && primary) {
+    const [first] = primary.split(rangeSeparator)
+    start = parseLegacyDate(first || primary)
+  }
+
+  if (!end && primary) {
+    const parts = primary.split(rangeSeparator).map(part => part && part.trim()).filter(Boolean)
+    if (parts.length > 1) {
+      const [, lastPart] = parts.slice(-2)
+      if (lastPart) {
+        // if the second part omits month/year, borrow from start
+        if (start && /^\d{1,2}$/.test(lastPart)) {
+          const candidate = new Date(start)
+          candidate.setDate(Number(lastPart))
+          candidate.setHours(0, 0, 0, 0)
+          end = candidate
+        } else if (start && /^\d{1,2}\/\d{1,2}$/.test(lastPart)) {
+          const [m, d] = lastPart.split('/').map(Number)
+          const candidate = new Date(start)
+          candidate.setMonth(m - 1, d)
+          candidate.setHours(0, 0, 0, 0)
+          end = candidate
+        } else if (start && /^[A-Za-z]+\s+\d{1,2}$/.test(lastPart)) {
+          const [monthName, day] = lastPart.split(/\s+/)
+          const candidate = new Date(start)
+          const monthIndex = new Date(`${monthName} 1 ${candidate.getFullYear()}`).getMonth()
+          if (!Number.isNaN(monthIndex)) {
+            candidate.setMonth(monthIndex, Number(day))
+            candidate.setHours(0, 0, 0, 0)
+            end = candidate
+          }
+        } else if (start && /^\d{1,2}\s+[A-Za-z]+$/.test(lastPart)) {
+          const [day, monthName] = lastPart.split(/\s+/)
+          const candidate = new Date(start)
+          const monthIndex = new Date(`${monthName} 1 ${candidate.getFullYear()}`).getMonth()
+          if (!Number.isNaN(monthIndex)) {
+            candidate.setMonth(monthIndex, Number(day))
+            candidate.setHours(0, 0, 0, 0)
+            end = candidate
+          }
+        } else {
+          end = parseLegacyDate(lastPart)
+        }
+      }
+    }
+  }
+
+  if (!end && start) {
+    end = start
+  }
+
+  return { start, end }
+}
 
 // ── Helpers to parse dates ────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -22,14 +103,6 @@ function parseISODateLocal(str) {
   const date = new Date(y, m - 1, d)
   return isNaN(date) ? null : date
 }
-function parseDate(datesStr) {
-  if (!datesStr) return null
-  const [first] = datesStr.split(/through|–|-/)
-  const [m, d, y] = first.trim().split('/').map(Number)
-  const date = new Date(y, m - 1, d)
-  return isNaN(date) ? null : date
-}
-
 function formatTime(t) {
   if (!t) return ''
   const [h, m] = t.split(':')
@@ -253,11 +326,16 @@ export default function TagPage() {
         .from('taggings')
         .select('taggable_type,taggable_id')
         .eq('tag_id', t.id)
-      const byType = taggings.reduce((acc, { taggable_type, taggable_id }) => {
-        acc[taggable_type] = acc[taggable_type] || []
-        acc[taggable_type].push(taggable_id)
-        return acc
-      }, {})
+      const grouped = {}
+      ;(taggings || []).forEach(({ taggable_type, taggable_id }) => {
+        const key = normalizeTaggableType(taggable_type)
+        if (!key) return
+        if (!grouped[key]) grouped[key] = new Set()
+        grouped[key].add(taggable_id)
+      })
+      const byType = Object.fromEntries(
+        Object.entries(grouped).map(([key, set]) => [key, Array.from(set)])
+      )
       const recurringIds = byType.recurring_events || []
 
       // 3) parallel fetch all sources
@@ -271,7 +349,7 @@ export default function TagPage() {
         byType.events?.length
           ? supabase
               .from('events')
-              .select('id,"E Name","E Image",slug,Dates,"End Date"')
+              .select('id,"E Name","E Image",slug,Dates,"Start Date","End Date"')
               .in('id', byType.events)
           : { data: [] },
         byType.big_board_events?.length
@@ -315,8 +393,7 @@ export default function TagPage() {
       setGroups(gRes.data || [])
 
       setTraditions((trRes.data || []).map(e => {
-        const start = parseDate(e.Dates)
-        const end   = parseDate(e['End Date']) || start
+        const { start, end } = extractLegacyRange(e)
         const href =
           getDetailPathForItem({
             ...e,
@@ -328,8 +405,8 @@ export default function TagPage() {
           imageUrl: e['E Image'] || '',
           start,
           end,
-          start_date: start ? start.toISOString().slice(0,10) : null,
-          end_date: end ? end.toISOString().slice(0,10) : null,
+          start_date: start ? start.toISOString().slice(0,10) : e['Start Date'] || null,
+          end_date: end ? end.toISOString().slice(0,10) : e['End Date'] || null,
           slug: e.slug,
           href,
           isTradition: true,
