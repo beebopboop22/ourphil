@@ -1,0 +1,42 @@
+name: Scrape Bok Events (daily)
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "15 09 * * *" # runs daily at 09:15 UTC
+
+concurrency:
+  group: scrape-bok
+  cancel-in-progress: false
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Set these in your repo Settings → Secrets and variables → Actions → Secrets
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }} # optional fallback
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install requests beautifulsoup4 python-dotenv supabase postgrest
+          fi
+
+      - name: Run Bok scraper
+        run: python scripts/scrape-bok.py
