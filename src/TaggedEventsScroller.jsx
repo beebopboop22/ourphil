@@ -2,11 +2,22 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { supabase } from './supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
-import { Clock } from 'lucide-react';
+import { ArrowRight, Clock } from 'lucide-react';
 import { RRule } from 'rrule';
 import useEventFavorite from './utils/useEventFavorite';
 import { AuthContext } from './AuthProvider';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+
+const TAG_PILL_STYLES = [
+  'bg-green-100 text-indigo-800',
+  'bg-teal-100 text-teal-800',
+  'bg-pink-100 text-pink-800',
+  'bg-blue-100 text-blue-800',
+  'bg-orange-100 text-orange-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-purple-100 text-purple-800',
+  'bg-red-100 text-red-800',
+];
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -14,10 +25,16 @@ function FavoriteState({ event_id, source_table, children }) {
 }
 
 export default function TaggedEventsScroller({
-  tags = [],             // array of tag slugs to pull events from
+  tags = [], // array of tag slugs to pull events from
   header,
-  embedded = false,      // if true, omit outer section & header markup
-  fullWidth = true,      // stretch to viewport edges by default
+  embedded = false, // if true, omit outer section & header markup
+  fullWidth = true, // stretch to viewport edges by default
+  variant = 'spotlight',
+  eyebrow,
+  headline,
+  supportingCopy,
+  ctaLabel,
+  ctaHref,
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +42,7 @@ export default function TaggedEventsScroller({
     isSeasonal: false,
     name: '',
   });
+  const [requestedTagInfo, setRequestedTagInfo] = useState([]);
   const [active, setActive] = useState(true);
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -90,9 +108,18 @@ export default function TaggedEventsScroller({
         // 1) lookup tag IDs
         const { data: tagRows, error: tagErr } = await supabase
           .from('tags')
-          .select('id, name, is_seasonal, season_start, season_end, rrule')
+          .select('id, name, slug, is_seasonal, season_start, season_end, rrule')
           .in('slug', tags);
         if (tagErr) throw tagErr;
+        const tagInfoById = {};
+        const requestedTags = (tagRows || []).map(t => {
+          tagInfoById[t.id] = { slug: t.slug, name: t.name || t.slug };
+          return { slug: t.slug, name: t.name || t.slug };
+        });
+        const fallbackTagList = requestedTags.length
+          ? requestedTags
+          : tags.map(slug => ({ slug, name: slug.replace(/-/g, ' ') }));
+        setRequestedTagInfo(fallbackTagList);
         const tagIds = (tagRows || []).map(t => t.id);
         if (tagRows && tagRows.length) {
           const seasonal = tagRows.some(t => t.is_seasonal || t.rrule || (t.season_start && t.season_end));
@@ -118,17 +145,26 @@ export default function TaggedEventsScroller({
         // 2) fetch taggings
         const { data: taggings, error: taggErr } = await supabase
           .from('taggings')
-          .select('taggable_id,taggable_type')
+          .select('taggable_id,taggable_type,tag_id')
           .in('tag_id', tagIds);
         if (taggErr) throw taggErr;
 
         // 3) split by type
         const evIds = [], bbIds = [], aeIds = [], geIds = [];
-        (taggings || []).forEach(({ taggable_id, taggable_type }) => {
+        const matchedTagsByKey = {};
+        (taggings || []).forEach(({ taggable_id, taggable_type, tag_id }) => {
           if (taggable_type === 'events')               evIds.push(taggable_id);
           else if (taggable_type === 'big_board_events') bbIds.push(taggable_id);
           else if (taggable_type === 'all_events')      aeIds.push(taggable_id);
           else if (taggable_type === 'group_events')    geIds.push(taggable_id);
+
+          if (tag_id && tagInfoById[tag_id]) {
+            const key = `${taggable_type}:${taggable_id}`;
+            if (!matchedTagsByKey[key]) matchedTagsByKey[key] = [];
+            if (!matchedTagsByKey[key].some(t => t.slug === tagInfoById[tag_id].slug)) {
+              matchedTagsByKey[key].push(tagInfoById[tag_id]);
+            }
+          }
         });
 
         // 4) fetch all four sources in parallel
@@ -151,7 +187,7 @@ export default function TaggedEventsScroller({
           aeIds.length
             ? supabase
                 .from('all_events')
-                .select(`id, slug, name, start_date, image, venue_id(slug)`)
+                .select(`id, slug, name, start_date, image, venue_id(slug, name)`)
                 .in('id', aeIds)
             : { data: [] },
           geIds.length
@@ -197,6 +233,7 @@ export default function TaggedEventsScroller({
               ...e,
               slug: e.slug,
             }) || '/';
+          const tagKey = `events:${e.id}`;
           merged.push({
             id: e.id,
             source_table: 'events',
@@ -204,6 +241,7 @@ export default function TaggedEventsScroller({
             imageUrl: e['E Image'] || '',
             start, end,
             href,
+            tags: matchedTagsByKey[tagKey]?.length ? matchedTagsByKey[tagKey] : fallbackTagList,
           });
         });
 
@@ -220,6 +258,7 @@ export default function TaggedEventsScroller({
               ...ev,
               isBigBoard: true,
             }) || '/';
+          const tagKey = `big_board_events:${ev.id}`;
           merged.push({
             id: ev.id,
             source_table: 'big_board_events',
@@ -227,6 +266,7 @@ export default function TaggedEventsScroller({
             imageUrl: url,
             start, end,
             href,
+            tags: matchedTagsByKey[tagKey]?.length ? matchedTagsByKey[tagKey] : fallbackTagList,
           });
         });
 
@@ -242,6 +282,7 @@ export default function TaggedEventsScroller({
                 ? { name: ev.venue_id.name, slug: venueSlug }
                 : null,
             }) || '/';
+          const tagKey = `all_events:${ev.id}`;
           merged.push({
             id: ev.id,
             source_table: 'all_events',
@@ -250,6 +291,8 @@ export default function TaggedEventsScroller({
             start,
             end: start,
             href,
+            venueName: ev.venue_id?.name || '',
+            tags: matchedTagsByKey[tagKey]?.length ? matchedTagsByKey[tagKey] : fallbackTagList,
           });
         });
 
@@ -275,6 +318,7 @@ export default function TaggedEventsScroller({
               group_slug: groupSlug,
               isGroupEvent: true,
             }) || '/';
+          const tagKey = `group_events:${ev.id}`;
           merged.push({
             id: ev.id,
             source_table: 'group_events',
@@ -282,6 +326,7 @@ export default function TaggedEventsScroller({
             imageUrl: url,
             start, end,
             href,
+            tags: matchedTagsByKey[tagKey]?.length ? matchedTagsByKey[tagKey] : fallbackTagList,
           });
         });
 
@@ -319,6 +364,7 @@ export default function TaggedEventsScroller({
                 end: start,
                 href,
                 url: e.url,
+                tags: fallbackTagList,
               });
             });
           } catch (err) {
@@ -349,6 +395,246 @@ export default function TaggedEventsScroller({
   }, [tagsKey]);
 
   if (tagMeta.isSeasonal && !active) return null;
+
+  const formatDateRangeLabel = (startDate, endDate) => {
+    if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
+      return '';
+    }
+    const end = endDate instanceof Date && !Number.isNaN(endDate.getTime()) ? endDate : startDate;
+    const sameDay = startDate.toDateString() === end.toDateString();
+    const startLabel = startDate.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+    if (sameDay) {
+      return startLabel;
+    }
+    const endLabel = end.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+    return `${startLabel} – ${endLabel}`;
+  };
+
+  if (variant === 'section' && !embedded) {
+    const listLabel = tagMeta.name || (tags[0] ? `#${tags[0]}` : 'this tag');
+    const totalCount = items.length;
+    const cardsToShow = items.slice(0, 8);
+    const summaryText = loading
+      ? 'Loading events…'
+      : totalCount === 0
+      ? `No upcoming events for ${listLabel} yet — check back soon!`
+      : totalCount <= cardsToShow.length
+      ? `Showing ${totalCount} upcoming pick${totalCount === 1 ? '' : 's'} from ${listLabel}.`
+      : `Showing ${cardsToShow.length} of ${totalCount} upcoming picks from ${listLabel}.`;
+    const ctaDestination = ctaHref || (tags.length === 1 ? `/tags/${tags[0]}` : '/tags');
+    const resolvedCtaLabel = ctaLabel || `See all ${listLabel} events`;
+
+    return (
+      <section className="mt-16">
+        <div className="max-w-screen-xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              {eyebrow && (
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">{eyebrow}</p>
+              )}
+              {headline && (
+                <h2 className={`text-2xl sm:text-3xl font-bold text-[#28313e] ${eyebrow ? 'mt-2' : ''}`}>
+                  {headline}
+                </h2>
+              )}
+              <p className="mt-2 text-sm text-gray-600 sm:text-base">{summaryText}</p>
+              {supportingCopy && (
+                <p className="mt-2 text-sm text-gray-600 sm:text-base">{supportingCopy}</p>
+              )}
+            </div>
+            <Link
+              to={ctaDestination}
+              className="inline-flex items-center gap-2 self-start md:self-auto px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-full shadow hover:bg-indigo-700 transition"
+            >
+              {resolvedCtaLabel}
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="mt-8">
+            {loading ? (
+              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="w-[16rem] flex-shrink-0 snap-start">
+                    <div className="h-[18rem] w-full rounded-2xl bg-gray-100 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : cardsToShow.length === 0 ? (
+              <p className="text-sm text-gray-600 sm:text-base">Check back soon for new events.</p>
+            ) : (
+              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+                {cardsToShow.map(evt => {
+                  const dateLabel = formatDateRangeLabel(evt.start, evt.end);
+                  const eventTags = evt.tags && evt.tags.length ? evt.tags : requestedTagInfo;
+
+                  const renderTagPills = () => (
+                    eventTags && eventTags.length ? (
+                      <div className="mt-3 flex flex-wrap justify-center gap-2">
+                        {eventTags.slice(0, 3).map((tag, index) => (
+                          <button
+                            key={`${tag.slug}-${index}`}
+                            type="button"
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              navigate(`/tags/${tag.slug}`);
+                            }}
+                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold transition ${
+                              TAG_PILL_STYLES[index % TAG_PILL_STYLES.length]
+                            }`}
+                          >
+                            #{tag.name}
+                          </button>
+                        ))}
+                        {eventTags.length > 3 && (
+                          <span className="text-xs text-gray-500">+{eventTags.length - 3} more</span>
+                        )}
+                      </div>
+                    ) : null
+                  );
+
+                  if (evt.source_table === 'sg_events') {
+                    return (
+                      <div
+                        key={`${evt.id}-${evt.start}`}
+                        className="w-[16rem] flex-shrink-0 snap-start"
+                      >
+                        <Link
+                          to={evt.href || '#'}
+                          className="group block h-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                        >
+                          <div className="flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl">
+                            <div className="relative h-40 w-full overflow-hidden bg-gray-100">
+                              {evt.imageUrl ? (
+                                <img src={evt.imageUrl} alt={evt.title} className="h-full w-full object-cover" loading="lazy" />
+                              ) : (
+                                <div className="flex h-full items-center justify-center text-sm font-semibold text-gray-500">
+                                  Photo coming soon
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                              {dateLabel && (
+                                <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[0.65rem] font-semibold text-indigo-900 shadow-sm backdrop-blur">
+                                  {dateLabel}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-1 flex-col items-center px-5 pb-5 pt-4 text-center">
+                              <div className="flex w-full flex-1 flex-col items-center">
+                                <h3 className="text-base font-semibold text-gray-900 line-clamp-2">{evt.title}</h3>
+                                {evt.venueName && (
+                                  <p className="mt-1 text-sm text-gray-600">at {evt.venueName}</p>
+                                )}
+                              </div>
+                              {renderTagPills()}
+                              <div className="mt-4 w-full">
+                                {evt.url && (
+                                  <a
+                                    href={evt.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    className="inline-flex w-full items-center justify-center rounded-md border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-600 hover:text-white"
+                                  >
+                                    Get Tickets
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <FavoriteState
+                      key={`${evt.id}-${evt.start}`}
+                      event_id={evt.id}
+                      source_table={evt.source_table}
+                    >
+                      {({ isFavorite, toggleFavorite, loading: favLoading }) => (
+                        <div className="w-[16rem] flex-shrink-0 snap-start">
+                          <Link
+                            to={evt.href || '#'}
+                            className="group block h-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                          >
+                            <div
+                              className={`flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl ${
+                                isFavorite ? 'ring-2 ring-indigo-600' : ''
+                              }`}
+                            >
+                              <div className="relative h-40 w-full overflow-hidden bg-gray-100">
+                                {evt.imageUrl ? (
+                                  <img src={evt.imageUrl} alt={evt.title} className="h-full w-full object-cover" loading="lazy" />
+                                ) : (
+                                  <div className="flex h-full items-center justify-center text-sm font-semibold text-gray-500">
+                                    Photo coming soon
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                                {dateLabel && (
+                                  <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[0.65rem] font-semibold text-indigo-900 shadow-sm backdrop-blur">
+                                    {dateLabel}
+                                  </div>
+                                )}
+                                {isFavorite && (
+                                  <div className="absolute right-3 top-3 rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                                    In the plans!
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-1 flex-col items-center px-5 pb-5 pt-4 text-center">
+                                <div className="flex w-full flex-1 flex-col items-center">
+                                  <h3 className="text-base font-semibold text-gray-900 line-clamp-2">{evt.title}</h3>
+                                  {evt.venueName && (
+                                    <p className="mt-1 text-sm text-gray-600">at {evt.venueName}</p>
+                                  )}
+                                </div>
+                                {renderTagPills()}
+                                <div className="mt-4 w-full">
+                                  <button
+                                    onClick={e => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (!user) {
+                                        navigate('/login');
+                                        return;
+                                      }
+                                      toggleFavorite();
+                                    }}
+                                    disabled={favLoading}
+                                    className={`inline-flex w-full items-center justify-center rounded-md border border-indigo-600 px-4 py-2 text-sm font-semibold transition ${
+                                      isFavorite
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                                    }`}
+                                  >
+                                    {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        </div>
+                      )}
+                    </FavoriteState>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   const baseSectionClass = tagMeta.isSeasonal
     ? 'relative w-full bg-white border-y-4 border-[#004C55] py-16 overflow-hidden'
