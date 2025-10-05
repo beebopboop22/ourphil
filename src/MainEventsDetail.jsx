@@ -9,7 +9,6 @@ import { RRule } from 'rrule';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
-import TaggedEventScroller from './TaggedEventsScroller';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
 
@@ -30,11 +29,211 @@ import {
   Pencil,
   Share2,
   Trash2,
+  Instagram,
 } from 'lucide-react';
 
 const FALLBACK_MAIN_EVENT_TITLE = 'Philadelphia Event – Our Philly';
 const FALLBACK_MAIN_EVENT_DESCRIPTION =
   'Discover upcoming events and things to do across Philadelphia with Our Philly.';
+
+const TAG_PILL_STYLES = [
+  'bg-red-100 text-red-800',
+  'bg-orange-100 text-orange-800',
+  'bg-amber-100 text-amber-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-lime-100 text-lime-800',
+  'bg-green-100 text-green-800',
+  'bg-emerald-100 text-emerald-800',
+  'bg-teal-100 text-teal-800',
+  'bg-cyan-100 text-cyan-800',
+  'bg-sky-100 text-sky-800',
+  'bg-blue-100 text-blue-800',
+  'bg-indigo-100 text-indigo-800',
+  'bg-violet-100 text-violet-800',
+  'bg-purple-100 text-purple-800',
+  'bg-fuchsia-100 text-fuchsia-800',
+  'bg-pink-100 text-pink-800',
+  'bg-rose-100 text-rose-800',
+  'bg-gray-100 text-gray-800',
+  'bg-slate-100 text-slate-800',
+  'bg-zinc-100 text-zinc-800',
+  'bg-neutral-100 text-neutral-800',
+  'bg-stone-100 text-stone-800',
+  'bg-lime-200 text-lime-900',
+  'bg-orange-200 text-orange-900',
+];
+
+function formatRelativeDateLabel(dateStr, timeStr) {
+  if (!dateStr) return '';
+  const dt = parseLocalYMD(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((dt - today) / (1000 * 60 * 60 * 24));
+  let label = '';
+  if (diffDays === 0) label = 'Today';
+  else if (diffDays === 1) label = 'Tomorrow';
+  else label = dt.toLocaleDateString('en-US', { weekday: 'long' });
+  if (timeStr) label += ` · ${formatTime(timeStr)}`;
+  return label;
+}
+
+function normalizeInstagramHandle(value) {
+  if (!value) return '';
+  return value
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+    .replace(/\?.*$/, '')
+    .replace(/\/$/, '')
+    .replace(/^@/, '');
+}
+
+function AddToPlansButton({ eventId, sourceTable }) {
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const { isFavorite, toggleFavorite, loading } = useEventFavorite({
+    event_id: eventId,
+    source_table: sourceTable,
+  });
+
+  if (!eventId) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) {
+          navigate('/login');
+          return;
+        }
+        toggleFavorite();
+      }}
+      disabled={loading}
+      className={`border border-indigo-600 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+        isFavorite
+          ? 'bg-indigo-600 text-white'
+          : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+      }`}
+    >
+      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+    </button>
+  );
+}
+
+function VenueEventRow({ event, venueSlug, tags = [] }) {
+  const label = formatRelativeDateLabel(event.start_date, event.start_time);
+  return (
+    <Link
+      to={`/${venueSlug}/${event.slug}`}
+      className="block rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+    >
+      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between p-4 md:p-6">
+        <div className="flex items-start gap-4 w-full">
+          <div className="hidden sm:block flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-gray-100">
+            {event.image ? (
+              <img src={event.image} alt={event.name} className="w-full h-full object-cover object-center" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-gray-400">
+                No Image
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
+              {label && <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{label}</span>}
+            </div>
+            <h3 className="mt-2 text-lg font-bold text-gray-800 break-words">{event.name}</h3>
+            {event.description && (
+              <p className="mt-1 text-sm text-gray-600 line-clamp-2">{event.description}</p>
+            )}
+            {tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {tags.slice(0, 3).map((tag, index) => (
+                  <Link
+                    key={tag.slug}
+                    to={`/tags/${tag.slug}`}
+                    className={`${TAG_PILL_STYLES[index % TAG_PILL_STYLES.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    #{tag.name}
+                  </Link>
+                ))}
+                {tags.length > 3 && (
+                  <span className="text-xs text-gray-500">+{tags.length - 3} more</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-stretch gap-2 md:w-40">
+          <AddToPlansButton eventId={event.id} sourceTable="all_events" />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function RecurringEventRow({ event, occurrenceDate, tags = [] }) {
+  const timeLabel = event.start_time ? formatTime(event.start_time) : '';
+  const dayLabel = occurrenceDate
+    ? new Date(occurrenceDate).toLocaleDateString('en-US', { weekday: 'long' })
+    : '';
+  return (
+    <Link
+      to={`/series/${event.slug}/${occurrenceDate}`}
+      className="block rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+    >
+      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between p-4 md:p-6">
+        <div className="flex items-start gap-4 w-full">
+          <div className="hidden sm:block flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-gray-100">
+            {event.image_url ? (
+              <img src={event.image_url} alt={event.name} className="w-full h-full object-cover object-center" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-gray-400">
+                No Image
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
+              {dayLabel && (
+                <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">Every {dayLabel}</span>
+              )}
+              {timeLabel && (
+                <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">Starts at {timeLabel}</span>
+              )}
+              <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Recurring Series</span>
+            </div>
+            <h3 className="mt-2 text-lg font-bold text-gray-800 break-words">{event.name}</h3>
+            {event.description && (
+              <p className="mt-1 text-sm text-gray-600 line-clamp-2">{event.description}</p>
+            )}
+            {tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {tags.slice(0, 3).map((tag, index) => (
+                  <Link
+                    key={tag.slug}
+                    to={`/tags/${tag.slug}`}
+                    className={`${TAG_PILL_STYLES[index % TAG_PILL_STYLES.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    #{tag.name}
+                  </Link>
+                ))}
+                {tags.length > 3 && (
+                  <span className="text-xs text-gray-500">+{tags.length - 3} more</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-stretch gap-2 md:w-40">
+          <AddToPlansButton eventId={event.id} sourceTable="recurring_events" />
+        </div>
+      </div>
+    </Link>
+  );
+}
 
 // parse "YYYY-MM-DD" into local Date
 function parseLocalYMD(str) {
@@ -62,10 +261,11 @@ export default function MainEventsDetail() {
   const [event, setEvent] = useState(null);
   const [venueData, setVenueData] = useState(null);
   const [relatedEvents, setRelatedEvents] = useState([]);
+  const [relatedEventTags, setRelatedEventTags] = useState({});
   const [communityEvents, setCommunityEvents] = useState([]);
   const [sameDayEvents, setSameDayEvents] = useState([]);
+  const [sameDayEventTags, setSameDayEventTags] = useState({});
   const [eventTags, setEventTags] = useState([]);
-  const [tagsList, setTagsList] = useState([]);
   const [reviewPhotos, setReviewPhotos] = useState([]);
 
   // post flyer modal state
@@ -102,32 +302,6 @@ export default function MainEventsDetail() {
     await toggleFavorite();
   };
 
-  const pillStyles = [
-    'bg-red-100 text-red-800',
-    'bg-orange-100 text-orange-800',
-    'bg-amber-100 text-amber-800',
-    'bg-yellow-100 text-yellow-800',
-    'bg-lime-100 text-lime-800',
-    'bg-green-100 text-green-800',
-    'bg-emerald-100 text-emerald-800',
-    'bg-teal-100 text-teal-800',
-    'bg-cyan-100 text-cyan-800',
-    'bg-sky-100 text-sky-800',
-    'bg-blue-100 text-blue-800',
-    'bg-indigo-100 text-indigo-800',
-    'bg-violet-100 text-violet-800',
-    'bg-purple-100 text-purple-800',
-    'bg-fuchsia-100 text-fuchsia-800',
-    'bg-pink-100 text-pink-800',
-    'bg-rose-100 text-rose-800',
-    'bg-gray-100 text-gray-800',
-    'bg-slate-100 text-slate-800',
-    'bg-zinc-100 text-zinc-800',
-    'bg-neutral-100 text-neutral-800',
-    'bg-stone-100 text-stone-800',
-    'bg-lime-200 text-lime-900',
-    'bg-orange-200 text-orange-900',
-  ];
 
   // Share fallback
   const copyLinkFallback = url => navigator.clipboard.writeText(url).catch(console.error);
@@ -136,6 +310,31 @@ export default function MainEventsDetail() {
     const title = document.title;
     if (navigator.share) navigator.share({ title, url }).catch(console.error);
     else copyLinkFallback(url);
+  };
+
+  const fetchTagsForEvents = async (ids, type, setter) => {
+    if (!ids?.length) {
+      setter({});
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('taggings')
+        .select('taggable_id, tags(name, slug)')
+        .eq('taggable_type', type)
+        .in('taggable_id', ids);
+      if (error) throw error;
+      const map = {};
+      (data || []).forEach(row => {
+        if (!row?.tags) return;
+        if (!map[row.taggable_id]) map[row.taggable_id] = [];
+        map[row.taggable_id].push(row.tags);
+      });
+      setter(map);
+    } catch (err) {
+      console.error(err);
+      setter({});
+    }
   };
 
   useEffect(() => {
@@ -184,28 +383,29 @@ export default function MainEventsDetail() {
         const ev = evs[0];
         setEvent(ev);
 
-        // venue
         if (ev.venue_id) {
           const { data: vens } = await supabase
             .from('venues')
-            .select('id,name,slug,address')
+            .select('id,name,slug,address,description,website,instagram')
             .eq('id', ev.venue_id)
             .limit(1);
           setVenueData(vens?.[0] || null);
-        }
 
-        // related at same venue
-        if (ev.venue_id) {
           const todayStr = new Date().toISOString().slice(0,10);
           const { data: rel } = await supabase
             .from('all_events')
-            .select(`id,name,slug,start_date,image`)
+            .select(`id,name,slug,start_date,start_time,description,image`)
             .eq('venue_id', ev.venue_id)
             .gte('start_date', todayStr)
             .neq('slug', slug)
             .order('start_date',{ ascending: true })
-            .limit(5);
+            .limit(12);
           setRelatedEvents(rel || []);
+          await fetchTagsForEvents((rel || []).map(item => item.id), 'all_events', setRelatedEventTags);
+        } else {
+          setVenueData(null);
+          setRelatedEvents([]);
+          setRelatedEventTags({});
         }
 
         // community subs
@@ -239,6 +439,8 @@ export default function MainEventsDetail() {
         }
       } catch (err) {
         console.error(err);
+        setRelatedEvents([]);
+        setRelatedEventTags({});
       } finally {
         setLoading(false);
       }
@@ -260,17 +462,6 @@ export default function MainEventsDetail() {
 
   }, [event]);
 
-  // Load all tags for explore section
-  useEffect(() => {
-    supabase
-      .from('tags')
-      .select('id,name,slug')
-      .then(({ data, error }) => {
-        if (error) console.error(error);
-        else setTagsList(data || []);
-      });
-  }, []);
-
   // Load recurring events on the same day
   useEffect(() => {
     if (!event?.start_date) return;
@@ -281,7 +472,7 @@ export default function MainEventsDetail() {
       try {
         const { data: list } = await supabase
           .from('recurring_events')
-          .select('id,name,slug,image_url,start_date,start_time,end_date,rrule')
+          .select('id,name,slug,image_url,start_date,start_time,end_date,rrule,description')
           .eq('is_active', true);
         const matches = [];
         (list || []).forEach(ev => {
@@ -294,9 +485,11 @@ export default function MainEventsDetail() {
           }
         });
         setSameDayEvents(matches);
+        await fetchTagsForEvents(matches.map(item => item.id), 'recurring_events', setSameDayEventTags);
       } catch (e) {
         console.error(e);
         setSameDayEvents([]);
+        setSameDayEventTags({});
       }
     })();
   }, [event]);
@@ -447,6 +640,14 @@ export default function MainEventsDetail() {
   const resolvedAddress = event.address?.trim() || venueData?.address?.trim();
   // Link text is always venue name if available:
   const linkText = venueData?.name || resolvedAddress;
+  const venueDescription = venueData?.description?.trim();
+  const instagramUrlRaw = venueData?.instagram?.trim();
+  const instagramUrl = instagramUrlRaw
+    ? (instagramUrlRaw.startsWith('http')
+      ? instagramUrlRaw
+      : `https://instagram.com/${instagramUrlRaw.replace(/^@/, '')}`)
+    : null;
+  const instagramHandle = normalizeInstagramHandle(instagramUrlRaw || instagramUrl || '');
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -472,21 +673,63 @@ export default function MainEventsDetail() {
           <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform relative">
             <div className="text-center space-y-4">
               <h1 className="text-4xl font-bold">{event.name}</h1>
-              <p className="text-lg font-medium">
-                {whenText}
-                {timeText && ` — ${timeText}`}
-                {endTimeText && ` to ${endTimeText}`}
-                {resolvedAddress && (
-                  <> • <a
-                    href={`https://maps.google.com?q=${encodeURIComponent(resolvedAddress)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {linkText}
-                  </a></>
+              <p className="text-lg font-medium flex flex-wrap justify-center items-center gap-2 text-center">
+                <span>
+                  {whenText}
+                  {timeText && ` — ${timeText}`}
+                  {endTimeText && ` to ${endTimeText}`}
+                </span>
+                {resolvedAddress ? (
+                  <span className="inline-flex items-center gap-2">
+                    •
+                    <a
+                      href={`https://maps.google.com?q=${encodeURIComponent(resolvedAddress)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:underline"
+                    >
+                      {linkText}
+                    </a>
+                    {instagramUrl && instagramHandle && (
+                      <a
+                        href={instagramUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
+                      >
+                        <Instagram className="w-4 h-4" />
+                        @{instagramHandle}
+                      </a>
+                    )}
+                  </span>
+                ) : (
+                  instagramUrl &&
+                  instagramHandle && (
+                    <a
+                      href={instagramUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
+                    >
+                      <Instagram className="w-4 h-4" />
+                      @{instagramHandle}
+                    </a>
+                  )
                 )}
               </p>
+              {eventTags.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {eventTags.map((tag, i) => (
+                    <Link
+                      key={tag.slug}
+                      to={`/tags/${tag.slug}`}
+                      className={`${TAG_PILL_STYLES[i % TAG_PILL_STYLES.length]} px-4 py-2 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                    >
+                      #{tag.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -708,104 +951,48 @@ export default function MainEventsDetail() {
 
           {relatedEvents.length > 0 && venueData && (
             <section className="max-w-4xl mx-auto mt-12 px-4">
-              <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">
                 More at {venueData.name}
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {relatedEvents.slice(0, 6).map(re => {
-                  const dt = parseLocalYMD(re.start_date);
-                  const md = dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-                  return (
-                    <Link
-                      key={re.id}
-                      to={`/${venueData.slug}/${re.slug}`}
-                      className="bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-[1.02] overflow-hidden flex flex-col"
-                    >
-                      <div className="relative h-40 bg-gray-100">
-                        {re.image ? (
-                          <img
-                            src={re.image}
-                            alt={re.name}
-                            className="w-full h-full object-cover object-center"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            No Image
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-4 flex-1 flex flex-col justify-center text-center">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                          {re.name}
-                        </h3>
-                        <span className="text-sm text-gray-600">{md}</span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-          </section>
-            )}
-            <TaggedEventScroller
-              tags={['music']}
-              fullWidth
-              header={
-                <Link
-                  to="/tags/music"
-                  className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
-                >
-                  #Music
-                </Link>
-              }
-            />
-          {sameDayEvents.length > 0 && (
-            <section className="max-w-4xl mx-auto mt-12 px-4">
-                <h2 class="text-2xl text-center font-semibold text-gray-800 mb-6">
-                  Every {weekdayName} in Philly
-                </h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sameDayEvents.map(ev => (
-                  <Link
-                    key={ev.id}
-                    to={`/series/${ev.slug}/${event.start_date}`}
-                    className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
-                  >
-                    <div className="relative h-40 bg-gray-100">
-                      <img
-                        src={ev.image_url}
-                        alt={ev.name}
-                        className="w-full h-full object-cover object-center"
-                      />
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col justify-center text-center">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                        {ev.name}
-                      </h3>
-                    </div>
-                  </Link>
+              {venueDescription && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-indigo-900">
+                    What We're Seeing at {venueData.name}
+                  </h3>
+                  <p className="mt-2 text-base text-gray-700 leading-relaxed whitespace-pre-line">
+                    {venueDescription}
+                  </p>
+                </div>
+              )}
+              <div className="space-y-4">
+                {relatedEvents.slice(0, 8).map(re => (
+                  <VenueEventRow
+                    key={re.id}
+                    event={re}
+                    venueSlug={venueData.slug}
+                    tags={relatedEventTags[re.id] || []}
+                  />
                 ))}
               </div>
             </section>
           )}
-
-
-          {tagsList.length > 0 && (
-            <div className="my-8 text-center">
-              <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
-              <div className="flex flex-wrap justify-center gap-3">
-                {tagsList.map((tag, i) => (
-                  <Link
-                    key={tag.slug}
-                    to={`/tags/${tag.slug}`}
-                    className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
-                  >
-                    #{tag.name}
-                  </Link>
+          {sameDayEvents.length > 0 && (
+            <section className="max-w-4xl mx-auto mt-12 px-4">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+                Every {weekdayName} in Philly
+              </h2>
+              <div className="space-y-4">
+                {sameDayEvents.map(ev => (
+                  <RecurringEventRow
+                    key={ev.id}
+                    event={ev}
+                    occurrenceDate={event.start_date}
+                    tags={sameDayEventTags[ev.id] || []}
+                  />
                 ))}
               </div>
-            </div>
+            </section>
           )}
-
           {/* Community Submissions */}
           <section className="border-t border-gray-200 mt-12 pt-8 px-4 pb-12 max-w-4xl mx-auto">
             <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
