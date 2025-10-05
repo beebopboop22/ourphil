@@ -73,14 +73,10 @@ def coerce_year(month: int, day: int, explicit_year: int | None = None) -> int:
         candidate = date(today.year, month, day)
     except Exception:
         return today.year
-    # if the date is > ~60 days in the past, assume next year (helps with “Oct 3” pages late in the year)
     return today.year + 1 if (today - candidate).days > 60 else today.year
 
 _time_re = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*([AP]M)", re.I)
 def parse_time_12h(t: str) -> str | None:
-    """
-    '7:30 PM' -> '19:30:00'; '7 PM' -> '19:00:00'
-    """
     if not t:
         return None
     m = _time_re.search(t)
@@ -96,9 +92,6 @@ def parse_time_12h(t: str) -> str | None:
     return f"{hour:02d}:{minute:02d}:00"
 
 def parse_time_range(text: str) -> tuple[str | None, str | None]:
-    """
-    '7:30 PM - 10:30 PM' -> ('19:30:00','22:30:00')
-    """
     if not text:
         return (None, None)
     parts = re.split(r"\s*[-–]\s*", text.strip())
@@ -112,22 +105,16 @@ _md_in_url_re = re.compile(r"/([A-Za-z]{3,})-(\d{1,2})-(20\d{2})", re.I)  # .../
 def year_from_href(href: str) -> int | None:
     if not href:
         return None
-    # Prefer explicit M-D-Y fragment
     mdy = _md_in_url_re.search(href)
     if mdy:
         try:
             return int(mdy.group(3))
         except Exception:
             pass
-    # Fallback: any 20xx in the URL
     y = _year_in_url_re.search(href)
     return int(y.group(1)) if y else None
 
 def parse_month_day(block_text: str) -> tuple[int | None, int | None]:
-    """
-    Given the small 'event-date' block like:
-    'FRI\nOCT 3'  -> (10, 3)
-    """
     if not block_text:
         return (None, None)
     txt = " ".join(block_text.split())
@@ -137,6 +124,43 @@ def parse_month_day(block_text: str) -> tuple[int | None, int | None]:
     mon = MONTHS.get(m.group(1).upper())
     day = int(m.group(2))
     return (mon, day)
+
+# ── Tagging helpers ────────────────────────────────────────────────────────────
+def get_music_tag_id() -> int | None:
+    """Fetch the ID of the Music tag (prefer slug='music')."""
+    try:
+        got = sb.table("tags").select("id,name,slug").eq("slug", "music").execute()
+        if got.data:
+            return got.data[0]["id"]
+        got2 = sb.table("tags").select("id,name,slug").eq("name", "Music").execute()
+        if got2.data:
+            return got2.data[0]["id"]
+    except APIError as e:
+        print(f"⚠️  Could not fetch Music tag id: {e}")
+    return None
+
+def ensure_music_tagging(event_id: str, tag_id: int) -> None:
+    """Create taggings row if not already present."""
+    try:
+        existing = (
+            sb.table("taggings")
+            .select("id")
+            .eq("tag_id", tag_id)
+            .eq("taggable_type", "group_events")
+            .eq("taggable_id", str(event_id))
+            .execute()
+        )
+        if existing.data:
+            print("🏷️  Already tagged: Music")
+            return
+        sb.table("taggings").insert({
+            "tag_id": tag_id,
+            "taggable_type": "group_events",
+            "taggable_id": str(event_id),
+        }).execute()
+        print("🏷️  Tagged with Music")
+    except APIError as e:
+        print(f"⚠️  Tagging failed (Music): {e}")
 
 # ── Scraper ────────────────────────────────────────────────────────────────────
 def scrape() -> list[dict]:
@@ -160,9 +184,8 @@ def scrape() -> list[dict]:
         title_el = card.select_one(".event-details h3")
         title = (title_el.get_text(strip=True) if title_el else "Event").strip()
 
-        # time range
+        # time range (first <p> is time block)
         time_el = card.select_one(".event-details p")
-        # the first <p> in event-details is the time block (per provided markup)
         time_text = time_el.get_text(strip=True) if time_el else None
         start_time, end_time = parse_time_range(time_text or "")
 
@@ -186,11 +209,10 @@ def scrape() -> list[dict]:
         else:
             start_date = None
 
-        # mirror end_date to start_date (single-day cards)
-        end_date = start_date
+        end_date = start_date  # single-day cards
 
-        # slug: stable: site + title + yyyymmdd + short hash of link
-        suffix = (href or "")[-8:].lower().replace("/", "")  # tiny stabilizer
+        # slug
+        suffix = (href or "")[-8:].lower().replace("/", "")
         ymd = start_date or "tbd"
         slug = slugify(f"black-squirrel-club-{title}-{ymd}-{suffix}")
 
@@ -218,12 +240,15 @@ def scrape() -> list[dict]:
             dedup[key] = ev
     return list(dedup.values())
 
-# ── Manual upsert (same as your other scripts) ─────────────────────────────────
+# ── Manual upsert + Music tagging ──────────────────────────────────────────────
 def upsert_group_events(rows: list[dict]) -> None:
     if not rows:
         print("No events to write.")
         return
 
+    music_tag_id = get_music_tag_id()
+    if not music_tag_id:
+        print("⚠️  Skipping tagging: could not resolve 'Music' tag id.")
     for ev in rows:
         payload = {
             "group_id": ev["group_id"],
@@ -241,6 +266,7 @@ def upsert_group_events(rows: list[dict]) -> None:
             "slug": ev.get("slug"),
         }
 
+        gid = None
         try:
             sel = sb.table("group_events").select("id").eq("slug", payload["slug"]).execute()
             existing = sel.data if hasattr(sel, "data") else []
@@ -257,10 +283,16 @@ def upsert_group_events(rows: list[dict]) -> None:
                 print(f"❌ Update failed for {payload['slug']}: {e}")
         else:
             try:
-                sb.table("group_events").insert(payload).execute()
+                ins = sb.table("group_events").insert(payload).select("id").execute()
+                if ins.data:
+                    gid = ins.data[0]["id"]
                 print(f"➕ Inserted: {payload['title']} ({payload['slug']})")
             except APIError as e:
                 print(f"❌ Insert failed for {payload['slug']}: {e}")
+
+        # Always ensure Music tagging, if we have both pieces
+        if music_tag_id and gid:
+            ensure_music_tagging(gid, music_tag_id)
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":

@@ -4,6 +4,7 @@
 """
 Scrape Latin Vibes Group (Elementor) tiles and write into public.group_events.
 Keeps ONLY Philadelphia events. Keys off `.venuename` and stores event link.
+Also auto-tags every saved/updated event with the 'Music' tag via public.taggings.
 
 ENV:
   - SUPABASE_URL
@@ -147,6 +148,43 @@ def is_philly_address(text: str) -> bool:
         return False
     return bool(PHILLY_OK.search(t) or ZIP_191.search(t))
 
+# ── Tagging helpers ────────────────────────────────────────────────────────────
+def get_music_tag_id() -> int | None:
+    """Fetch the ID of the Music tag (prefer slug='music', else name='Music')."""
+    try:
+        got = sb.table("tags").select("id,slug,name").eq("slug", "music").execute()
+        if got.data:
+            return got.data[0]["id"]
+        got2 = sb.table("tags").select("id,slug,name").eq("name", "Music").execute()
+        if got2.data:
+            return got2.data[0]["id"]
+    except APIError as e:
+        print(f"⚠️  Could not fetch Music tag id: {e}")
+    return None
+
+def ensure_music_tagging(event_id: str, tag_id: int) -> None:
+    """Create taggings row if not already present."""
+    try:
+        existing = (
+            sb.table("taggings")
+            .select("id")
+            .eq("tag_id", tag_id)
+            .eq("taggable_type", "group_events")
+            .eq("taggable_id", str(event_id))
+            .execute()
+        )
+        if existing.data:
+            print("🏷️  Already tagged: Music")
+            return
+        sb.table("taggings").insert({
+            "tag_id": tag_id,
+            "taggable_type": "group_events",
+            "taggable_id": str(event_id),
+        }).execute()
+        print("🏷️  Tagged with Music")
+    except APIError as e:
+        print(f"⚠️  Tagging failed (Music): {e}")
+
 # ── Core scraping (venue-first) ────────────────────────────────────────────────
 def extract_card_from_column(col, base_url: str) -> dict | None:
     # Title
@@ -221,7 +259,7 @@ def extract_card_from_column(col, base_url: str) -> dict | None:
         "end_time": end_time,
         "image_url": image_url,
         "slug": slug,
-        "link": event_link,                   # <-- NEW: store link on row
+        "link": event_link,                   # store link on row
         "_link": canon_link(ticket_url) if ticket_url else None,
     }
 
@@ -254,11 +292,15 @@ def scrape_all() -> list[dict]:
             dedup[key] = ev
     return list(dedup.values())
 
-# ── Manual upsert ──────────────────────────────────────────────────────────────
+# ── Manual upsert + Music tagging ──────────────────────────────────────────────
 def upsert_group_events(rows: list[dict]) -> None:
     if not rows:
         print("No events to write.")
         return
+
+    music_tag_id = get_music_tag_id()
+    if not music_tag_id:
+        print("⚠️  Skipping tagging: could not resolve 'Music' tag id.")
 
     for ev in rows:
         payload = {
@@ -275,9 +317,10 @@ def upsert_group_events(rows: list[dict]) -> None:
             "end_time": ev.get("end_time"),
             "image_url": ev.get("image_url"),
             "slug": ev.get("slug"),
-            "link": ev.get("link"),          # <-- NEW: write into column
+            "link": ev.get("link"),
         }
 
+        gid = None
         try:
             sel = sb.table("group_events").select("id").eq("slug", payload["slug"]).execute()
             existing = sel.data if hasattr(sel, "data") else []
@@ -294,10 +337,16 @@ def upsert_group_events(rows: list[dict]) -> None:
                 print(f"❌ Update failed for {payload['slug']}: {e}")
         else:
             try:
-                sb.table("group_events").insert(payload).execute()
+                ins = sb.table("group_events").insert(payload).select("id").execute()
+                if ins.data:
+                    gid = ins.data[0]["id"]
                 print(f"➕ Inserted: {payload['title']} ({payload['slug']})")
             except APIError as e:
                 print(f"❌ Insert failed for {payload['slug']}: {e}")
+
+        # Always ensure Music tagging, if we have both pieces
+        if music_tag_id and gid:
+            ensure_music_tagging(gid, music_tag_id)
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
