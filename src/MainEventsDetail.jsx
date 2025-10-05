@@ -9,7 +9,6 @@ import { RRule } from 'rrule';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
-import TaggedEventScroller from './TaggedEventsScroller';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
 
@@ -30,6 +29,8 @@ import {
   Pencil,
   Share2,
   Trash2,
+  Instagram,
+  ArrowRight,
 } from 'lucide-react';
 
 const FALLBACK_MAIN_EVENT_TITLE = 'Philadelphia Event – Our Philly';
@@ -65,7 +66,6 @@ export default function MainEventsDetail() {
   const [communityEvents, setCommunityEvents] = useState([]);
   const [sameDayEvents, setSameDayEvents] = useState([]);
   const [eventTags, setEventTags] = useState([]);
-  const [tagsList, setTagsList] = useState([]);
   const [reviewPhotos, setReviewPhotos] = useState([]);
 
   // post flyer modal state
@@ -188,7 +188,7 @@ export default function MainEventsDetail() {
         if (ev.venue_id) {
           const { data: vens } = await supabase
             .from('venues')
-            .select('id,name,slug,address')
+            .select('id,name,slug,address,description,website,instagram')
             .eq('id', ev.venue_id)
             .limit(1);
           setVenueData(vens?.[0] || null);
@@ -259,17 +259,6 @@ export default function MainEventsDetail() {
       });
 
   }, [event]);
-
-  // Load all tags for explore section
-  useEffect(() => {
-    supabase
-      .from('tags')
-      .select('id,name,slug')
-      .then(({ data, error }) => {
-        if (error) console.error(error);
-        else setTagsList(data || []);
-      });
-  }, []);
 
   // Load recurring events on the same day
   useEffect(() => {
@@ -447,6 +436,14 @@ export default function MainEventsDetail() {
   const resolvedAddress = event.address?.trim() || venueData?.address?.trim();
   // Link text is always venue name if available:
   const linkText = venueData?.name || resolvedAddress;
+  const venueDescription = venueData?.description?.trim();
+  const instagramUrlRaw = venueData?.instagram?.trim();
+  const instagramUrl = instagramUrlRaw
+    ? (instagramUrlRaw.startsWith('http')
+      ? instagramUrlRaw
+      : `https://instagram.com/${instagramUrlRaw.replace(/^@/, '')}`)
+    : null;
+  const instagramLabel = venueData?.name || 'this venue';
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -487,6 +484,19 @@ export default function MainEventsDetail() {
                   </a></>
                 )}
               </p>
+              {eventTags.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {eventTags.map((tag, i) => (
+                    <Link
+                      key={tag.slug}
+                      to={`/tags/${tag.slug}`}
+                      className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-sm font-semibold hover:opacity-80 transition`}
+                    >
+                      #{tag.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -701,6 +711,28 @@ export default function MainEventsDetail() {
           </div>
           </div>
 
+          {venueDescription && (
+            <section className="max-w-4xl mx-auto mt-12 px-4 space-y-6">
+              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-8 shadow-sm">
+                <h2 className="text-3xl font-semibold text-indigo-900 mb-4">What We're Seeing Here</h2>
+                <p className="text-lg leading-relaxed text-indigo-900/80 whitespace-pre-line">{venueDescription}</p>
+              </div>
+              {instagramUrl && (
+                <a
+                  href={instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-3 text-indigo-700 hover:text-indigo-900 font-semibold transition"
+                >
+                  <Instagram className="w-7 h-7" />
+                  <span className="text-lg">
+                    Follow {instagramLabel} on Instagram
+                  </span>
+                </a>
+              )}
+            </section>
+          )}
+
           <CommentsSection
             source_table="all_events"
             event_id={event.id}
@@ -708,104 +740,119 @@ export default function MainEventsDetail() {
 
           {relatedEvents.length > 0 && venueData && (
             <section className="max-w-4xl mx-auto mt-12 px-4">
-              <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">
                 More at {venueData.name}
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-4">
                 {relatedEvents.slice(0, 6).map(re => {
                   const dt = parseLocalYMD(re.start_date);
-                  const md = dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                  const subtitle = dt
+                    ? dt.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'long',
+                        day: 'numeric',
+                      })
+                    : '';
                   return (
                     <Link
                       key={re.id}
                       to={`/${venueData.slug}/${re.slug}`}
-                      className="bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-[1.02] overflow-hidden flex flex-col"
+                      className="block rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                     >
-                      <div className="relative h-40 bg-gray-100">
-                        {re.image ? (
-                          <img
-                            src={re.image}
-                            alt={re.name}
-                            className="w-full h-full object-cover object-center"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            No Image
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between p-4 md:p-6">
+                        <div className="flex items-start gap-4 w-full">
+                          <div className="hidden sm:block flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-gray-100">
+                            {re.image ? (
+                              <img
+                                src={re.image}
+                                alt={re.name}
+                                className="w-full h-full object-cover object-center"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-gray-400">
+                                No Image
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div className="p-4 flex-1 flex flex-col justify-center text-center">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                          {re.name}
-                        </h3>
-                        <span className="text-sm text-gray-600">{md}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                              At {venueData.name}
+                            </p>
+                            <h3 className="mt-1 text-lg font-bold text-gray-800 break-words">
+                              {re.name}
+                            </h3>
+                            {subtitle && (
+                              <p className="mt-1 text-sm text-gray-600">{subtitle}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="md:ml-6 md:self-center">
+                          <span className="inline-flex items-center text-sm font-semibold text-indigo-600">
+                            View details
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </span>
+                        </div>
                       </div>
                     </Link>
                   );
                 })}
               </div>
-          </section>
-            )}
-            <TaggedEventScroller
-              tags={['music']}
-              fullWidth
-              header={
-                <Link
-                  to="/tags/music"
-                  className="text-3xl sm:text-5xl font-[Barrio] px-6 py-2 border-4 border-[#004C55] bg-[#d9e9ea] text-[#004C55] rounded-full hover:bg-gray-100"
-                >
-                  #Music
-                </Link>
-              }
-            />
+            </section>
+          )}
           {sameDayEvents.length > 0 && (
             <section className="max-w-4xl mx-auto mt-12 px-4">
-                <h2 class="text-2xl text-center font-semibold text-gray-800 mb-6">
-                  Every {weekdayName} in Philly
-                </h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sameDayEvents.map(ev => (
-                  <Link
-                    key={ev.id}
-                    to={`/series/${ev.slug}/${event.start_date}`}
-                    className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
-                  >
-                    <div className="relative h-40 bg-gray-100">
-                      <img
-                        src={ev.image_url}
-                        alt={ev.name}
-                        className="w-full h-full object-cover object-center"
-                      />
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col justify-center text-center">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                        {ev.name}
-                      </h3>
-                    </div>
-                  </Link>
-                ))}
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+                Every {weekdayName} in Philly
+              </h2>
+              <div className="space-y-4">
+                {sameDayEvents.map(ev => {
+                  const timeTextRecurring = ev.start_time ? formatTime(ev.start_time) : '';
+                  return (
+                    <Link
+                      key={ev.id}
+                      to={`/series/${ev.slug}/${event.start_date}`}
+                      className="block rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                    >
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between p-4 md:p-6">
+                        <div className="flex items-start gap-4 w-full">
+                          <div className="hidden sm:block flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-gray-100">
+                            {ev.image_url ? (
+                              <img
+                                src={ev.image_url}
+                                alt={ev.name}
+                                className="w-full h-full object-cover object-center"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-gray-400">
+                                No Image
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                              Recurring Series
+                            </p>
+                            <h3 className="mt-1 text-lg font-bold text-gray-800 break-words">
+                              {ev.name}
+                            </h3>
+                            {timeTextRecurring && (
+                              <p className="mt-1 text-sm text-gray-600">Starts at {timeTextRecurring}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="md:ml-6 md:self-center">
+                          <span className="inline-flex items-center text-sm font-semibold text-indigo-600">
+                            View details
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </section>
           )}
-
-
-          {tagsList.length > 0 && (
-            <div className="my-8 text-center">
-              <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
-              <div className="flex flex-wrap justify-center gap-3">
-                {tagsList.map((tag, i) => (
-                  <Link
-                    key={tag.slug}
-                    to={`/tags/${tag.slug}`}
-                    className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
-                  >
-                    #{tag.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Community Submissions */}
           <section className="border-t border-gray-200 mt-12 pt-8 px-4 pb-12 max-w-4xl mx-auto">
             <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
