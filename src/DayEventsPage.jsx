@@ -5,7 +5,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { RRule } from 'rrule';
 import { FaStar } from 'react-icons/fa';
-import { ArrowRight, Filter, XCircle } from 'lucide-react';
+import { ArrowRight, Filter, Sparkles, XCircle } from 'lucide-react';
 
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -263,7 +263,7 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
       .from('group_events')
       .select(`
         *,
-        groups(Name, imag, slug)
+        groups(Name, imag, slug, status)
       `)
       .order('start_date', { ascending: true }),
     supabase
@@ -468,6 +468,12 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       if (!start) return null;
       const end = parseISODateInPhilly((evt.end_date || '').slice(0, 10)) || start;
       const groupRecord = Array.isArray(evt.groups) ? evt.groups[0] : evt.groups;
+      const groupStatus = typeof groupRecord?.status === 'string' ? groupRecord.status.toLowerCase() : '';
+      const isFeaturedGroup = groupStatus === 'home';
+      const badges = ['Group Event'];
+      if (isFeaturedGroup) {
+        badges.push('Featured');
+      }
       const detailPath = getDetailPathForItem({
         ...evt,
         group_slug: groupRecord?.slug,
@@ -481,12 +487,14 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         startDate: start,
         endDate: end,
         start_time: evt.start_time,
-        badges: ['Group Event'],
+        badges,
         detailPath,
         source: 'group_events',
         source_table: 'group_events',
         favoriteId: evt.id,
         group: groupRecord,
+        isFeaturedGroup,
+        groupStatus: groupRecord?.status || '',
       };
     })
     .filter(Boolean)
@@ -571,16 +579,22 @@ function FavoriteState({ eventId, sourceTable, children }) {
   return children(state);
 }
 
-function EventListItem({ event, now, tags = [] }) {
+function EventListItem({ event, now, tags = [], variant = 'default' }) {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const label = formatEventTiming(event, now);
   const badges = event.badges || [];
   const Wrapper = event.detailPath ? Link : 'div';
   const wrapperProps = event.detailPath ? { to: event.detailPath } : {};
-  const containerClass = event.detailPath
-    ? 'block rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-    : 'rounded-2xl border border-gray-200 bg-white shadow-sm';
+  const baseContainerClass =
+    variant === 'featured'
+      ? 'rounded-2xl border-2 border-amber-400 bg-amber-50 shadow-md'
+      : 'rounded-2xl border border-gray-200 bg-white shadow-sm';
+  const interactiveContainerClass =
+    variant === 'featured'
+      ? 'block rounded-2xl border-2 border-amber-400 bg-amber-50 shadow-md hover:shadow-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500'
+      : 'block rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
+  const containerClass = event.detailPath ? interactiveContainerClass : baseContainerClass;
 
   const actions = event.source_table ? (
     <FavoriteState eventId={event.favoriteId} sourceTable={event.source_table}>
@@ -644,6 +658,8 @@ function EventListItem({ event, now, tags = [] }) {
                       ? 'bg-blue-100 text-blue-800'
                       : badge === 'Group Event'
                       ? 'bg-emerald-100 text-emerald-800'
+                      : badge === 'Featured'
+                      ? 'bg-amber-100 text-amber-800'
                       : 'bg-indigo-100 text-indigo-800'
                   }`}
                 >
@@ -870,6 +886,24 @@ export default function DayEventsPage() {
     });
   }, [selectedTags, detailed.events, tagMap]);
 
+  const featuredEvents = useMemo(
+    () => filteredEvents.filter(event => event.isFeaturedGroup),
+    [filteredEvents]
+  );
+
+  const regularEvents = useMemo(
+    () => filteredEvents.filter(event => !event.isFeaturedGroup),
+    [filteredEvents]
+  );
+
+  const totalVisibleEvents = featuredEvents.length + regularEvents.length;
+
+  const getEventTags = event => {
+    if (!event.source_table || !event.favoriteId) return [];
+    const key = `${event.source_table}:${event.favoriteId}`;
+    return tagMap[key] || [];
+  };
+
   const headline = useMemo(() => {
     switch (range.key) {
       case 'tomorrow':
@@ -1029,28 +1063,57 @@ export default function DayEventsPage() {
             onClose={() => setIsFiltersOpen(false)}
           />
 
-          <div className="mt-10 space-y-4">
-            {loading
-              ? Array.from({ length: 4 }).map((_, idx) => (
-                  <div key={idx} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <div className="h-4 w-32 bg-gray-200 animate-pulse rounded" />
-                    <div className="mt-4 h-6 w-3/4 bg-gray-200 animate-pulse rounded" />
-                    <div className="mt-2 h-4 w-full bg-gray-200 animate-pulse rounded" />
+          <div className="mt-10 space-y-6">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="h-4 w-32 bg-gray-200 animate-pulse rounded" />
+                  <div className="mt-4 h-6 w-3/4 bg-gray-200 animate-pulse rounded" />
+                  <div className="mt-2 h-4 w-full bg-gray-200 animate-pulse rounded" />
+                </div>
+              ))
+            ) : (
+              <>
+                {featuredEvents.length > 0 && (
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2 text-amber-700">
+                      <Sparkles className="h-5 w-5" aria-hidden="true" />
+                      <p className="text-sm font-semibold uppercase tracking-[0.35em]">Featured Events</p>
+                    </div>
+                    <div className="space-y-4">
+                      {featuredEvents.map(event => (
+                        <EventListItem
+                          key={event.id}
+                          event={event}
+                          now={nowInPhilly}
+                          tags={getEventTags(event)}
+                          variant="featured"
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+                {regularEvents.length > 0 && (
+                  <div className="space-y-4">
+                    {regularEvents.map(event => (
+                      <EventListItem
+                        key={event.id}
+                        event={event}
+                        now={nowInPhilly}
+                        tags={getEventTags(event)}
+                      />
+                    ))}
                   </div>
-                ))
-              : filteredEvents.length > 0
-              ? filteredEvents.map(event => {
-                  const tagKey = event.source_table && event.favoriteId ? `${event.source_table}:${event.favoriteId}` : null;
-                  const eventTags = tagKey ? tagMap[tagKey] || [] : [];
-                  return <EventListItem key={event.id} event={event} now={nowInPhilly} tags={eventTags} />;
-                })
-              : (
+                )}
+                {totalVisibleEvents === 0 && (
                   <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-600">
                     {hasSelectedTags
                       ? 'No events match the selected tags. Try clearing a filter.'
                       : 'No events listed yet — check back soon!'}
                   </div>
                 )}
+              </>
+            )}
           </div>
 
           <div className="mt-12 text-center">
