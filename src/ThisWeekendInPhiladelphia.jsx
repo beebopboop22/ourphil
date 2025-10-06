@@ -970,41 +970,32 @@ export default function ThisWeekendInPhiladelphia() {
                     >
                       {({ isFavorite, toggleFavorite, loading: favLoading }) => (
                         isListView ? (
-                          <Wrapper
-                            {...linkProps}
-                            className={`flex items-center justify-between p-4 transition-colors ${isFavorite ? 'bg-purple-100' : 'bg-white hover:bg-purple-50'}`}
-                          >
-                            <div className="flex items-center gap-4">
-                              <img
-                                src={evt.imageUrl || evt.image || ''}
-                                alt={evt.title || evt.name}
-                                className="w-20 h-20 object-cover rounded-lg"
-                              />
-                              <div>
-                                <h3 className="text-lg font-semibold text-gray-800">{evt.title || evt.name}</h3>
-                                <p className="text-sm text-gray-500">{formatMonthDay(startDate, PHILLY_TIME_ZONE)}{bubbleTime}</p>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {shown.map((tag, i) => (
-                                    <Link
-                                      key={tag.slug}
-                                      to={`/tags/${tag.slug}`}
-                                      className={`${pillStyles[i % pillStyles.length]} text-xs px-2 py-1 rounded-full font-semibold`}
-                                      onClick={e => e.stopPropagation()}
-                                    >
-                                      #{tag.name}
-                                    </Link>
-                                  ))}
-                                  {extra > 0 && <span className="text-xs text-gray-500">+{extra} more</span>}
-                                </div>
-                              </div>
-                            </div>
-                            {evt.isSports ? (
+                          (() => {
+                            const eventDate = setStartOfDay(startDate);
+                            const diffDays = Math.round((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                            const timeLabel = evt.start_time ? ` · ${formatTime(evt.start_time)}` : '';
+                            const weekdayLabel = formatWeekdayAbbrev(startDate, PHILLY_TIME_ZONE);
+                            const timingLabel =
+                              diffDays === 0
+                                ? `Today${timeLabel}`
+                                : diffDays === 1
+                                  ? `Tomorrow${timeLabel}`
+                                  : `${weekdayLabel}${timeLabel}`;
+                            const badges = [];
+                            if (evt.isTradition) badges.push('Tradition');
+                            if (evt.isBigBoard) badges.push('Submission');
+                            if (evt.isSports) badges.push('Sports');
+                            if (evt.isRecurring) badges.push('Recurring');
+                            if (evt.isGroupEvent) badges.push('Group Event');
+
+                            const containerClass = `block rounded-2xl border border-gray-200 bg-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 hover:shadow-md`;
+                            const actions = evt.isSports ? (
                               evt.url && (
                                 <a
                                   href={evt.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="ml-4 border border-indigo-600 rounded-md px-3 py-1 text-sm font-semibold text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors"
+                                  className="border border-indigo-600 rounded-full px-4 py-2 text-sm font-semibold text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors text-center"
                                   onClick={e => e.stopPropagation()}
                                 >
                                   Get Tickets
@@ -1022,12 +1013,84 @@ export default function ThisWeekendInPhiladelphia() {
                                   toggleFavorite();
                                 }}
                                 disabled={favLoading}
-                                className={`ml-4 border border-indigo-600 rounded-md px-3 py-1 text-sm font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+                                className={`border border-indigo-600 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                                  isFavorite
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                                }`}
                               >
                                 {isFavorite ? 'In the Plans' : 'Add to Plans'}
                               </button>
-                            )}
-                          </Wrapper>
+                            );
+
+                            return (
+                              <Wrapper {...linkProps} className={containerClass}>
+                                <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between p-4 md:p-6">
+                                  <div className="flex items-start gap-4 w-full">
+                                    <div className="hidden sm:block flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-gray-100">
+                                      {evt.imageUrl || evt.image ? (
+                                        <img
+                                          src={evt.imageUrl || evt.image || ''}
+                                          alt={evt.title || evt.name}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : null}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
+                                        <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{timingLabel}</span>
+                                        {badges.map(badge => (
+                                          <span
+                                            key={badge}
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${
+                                              badge === 'Tradition'
+                                                ? 'bg-yellow-100 text-yellow-800'
+                                                : badge === 'Submission'
+                                                  ? 'bg-purple-100 text-purple-800'
+                                                  : badge === 'Sports'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : badge === 'Recurring'
+                                                      ? 'bg-blue-100 text-blue-800'
+                                                      : 'bg-emerald-100 text-emerald-800'
+                                            }`}
+                                          >
+                                            {badge === 'Tradition' && <FaStar className="text-yellow-500" />}
+                                            {badge}
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <h3 className="mt-2 text-lg font-bold text-gray-800 break-words">{evt.title || evt.name}</h3>
+                                      {evt.description && (
+                                        <p className="mt-1 text-sm text-gray-600 line-clamp-2">{evt.description}</p>
+                                      )}
+                                      {evt.venues?.name && (
+                                        <p className="mt-1 text-sm text-gray-500">at {evt.venues.name}</p>
+                                      )}
+                                      {evt.address && !evt.venues?.name && (
+                                        <p className="mt-1 text-sm text-gray-500">at {evt.address}</p>
+                                      )}
+                                      {shown.length > 0 && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                          {shown.map((tag, i) => (
+                                            <Link
+                                              key={tag.slug}
+                                              to={`/tags/${tag.slug}`}
+                                              className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
+                                              onClick={e => e.stopPropagation()}
+                                            >
+                                              #{tag.name}
+                                            </Link>
+                                          ))}
+                                          {extra > 0 && <span className="text-xs text-gray-500">+{extra} more</span>}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {actions && <div className="flex flex-col items-stretch gap-2 md:w-40">{actions}</div>}
+                                </div>
+                              </Wrapper>
+                            );
+                          })()
                         ) : (
                           <Wrapper
                             {...linkProps}
