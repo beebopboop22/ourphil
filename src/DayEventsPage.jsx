@@ -256,7 +256,8 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
         Dates,
         "End Date",
         "E Image",
-        slug
+        slug,
+        start_time
       `)
       .order('Dates', { ascending: true }),
     supabase
@@ -361,6 +362,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         startDate: start,
         endDate: end,
         slug: row.slug,
+        start_time: row.start_time || null,
       };
     })
     .filter(Boolean)
