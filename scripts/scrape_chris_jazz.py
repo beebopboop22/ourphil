@@ -2,115 +2,200 @@
 import os
 import re
 from datetime import datetime
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-# ── Load env & init Supabase ────────────────────────────────────────────────
+# ── Config ─────────────────────────────────────────────────────────────────────
+SITE_BASE   = "https://www.chrisjazzcafe.com"
+LISTING_URL = f"{SITE_BASE}/events"
+SOURCE      = "chrisjazzcafe"
+VENUE_NAME  = "Chris' Jazz Cafe"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; chrisjazzcafe-scraper/1.2; +events)",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+# ── Env / Supabase ─────────────────────────────────────────────────────────────
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("ERROR: SUPABASE_URL and SUPABASE_KEY must be set in env")
+    raise RuntimeError("Missing SUPABASE_URL / SUPABASE_KEY")
+sb: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# ── Config ────────────────────────────────────────────────────────────────────
-BASE_URL = "https://www.chrisjazzcafe.com/events"
-VENUE_SLUG = "chris-jazz-cafe"
-SOURCE = "chrisjazzcafe.com"
-
-def fetch_page(url: str) -> BeautifulSoup:
-    resp = requests.get(url, timeout=10)
-    resp.raise_for_status()
-    return BeautifulSoup(resp.text, "html.parser")
+# ── Regex helpers ──────────────────────────────────────────────────────────────
+RE_EVENT_DATE = re.compile(r"^\s*[A-Za-z]{3},\s*[A-Za-z]{3}\s+\d{1,2},\s*\d{4}\s*$")  # "Tue, Oct 7, 2025"
+RE_TIME_AMP   = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\b", re.I)       # "7", "7:30", with am/pm
+RE_KEY_SENT   = re.compile(r"(set\s+times?|show\s+times?|starting\s+at)[:\s]+(.+?)$", re.I)
 
 def slugify(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r"[^\w\s-]", "", text)
-    text = re.sub(r"[-\s]+", "-", text).strip("-")
-    return text
+    s = (text or "").lower()
+    s = re.sub(r"[^\w\s-]", "", s)
+    s = re.sub(r"[-\s]+", "-", s).strip("-")
+    return s
 
-def parse_events(soup: BeautifulSoup):
-    for item in soup.select("div.event-list-item"):
-        link_el = item.select_one("h3.el-header a")
-        if not link_el:
-            continue
+def to_24h(h: int, m: int, ap: str) -> str:
+    ap = (ap or "").lower()
+    if ap.startswith("p") and h != 12:
+        h += 12
+    if ap.startswith("a") and h == 12:
+        h = 0
+    return f"{h:02d}:{m:02d}:00"
 
-        href = link_el["href"]
-        url = urljoin(BASE_URL, href)
-        slug = slugify(href)
-        name = link_el.get_text(strip=True)
+def parse_amp_time(text: str) -> list[str]:
+    """Return list of 'HH:MM:SS' from '7:30 PM', '9 PM', etc."""
+    out = []
+    for m in RE_TIME_AMP.finditer(text):
+        hh = int(m.group(1))
+        mm = int(m.group(2) or 0)
+        ap = m.group(3)
+        out.append(to_24h(hh, mm, ap))
+    return out
 
-        date_el = item.select_one("div.el-showtimes h6.event-date")
-        # parse date and optional time
-        start_date = None
-        start_time = None
-        if date_el:
-            text = date_el.get_text(strip=True)
-            try:
-                # some formats: "Sat, Jul 19, 2025 11:00 PM" or "Sat, Jul 19, 2025"
-                dt = datetime.strptime(text, "%a, %b %d, %Y %I:%M %p")
-                start_date = dt.date().isoformat()
-                start_time = dt.time().isoformat()
-            except ValueError:
-                try:
-                    dt = datetime.strptime(text, "%a, %b %d, %Y")
-                    start_date = dt.date().isoformat()
-                except ValueError:
-                    pass
+def parse_loose_times_assume_pm(text: str) -> list[str]:
+    """
+    Handle things like 'Show times 7:30 & 9:30' (no am/pm) or 'Starting at 11'.
+    We assume PM for jazz shows.
+    """
+    # Extract the sentence after our keywords and then look for numbers like 7, 7:30, 9:00
+    m = RE_KEY_SENT.search(text)
+    if not m:
+        return []
+    tail = m.group(2)
+    times = []
+    for t in re.finditer(r"\b(\d{1,2})(?::(\d{2}))?\b", tail):
+        hh = int(t.group(1))
+        mm = int(t.group(2) or 0)
+        # Assume PM if not specified; handle 12 properly
+        ap = "p"
+        times.append(to_24h(hh, mm, ap))
+    return times
 
-        img_el = item.select_one("div.el-image-container img")
-        image = img_el["src"] if img_el and img_el.get("src") else None
+def extract_date_from_text(s: str) -> str | None:
+    """Parse 'Tue, Oct 7, 2025' -> 'YYYY-MM-DD'."""
+    s = s.strip()
+    if not RE_EVENT_DATE.match(s):
+        return None
+    try:
+        dt = datetime.strptime(s, "%a, %b %d, %Y").date()
+        return dt.isoformat()
+    except ValueError:
+        return None
 
-        # **force description blank**
-        description = ""
+# ── Scraper ───────────────────────────────────────────────────────────────────
+def fetch_listing() -> BeautifulSoup:
+    r = requests.get(LISTING_URL, headers=HEADERS, timeout=20)
+    r.raise_for_status()
+    return BeautifulSoup(r.text, "html.parser")
 
-        ev = {
-            "venue_id": None,  # fill below
-            "name": name,
-            "link": url,
-            "image": image,
-            "start_date": start_date,
-            "start_time": start_time,
-            "description": description,
-            "slug": slug,
-            "source": SOURCE,
+def parse_card(card: BeautifulSoup) -> dict | None:
+    # Title & link
+    a = card.select_one("h3.el-header a")
+    if not a or not a.get("href"):
+        return None
+    link = urljoin(SITE_BASE, a["href"].strip())
+    title = a.get_text(strip=True)
+
+    # Image
+    img = card.select_one("div.el-image img")
+    image = urljoin(SITE_BASE, img["src"]) if img and img.get("src") else None
+
+    # Date (prefer the one in the times group)
+    start_date = None
+    date_h6 = card.select_one(".el-showtimes h6.event-date")
+    if date_h6:
+        parsed = extract_date_from_text(date_h6.get_text(" ", strip=True))
+        if parsed:
+            start_date = parsed
+
+    # Times: first try buttons, then fall back to text
+    times = []
+    for btn in card.select(".event-times-list a.event-btn-inline"):
+        ttxt = btn.get_text(" ", strip=True)
+        times += parse_amp_time(ttxt)
+
+    if not times:
+        # try within description/text blocks
+        raw_text = " ".join(card.get_text(" ", strip=True).split())
+        times = parse_amp_time(raw_text)
+        if not times:
+            times = parse_loose_times_assume_pm(raw_text)
+
+    # Pick earliest time if multiple
+    start_time = sorted(times)[0] if times else None
+
+    # Description (short)
+    desc_el = card.select_one(".el-description")
+    description = None
+    if desc_el:
+        txt = " ".join(desc_el.get_text(" ", strip=True).split())
+        description = txt[:5000] if txt else None
+
+    # Slug: prefer numeric id tail if present; else slugify title-date
+    tail = a["href"].rstrip("/").split("/")[-1]
+    slug = tail if tail.isdigit() else slugify(f"{title}-{start_date or ''}".strip("-"))
+
+    return {
+        "name":        title,
+        "link":        link,
+        "image":       image,
+        "start_date":  start_date,
+        "start_time":  start_time,
+        "description": description,
+        "slug":        slug,
+        "source":      SOURCE,
+    }
+
+def scrape_events() -> list[dict]:
+    soup = fetch_listing()
+    cards = soup.select("div.event-list-item")
+    events = []
+    for c in cards:
+        ev = parse_card(c)
+        if ev:
+            events.append(ev)
+    return events
+
+# ── Upsert ────────────────────────────────────────────────────────────────────
+def ensure_venue(name: str) -> str | None:
+    try:
+        r = sb.table("venues").upsert({"name": name}, on_conflict=["name"], returning="representation").execute()
+        return r.data[0]["id"] if r and r.data else None
+    except Exception as e:
+        print(f"⚠️ venue upsert failed: {e}")
+        return None
+
+def upsert_all_events(rows: list[dict]) -> None:
+    if not rows:
+        print("No events to upsert.")
+        return
+    venue_id = ensure_venue(VENUE_NAME)
+    for ev in rows:
+        rec = {
+            "name":        ev["name"],
+            "link":        ev["link"],
+            "image":       ev.get("image"),
+            "start_date":  ev.get("start_date"),
+            "start_time":  ev.get("start_time"),
+            "description": ev.get("description"),
+            "venue_id":    venue_id,
+            "source":      ev["source"],
+            "slug":        ev["slug"],
         }
-        yield ev
-
-def get_venue_id():
-    # fetch or create the Chris' Jazz Cafe venue
-    resp = supabase.table("venues").select("id").eq("slug", VENUE_SLUG).execute()
-    data = resp.data or []
-    if data:
-        return data[0]["id"]
-    # create
-    resp = supabase.table("venues").insert({"name": "Chris' Jazz Cafe", "slug": VENUE_SLUG}).execute()
-    return resp.data[0]["id"]
-
-def upsert_all_events(events, venue_id):
-    for ev in events:
-        ev["venue_id"] = venue_id
         try:
-            supabase.table("all_events").insert(ev).execute()
-            print(f"Inserted: {ev['name']}")
+            sb.table("all_events").upsert(rec, on_conflict=["link"]).execute()
+            print(f"✅ {rec['name']} | {rec.get('start_date')} {rec.get('start_time')}")
         except Exception as e:
-            print(f"Failed to insert {ev['name']}: {e}")
+            print(f"❌ upsert failed for {rec['name']}: {e}")
 
-def main():
-    print("Fetching page…")
-    soup = fetch_page(BASE_URL)
-    print("Parsing events…")
-    events = list(parse_events(soup))
-    print(f"Found {len(events)} events.")
-    venue_id = get_venue_id()
-    print(f"Using venue_id={venue_id}")
-    upsert_all_events(events, venue_id)
-    print("Done.")
-
+# ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    main()
+    evs = scrape_events()
+    print(f"🔎 Found {len(evs)} events")
+    upsert_all_events(evs)
+    print("🏁 Done.")
