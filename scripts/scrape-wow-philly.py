@@ -16,11 +16,11 @@ from requests.adapters import HTTPAdapter
 # ── Config ─────────────────────────────────────────────────────────────────────
 LISTING_URL = "https://wowphilly.com/events/"
 SOURCE = "wowphilly"
-VENUE_NAME = "Warehouse on Watts"     # force all events to this venue
+VENUE_NAME = "Warehouse on Watts"   # force all events to this venue
 TIMEOUT = 15
 MAX_WORKERS = 8
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; wow-scraper/1.1; +events)",
+    "User-Agent": "Mozilla/5.0 (compatible; wow-scraper/1.2; +events)",
     "Accept-Language": "en-US,en;q=0.9",
 }
 
@@ -35,9 +35,7 @@ sb: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 def make_session() -> requests.Session:
     sess = requests.Session()
     retry = Retry(
-        total=4,
-        connect=4,
-        read=4,
+        total=4, connect=4, read=4,
         backoff_factor=0.7,
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=frozenset(["GET", "HEAD"]),
@@ -83,10 +81,14 @@ def parse_list_date(text: str) -> str | None:
     except ValueError:
         return None
 
-# Only accept "show/start" times as start_time; if only "doors", leave None
+# Prefer explicit Show/Start; fall back to Doors
 TIME_PATTERNS_SHOW = [
     r"(?:show|start)\s*[:\-]?\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?",
     r"(?:show|start)\s*@\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?",
+]
+TIME_PATTERNS_DOORS = [
+    r"doors?\s*(?:open|at|[:\-])\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?",
+    r"doors?\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?",
 ]
 
 def to_24h(h: int, m: int, ap: str) -> str:
@@ -97,16 +99,22 @@ def to_24h(h: int, m: int, ap: str) -> str:
         h += 12
     return f"{h:02d}:{m:02d}:00"
 
-def extract_start_time_guaranteed(soup: BeautifulSoup) -> str | None:
+def extract_start_time(soup: BeautifulSoup) -> tuple[str | None, str | None]:
+    """Return (start_time, source_label) where source_label is 'show' or 'doors'."""
     text = soup.get_text(" ", strip=True).lower()
+    # 1) Try SHOW/START
     for pat in TIME_PATTERNS_SHOW:
         m = re.search(pat, text)
         if m:
-            hh = int(m.group(1))
-            mm = int(m.group(2) or 0)
-            ap = m.group(3)
-            return to_24h(hh, mm, ap)
-    return None
+            hh = int(m.group(1)); mm = int(m.group(2) or 0); ap = m.group(3)
+            return to_24h(hh, mm, ap), "show"
+    # 2) Fallback to DOORS
+    for pat in TIME_PATTERNS_DOORS:
+        m = re.search(pat, text)
+        if m:
+            hh = int(m.group(1)); mm = int(m.group(2) or 0); ap = m.group(3)
+            return to_24h(hh, mm, ap), "doors"
+    return None, None
 
 def safe_get(url: str) -> requests.Response | None:
     try:
@@ -136,14 +144,11 @@ def scrape_listing() -> list[dict]:
             continue
         link = a["href"].strip()
 
-        # title
         title = (a.get("title") or a.get_text(strip=True) or "").strip()
 
-        # image
         img = card.select_one(".rhp-events-event-image img")
         image = img["src"].strip() if img and img.has_attr("src") else None
 
-        # date text (e.g., "Wed, Oct 01")
         date_div = card.select_one(".eventDateList.BelowImage .singleEventDate")
         start_date = parse_list_date(date_div.get_text()) if date_div else None
 
@@ -169,21 +174,22 @@ def enrich_event(ev: dict) -> dict:
     if not r:
         ev["start_time"] = None
         ev["description"] = None
+        ev["_time_source"] = None
     else:
         soup = BeautifulSoup(r.text, "html.parser")
-        ev["start_time"] = extract_start_time_guaranteed(soup)
+        start_time, source_label = extract_start_time(soup)
+        ev["start_time"] = start_time
+        ev["_time_source"] = source_label
         desc = soup.select_one(".rhp-event-info") or soup.find("article")
         if desc:
             txt = " ".join(desc.get_text(" ", strip=True).split())
             ev["description"] = txt[:5000]
         else:
             ev["description"] = None
-    # build a clean slug from title + start_date (never the URL tail)
+
+    # build a clean slug from title + start_date
     base = ev["title"] or "event"
-    if ev.get("start_date"):
-        ev["slug"] = slugify(f"{base}-{ev['start_date']}")
-    else:
-        ev["slug"] = slugify(base)
+    ev["slug"] = slugify(f"{base}-{ev['start_date']}") if ev.get("start_date") else slugify(base)
     return ev
 
 def enrich_all(events: list[dict]) -> list[dict]:
@@ -198,7 +204,10 @@ def enrich_all(events: list[dict]) -> list[dict]:
         futs = {ex.submit(enrich_event, ev): ev for ev in events}
         for fut in as_completed(futs):
             try:
-                out.append(fut.result())
+                item = fut.result()
+                if item.get("_time_source") == "doors":
+                    print(f"⏰ Fallback to Doors time for: {item['title']}")
+                out.append(item)
             except Exception:
                 pass
             done += 1
@@ -211,7 +220,9 @@ def enrich_all(events: list[dict]) -> list[dict]:
 # ── Venue ensure ───────────────────────────────────────────────────────────────
 def ensure_venue(name: str) -> str | None:
     try:
-        res = sb.table("venues").upsert({"name": name}, on_conflict=["name"], returning="representation").execute()
+        res = sb.table("venues").upsert(
+            {"name": name}, on_conflict=["name"], returning="representation"
+        ).execute()
         if res.data:
             return res.data[0]["id"]
     except Exception as e:
@@ -239,7 +250,7 @@ def upsert_all_events(rows: list[dict]) -> None:
             "slug":        ev.get("slug"),
         }
         if DRY_RUN:
-            print(f"🧪 DRY RUN — would upsert: {rec['name']} | slug={rec['slug']} | venue={VENUE_NAME}")
+            print(f"🧪 DRY RUN — {rec['name']} | slug={rec['slug']} | time={rec['start_time']} ({ev.get('_time_source')})")
             continue
 
         try:
@@ -247,7 +258,7 @@ def upsert_all_events(rows: list[dict]) -> None:
             if getattr(res, "error", None):
                 print(f"❌ Upsert failed for {ev['title']}: {res.error}")
             else:
-                print(f"✅ Upserted: {ev['title']} ({rec['slug']})")
+                print(f"✅ Upserted: {ev['title']} ({rec['slug']}) time={rec['start_time']} ({ev.get('_time_source')})")
         except Exception as e:
             print(f"❌ Exception upserting {ev['title']}: {e}")
 
@@ -258,6 +269,6 @@ if __name__ == "__main__":
         raise SystemExit(0)
     enriched = enrich_all(events)
     print(f"🧾 Ready to upsert {len(enriched)} events to all_events "
-          f"(start_time only when Show/Start found; venue='{VENUE_NAME}').")
+          f"(start_time prefers Show/Start; falls back to Doors; venue='{VENUE_NAME}').")
     upsert_all_events(enriched)
     print("🏁 Done.")
