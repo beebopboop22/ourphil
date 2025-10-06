@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from urllib.parse import urljoin
 from typing import Dict, Any, List, Optional, Iterable, Tuple
 
@@ -88,6 +89,7 @@ def iter_all_strings(obj: Any) -> Iterable[str]:
 # ── Extractors ──────────────────────────────────────────────────────────
 def extract_link(ev: Dict[str, Any]) -> Optional[str]:
     for ck in [
+        ("ticketing", "eventUrl"),
         "eventUrl", "url", "ticketUrl", "purchaseUrl", "detailsUrl",
         ("links", "eventUrl"), ("links", "url"),
     ]:
@@ -114,62 +116,90 @@ def extract_link(ev: Dict[str, Any]) -> Optional[str]:
 IMG_PAT = re.compile(r"https?://\S+\.(?:jpg|jpeg|png|webp)(?:\?\S+)?", re.I)
 
 def extract_image(ev: Dict[str, Any]) -> Optional[str]:
-    # common structured spots
     for ck in [
         ("image", "imageUrl"),
         "imageUrl",
-        "image",                        # sometimes a direct URL string
+        "image",
         ("heroImage", "imageUrl"),
         "heroImageUrl",
     ]:
         v = get_nested(ev, *ck) if isinstance(ck, tuple) else ev.get(ck)
-        if isinstance(v, str) and IMG_PAT.search(v):
-            return IMG_PAT.search(v).group(0)
-    # images array
+        if isinstance(v, str):
+            m = IMG_PAT.search(v)
+            if m:
+                return m.group(0)
     imgs = ev.get("images")
     if isinstance(imgs, list):
         for it in imgs:
             for key in ("imageUrl", "url", "src"):
                 vv = (it or {}).get(key)
-                if isinstance(vv, str) and IMG_PAT.search(vv):
-                    return IMG_PAT.search(vv).group(0)
-    # any string in the object
+                if isinstance(vv, str):
+                    m = IMG_PAT.search(vv)
+                    if m:
+                        return m.group(0)
     for s in iter_all_strings(ev):
         m = IMG_PAT.search(s)
         if m:
             return m.group(0)
     return None
 
-def parse_dt(s: str) -> Optional[datetime]:
-    """Return a timezone-aware datetime if possible."""
-    try:
-        # normalize Z → +00:00 for fromisoformat
-        return datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except Exception:
-        pass
-    # epoch seconds
-    if re.fullmatch(r"\d{10}", s):
-        return datetime.fromtimestamp(int(s), tz=timezone.utc)
-    return None
+def _fmt(dt: datetime) -> Tuple[str, str]:
+    return dt.date().isoformat(), dt.time().strftime("%H:%M:%S")
 
 def extract_datetime(ev: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
     """
-    Returns (start_date, start_time) where date is YYYY-MM-DD and time is HH:MM:SS (or None).
-    Prefers local time fields when present.
+    Returns (start_date, start_time) as local SHOW time (never doors).
+    Priority:
+      1) eventDateTimeISO (has offset)
+      2) eventDateTime (assumed local to eventDateTimeZone)
+      3) eventDateTimeUTC -> convert to eventDateTimeZone (fallback America/New_York)
+      4) split (date + time) fields
     """
-    candidates = [
-        "eventDateTimeLocal", "showDateTimeLocal",
-        "eventDateTimeUTC", "showDateTimeUTC",
-        "eventDateTime", "showDateTime",
-    ]
-    for k in candidates:
-        val = ev.get(k)
-        if isinstance(val, str):
-            dt = parse_dt(val)
-            if dt:
-                # keep only time component as HH:MM:SS in local/UTC given
-                return dt.date().isoformat(), dt.time().strftime("%H:%M:%S")
-    # split fields (date + time stored separately)
+    tz_str = (
+        ev.get("eventDateTimeZone")
+        or ev.get("eventDateTimeTimeZone")
+        or ev.get("showDateTimeZone")
+        or "America/New_York"
+    )
+
+    # 1) ISO with offset, e.g. "2025-10-06T20:00:00-04:00"
+    iso = ev.get("eventDateTimeISO") or ev.get("showDateTimeISO")
+    if isinstance(iso, str) and iso.strip():
+        try:
+            dt = datetime.fromisoformat(iso.strip())
+            # Convert to the declared local TZ to be explicit (usually no-op)
+            local = dt.astimezone(ZoneInfo(tz_str))
+            return _fmt(local)
+        except Exception:
+            pass
+
+    # 2) Local naive timestamp string + explicit zone
+    local_str = ev.get("eventDateTime") or ev.get("showDateTime")
+    if isinstance(local_str, str) and local_str.strip():
+        try:
+            dt_local = datetime.fromisoformat(local_str.strip())
+            # Treat as local time in tz_str (no conversion needed for display)
+            if dt_local.tzinfo is None:
+                dt_local = dt_local.replace(tzinfo=ZoneInfo(tz_str))
+            else:
+                dt_local = dt_local.astimezone(ZoneInfo(tz_str))
+            return _fmt(dt_local)
+        except Exception:
+            pass
+
+    # 3) UTC → convert into local zone
+    utc_str = ev.get("eventDateTimeUTC") or ev.get("showDateTimeUTC")
+    if isinstance(utc_str, str) and utc_str.strip():
+        try:
+            dt_utc = datetime.fromisoformat(utc_str.strip())
+            if dt_utc.tzinfo is None:
+                dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+            local = dt_utc.astimezone(ZoneInfo(tz_str))
+            return _fmt(local)
+        except Exception:
+            pass
+
+    # 4) Split date+time fields (rare here but safe)
     date_keys = ["eventDate", "showDate", "date"]
     time_keys = ["eventTime", "showTime", "time"]
     ds = None
@@ -177,28 +207,33 @@ def extract_datetime(ev: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
         if isinstance(ev.get(dk), str) and ev[dk].strip():
             ds = ev[dk].strip()
             break
+
     if ds:
-        # normalize separators
         ds2 = ds.replace(".", "-").replace("/", "-")
+        dval = None
         for fmt in ("%Y-%m-%d", "%m-%d-%Y", "%m-%d-%y"):
             try:
-                d = datetime.strptime(ds2, fmt).date().isoformat()
-                ts = None
-                for tk in time_keys:
-                    if isinstance(ev.get(tk), str) and ev[tk].strip():
-                        # try to parse H:MM, HH:MM, HH:MM:SS, with AM/PM
-                        raw = ev[tk].strip().upper().replace(".", "")
-                        for tfmt in ("%I:%M %p", "%I %p", "%H:%M", "%H:%M:%S"):
-                            try:
-                                tt = datetime.strptime(raw, tfmt).time()
-                                ts = tt.strftime("%H:%M:%S")
-                                break
-                            except Exception:
-                                continue
-                        break
-                return d, ts
+                dval = datetime.strptime(ds2, fmt).date()
+                break
             except Exception:
                 continue
+
+        ts = None
+        for tk in time_keys:
+            if isinstance(ev.get(tk), str) and ev[tk].strip():
+                raw = ev[tk].strip().upper().replace(".", "")
+                for tfmt in ("%I:%M %p", "%I %p", "%H:%M", "%H:%M:%S"):
+                    try:
+                        tt = datetime.strptime(raw, tfmt).time()
+                        ts = tt.strftime("%H:%M:%S")
+                        break
+                    except Exception:
+                        continue
+                break
+
+        if dval:
+            return dval.isoformat(), ts
+
     return None, None
 
 def extract_title(ev: Dict[str, Any]) -> Optional[str]:
@@ -242,9 +277,9 @@ def map_event(ev: Dict[str, Any], venue_id: Optional[str]) -> Optional[Dict[str,
     return {
         "name":        title,
         "link":        link,
-        "image":       image,          # now populated when present
-        "start_date":  start_date,     # YYYY-MM-DD
-        "start_time":  start_time,     # HH:MM:SS or None
+        "image":       image,
+        "start_date":  start_date,     # local YYYY-MM-DD
+        "start_time":  start_time,     # local HH:MM:SS (showtime), or None
         "description": description,
         "venue_id":    venue_id,
         "source":      SOURCE,
