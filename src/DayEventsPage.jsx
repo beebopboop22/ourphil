@@ -256,7 +256,10 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
         Dates,
         "End Date",
         "E Image",
-        slug
+        slug,
+        start_time,
+        time,
+        "Start Time"
       `)
       .order('Dates', { ascending: true }),
     supabase
@@ -306,6 +309,24 @@ function eventOverlapsRange(start, end, rangeStart, rangeEnd) {
   return start <= rangeEnd && end >= rangeStart;
 }
 
+function computeDisplayDate(startDate, endDate, rangeStart, rangeEnd) {
+  if (!startDate) return null;
+  const eventStart = setStartOfDay(cloneDate(startDate));
+  const eventEnd = endDate ? setStartOfDay(cloneDate(endDate)) : eventStart;
+  const windowStart = setStartOfDay(cloneDate(rangeStart));
+  const windowEnd = setStartOfDay(cloneDate(rangeEnd));
+
+  if (eventStart > windowEnd || eventEnd < windowStart) {
+    return eventStart;
+  }
+
+  if (eventStart < windowStart) {
+    return windowStart;
+  }
+
+  return eventStart;
+}
+
 function collectEventsForRange(rangeStart, rangeEnd, baseData) {
   const MS_PER_DAY = 1000 * 60 * 60 * 24;
   const rangeDays = [];
@@ -321,10 +342,12 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       const start = parseISODateInPhilly(ev.start_date);
       const end = parseISODateInPhilly(ev.end_date || ev.start_date) || start;
       if (!start) return null;
+      const displayDate = computeDisplayDate(start, end, rangeStart, rangeEnd);
       return {
         ...ev,
         startDate: start,
         endDate: end,
+        displayDate,
       };
     })
     .filter(Boolean)
@@ -352,6 +375,9 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       const start = parseDate(row.Dates);
       if (!start) return null;
       const end = parseDate(row['End Date']) || start;
+      const rawStartTime = row.start_time || row.time || row['Start Time'] || null;
+      const normalizedStartTime =
+        typeof rawStartTime === 'string' && rawStartTime.trim() ? rawStartTime.trim() : null;
       return {
         id: `trad-${row.id}`,
         sourceId: row.id,
@@ -360,6 +386,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         imageUrl: row['E Image'] || '',
         startDate: start,
         endDate: end,
+        displayDate: computeDisplayDate(start, end, rangeStart, rangeEnd),
+        start_time: normalizedStartTime,
         slug: row.slug,
       };
     })
@@ -383,6 +411,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       const [ye, me, de] = endKey.split('-').map(Number);
       const startDate = new Date(ys, ms - 1, ds);
       const endDate = new Date(ye, me - 1, de);
+      const displayDate = computeDisplayDate(startDate, endDate, rangeStart, rangeEnd);
       return {
         id: `event-${evt.id}`,
         sourceId: evt.id,
@@ -393,6 +422,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         endKey,
         startDate,
         endDate,
+        displayDate,
         start_time: evt.start_time,
         end_time: evt.end_time,
         slug: evt.slug,
@@ -434,6 +464,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       return occurrences.map(occurrence => {
         const startDate = new Date(occurrence);
         const isoDate = startDate.toISOString().slice(0, 10);
+        const displayDate = computeDisplayDate(startDate, startDate, rangeStart, rangeEnd);
         return {
           id: `${series.id}::${isoDate}`,
           title: series.name,
@@ -441,6 +472,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
           imageUrl: series.image_url || '',
           startDate,
           endDate: startDate,
+          displayDate,
           start_time: series.start_time,
           slug: series.slug,
           address: series.address,
@@ -498,6 +530,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         imageUrl,
         startDate: start,
         endDate: end,
+        displayDate: computeDisplayDate(start, end, rangeStart, rangeEnd),
         start_time: evt.start_time,
         badges,
         detailPath,
@@ -516,6 +549,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
     .map(evt => {
       const start = parseISODateInPhilly(evt.start_date);
       if (!start) return null;
+      const displayDate = computeDisplayDate(start, start, rangeStart, rangeEnd);
       return {
         id: evt.id,
         title: evt.title,
@@ -523,6 +557,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         imageUrl: evt.imageUrl || '',
         startDate: start,
         endDate: start,
+        displayDate,
         start_time: evt.start_time,
         badges: ['Sports'],
         externalUrl: evt.url,
@@ -542,8 +577,12 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
   ].sort((a, b) => {
     const orderDiff = (SOURCE_ORDER[a.source] ?? 99) - (SOURCE_ORDER[b.source] ?? 99);
     if (orderDiff !== 0) return orderDiff;
-    const dateDiff = a.startDate - b.startDate;
+    const aDisplay = a.displayDate?.getTime?.() ?? a.startDate?.getTime?.() ?? 0;
+    const bDisplay = b.displayDate?.getTime?.() ?? b.startDate?.getTime?.() ?? 0;
+    const dateDiff = aDisplay - bDisplay;
     if (dateDiff !== 0) return dateDiff;
+    const startDiff = (a.startDate?.getTime?.() ?? 0) - (b.startDate?.getTime?.() ?? 0);
+    if (startDiff !== 0) return startDiff;
     return (a.start_time || '').localeCompare(b.start_time || '');
   });
 
@@ -561,8 +600,11 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
 }
 
 function formatEventTiming(event, now) {
-  const eventDate = setStartOfDay(new Date(event.startDate));
-  const diffMs = eventDate.getTime() - now.getTime();
+  const referenceNow = setStartOfDay(cloneDate(now));
+  const baseDate = event.displayDate || event.startDate;
+  if (!baseDate) return '';
+  const eventDate = setStartOfDay(new Date(baseDate));
+  const diffMs = eventDate.getTime() - referenceNow.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays === 0) {
     return `Today${event.start_time ? ` · ${formatTime(event.start_time)}` : ''}`;
@@ -570,7 +612,7 @@ function formatEventTiming(event, now) {
   if (diffDays === 1) {
     return `Tomorrow${event.start_time ? ` · ${formatTime(event.start_time)}` : ''}`;
   }
-  const weekday = formatWeekdayAbbrev(event.startDate, PHILLY_TIME_ZONE);
+  const weekday = formatWeekdayAbbrev(eventDate, PHILLY_TIME_ZONE);
   return `${weekday}${event.start_time ? ` · ${formatTime(event.start_time)}` : ''}`;
 }
 
