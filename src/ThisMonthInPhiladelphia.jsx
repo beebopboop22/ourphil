@@ -15,9 +15,11 @@ import {
   indexToMonthSlug,
   overlaps,
   setEndOfDay,
+  setStartOfDay,
   formatMonthYear,
   formatEventDateRange,
   parseEventDateValue,
+  getZonedDate,
 } from './utils/dateUtils';
 
 const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
@@ -146,13 +148,43 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
     };
   }, [hasValidParams, monthStartMs, monthEndMs, monthSlugOverride, yearOverride]);
 
+  const todayReferenceMs = useMemo(() => {
+    const zonedNow = getZonedDate(new Date(), PHILLY_TIME_ZONE);
+    const startOfToday = setStartOfDay(zonedNow);
+    return startOfToday?.getTime?.() ?? zonedNow.getTime();
+  }, []);
+
+  const { upcomingEvents, pastEvents, orderedEvents } = useMemo(() => {
+    if (!monthlyEvents.length) {
+      return { upcomingEvents: [], pastEvents: [], orderedEvents: [] };
+    }
+
+    const upcoming = [];
+    const past = [];
+
+    monthlyEvents.forEach(evt => {
+      const endMs = evt.endDate?.getTime?.() ?? evt.startDate?.getTime?.() ?? 0;
+      if (endMs >= todayReferenceMs) {
+        upcoming.push(evt);
+      } else {
+        past.push(evt);
+      }
+    });
+
+    return { upcomingEvents: upcoming, pastEvents: past, orderedEvents: [...upcoming, ...past] };
+  }, [monthlyEvents, todayReferenceMs]);
+
+  const totalEvents = orderedEvents.length;
+  const upcomingCount = upcomingEvents.length;
+  const hasPastEvents = pastEvents.length > 0;
+
   useEffect(() => {
     if (!hasValidParams) return;
-    const firstWithImage = monthlyEvents.find(evt => evt.imageUrl);
+    const firstWithImage = orderedEvents.find(evt => evt.imageUrl);
     if (firstWithImage?.imageUrl) {
       setOgImage(firstWithImage.imageUrl);
     }
-  }, [monthlyEvents, hasValidParams]);
+  }, [orderedEvents, hasValidParams]);
 
   const monthLabel = monthStart ? formatMonthYear(monthStart, PHILLY_TIME_ZONE) : '';
   const canonicalSlug = monthIndex ? indexToMonthSlug(monthIndex) : null;
@@ -168,7 +200,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
     ? `Explore ${monthLabel} events in Philadelphia, including traditions, festivals, and family-friendly plans.`
     : GENERIC_DESCRIPTION;
 
-  const countText = hasValidParams && monthLabel ? `${monthlyEvents.length} traditions in ${monthLabel}!` : '';
+  const countText = hasValidParams && monthLabel ? `${totalEvents} traditions in ${monthLabel}!` : '';
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -195,62 +227,91 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
               <section className="mt-10 bg-white border border-gray-200 rounded-2xl shadow-sm">
                 {loading ? (
                   <p className="p-6 text-gray-500">Loading {monthLabel} traditions…</p>
-                ) : monthlyEvents.length === 0 ? (
+                ) : totalEvents === 0 ? (
                   <p className="p-6 text-gray-500">No traditions posted yet for {monthLabel}. Check back soon.</p>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {monthlyEvents.map(evt => {
+                    {orderedEvents.length > 0 && upcomingCount > 0 && (
+                      <div className="px-6 py-4 bg-gray-50">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">Upcoming Events</h3>
+                        {hasPastEvents && (
+                          <p className="mt-1 text-sm text-gray-500">
+                            Happening next in Philadelphia this month.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {orderedEvents.length > 0 && upcomingCount === 0 && hasPastEvents && (
+                      <div className="px-6 py-4 bg-gray-50">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">Previous Events</h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                          All of the events in this guide have already happened this month.
+                        </p>
+                      </div>
+                    )}
+                    {orderedEvents.map((evt, index) => {
                       const summary = evt.description?.trim() || 'Details coming soon.';
                       const detailPath = getDetailPathForItem(evt) || '/';
+                      const shouldRenderPastHeading = hasPastEvents && upcomingCount > 0 && index === upcomingCount;
                       return (
-                        <article key={evt.id} className="flex flex-col md:flex-row gap-4 px-6 py-6">
-                          <div className="md:w-48 w-full flex-shrink-0">
-                            <div className="relative w-full overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
-                              <img
-                                src={evt.imageUrl || DEFAULT_OG_IMAGE}
-                                alt={evt.title}
-                                loading="lazy"
-                                className="absolute inset-0 h-full w-full object-cover"
-                              />
+                        <React.Fragment key={`${evt.source_table || 'events'}-${evt.id}`}>
+                          {shouldRenderPastHeading && (
+                            <div className="px-6 py-4 bg-gray-50">
+                              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">Previous Events</h3>
+                              <p className="mt-1 text-sm text-gray-500">
+                                Everything listed below has already taken place earlier this month.
+                              </p>
                             </div>
-                          </div>
-                          <div className="flex-1 flex flex-col">
-                            <Link
-                              to={detailPath}
-                              className="text-2xl font-semibold text-[#28313e] hover:underline"
-                            >
-                              {evt.title}
-                            </Link>
-                            <p className="mt-2 text-sm font-semibold text-gray-700">
-                              {formatEventDateRange(evt.startDate, evt.endDate, PHILLY_TIME_ZONE)}
-                            </p>
-                            <p className="mt-2 text-sm text-gray-600">{summary}</p>
-                            <div className="mt-4">
-                              <FavoriteState event_id={evt.id} source_table="events">
-                                {({ isFavorite, toggleFavorite, loading: favLoading }) => (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (!user) {
-                                        navigate('/login');
-                                        return;
-                                      }
-                                      toggleFavorite();
-                                    }}
-                                    disabled={favLoading}
-                                    className={`inline-flex items-center px-4 py-2 border border-indigo-600 rounded-full font-semibold transition-colors ${
-                                      isFavorite
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
-                                    }`}
-                                  >
-                                    {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                                  </button>
-                                )}
-                              </FavoriteState>
+                          )}
+                          <article className="flex flex-col md:flex-row gap-4 px-6 py-6">
+                            <div className="md:w-48 w-full flex-shrink-0">
+                              <div className="relative w-full overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
+                                <img
+                                  src={evt.imageUrl || DEFAULT_OG_IMAGE}
+                                  alt={evt.title}
+                                  loading="lazy"
+                                  className="absolute inset-0 h-full w-full object-cover"
+                                />
+                              </div>
                             </div>
-                          </div>
-                        </article>
+                            <div className="flex-1 flex flex-col">
+                              <Link
+                                to={detailPath}
+                                className="text-2xl font-semibold text-[#28313e] hover:underline"
+                              >
+                                {evt.title}
+                              </Link>
+                              <p className="mt-2 text-sm font-semibold text-gray-700">
+                                {formatEventDateRange(evt.startDate, evt.endDate, PHILLY_TIME_ZONE)}
+                              </p>
+                              <p className="mt-2 text-sm text-gray-600">{summary}</p>
+                              <div className="mt-4">
+                                <FavoriteState event_id={evt.id} source_table={evt.source_table || 'events'}>
+                                  {({ isFavorite, toggleFavorite, loading: favLoading }) => (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!user) {
+                                          navigate('/login');
+                                          return;
+                                        }
+                                        toggleFavorite();
+                                      }}
+                                      disabled={favLoading}
+                                      className={`inline-flex items-center px-4 py-2 border border-indigo-600 rounded-full font-semibold transition-colors ${
+                                        isFavorite
+                                          ? 'bg-indigo-600 text-white'
+                                          : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                                      }`}
+                                    >
+                                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                                    </button>
+                                  )}
+                                </FavoriteState>
+                              </div>
+                            </div>
+                          </article>
+                        </React.Fragment>
                       );
                     })}
                   </div>

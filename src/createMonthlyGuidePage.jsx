@@ -804,9 +804,35 @@ export default function createMonthlyGuidePage(config) {
 
     const computedSeoDescription = hasValidParams && monthLabel ? seoDescription(monthLabel) : fallbackDescription;
 
-    const totalEvents = events.length;
-    const visibleEvents = useMemo(() => events.slice(0, visibleCount), [events, visibleCount]);
-    const showLoadMore = visibleCount < events.length;
+    const { upcomingEvents, pastEvents, orderedEvents } = useMemo(() => {
+      if (!events.length) {
+        return { upcomingEvents: [], pastEvents: [], orderedEvents: [] };
+      }
+
+      const referenceMs = todayWindow.startMs ?? getZonedDate(new Date(), PHILLY_TIME_ZONE).getTime();
+      const upcoming = [];
+      const past = [];
+
+      events.forEach(evt => {
+        const endMs = evt.endDate?.getTime?.() ?? evt.startDate?.getTime?.() ?? 0;
+        if (endMs >= referenceMs) {
+          upcoming.push(evt);
+        } else {
+          past.push(evt);
+        }
+      });
+
+      return { upcomingEvents: upcoming, pastEvents: past, orderedEvents: [...upcoming, ...past] };
+    }, [events, todayWindow.startMs]);
+
+    const totalEvents = orderedEvents.length;
+    const upcomingCount = upcomingEvents.length;
+    const hasPastEvents = pastEvents.length > 0;
+    const visibleEvents = useMemo(
+      () => orderedEvents.slice(0, visibleCount),
+      [orderedEvents, visibleCount]
+    );
+    const showLoadMore = visibleCount < orderedEvents.length;
 
     const handleLoadMore = () => {
       setVisibleCount(prev => {
@@ -816,18 +842,18 @@ export default function createMonthlyGuidePage(config) {
     };
 
     const weekendEvents = useMemo(() => {
-      if (!events.length || !weekendWindow.start || !weekendWindow.end) return [];
-      return events.filter(evt =>
+      if (!orderedEvents.length || !weekendWindow.start || !weekendWindow.end) return [];
+      return orderedEvents.filter(evt =>
         overlaps(evt.startDate, evt.endDate, weekendWindow.start, weekendWindow.end)
       );
-    }, [events, weekendWindow.startMs, weekendWindow.endMs]);
+    }, [orderedEvents, weekendWindow.startMs, weekendWindow.endMs]);
 
     const todayEvents = useMemo(() => {
-      if (!events.length || !todayWindow.start || !todayWindow.end) return [];
-      return events.filter(evt =>
+      if (!orderedEvents.length || !todayWindow.start || !todayWindow.end) return [];
+      return orderedEvents.filter(evt =>
         overlaps(evt.startDate, evt.endDate, todayWindow.start, todayWindow.end)
       );
-    }, [events, todayWindow.startMs, todayWindow.endMs]);
+    }, [orderedEvents, todayWindow.startMs, todayWindow.endMs]);
 
     const weekendEventNames = useMemo(
       () => weekendEvents.map(evt => evt.title).filter(Boolean),
@@ -1078,96 +1104,129 @@ export default function createMonthlyGuidePage(config) {
                   ) : (
                     <>
                       <div className="divide-y divide-gray-200">
-                        {visibleEvents.map(evt => {
+                        {orderedEvents.length > 0 && upcomingCount > 0 && (
+                          <div className="px-6 py-4 bg-gray-50">
+                            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+                              Upcoming Events
+                            </h3>
+                            {hasPastEvents && (
+                              <p className="mt-1 text-sm text-gray-500">
+                                Happening next in Philadelphia this month.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {orderedEvents.length > 0 && upcomingCount === 0 && hasPastEvents && (
+                          <div className="px-6 py-4 bg-gray-50">
+                            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+                              Previous Events
+                            </h3>
+                            <p className="mt-1 text-sm text-gray-500">
+                              All of the events in this guide have already happened this month.
+                            </p>
+                          </div>
+                        )}
+                        {visibleEvents.map((evt, index) => {
                           const detailPath = evt.detailPath || '/';
                           const summary = evt.description?.trim() || 'Details coming soon.';
+                          const shouldRenderPastHeading =
+                            hasPastEvents && upcomingCount > 0 && index === upcomingCount;
                           return (
-                            <article
-                              key={`${evt.source_table}-${evt.id}`}
-                              className="flex flex-col md:flex-row gap-4 px-6 py-6"
-                            >
-                              <div className="md:w-48 w-full flex-shrink-0">
-                                <div className="relative w-full overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
-                                  <img
-                                    src={evt.imageUrl || DEFAULT_OG_IMAGE}
-                                    alt={evt.title}
-                                    loading="lazy"
-                                    className="absolute inset-0 h-full w-full object-cover"
-                                  />
-                                  {evt.isTradition && (
-                                    <span className="absolute top-2 left-2 bg-yellow-100 text-yellow-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                                      Tradition
-                                    </span>
-                                  )}
-                                  {evt.isBigBoard && (
-                                    <span className="absolute top-2 right-2 bg-indigo-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                                      Submission
-                                    </span>
-                                  )}
-                                  {evt.isGroupEvent && (
-                                    <span className="absolute bottom-2 left-2 bg-green-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                                      Group Event
-                                    </span>
-                                  )}
-                                  {evt.isSeasonal && (
-                                    <span className="absolute bottom-2 right-2 bg-orange-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                                      Seasonal
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex-1 flex flex-col">
-                                <Link
-                                  to={detailPath}
-                                  className="text-2xl font-semibold text-[#28313e] hover:underline"
-                                >
-                                  {evt.title}
-                                </Link>
-                                <p className="mt-2 text-sm font-semibold text-gray-700">
-                                  {formatEventDateRange(evt.startDate, evt.endDate, PHILLY_TIME_ZONE)}
-                                </p>
-                                {(evt.venueName || evt.groupName) && (
+                            <React.Fragment key={`${evt.source_table}-${evt.id}`}>
+                              {shouldRenderPastHeading && (
+                                <div className="px-6 py-4 bg-gray-50">
+                                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+                                    Previous Events
+                                  </h3>
                                   <p className="mt-1 text-sm text-gray-500">
-                                    {evt.venueName || evt.groupName}
+                                    Everything listed below has already taken place earlier this month.
                                   </p>
-                                )}
-                                <p className="mt-2 text-sm text-gray-600 line-clamp-3">{summary}</p>
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                  <FavoriteState event_id={evt.favoriteId} source_table={evt.source_table}>
-                                    {({ isFavorite, toggleFavorite, loading: favLoading }) => (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (!user) {
-                                            navigate('/login');
-                                            return;
-                                          }
-                                          toggleFavorite();
-                                        }}
-                                        disabled={favLoading}
-                                        className={`inline-flex items-center px-4 py-2 border border-indigo-600 rounded-full font-semibold transition-colors ${
-                                          isFavorite
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
-                                        }`}
-                                      >
-                                        {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                                      </button>
-                                    )}
-                                  </FavoriteState>
-                                  {showTicketsButton && evt.externalUrl && (
-                                    <a
-                                      href={evt.externalUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center px-4 py-2 border border-[#28313e] rounded-full font-semibold text-[#28313e] hover:bg-[#28313e] hover:text-white transition-colors"
-                                    >
-                                      Tickets
-                                    </a>
-                                  )}
                                 </div>
-                              </div>
-                            </article>
+                              )}
+                              <article className="flex flex-col md:flex-row gap-4 px-6 py-6">
+                                <div className="md:w-48 w-full flex-shrink-0">
+                                  <div className="relative w-full overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
+                                    <img
+                                      src={evt.imageUrl || DEFAULT_OG_IMAGE}
+                                      alt={evt.title}
+                                      loading="lazy"
+                                      className="absolute inset-0 h-full w-full object-cover"
+                                    />
+                                    {evt.isTradition && (
+                                      <span className="absolute top-2 left-2 bg-yellow-100 text-yellow-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                        Tradition
+                                      </span>
+                                    )}
+                                    {evt.isBigBoard && (
+                                      <span className="absolute top-2 right-2 bg-indigo-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                        Submission
+                                      </span>
+                                    )}
+                                    {evt.isGroupEvent && (
+                                      <span className="absolute bottom-2 left-2 bg-green-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                        Group Event
+                                      </span>
+                                    )}
+                                    {evt.isSeasonal && (
+                                      <span className="absolute bottom-2 right-2 bg-orange-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                        Seasonal
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex-1 flex flex-col">
+                                  <Link
+                                    to={detailPath}
+                                    className="text-2xl font-semibold text-[#28313e] hover:underline"
+                                  >
+                                    {evt.title}
+                                  </Link>
+                                  <p className="mt-2 text-sm font-semibold text-gray-700">
+                                    {formatEventDateRange(evt.startDate, evt.endDate, PHILLY_TIME_ZONE)}
+                                  </p>
+                                  {(evt.venueName || evt.groupName) && (
+                                    <p className="mt-1 text-sm text-gray-500">
+                                      {evt.venueName || evt.groupName}
+                                    </p>
+                                  )}
+                                  <p className="mt-2 text-sm text-gray-600 line-clamp-3">{summary}</p>
+                                  <div className="mt-4 flex flex-wrap gap-2">
+                                    <FavoriteState event_id={evt.favoriteId} source_table={evt.source_table}>
+                                      {({ isFavorite, toggleFavorite, loading: favLoading }) => (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (!user) {
+                                              navigate('/login');
+                                              return;
+                                            }
+                                            toggleFavorite();
+                                          }}
+                                          disabled={favLoading}
+                                          className={`inline-flex items-center px-4 py-2 border border-indigo-600 rounded-full font-semibold transition-colors ${
+                                            isFavorite
+                                              ? 'bg-indigo-600 text-white'
+                                              : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                                          }`}
+                                        >
+                                          {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                                        </button>
+                                      )}
+                                    </FavoriteState>
+                                    {showTicketsButton && evt.externalUrl && (
+                                      <a
+                                        href={evt.externalUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center px-4 py-2 border border-[#28313e] rounded-full font-semibold text-[#28313e] hover:bg-[#28313e] hover:text-white transition-colors"
+                                      >
+                                        Tickets
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              </article>
+                            </React.Fragment>
                           );
                         })}
                       </div>
