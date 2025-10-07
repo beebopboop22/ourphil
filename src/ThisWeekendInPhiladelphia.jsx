@@ -5,7 +5,6 @@ import { RRule } from 'rrule';
 import { FaStar } from 'react-icons/fa';
 import Navbar from './Navbar';
 import Footer from './Footer';
-import FeaturedTraditionHero from './FeaturedTraditionHero';
 import Seo from './components/Seo.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
@@ -351,7 +350,9 @@ export default function ThisWeekendInPhiladelphia() {
         Dates,
         "End Date",
         "E Image",
-        slug
+        slug,
+        start_time,
+        end_time
       `)
       .order('Dates', { ascending: true });
 
@@ -504,6 +505,8 @@ export default function ThisWeekendInPhiladelphia() {
               imageUrl: evt['E Image'] || '',
               startDate,
               endDate,
+              start_time: evt.start_time,
+              end_time: evt.end_time,
               slug: evt.slug,
               isTradition: true,
               isBigBoard: false,
@@ -810,13 +813,10 @@ export default function ThisWeekendInPhiladelphia() {
         ogType="website"
       />
       <Navbar />
-      <div className="pt-24 sm:pt-28">
-        <FeaturedTraditionHero />
-      </div>
-      <main className="flex-1 pb-16 pt-12 md:pt-16">
+      <main className="flex-1 pb-16 pt-24 sm:pt-28">
         <div className="container mx-auto px-4 max-w-6xl">
           <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
-            Things to Do in Philadelphia This Weekend
+            {formattedWeekendEventCount} Things to Do in Philadelphia This Weekend
           </h1>
           <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
             Use this guide from the most comprehensive events calendar in Philadelphia to plan your {introRange} adventures. We curated {formattedWeekendEventCount} festivals, markets, concerts, and family-friendly events for you to make the most of your weekend.
