@@ -7,6 +7,7 @@ import { RRule } from 'rrule';
 import useEventFavorite from './utils/useEventFavorite';
 import { AuthContext } from './AuthProvider';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import { normalizeTaggableType } from './utils/taggings.js';
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -123,13 +124,17 @@ export default function TaggedEventsScroller({
         if (taggErr) throw taggErr;
 
         // 3) split by type
-        const evIds = [], bbIds = [], aeIds = [], geIds = [];
+        const grouped = {};
         (taggings || []).forEach(({ taggable_id, taggable_type }) => {
-          if (taggable_type === 'events')               evIds.push(taggable_id);
-          else if (taggable_type === 'big_board_events') bbIds.push(taggable_id);
-          else if (taggable_type === 'all_events')      aeIds.push(taggable_id);
-          else if (taggable_type === 'group_events')    geIds.push(taggable_id);
+          const key = normalizeTaggableType(taggable_type);
+          if (!key) return;
+          if (!grouped[key]) grouped[key] = new Set();
+          grouped[key].add(taggable_id);
         });
+        const evIds = Array.from(grouped.events || []);
+        const bbIds = Array.from(grouped.big_board_events || []);
+        const aeIds = Array.from(grouped.all_events || []);
+        const geIds = Array.from(grouped.group_events || []);
 
         // 4) fetch all four sources in parallel
         const [eRes, bbRes, aeRes, geRes] = await Promise.all([
