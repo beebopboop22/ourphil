@@ -351,7 +351,9 @@ export default function ThisWeekendInPhiladelphia() {
         Dates,
         "End Date",
         "E Image",
-        slug
+        slug,
+        start_time,
+        end_time
       `)
       .order('Dates', { ascending: true });
 
@@ -504,6 +506,8 @@ export default function ThisWeekendInPhiladelphia() {
               imageUrl: evt['E Image'] || '',
               startDate,
               endDate,
+              start_time: evt.start_time,
+              end_time: evt.end_time,
               slug: evt.slug,
               isTradition: true,
               isBigBoard: false,
