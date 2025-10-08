@@ -27,6 +27,18 @@ export default function HeroLanding({ fullWidth = false }) {
     return isNaN(dt) ? null : dt;
   };
 
+  const formatTime = timeStr => {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    if (!parts.length) return '';
+    let hours = parseInt(parts[0], 10);
+    if (Number.isNaN(hours)) return '';
+    const minutes = (parts[1] ?? '00').padStart(2, '0');
+    const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${ampm}`;
+  };
+
   const getBubble = (start, isActive) => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     if (isActive) return { text: 'Today', color: 'bg-green-500', pulse: false };
@@ -52,7 +64,7 @@ export default function HeroLanding({ fullWidth = false }) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const { data, error } = await supabase
         .from('events')
-        .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
+        .select(`id, slug, "E Name", Dates, "End Date", "E Image", start_time`)
         .order('Dates', { ascending: true });
       if (error) {
         console.error('Error loading events:', error);
@@ -119,6 +131,7 @@ export default function HeroLanding({ fullWidth = false }) {
                   const { text, color, pulse } = getBubble(evt.start, evt.isActive);
                   const showWeekendBadge =
                     isThisWeekend(evt.start) && [5, 6, 0].includes(evt.start.getDay());
+                  const timeLabel = formatTime(evt.start_time);
 
                   return (
                     <FavoriteState
@@ -171,6 +184,11 @@ export default function HeroLanding({ fullWidth = false }) {
                                 {text}
                               </span>
                             </Link>
+                            {timeLabel && (
+                              <p className="mt-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                {timeLabel}
+                              </p>
+                            )}
                             <button
                               onClick={handleToggle}
                               disabled={loading}

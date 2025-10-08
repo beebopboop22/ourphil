@@ -286,7 +286,8 @@ async function fetchBaseData() {
         Dates,
         "End Date",
         "E Image",
-        slug
+        slug,
+        start_time
       `)
       .order('Dates', { ascending: true }),
     supabase
@@ -433,6 +434,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         endDate: end,
         slug: row.slug,
         isTradition: true,
+        start_time: row.start_time ?? row.time ?? row['Start Time'] ?? null,
       };
     })
     .filter(Boolean)
@@ -577,6 +579,7 @@ function buildTraditionsSection(baseData, rangeStart, rangeEnd, limit = 8) {
         startDate: start,
         endDate: end,
         slug: row.slug,
+        start_time: row.start_time ?? row.time ?? row['Start Time'] ?? null,
       };
     })
     .filter(Boolean)
@@ -1172,7 +1175,7 @@ export default function MainEvents() {
         if (idsByTable.events?.length) {
           const { data } = await supabase
             .from('events')
-            .select('id,slug,"E Name","E Image",Dates,"End Date"')
+            .select('id,slug,"E Name","E Image",Dates,"End Date",start_time')
             .in('id', idsByTable.events);
           data?.forEach(row => {
             aggregated.push({
@@ -1182,6 +1185,7 @@ export default function MainEvents() {
               image: row['E Image'],
               start_date: row.Dates,
               end_date: row['End Date'],
+              start_time: row.start_time ?? row['Start Time'] ?? null,
               source_table: 'events',
             });
           });

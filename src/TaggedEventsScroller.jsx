@@ -47,6 +47,28 @@ export default function TaggedEventsScroller({
     const [y, m, d] = str.split('-').map(Number);
     return new Date(y, m - 1, d);
   }
+  function formatTime(timeStr) {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    if (!parts.length) return '';
+    let hours = parseInt(parts[0], 10);
+    if (Number.isNaN(hours)) return '';
+    const minutes = (parts[1] ?? '00').padStart(2, '0');
+    const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${ampm}`;
+  }
+  function buildTimeLabel(evt) {
+    if (!evt?.start_time) return '';
+    if (evt.source_table === 'sg_events') {
+      const parsed = new Date(evt.start_time);
+      if (Number.isNaN(parsed.getTime())) return '';
+      const hours = String(parsed.getHours()).padStart(2, '0');
+      const minutes = String(parsed.getMinutes()).padStart(2, '0');
+      return formatTime(`${hours}:${minutes}`);
+    }
+    return formatTime(evt.start_time);
+  }
   function isTagActive(tag) {
     const today = new Date(); today.setHours(0,0,0,0);
     if (tag.rrule) {
@@ -136,7 +158,7 @@ export default function TaggedEventsScroller({
           evIds.length
             ? supabase
                 .from('events')
-                .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
+                .select(`id, slug, "E Name", Dates, "End Date", "E Image", start_time`)
                 .in('id', evIds)
             : { data: [] },
           bbIds.length
@@ -192,6 +214,7 @@ export default function TaggedEventsScroller({
         (eRes.data || []).forEach(e => {
           const start = parseDate(e.Dates);
           const end   = e['End Date'] ? parseDate(e['End Date']) : start;
+          const startTime = e.start_time ?? e.time ?? e['Start Time'] ?? null;
           const href =
             getDetailPathForItem({
               ...e,
@@ -203,6 +226,7 @@ export default function TaggedEventsScroller({
             title: e['E Name'],
             imageUrl: e['E Image'] || '',
             start, end,
+            start_time: startTime,
             href,
           });
         });
@@ -249,6 +273,7 @@ export default function TaggedEventsScroller({
             imageUrl: ev.image || '',
             start,
             end: start,
+            start_time: ev.start_time || null,
             href,
           });
         });
@@ -281,6 +306,7 @@ export default function TaggedEventsScroller({
             title: ev.title,
             imageUrl: url,
             start, end,
+            start_time: ev.start_time || null,
             href,
           });
         });
@@ -317,6 +343,7 @@ export default function TaggedEventsScroller({
                 imageUrl: e.performers?.[0]?.image || '',
                 start,
                 end: start,
+                start_time: e.datetime_local,
                 href,
                 url: e.url,
               });
@@ -382,6 +409,7 @@ export default function TaggedEventsScroller({
               evt.start,
               evt.start <= new Date() && new Date() <= evt.end
             );
+            const timeLabel = buildTimeLabel(evt);
             if (evt.source_table === 'sg_events') {
               return (
                 <div key={`${evt.id}-${evt.start}`} className="flex-shrink-0 w-[260px]">
@@ -410,6 +438,11 @@ export default function TaggedEventsScroller({
                       {text}
                     </span>
                   </Link>
+                  {timeLabel && (
+                    <p className="mt-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      {timeLabel}
+                    </p>
+                  )}
                   {evt.url && (
                     <a
                       href={evt.url}
@@ -474,6 +507,11 @@ export default function TaggedEventsScroller({
                         {text}
                       </span>
                     </Link>
+                    {timeLabel && (
+                      <p className="mt-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
+                        {timeLabel}
+                      </p>
+                    )}
                     <button
                       onClick={e => {
                         e.preventDefault();
