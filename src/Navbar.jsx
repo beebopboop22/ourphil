@@ -87,25 +87,25 @@ export default function Navbar({ style, bottomBanner }) {
   return (
     <>
       <nav ref={navRef} className="fixed top-0 w-full bg-white shadow z-50" style={style}>
-        <div className="mx-auto flex h-20 max-w-screen-xl items-center gap-4 px-4">
+        <div className="mx-auto flex h-20 max-w-screen-xl items-center gap-3 px-4 sm:gap-4">
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
             <img
               src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png"
               alt="Our Philly Logo"
-              className="h-10 w-auto"
+              className="h-8 w-auto md:h-10"
             />
           </Link>
 
-          <div className="flex flex-1 items-center gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
             <NavbarSearch
-              className="w-full flex-1 max-w-xl"
+              className="w-full flex-1 min-w-0 max-w-xl"
               buttonClassName="px-3 py-1 text-xs md:px-4 md:py-2 md:text-sm"
               onFocus={closeOverlays}
             />
 
             {/* Desktop actions */}
-            <div className="hidden items-center gap-4 text-sm font-medium md:flex">
+            <div className="ml-auto hidden items-center gap-4 text-sm font-medium md:flex">
               {user && (
                 <Link to="/profile" className={linkClass('/profile')}>
                   My Plans
@@ -203,7 +203,7 @@ export default function Navbar({ style, bottomBanner }) {
 
             {/* Mobile menu button */}
             <button
-              className="md:hidden"
+              className="flex-shrink-0 md:hidden"
               onClick={() => setMenuOpen((open) => !open)}
             >
               {menuOpen ? (
