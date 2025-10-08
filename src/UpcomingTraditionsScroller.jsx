@@ -42,12 +42,24 @@ export default function UpcomingTraditionsScroller() {
     return weekday;
   };
 
+  const formatTime = timeStr => {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    if (!parts.length) return '';
+    let hours = parseInt(parts[0], 10);
+    if (Number.isNaN(hours)) return '';
+    const minutes = (parts[1] ?? '00').padStart(2, '0');
+    const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${ampm}`;
+  };
+
   useEffect(() => {
     (async () => {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const { data, error } = await supabase
         .from('events')
-        .select(`id, slug, "E Name", Dates, "End Date", "E Image"`)
+        .select(`id, slug, "E Name", Dates, "End Date", "E Image", start_time`)
         .order('Dates', { ascending: true });
       if (error) {
         console.error('Error loading events:', error);
@@ -81,51 +93,58 @@ export default function UpcomingTraditionsScroller() {
       ) : (
         <div className="overflow-x-auto scrollbar-hide">
           <div className="flex gap-4 pb-2">
-            {events.map(evt => (
-              <FavoriteState key={evt.id} event_id={evt.id} source_table="events">
-                {({ isFavorite, toggleFavorite, loading }) => {
-                  const handleToggle = async e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (!user) {
-                      navigate('/login');
-                      return;
-                    }
-                    await toggleFavorite();
-                  };
-                  return (
-                    <div className="w-40 flex-shrink-0 flex flex-col">
-                      <Link
-                        to={getDetailPathForItem(evt) || '/'}
-                        className={`block relative w-full h-24 rounded-lg overflow-hidden shadow ${
-                          isFavorite ? 'ring-2 ring-indigo-600' : ''
-                        }`}
-                      >
-                        <img src={evt['E Image']} alt={evt['E Name']} className="w-full h-full object-cover" />
-                        <div className="absolute top-1 left-1 bg-yellow-400 text-white p-1 rounded-full">
-                          <FaStar className="w-3 h-3" />
+            {events.map(evt => {
+              const timeLabel = formatTime(evt.start_time);
+              return (
+                <FavoriteState key={evt.id} event_id={evt.id} source_table="events">
+                  {({ isFavorite, toggleFavorite, loading }) => {
+                    const handleToggle = async e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!user) {
+                        navigate('/login');
+                        return;
+                      }
+                      await toggleFavorite();
+                    };
+
+                    return (
+                      <div className="w-40 flex-shrink-0 flex flex-col">
+                        <Link
+                          to={getDetailPathForItem(evt) || '/'}
+                          className={`block relative w-full h-24 rounded-lg overflow-hidden shadow ${
+                            isFavorite ? 'ring-2 ring-indigo-600' : ''
+                          }`}
+                        >
+                          <img src={evt['E Image']} alt={evt['E Name']} className="w-full h-full object-cover" />
+                          <div className="absolute top-1 left-1 bg-yellow-400 text-white p-1 rounded-full">
+                            <FaStar className="w-3 h-3" />
+                          </div>
+                        </Link>
+                        <div className="mt-2 h-20 flex flex-col items-center justify-between text-center">
+                          <h4 className="text-sm font-semibold text-gray-800 line-clamp-2">{evt['E Name']}</h4>
+                          <p className="text-xs text-gray-500">{relativeDayLabel(evt.start, evt.end)}</p>
+                          {timeLabel && (
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{timeLabel}</p>
+                          )}
                         </div>
-                      </Link>
-                      <div className="mt-2 h-20 flex flex-col items-center justify-between text-center">
-                        <h4 className="text-sm font-semibold text-gray-800 line-clamp-2">{evt['E Name']}</h4>
-                        <p className="text-xs text-gray-500">{relativeDayLabel(evt.start, evt.end)}</p>
+                        <button
+                          onClick={handleToggle}
+                          disabled={loading}
+                          className={`mt-2 w-full border border-indigo-600 rounded-md py-1 text-xs font-semibold transition-colors ${
+                            isFavorite
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                          }`}
+                        >
+                          {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                        </button>
                       </div>
-                      <button
-                        onClick={handleToggle}
-                        disabled={loading}
-                        className={`mt-2 w-full border border-indigo-600 rounded-md py-1 text-xs font-semibold transition-colors ${
-                          isFavorite
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
-                        }`}
-                      >
-                        {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                      </button>
-                    </div>
-                  );
-                }}
-              </FavoriteState>
-            ))}
+                    );
+                  }}
+                </FavoriteState>
+              );
+            })}
           </div>
         </div>
       )}
