@@ -87,131 +87,137 @@ export default function Navbar({ style, bottomBanner }) {
   return (
     <>
       <nav ref={navRef} className="fixed top-0 w-full bg-white shadow z-50" style={style}>
-        <div className="mx-auto flex h-20 max-w-screen-xl items-center gap-4 px-4">
-          {/* Logo */}
-          <Link to="/" className="flex-shrink-0">
-            <img
-              src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png"
-              alt="Our Philly Logo"
-              className="h-10 w-auto"
-            />
-          </Link>
+        <div className="mx-auto w-full max-w-screen-xl px-4 py-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+            {/* Logo and mobile menu toggle */}
+            <div className="flex items-center justify-between gap-3 md:flex-none md:justify-start md:gap-4">
+              <Link to="/" className="flex-shrink-0">
+                <img
+                  src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//logoo.png"
+                  alt="Our Philly Logo"
+                  className="h-6 w-auto md:h-10"
+                />
+              </Link>
 
-          <div className="flex flex-1 items-center gap-4">
-            <NavbarSearch
-              className="w-full flex-1 max-w-xl"
-              buttonClassName="px-3 py-1 text-xs md:px-4 md:py-2 md:text-sm"
-              onFocus={closeOverlays}
-            />
-
-            {/* Desktop actions */}
-            <div className="hidden items-center gap-4 text-sm font-medium md:flex">
-              {user && (
-                <Link to="/profile" className={linkClass('/profile')}>
-                  My Plans
-                </Link>
-              )}
-              <div
-                className="relative"
-                onBlur={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget)) {
-                    setDesktopMenuOpen(false);
-                  }
-                }}
+              <button
+                type="button"
+                className="flex-shrink-0 md:hidden"
+                aria-expanded={menuOpen}
+                aria-label="Toggle navigation menu"
+                onClick={() => setMenuOpen((open) => !open)}
               >
-                <button
-                  type="button"
-                  onClick={() => setDesktopMenuOpen((open) => !open)}
-                  onFocus={() => setDesktopMenuOpen(true)}
-                  className="flex items-center gap-1 text-gray-700 transition hover:text-gray-900"
-                  aria-haspopup="true"
-                  aria-expanded={desktopMenuOpen}
-                >
-                  <span>Menu</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${desktopMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {desktopMenuOpen && (
-                  <div className="absolute right-0 z-50 mt-3 w-48 rounded-xl border border-gray-200 bg-white py-3 shadow-lg">
-                    <Link
-                      to="/all-guides/"
-                      className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
-                    >
-                      Guides
-                    </Link>
-                    <Link
-                      to="/groups"
-                      className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
-                    >
-                      Groups
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        openPostModal();
-                        setDesktopMenuOpen(false);
-                      }}
-                      className="block w-full px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
-                    >
-                      Post Event
-                    </button>
-                    <div className="my-2 h-px bg-gray-100" aria-hidden="true" />
-                    <Link
-                      to="/contact"
-                      className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
-                    >
-                      Contact
-                    </Link>
-                    <Link
-                      to="/about"
-                      className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
-                    >
-                      About
-                    </Link>
-                  </div>
+                {menuOpen ? (
+                  <X className="h-6 w-6 text-gray-700" />
+                ) : (
+                  <Menu className="h-6 w-6 text-gray-700" />
                 )}
-              </div>
-              <a
-                href="https://www.instagram.com/ourphillydotorg/"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Instagram"
-                className="text-gray-700 transition hover:text-gray-900"
-              >
-                <FaInstagram className="h-5 w-5" />
-              </a>
-              {user ? (
-                <button
-                  onClick={handleLogout}
-                  className="text-gray-700 transition hover:text-gray-900"
-                >
-                  Log Out
-                </button>
-              ) : (
-                <>
-                  <Link to="/login" className={linkClass('/login')}>
-                    Log In
-                  </Link>
-                  <Link
-                    to="/signup"
-                    className="rounded-full bg-gray-900 px-4 py-2 text-white transition hover:bg-gray-700"
-                  >
-                    Sign Up
-                  </Link>
-                </>
-              )}
+              </button>
             </div>
 
-            {/* Mobile menu button */}
-            <button
-              className="md:hidden"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              {menuOpen ? (
-                <X className="h-6 w-6 text-gray-700" />
-              ) : (
-                <Menu className="h-6 w-6 text-gray-700" />
-              )}
-            </button>
+            <div className="flex w-full flex-col gap-3 md:flex-1 md:flex-row md:items-center md:gap-4">
+              <NavbarSearch
+                className="w-full min-w-0 flex-1 md:max-w-xl"
+                buttonClassName="px-3 py-1 text-xs md:px-4 md:py-2 md:text-sm"
+                onFocus={closeOverlays}
+              />
+
+              {/* Desktop actions */}
+              <div className="ml-auto hidden items-center gap-4 text-sm font-medium md:flex">
+                {user && (
+                  <Link to="/profile" className={linkClass('/profile')}>
+                    My Plans
+                  </Link>
+                )}
+                <div
+                  className="relative"
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) {
+                      setDesktopMenuOpen(false);
+                    }
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setDesktopMenuOpen((open) => !open)}
+                    onFocus={() => setDesktopMenuOpen(true)}
+                    className="flex items-center gap-1 text-gray-700 transition hover:text-gray-900"
+                    aria-haspopup="true"
+                    aria-expanded={desktopMenuOpen}
+                  >
+                    <span>Menu</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${desktopMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {desktopMenuOpen && (
+                    <div className="absolute right-0 z-50 mt-3 w-48 rounded-xl border border-gray-200 bg-white py-3 shadow-lg">
+                      <Link
+                        to="/all-guides/"
+                        className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+                      >
+                        Guides
+                      </Link>
+                      <Link
+                        to="/groups"
+                        className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+                      >
+                        Groups
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          openPostModal();
+                          setDesktopMenuOpen(false);
+                        }}
+                        className="block w-full px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+                      >
+                        Post Event
+                      </button>
+                      <div className="my-2 h-px bg-gray-100" aria-hidden="true" />
+                      <Link
+                        to="/contact"
+                        className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+                      >
+                        Contact
+                      </Link>
+                      <Link
+                        to="/about"
+                        className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+                      >
+                        About
+                      </Link>
+                    </div>
+                  )}
+                </div>
+                <a
+                  href="https://www.instagram.com/ourphillydotorg/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram"
+                  className="text-gray-700 transition hover:text-gray-900"
+                >
+                  <FaInstagram className="h-5 w-5" />
+                </a>
+                {user ? (
+                  <button
+                    onClick={handleLogout}
+                    className="text-gray-700 transition hover:text-gray-900"
+                  >
+                    Log Out
+                  </button>
+                ) : (
+                  <>
+                    <Link to="/login" className={linkClass('/login')}>
+                      Log In
+                    </Link>
+                    <Link
+                      to="/signup"
+                      className="rounded-full bg-gray-900 px-4 py-2 text-white transition hover:bg-gray-700"
+                    >
+                      Sign Up
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
