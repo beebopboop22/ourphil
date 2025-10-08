@@ -62,6 +62,7 @@ import FoodDrinkMonthlyPage from './FoodDrinkMonthlyPage.jsx';
 import FitnessWellnessMonthlyPage from './FitnessWellnessMonthlyPage.jsx';
 import MusicMonthlyPage from './MusicMonthlyPage.jsx';
 import AllGuidesPage from './AllGuidesPage.jsx';
+import SearchResultsPage from './SearchResultsPage.jsx';
 import ViewRouter from './ViewRouter.jsx';
 import HeadProvider from './components/HeadProvider.jsx'
 import SlashGuard from './components/SlashGuard.jsx'
@@ -118,6 +119,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={<MusicMonthlyPage />}
             />
             <Route path="/all-guides/" element={<AllGuidesPage />} />
+            <Route path="/search" element={<SearchResultsPage />} />
             {COMMUNITY_REGIONS.map(region => (
               <Route
                 key={region.slug}
