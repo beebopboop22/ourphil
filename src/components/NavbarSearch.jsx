@@ -25,7 +25,7 @@ export default function NavbarSearch({
 
   return (
     <form
-      className={`relative flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 shadow-sm transition focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 ${className}`.trim()}
+      className={`relative flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 shadow-sm transition focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500 sm:gap-2 sm:px-4 sm:py-2 ${className}`.trim()}
       onSubmit={handleSubmit}
     >
       <SearchIcon className="h-4 w-4 text-gray-500" aria-hidden="true" />
