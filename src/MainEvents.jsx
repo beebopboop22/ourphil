@@ -20,7 +20,6 @@ import {
 import Navbar from './Navbar';
 import Footer from './Footer';
 import RecentActivity from './RecentActivity';
-import HeroLanding from './HeroLanding';
 import RecurringEventsScroller from './RecurringEventsScroller';
 import SavedEventsScroller from './SavedEventsScroller';
 import FloatingAddButton from './FloatingAddButton';
@@ -64,6 +63,16 @@ const SECTION_CONFIGS = [
     headline: 'This Weekend in Philadelphia',
     cta: 'View all events this weekend',
     href: '/weekend',
+  },
+  {
+    key: 'traditions',
+    eyebrow: 'City traditions',
+    headline: 'Upcoming Festivals, Fairs, and Philly Traditions',
+    cta: 'More traditions',
+    href: 'https://www.ourphilly.org/philadelphia-events-october-2025/',
+    external: true,
+    getSummary: () =>
+      "Line up your calendar with the parades, cultural festivals, and can't-miss Philly traditions happening soon.",
   },
 ];
 
@@ -121,7 +130,7 @@ function cloneDate(date) {
   return new Date(date.getTime());
 }
 
-function formatFeaturedCommunityDateLabel(startDateInput) {
+function formatFeaturedCommunityDateLabel(startDateInput, options = {}) {
   if (!startDateInput) return '';
   const startDate =
     startDateInput instanceof Date
@@ -131,10 +140,23 @@ function formatFeaturedCommunityDateLabel(startDateInput) {
     return '';
   }
 
+  let { endDate: endDateInput, isActive } = options;
+  if (endDateInput && !(endDateInput instanceof Date)) {
+    endDateInput = parseISODateInPhilly(endDateInput);
+  }
+  const endDate =
+    endDateInput && !Number.isNaN(endDateInput?.getTime()) ? endDateInput : startDate;
+
+  const isMultiDay = endDate.getTime() > startDate.getTime();
+
   const nowInPhilly = getZonedDate(new Date(), PHILLY_TIME_ZONE);
   const today = setStartOfDay(nowInPhilly);
-  const eventDay = setStartOfDay(startDate);
+  const eventDay = setStartOfDay(cloneDate(startDate));
   const diffDays = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (isActive && isMultiDay) {
+    return `Thru ${formatMonthDay(endDate, PHILLY_TIME_ZONE)}`;
+  }
 
   const monthDay = formatMonthDay(eventDay, PHILLY_TIME_ZONE);
 
@@ -535,6 +557,63 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   };
 }
 
+function buildTraditionsSection(baseData, rangeStart, rangeEnd, limit = 8) {
+  const startBoundary = rangeStart
+    ? setStartOfDay(cloneDate(rangeStart))
+    : setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE));
+  const endBoundary = rangeEnd ? setEndOfDay(cloneDate(rangeEnd)) : null;
+
+  const traditions = (baseData.traditions || [])
+    .map(row => {
+      const start = parseDate(row.Dates);
+      if (!start) return null;
+      const end = parseDate(row['End Date']) || start;
+      return {
+        id: `trad-${row.id}`,
+        sourceId: row.id,
+        title: row['E Name'],
+        description: row['E Description'],
+        imageUrl: row['E Image'] || '',
+        startDate: start,
+        endDate: end,
+        slug: row.slug,
+      };
+    })
+    .filter(Boolean)
+    .map(evt => ({
+      ...evt,
+      isActive:
+        evt.startDate.getTime() <= startBoundary.getTime() &&
+        startBoundary.getTime() <= evt.endDate.getTime(),
+    }))
+    .filter(evt => {
+      const startsBeforeEnd = endBoundary ? evt.startDate <= endBoundary : true;
+      const endsAfterStart = evt.endDate >= startBoundary;
+      return startsBeforeEnd && endsAfterStart;
+    })
+    .sort((a, b) => {
+      if (a.isActive !== b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
+      return a.startDate - b.startDate;
+    });
+
+  const mapped = traditions.map(evt => ({
+    ...evt,
+    start_date: evt.startDate,
+    badges: ['Tradition'],
+    detailPath: getDetailPathForItem(evt),
+    source_table: 'events',
+    favoriteId: evt.sourceId,
+  }));
+
+  return {
+    items: mapped.slice(0, limit),
+    total: mapped.length,
+    traditions: mapped.length,
+  };
+}
+
 function buildFeaturedCommunities(baseData, referenceStart, limit = 4) {
   const startBoundary = referenceStart
     ? setStartOfDay(cloneDate(referenceStart))
@@ -601,8 +680,26 @@ function EventCard({ event, tags = [], showDatePill = false }) {
   const badges = event.badges || [];
   const tagList = tags || [];
   const timeLabel = event.start_time ? formatTime(event.start_time) : '';
+  const parseEventDateValueSafely = value => {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (typeof value === 'string') {
+      return parseISODateInPhilly(value);
+    }
+    return null;
+  };
+  const startDate = parseEventDateValueSafely(event.start_date || event.startDate);
+  const endDate = parseEventDateValueSafely(event.end_date || event.endDate) || startDate;
+  const todayInPhilly = useMemo(() => setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE)), []);
+  let isActive = typeof event.isActive === 'boolean' ? event.isActive : false;
+  if (!isActive && startDate && endDate) {
+    const startOfEvent = setStartOfDay(cloneDate(startDate));
+    const endOfEvent = setEndOfDay(cloneDate(endDate));
+    const todayMs = todayInPhilly.getTime();
+    isActive = startOfEvent.getTime() <= todayMs && todayMs <= endOfEvent.getTime();
+  }
   const datePillLabel = showDatePill
-    ? formatFeaturedCommunityDateLabel(event.start_date || event.startDate)
+    ? formatFeaturedCommunityDateLabel(startDate, { endDate, isActive })
     : '';
 
   const handleFavoriteClick = e => {
@@ -747,6 +844,8 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
     ? config.getSummary({ data, rangeStart, rangeEnd })
     : formatSummary(config, data.total, data.traditions, rangeStart, rangeEnd);
 
+  const CtaComponent = config.external ? 'a' : Link;
+
   return (
     <section className="mt-16">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -761,16 +860,20 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
           </h2>
           <p className="mt-2 text-sm text-gray-600 sm:text-base">{summaryText}</p>
         </div>
-        <Link
-          to={config.href}
+        <CtaComponent
+          {...(config.external
+            ? { href: config.href, target: '_blank', rel: 'noopener noreferrer' }
+            : { to: config.href })}
           className="inline-flex items-center gap-2 self-start md:self-auto px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-full shadow hover:bg-indigo-700 transition"
         >
           {config.cta}
           <ArrowRight className="w-4 h-4" />
-        </Link>
+        </CtaComponent>
       </div>
       <div className="mt-8">
-        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+        <div
+          className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4"
+        >
           {loading
             ? Array.from({ length: 4 }).map((_, idx) => (
                 <div
@@ -794,7 +897,7 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
                     <EventCard
                       event={event}
                       tags={eventTags}
-                      showDatePill={config.key === 'featured-community'}
+                      showDatePill={config.key === 'featured-community' || config.key === 'traditions'}
                     />
                   </div>
                 );
@@ -948,6 +1051,12 @@ export default function MainEvents() {
     []
   );
 
+  const traditionsRangeEnd = useMemo(() => {
+    const end = cloneDate(todayInPhilly);
+    end.setDate(end.getDate() + 60);
+    return end;
+  }, [todayInPhilly]);
+
   const rangeMeta = useMemo(
     () => ({
       today: { start: todayInPhilly, end: setEndOfDay(cloneDate(todayInPhilly)) },
@@ -956,14 +1065,19 @@ export default function MainEvents() {
         end: setEndOfDay(cloneDate(tomorrowInPhilly)),
       },
       weekend: { start: setStartOfDay(cloneDate(weekendStart)), end: setEndOfDay(cloneDate(weekendEnd)) },
+      traditions: {
+        start: setStartOfDay(cloneDate(todayInPhilly)),
+        end: setEndOfDay(cloneDate(traditionsRangeEnd)),
+      },
     }),
-    [todayInPhilly, tomorrowInPhilly, weekendStart, weekendEnd]
+    [todayInPhilly, tomorrowInPhilly, weekendStart, weekendEnd, traditionsRangeEnd]
   );
 
   const [sections, setSections] = useState({
     today: { items: [], total: 0, traditions: 0 },
     tomorrow: { items: [], total: 0, traditions: 0 },
     weekend: { items: [], total: 0, traditions: 0 },
+    traditions: { items: [], total: 0, traditions: 0 },
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -982,6 +1096,11 @@ export default function MainEvents() {
           today: buildEventsForRange(rangeMeta.today.start, rangeMeta.today.end, baseData),
           tomorrow: buildEventsForRange(rangeMeta.tomorrow.start, rangeMeta.tomorrow.end, baseData),
           weekend: buildEventsForRange(rangeMeta.weekend.start, rangeMeta.weekend.end, baseData),
+          traditions: buildTraditionsSection(
+            baseData,
+            rangeMeta.traditions.start,
+            rangeMeta.traditions.end
+          ),
         });
         setFeaturedCommunities(buildFeaturedCommunities(baseData, rangeMeta.today.start));
         setError(null);
@@ -1229,14 +1348,25 @@ export default function MainEvents() {
   };
 
   const displayedEvents = useMemo(() => {
-    const base = [...sections.today.items, ...sections.tomorrow.items, ...sections.weekend.items];
+    const base = [
+      ...sections.today.items,
+      ...sections.tomorrow.items,
+      ...sections.weekend.items,
+      ...sections.traditions.items,
+    ];
     featuredCommunities.forEach(section => {
       if (section?.items?.length) {
         base.push(...section.items);
       }
     });
     return base;
-  }, [sections.today.items, sections.tomorrow.items, sections.weekend.items, featuredCommunities]);
+  }, [
+    sections.today.items,
+    sections.tomorrow.items,
+    sections.weekend.items,
+    sections.traditions.items,
+    featuredCommunities,
+  ]);
 
   useEffect(() => {
     if (!displayedEvents.length) {
@@ -1533,8 +1663,6 @@ export default function MainEvents() {
             </>
           )}
         </section>
-
-        <HeroLanding fullWidth />
 
         <RecurringEventsScroller
           windowStart={startOfWeek}
