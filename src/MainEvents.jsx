@@ -19,10 +19,8 @@ import {
 
 import Navbar from './Navbar';
 import Footer from './Footer';
-import FeaturedTraditionHero from './FeaturedTraditionHero';
 import RecentActivity from './RecentActivity';
 import HeroLanding from './HeroLanding';
-import TaggedEventScroller from './TaggedEventsScroller';
 import RecurringEventsScroller from './RecurringEventsScroller';
 import SavedEventsScroller from './SavedEventsScroller';
 import FloatingAddButton from './FloatingAddButton';
@@ -78,26 +76,6 @@ const TAG_PILL_STYLES = [
   'bg-yellow-100 text-yellow-800',
   'bg-purple-100 text-purple-800',
   'bg-red-100 text-red-800',
-];
-
-const taggedScrollerConfigs = [
-  {
-    slug: 'birds',
-    eyebrow: 'Seasonal Tag',
-    headline: 'Next in #Birds',
-  },
-  {
-    slug: 'arts',
-    eyebrow: 'Tag highlight',
-    headline: 'Next in Arts',
-    description: 'Plot out gallery walks, performances, and creative nights across the city.',
-  },
-  {
-    slug: 'nomnomslurp',
-    eyebrow: 'Tag highlight',
-    headline: 'Next in #NomNomSlurp',
-    description: 'Keep tabs on pop-ups, tastings, and foodie meetups worth savoring next.',
-  },
 ];
 
 const startOfWeek = (() => {
@@ -992,7 +970,6 @@ export default function MainEvents() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [tagMap, setTagMap] = useState({});
   const [featuredCommunities, setFeaturedCommunities] = useState([]);
-  const [traditionsThisMonthCount, setTraditionsThisMonthCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -1007,22 +984,11 @@ export default function MainEvents() {
           weekend: buildEventsForRange(rangeMeta.weekend.start, rangeMeta.weekend.end, baseData),
         });
         setFeaturedCommunities(buildFeaturedCommunities(baseData, rangeMeta.today.start));
-        const monthStart = new Date(todayInPhilly.getFullYear(), todayInPhilly.getMonth(), 1);
-        const nextMonthStart = new Date(monthStart);
-        nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
-        const monthlyTraditions = (baseData.traditions || []).filter(row => {
-          const start = parseDate(row.Dates);
-          if (!start) return false;
-          const end = parseDate(row['End Date']) || start;
-          return start < nextMonthStart && end >= monthStart;
-        }).length;
-        setTraditionsThisMonthCount(monthlyTraditions);
         setError(null);
       } catch (err) {
         console.error('Error loading events', err);
         if (!cancelled) {
           setError('We had trouble loading events. Please try again soon.');
-          setTraditionsThisMonthCount(0);
           setFeaturedCommunities([]);
         }
       } finally {
@@ -1339,13 +1305,10 @@ export default function MainEvents() {
       <div className="pt-24 sm:pt-28">
         <TopQuickLinks
           weekendCount={sections.weekend.total}
-          traditionsCount={traditionsThisMonthCount}
           weekendHref="/this-weekend-in-philadelphia/"
-          traditionsHref={traditionsHref}
           loading={loading}
           className="mb-0"
         />
-        <FeaturedTraditionHero />
       </div>
       <main className="flex-1 pb-16">
         <div className="container mx-auto px-4 pt-16">
@@ -1572,27 +1535,6 @@ export default function MainEvents() {
         </section>
 
         <HeroLanding fullWidth />
-        {taggedScrollerConfigs.map(({ slug, eyebrow, headline, description }) => (
-          <TaggedEventScroller
-            key={slug}
-            tags={[slug]}
-            fullWidth
-            header={
-              <Link
-                to={`/tags/${slug}`}
-                className="block w-full max-w-screen-xl mx-auto px-4 mb-6 space-y-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-              >
-                {eyebrow && (
-                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">{eyebrow}</p>
-                )}
-                <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">{headline}</h2>
-                {description && (
-                  <p className="text-sm text-gray-600 sm:text-base">{description}</p>
-                )}
-              </Link>
-            }
-          />
-        ))}
 
         <RecurringEventsScroller
           windowStart={startOfWeek}
