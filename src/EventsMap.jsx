@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react'
 import Map, { Marker } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { getMapboxToken } from './config/mapboxToken.js'
 
 const mascotUrl =
   'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1%20copy-min.png'
@@ -32,6 +33,7 @@ function formatTime(timeStr) {
 }
 
 export default function EventsMap({ events, height = '500px' }) {
+  const mapboxToken = getMapboxToken()
   const [viewState, setViewState] = useState({
     latitude: 39.9526,
     longitude: -75.1652,
@@ -150,7 +152,7 @@ export default function EventsMap({ events, height = '500px' }) {
               ? 'mapbox://styles/mapbox/dark-v10'
               : 'mapbox://styles/mapbox/light-v10'
           }
-          mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
+          mapboxAccessToken={mapboxToken}
         >
           {filtered.map(evt => (
             <Marker
