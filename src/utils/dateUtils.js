@@ -100,6 +100,16 @@ export function parseEventDateValue(value, timeZone = PHILLY_TIME_ZONE) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
       return parseISODate(trimmed, timeZone);
     }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+      const datePortion = trimmed.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePortion)) {
+        return parseISODate(datePortion, timeZone);
+      }
+      const asDate = new Date(trimmed);
+      if (!Number.isNaN(asDate.getTime())) {
+        return setStartOfDay(getZonedDate(asDate, timeZone));
+      }
+    }
     return parseMonthDayYear(trimmed, timeZone);
   }
   return null;
