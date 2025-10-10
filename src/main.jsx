@@ -67,15 +67,8 @@ import ViewRouter from './ViewRouter.jsx';
 import HeadProvider from './components/HeadProvider.jsx'
 import SlashGuard from './components/SlashGuard.jsx'
 import CommunityIndexPage from './CommunityIndexPage.jsx'
+import LabsMapPage from './LabsMapPage.jsx'
 import { COMMUNITY_REGIONS } from './communityIndexData.js'
-
-
-
-
-
-
-
-
 
 import './index.css'
 
@@ -127,6 +120,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 element={<CommunityIndexPage region={region} />}
               />
             ))}
+            <Route path="/labs/map" element={<LabsMapPage />} />
             <Route path="/:view" element={<ViewRouter />} />
             <Route path="/old" element={<App />} />
             <Route path="/sports" element={<SportsPage />} />
