@@ -13,6 +13,7 @@ import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import { isTagActive } from './utils/tagUtils';
 import Seo from './components/Seo.jsx';
+import { getMapboxToken } from './config/mapboxToken.js';
 import {
   SITE_BASE_URL,
   DEFAULT_OG_IMAGE,
@@ -47,7 +48,7 @@ export default function BigBoardEventPage() {
   const [siblings, setSiblings] = useState([]);
 
   // Mapbox Search Box setup
-  const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  const geocoderToken = getMapboxToken();
   const sessionToken = useRef(crypto.randomUUID());
   const suggestRef = useRef(null);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
