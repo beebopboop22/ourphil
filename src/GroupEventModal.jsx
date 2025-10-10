@@ -7,6 +7,7 @@ import imageCompression from 'browser-image-compression'
 import { supabase } from './supabaseClient'
 import { AuthContext } from './AuthProvider'
 import { isTagActive } from './utils/tagUtils'
+import { getMapboxToken } from './config/mapboxToken.js'
 
 const pillStyles = [
   'bg-red-100 text-red-800',
@@ -25,7 +26,7 @@ export default function GroupEventModal({
   onSuccess
 }) {
   const { user } = useContext(AuthContext)
-  const geocoderToken = import.meta.env.VITE_MAPBOX_TOKEN
+  const geocoderToken = getMapboxToken()
   const sessionToken = useRef(crypto.randomUUID())
   const skipNextFetch = useRef(false)
 
