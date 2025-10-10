@@ -15,6 +15,11 @@ import { supabase } from './supabaseClient.js';
 import { applyMapboxToken } from './config/mapboxToken.js';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthProvider.jsx';
+import Navbar from './Navbar.jsx';
+import Footer from './Footer.jsx';
+import FloatingAddButton from './FloatingAddButton.jsx';
+import PostFlyerModal from './PostFlyerModal.jsx';
+import LoginPromptModal from './LoginPromptModal.jsx';
 import useEventFavorite from './utils/useEventFavorite.js';
 import {
   getWeekendWindow,
@@ -112,6 +117,17 @@ const FALLBACK_THEME = {
 };
 
 const CLUSTER_THEMES = EVENT_THEMES;
+
+const TAG_PILL_STYLES = [
+  'bg-green-100 text-indigo-800',
+  'bg-teal-100 text-teal-800',
+  'bg-pink-100 text-pink-800',
+  'bg-blue-100 text-blue-800',
+  'bg-orange-100 text-orange-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-purple-100 text-purple-800',
+  'bg-red-100 text-red-800',
+];
 
 function getEventBadgeLabel(event) {
   if (!event) return '';
@@ -239,7 +255,7 @@ function MapEventRow({ event, onHighlight }) {
     [event?.favoriteId, event?.source_table, navigate, toggleFavorite, user],
   );
 
-  const titleClassName = `mt-2 font-semibold text-gray-900 transition-colors group-hover:text-[#bf3d35] ${
+  const titleClassName = `mt-2 font-semibold text-[#29313f] transition-colors group-hover:text-[#bf3d35] ${
     event?.source_table === 'recurring_events' ? 'text-base' : 'text-lg'
   }`;
 
@@ -250,11 +266,11 @@ function MapEventRow({ event, onHighlight }) {
         onMouseEnter={handleHighlight}
         onFocus={handleHighlight}
         onClick={handleHighlight}
-        className="group block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:border-[#bf3d35]/60 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#29313f]"
+        className="group block rounded-2xl border border-[#f3c7b8] bg-white/90 shadow-sm shadow-[#bf3d35]/5 transition hover:-translate-y-0.5 hover:border-[#bf3d35] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#29313f]"
       >
         <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex w-full items-start gap-4">
-            <div className="hidden h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:block">
+            <div className="hidden h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-[#f4e5df] sm:block">
               {event?.image && (
                 <img src={event.image} alt={event?.title || ''} className="h-full w-full object-cover" />
               )}
@@ -964,7 +980,7 @@ function withinBounds(event, bounds) {
 }
 
 function LabsMapPage() {
-  const [hasAccess, setHasAccess] = useState(false);
+  const { user } = useContext(AuthContext);
   const [viewState, setViewState] = useState(DEFAULT_VIEW);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -978,45 +994,12 @@ function LabsMapPage() {
   const [bounds, setBounds] = useState(null);
   const [geoError, setGeoError] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showFlyerModal, setShowFlyerModal] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const mapRef = useRef(null);
 
   useEffect(() => {
-    function checkAccess() {
-      try {
-        return globalThis.localStorage?.getItem('labs:map-enabled') === 'true';
-      } catch {
-        return false;
-      }
-    }
-
-    setHasAccess(checkAccess());
-
-    function handleKey(event) {
-      if (!event.shiftKey) return;
-      if (event.key === 'M') {
-        try {
-          globalThis.localStorage?.setItem('labs:map-enabled', 'true');
-        } catch {}
-        setHasAccess(true);
-      }
-      if (event.key === 'U') {
-        try {
-          globalThis.localStorage?.removeItem('labs:map-enabled');
-        } catch {}
-        setHasAccess(false);
-      }
-    }
-
-    globalThis.addEventListener?.('keydown', handleKey);
-    return () => {
-      globalThis.removeEventListener?.('keydown', handleKey);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!hasAccess) return;
-
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -1231,7 +1214,7 @@ function LabsMapPage() {
     return () => {
       cancelled = true;
     };
-  }, [hasAccess]);
+  }, []);
 
   const { rangeStart, rangeEnd } = useMemo(() => {
     const today = setStartOfDay(new Date());
@@ -1390,6 +1373,14 @@ function LabsMapPage() {
     setCustomEnd('');
   }, []);
 
+  const handleOpenEventModal = useCallback(() => {
+    if (user) {
+      setShowFlyerModal(true);
+    } else {
+      setShowLoginPrompt(true);
+    }
+  }, [user, setShowFlyerModal, setShowLoginPrompt]);
+
   const updateBounds = useCallback(map => {
     if (!map) return;
     const bbox = map.getBounds?.();
@@ -1477,57 +1468,95 @@ function LabsMapPage() {
     return start === end ? start : `${start} – ${end}`;
   }, [rangeStart, rangeEnd]);
 
-  if (!hasAccess) {
-    return (
-      <div className="min-h-screen bg-[#fdf7f2] text-gray-900">
-        <Helmet>
-          <title>Labs Map Preview</title>
-          <meta name="robots" content="noindex, nofollow" />
-        </Helmet>
-        <div className="mx-auto max-w-xl space-y-4 px-6 py-24 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight text-[#29313f]">Labs access required</h1>
-          <p className="text-gray-600">
-            This map view is hidden for internal testing. Press <span className="font-semibold">Shift + M</span> to
-            enable it on this device, or contact the team for access.
-          </p>
-          <p className="text-sm text-gray-500">
-            To clear access, press <span className="font-semibold">Shift + U</span>.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#fdf7f2] text-gray-900">
+    <div className="min-h-screen bg-[#fdf7f2] text-[#29313f]">
       <Helmet>
-        <title>Labs · Event Map</title>
-        <meta name="robots" content="noindex, nofollow" />
+        <title>Philadelphia Event Map | Our Philly</title>
+        <meta
+          name="description"
+          content="Track festivals, neighborhood happenings, and community events in Philadelphia on a live map curated by Our Philly."
+        />
+        <link rel="canonical" href="https://www.ourphilly.org/map" />
       </Helmet>
-      <header className="border-b border-gray-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-6 py-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Labs</p>
-          <h1 className="mt-2 text-3xl font-semibold text-[#29313f]">Map-first event explorer</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Internal prototype that combines all event feeds on a single map. Filters update instantly as you pan
-            around Philadelphia.
-          </p>
-        </div>
-      </header>
+      <Navbar />
+      <main className="pt-28 pb-16 lg:pt-32">
+        <section className="relative">
+          <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent" aria-hidden="true" />
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/70 p-10 shadow-xl shadow-[#bf3d35]/10 backdrop-blur-md lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-10">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Community Event Map</p>
+                <h1 className="mt-4 text-4xl font-black leading-tight text-[#29313f] sm:text-5xl lg:text-6xl">
+                  See what&apos;s happening across Philly
+                </h1>
+                <p className="mt-4 text-base leading-relaxed text-[#4a5568] sm:text-lg">
+                  Browse festivals, block parties, and neighborhood meetups shared by organizers across the city. Add yours to help more neighbors discover it.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={handleOpenEventModal}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold uppercase tracking-widest text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
+                  >
+                    Add your event to the map
+                  </button>
+                  <a
+                    href="#map"
+                    className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold text-[#29313f] transition hover:border-[#29313f] hover:bg-[#29313f]/10"
+                  >
+                    Jump to map <span aria-hidden="true">↓</span>
+                  </a>
+                </div>
+                <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
+                  <img
+                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhillyCircle(web)%20(1).png"
+                    alt="Our Philly skyline logo"
+                    className="h-12 w-12 rounded-full border border-[#29313f]/10 bg-white object-cover"
+                  />
+                  <span>Built by neighbors. Updated daily with community submissions.</span>
+                </div>
+              </div>
+              <div className="relative mt-10 flex items-center justify-center lg:mt-0">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl" aria-hidden="true" />
+                <div className="relative flex flex-col items-center gap-6">
+                  <img
+                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
+                    alt="Illustration of the Our Philly heart"
+                    className="h-52 w-52 object-contain drop-shadow-xl"
+                  />
+                  <div className="rounded-2xl border border-[#29313f]/10 bg-[#2b333f] px-6 py-4 text-center shadow-lg">
+                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#f0e5d0]">Our Philly</p>
+                    <p className="mt-2 text-lg font-semibold text-white">Neighborhood spotlights</p>
+                    <p className="mt-1 text-sm text-[#f0e5d0]/80">Events on the map are featured in our guides, newsletters, and Instagram.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <main className="mx-auto max-w-7xl space-y-8 px-6 py-8">
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-3">
+        <section className="mx-auto mt-10 max-w-7xl px-6">
+          <div className="flex items-start gap-3 rounded-2xl border border-[#f3c7b8] bg-white/80 p-5 text-sm text-[#4a5568] shadow">
+            <span className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#bf3d35]/10 text-lg text-[#bf3d35]">ℹ️</span>
+            <p>
+              Not every submission includes an address yet. Events without map pins appear in the “Still gathering addresses” list below—organizers can add a venue to get featured on the map instantly.
+            </p>
+          </div>
+        </section>
+
+        <section className="mx-auto mt-10 max-w-7xl px-6" id="map">
+          <div className="rounded-3xl border border-[#f3c7b8] bg-white/80 p-6 shadow-xl shadow-[#29313f]/5 backdrop-blur">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 {DATE_PRESETS.map(option => (
                   <button
                     key={option.id}
                     type="button"
-                    className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                    className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
                       datePreset === option.id
-                        ? 'border-[#bf3d35] bg-[#bf3d35] text-white shadow-sm'
-                        : 'border-gray-300 text-gray-700 hover:border-[#bf3d35] hover:text-[#bf3d35]'
+                        ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
+                        : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
                     }`}
                     onClick={() => setDatePreset(option.id)}
                   >
@@ -1536,43 +1565,46 @@ function LabsMapPage() {
                 ))}
               </div>
               {datePreset === 'custom' && (
-                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-700">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
                   <label className="flex items-center gap-2">
-                    <span>Start</span>
+                    <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">Start</span>
                     <input
                       type="date"
                       value={customStart}
                       onChange={event => setCustomStart(event.target.value)}
-                      className="rounded-md border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#29313f]/30"
+                      className="rounded-xl border border-[#f3c7b8] bg-white px-3 py-2 text-sm text-[#29313f] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
                     />
                   </label>
                   <label className="flex items-center gap-2">
-                    <span>End</span>
+                    <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">End</span>
                     <input
                       type="date"
                       value={customEnd}
                       onChange={event => setCustomEnd(event.target.value)}
-                      className="rounded-md border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#29313f]/30"
+                      className="rounded-xl border border-[#f3c7b8] bg-white px-3 py-2 text-sm text-[#29313f] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
                     />
                   </label>
                 </div>
               )}
-              <p className="text-xs uppercase tracking-wider text-gray-500">Active range · {activeRangeLabel}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#bf3d35]/80">
+                Active range · {activeRangeLabel}
+              </p>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
                 <input
                   type="search"
                   value={searchTerm}
                   onChange={event => setSearchTerm(event.target.value)}
                   placeholder="Search events or venues"
-                  className="w-72 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#29313f]/30"
+                  className="w-72 rounded-full border border-[#f3c7b8] bg-white px-5 py-3 text-sm text-[#29313f] placeholder:text-[#9ba3b2] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#29313f]/20"
                 />
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[#9ba3b2]">⌕</span>
               </div>
               <button
                 type="button"
                 onClick={handleClearFilters}
-                className="rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-[#bf3d35] hover:text-[#bf3d35]"
+                className="rounded-full border border-[#29313f]/10 bg-[#2b333f] px-5 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#242a33]"
               >
                 Clear filters
               </button>
@@ -1581,55 +1613,61 @@ function LabsMapPage() {
 
           {tagOptions.length > 0 && (
             <div className="mt-6">
-              <p className="mb-2 text-xs uppercase tracking-wider text-gray-500">Category tags</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#29313f]/60">Tag filters</p>
               <div className="flex flex-wrap gap-2">
-                {tagOptions.slice(0, 24).map(tag => (
-                  <button
-                    key={tag.slug}
-                    type="button"
-                    onClick={() => handleToggleTag(tag.slug)}
-                    className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-                      selectedTags.includes(tag.slug)
-                        ? 'border-[#29313f] bg-[#29313f] text-white shadow-sm'
-                        : 'border-gray-300 text-gray-700 hover:border-[#29313f] hover:text-[#29313f]'
-                    }`}
-                  >
-                    {tag.name} <span className="text-gray-500">· {tag.count}</span>
-                  </button>
-                ))}
+                {tagOptions.slice(0, 24).map((tag, index) => {
+                  const baseStyle = TAG_PILL_STYLES[index % TAG_PILL_STYLES.length];
+                  const isSelected = selectedTags.includes(tag.slug);
+                  return (
+                    <button
+                      key={tag.slug}
+                      type="button"
+                      onClick={() => handleToggleTag(tag.slug)}
+                      className={`${baseStyle} flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold transition hover:opacity-85 ${
+                        isSelected ? 'ring-2 ring-offset-2 ring-[#29313f]' : 'ring-1 ring-transparent'
+                      }`}
+                      aria-pressed={isSelected}
+                      title={`${tag.count} events tagged #${tag.name?.toLowerCase() || tag.slug}`}
+                    >
+                      #{(tag.name || tag.slug).toLowerCase()}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-700">
+          <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-[#4a5568]">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={limitToMap}
                 onChange={event => setLimitToMap(event.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-[#29313f] focus:ring-[#29313f]"
+                className="h-4 w-4 rounded border-[#f3c7b8] text-[#bf3d35] focus:ring-[#bf3d35]"
               />
               Limit to current map view
             </label>
             <button
               type="button"
               onClick={handleLocateMe}
-              className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-3 py-1.5 text-sm text-[#29313f] transition hover:border-[#29313f] hover:bg-[#29313f]/5"
+              className="inline-flex items-center gap-2 rounded-full border border-[#bf3d35]/40 bg-white px-4 py-2 text-sm font-semibold text-[#bf3d35] transition hover:border-[#bf3d35] hover:bg-[#bf3d35]/10"
             >
               Near me
             </button>
             {geoError && <span className="text-xs text-rose-500">{geoError}</span>}
             {!limitToMap && (
-              <span className="basis-full text-xs text-gray-500">
+              <span className="basis-full text-xs text-[#9ba3b2]">
                 Keep this toggled off to let the map surface surprises beyond the current frame.
               </span>
             )}
           </div>
+          </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section className="mx-auto mt-10 grid max-w-7xl gap-6 px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className="space-y-6">
-            <div className="relative h-[520px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-md">
+            <div className="relative h-[520px] overflow-hidden rounded-3xl border border-[#1d2432] bg-[#101722] shadow-2xl shadow-[#101722]/40">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#bf3d35]/15 via-transparent to-[#0b1120]" aria-hidden="true" />
               {MAPBOX_TOKEN ? (
                 <>
                   <MapGL
@@ -1730,23 +1768,23 @@ function LabsMapPage() {
                   </MapGL>
                 </>
               ) : (
-                <div className="flex h-full items-center justify-center bg-[#29313f]/60 text-center text-sm font-medium text-white">
+                <div className="flex h-full items-center justify-center bg-[#0f172a] text-center text-sm font-medium text-white/80">
                   Map view unavailable — missing Mapbox access token.
                 </div>
               )}
               {loading && MAPBOX_TOKEN && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-                  <span className="text-sm font-medium text-[#29313f]">Loading events…</span>
+                <div className="absolute inset-0 flex items-center justify-center bg-[#0f172a]/70 backdrop-blur-sm">
+                  <span className="text-sm font-semibold text-white">Loading events…</span>
                 </div>
               )}
             </div>
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between">
+            <div className="rounded-3xl border border-[#f3c7b8] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-xl font-semibold text-[#29313f]">
-                  Events with map location <span className="text-sm text-gray-500">({sortedMapEvents.length})</span>
+                  Events lighting up the map <span className="text-sm text-[#7c889d]">({sortedMapEvents.length})</span>
                 </h2>
                 {!limitToMap && bounds && (
-                  <span className="text-xs text-gray-500">Showing all events regardless of map view</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[#9ba3b2]">Showing the full Philly radius</span>
                 )}
               </div>
               <ul className="mt-4 space-y-4">
@@ -1754,8 +1792,8 @@ function LabsMapPage() {
                   <MapEventRow key={event.id} event={event} onHighlight={focusEventOnMap} />
                 ))}
                 {!sortedMapEvents.length && !loading && (
-                  <li className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-                    No events match these filters yet.
+                  <li className="rounded-xl border border-dashed border-[#f3c7b8] bg-[#fdf4ef] p-6 text-center text-sm text-[#9ba3b2]">
+                    No events match these filters yet—try widening the dates or removing a tag.
                   </li>
                 )}
               </ul>
@@ -1763,26 +1801,26 @@ function LabsMapPage() {
           </div>
 
           <aside className="space-y-4">
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="rounded-3xl border border-[#d9e0ec] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
               <h2 className="text-xl font-semibold text-[#29313f]">
-                Events with no location <span className="text-sm text-gray-500">({eventsWithoutLocation.length})</span>
+                Still gathering addresses <span className="text-sm text-[#7c889d]">({eventsWithoutLocation.length})</span>
               </h2>
-              <p className="mt-1 text-sm text-gray-600">
-                These items are missing coordinates. Once we capture venues we can promote them onto the map.
+              <p className="mt-1 text-sm text-[#4a5568]">
+                These events were submitted without an exact venue. Add a location and they&apos;ll move onto the map within minutes.
               </p>
               <div className="mt-4 space-y-6">
                 {groupedNoLocation.map(([label, items]) => (
                   <div key={label} className="space-y-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-500">{label}</h3>
+                    <h3 className="text-sm font-semibold uppercase tracking-widest text-[#9ba3b2]">{label}</h3>
                     <ul className="space-y-3">
                       {items.map(item => (
-                        <li key={item.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                          <p className="text-sm font-medium text-[#29313f]">{item.title}</p>
-                          <p className="text-xs text-gray-600">{formatDateRange(item)}</p>
+                        <li key={item.id} className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-3">
+                          <p className="text-sm font-semibold text-[#29313f]">{item.title}</p>
+                          <p className="text-xs text-[#4a5568]">{formatDateRange(item)}</p>
                           {(item.detailPath || item.link) && (
                             <a
                               href={item.detailPath || item.link}
-                              className="mt-1 inline-flex text-xs font-semibold text-[#29313f] hover:text-[#bf3d35]"
+                              className="mt-1 inline-flex text-xs font-semibold text-[#bf3d35] hover:text-[#a2322c]"
                             >
                               View details →
                             </a>
@@ -1793,7 +1831,7 @@ function LabsMapPage() {
                   </div>
                 ))}
                 {!groupedNoLocation.length && !loading && (
-                  <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+                  <p className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-4 text-sm text-[#4a5568]">
                     Everything in this range has a map location. 🎉
                   </p>
                 )}
@@ -1801,7 +1839,7 @@ function LabsMapPage() {
             </div>
 
             {error && (
-              <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
+              <div className="rounded-3xl border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-700 shadow">
                 <p className="font-semibold">We hit a snag loading events.</p>
                 <p className="mt-1 opacity-80">{error.message || 'Unknown error'}</p>
               </div>
@@ -1809,6 +1847,10 @@ function LabsMapPage() {
           </aside>
         </section>
       </main>
+      <FloatingAddButton onClick={handleOpenEventModal} />
+      <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
+      {showLoginPrompt && <LoginPromptModal onClose={() => setShowLoginPrompt(false)} />}
+      <Footer />
     </div>
   );
 }
