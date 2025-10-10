@@ -1,9 +1,9 @@
 import React, { useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { applyMapboxToken } from './config/mapboxToken.js';
 
-// Pull the token from your Vite env vars:
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+applyMapboxToken(mapboxgl);
 
 const MapboxMap = () => {
   const mapContainer = useRef(null);
