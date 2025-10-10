@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react'
 import Map, { Marker } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { getMapboxToken } from './config/mapboxToken.js'
 
 const mascotUrl =
   'https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1%20copy-min.png'
@@ -32,6 +33,7 @@ function formatTime(timeStr) {
 }
 
 export default function EventsMap({ events, height = '500px' }) {
+  const mapboxToken = getMapboxToken()
   const [viewState, setViewState] = useState({
     latitude: 39.9526,
     longitude: -75.1652,
@@ -56,13 +58,19 @@ export default function EventsMap({ events, height = '500px' }) {
   const openEvent = evt => {
     setSelectedEvent(evt)
     setDrawerOpen(true)
-    setViewState(v => ({
-      ...v,
-      latitude: evt.lat,
-      longitude: evt.lng,
-      zoom: 13,
-      transitionDuration: 500
-    }))
+
+    const latitude = evt.latitude ?? evt.lat
+    const longitude = evt.longitude ?? evt.lng
+
+    if (typeof latitude === 'number' && typeof longitude === 'number') {
+      setViewState(v => ({
+        ...v,
+        latitude,
+        longitude,
+        zoom: 13,
+        transitionDuration: 500
+      }))
+    }
     if (listOpen) setListOpen(false)
   }
 
@@ -150,29 +158,38 @@ export default function EventsMap({ events, height = '500px' }) {
               ? 'mapbox://styles/mapbox/dark-v10'
               : 'mapbox://styles/mapbox/light-v10'
           }
-          mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
+          mapboxAccessToken={mapboxToken}
         >
-          {filtered.map(evt => (
-            <Marker
-              key={evt.id}
-              longitude={evt.lng}
-              latitude={evt.lat}
-              anchor="bottom"
-              onClick={e => {
-                e.originalEvent.stopPropagation()
-                openEvent(evt)
-              }}
-            >
-              <img
-                src={mascotUrl}
-                alt=""
-                role="presentation"
-                loading="lazy"
-                className="w-6 h-6 md:w-8 md:h-8 cursor-pointer"
-                style={{ transform: 'translateY(-50%)' }}
-              />
-            </Marker>
-          ))}
+          {filtered.map(evt => {
+            const latitude = evt.latitude ?? evt.lat
+            const longitude = evt.longitude ?? evt.lng
+
+            if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+              return null
+            }
+
+            return (
+              <Marker
+                key={evt.id}
+                longitude={longitude}
+                latitude={latitude}
+                anchor="bottom"
+                onClick={e => {
+                  e.originalEvent.stopPropagation()
+                  openEvent(evt)
+                }}
+              >
+                <img
+                  src={mascotUrl}
+                  alt=""
+                  role="presentation"
+                  loading="lazy"
+                  className="w-6 h-6 md:w-8 md:h-8 cursor-pointer"
+                  style={{ transform: 'translateY(-50%)' }}
+                />
+              </Marker>
+            )
+          })}
         </Map>
 
         {/* Drawer: desktop */}
