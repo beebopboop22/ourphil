@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import MonthlyEventsMap from './MonthlyEventsMap.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
@@ -101,7 +102,9 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
         Dates,
         "End Date",
         "E Image",
-        slug
+        slug,
+        latitude,
+        longitude
       `)
       .order('Dates', { ascending: true })
       .then(({ data, error }) => {
@@ -124,6 +127,19 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
             if (!startDate || !endDateBase) return null;
             const endDate = setEndOfDay(endDateBase);
             if (!overlaps(startDate, endDate, monthStart, monthEnd)) return null;
+            const latitudeRaw = evt.latitude;
+            const longitudeRaw = evt.longitude;
+            const latitude =
+              latitudeRaw !== undefined && latitudeRaw !== null
+                ? Number(latitudeRaw)
+                : null;
+            const longitude =
+              longitudeRaw !== undefined && longitudeRaw !== null
+                ? Number(longitudeRaw)
+                : null;
+            const hasValidLatitude = Number.isFinite(latitude);
+            const hasValidLongitude = Number.isFinite(longitude);
+
             return {
               id: evt.id,
               title: evt['E Name'],
@@ -133,6 +149,8 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
               endDate,
               slug: evt.slug,
               source_table: 'events',
+              latitude: hasValidLatitude ? latitude : null,
+              longitude: hasValidLongitude ? longitude : null,
             };
           })
           .filter(Boolean)
@@ -201,6 +219,23 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
 
   const countText = hasValidParams && monthLabel ? `${totalEvents} traditions in ${monthLabel}!` : '';
 
+  const upcomingEventsWithCoordinates = useMemo(
+    () =>
+      upcomingEvents.filter(
+        evt => Number.isFinite(evt.latitude) && Number.isFinite(evt.longitude),
+      ),
+    [upcomingEvents],
+  );
+
+  const upcomingEventsForMap = useMemo(
+    () =>
+      upcomingEventsWithCoordinates.map(evt => ({
+        ...evt,
+        detailPath: getDetailPathForItem(evt) || null,
+      })),
+    [upcomingEventsWithCoordinates],
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Seo
@@ -211,7 +246,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
         ogType="website"
       />
       <Navbar />
-      <main className="flex-1 pb-16 pt-12 md:pt-16">
+      <main className="flex-1 pb-16 pt-32 md:pt-40">
         <div className="container mx-auto px-4 max-w-5xl">
           {hasValidParams ? (
             <>
@@ -235,6 +270,11 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
                             Happening next in Philadelphia this month.
                           </p>
                         )}
+                      </div>
+                    )}
+                    {upcomingCount > 0 && upcomingEventsForMap.length > 0 && (
+                      <div className="px-6 py-6">
+                        <MonthlyEventsMap events={upcomingEventsForMap} />
                       </div>
                     )}
                     {orderedEvents.length > 0 && upcomingCount === 0 && hasPastEvents && (
