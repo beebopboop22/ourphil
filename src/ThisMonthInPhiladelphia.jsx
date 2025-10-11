@@ -7,6 +7,7 @@ import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import Seo from './components/Seo.jsx';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import EventsMap from './EventsMap.jsx';
 import {
   PHILLY_TIME_ZONE,
   monthSlugToIndex,
@@ -28,6 +29,12 @@ const MONTH_VIEW_REGEX = /^philadelphia-events-([a-z-]+)-(\d{4})$/i;
 const GENERIC_TITLE = 'Philadelphia Events & Traditions – Our Philly';
 const GENERIC_DESCRIPTION =
   'Explore Philadelphia events, traditions, festivals, and family-friendly plans updated regularly.';
+
+function parseNumeric(value) {
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
 
 function FavoriteState({ event_id, source_table, children }) {
   const state = useEventFavorite({ event_id, source_table });
@@ -92,55 +99,121 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
     setLoading(true);
     setOgImage(DEFAULT_OG_IMAGE);
 
-    supabase
-      .from('events')
-      .select(`
-        id,
-        "E Name",
-        "E Description",
-        Dates,
-        "End Date",
-        "E Image",
-        slug
-      `)
-      .order('Dates', { ascending: true })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.error('Error loading monthly events', error);
-          setMonthlyEvents([]);
-          setLoading(false);
-          return;
-        }
+    const loadEvents = async () => {
+      const { data, error } = await supabase
+        .from('events')
+        .select(`
+          id,
+          "E Name",
+          "E Description",
+          Dates,
+          "End Date",
+          "E Image",
+          slug,
+          start_time,
+          end_time,
+          latitude,
+          longitude,
+          venue_id
+        `)
+        .order('Dates', { ascending: true });
 
-        const filtered = (data || [])
-          .map(evt => {
-            const startRaw =
-              evt['E Start Date'] || evt.Dates || evt['Start Date'] || evt.start_date;
-            const endRaw =
-              evt['E End Date'] || evt['End Date'] || evt.end_date || startRaw;
-            const startDate = parseEventDateValue(startRaw, PHILLY_TIME_ZONE);
-            const endDateBase = parseEventDateValue(endRaw, PHILLY_TIME_ZONE) || startDate;
-            if (!startDate || !endDateBase) return null;
-            const endDate = setEndOfDay(endDateBase);
-            if (!overlaps(startDate, endDate, monthStart, monthEnd)) return null;
-            return {
-              id: evt.id,
-              title: evt['E Name'],
-              description: evt['E Description'],
-              imageUrl: evt['E Image'] || null,
-              startDate,
-              endDate,
-              slug: evt.slug,
-              source_table: 'events',
-            };
-          })
-          .filter(Boolean)
-          .sort((a, b) => (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0));
+      if (cancelled) return;
 
-        setMonthlyEvents(filtered);
+      if (error) {
+        console.error('Error loading monthly events', error);
+        setMonthlyEvents([]);
         setLoading(false);
-      });
+        return;
+      }
+
+      const rawEvents = data || [];
+      const venueIds = Array.from(
+        new Set(
+          rawEvents
+            .map(evt => evt?.venue_id)
+            .filter(value => value !== null && value !== undefined)
+        )
+      );
+
+      let venueMap = new Map();
+
+      if (venueIds.length > 0) {
+        const { data: venueRows, error: venueError } = await supabase
+          .from('venues')
+          .select('id, name, slug, latitude, longitude')
+          .in('id', venueIds);
+
+        if (cancelled) return;
+
+        if (venueError) {
+          console.error('Error loading venues for monthly events', venueError);
+        } else if (venueRows) {
+          venueMap = new Map(
+            venueRows.map(row => [
+              row.id,
+              {
+                id: row.id,
+                name: row.name || '',
+                slug: row.slug || '',
+                latitude: parseNumeric(row.latitude),
+                longitude: parseNumeric(row.longitude),
+              },
+            ])
+          );
+        }
+      }
+
+      const filtered = rawEvents
+        .map(evt => {
+          const startRaw =
+            evt['E Start Date'] || evt.Dates || evt['Start Date'] || evt.start_date;
+          const endRaw =
+            evt['E End Date'] || evt['End Date'] || evt.end_date || startRaw;
+          const startDate = parseEventDateValue(startRaw, PHILLY_TIME_ZONE);
+          const endDateBase = parseEventDateValue(endRaw, PHILLY_TIME_ZONE) || startDate;
+          if (!startDate || !endDateBase) return null;
+          const endDate = setEndOfDay(endDateBase);
+          if (!overlaps(startDate, endDate, monthStart, monthEnd)) return null;
+
+          const venue = evt.venue_id ? venueMap.get(evt.venue_id) || null : null;
+          const eventLatitude = parseNumeric(evt.latitude);
+          const eventLongitude = parseNumeric(evt.longitude);
+          const resolvedLatitude = eventLatitude ?? venue?.latitude ?? null;
+          const resolvedLongitude = eventLongitude ?? venue?.longitude ?? null;
+          const startDateIso = startDate ? startDate.toISOString().slice(0, 10) : null;
+
+          return {
+            id: evt.id,
+            title: evt['E Name'],
+            description: evt['E Description'],
+            imageUrl: evt['E Image'] || null,
+            startDate,
+            endDate,
+            slug: evt.slug,
+            source_table: 'events',
+            start_time: evt.start_time ?? evt.time ?? evt['Start Time'] ?? null,
+            end_time: evt.end_time ?? evt['End Time'] ?? null,
+            latitude: resolvedLatitude,
+            longitude: resolvedLongitude,
+            venues: venue,
+            venue_id: evt.venue_id || null,
+            start_date: startDateIso,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0));
+
+      setMonthlyEvents(filtered);
+      setLoading(false);
+    };
+
+    loadEvents().catch(fetchError => {
+      if (cancelled) return;
+      console.error('Unexpected error loading monthly events', fetchError);
+      setMonthlyEvents([]);
+      setLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -177,6 +250,15 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
   const upcomingCount = upcomingEvents.length;
   const hasPastEvents = pastEvents.length > 0;
 
+  const mapEvents = useMemo(() => {
+    return upcomingEvents
+      .map(evt => ({
+        ...evt,
+        detailPath: getDetailPathForItem(evt) || null,
+      }))
+      .filter(evt => Number.isFinite(evt.latitude) && Number.isFinite(evt.longitude));
+  }, [upcomingEvents]);
+
   useEffect(() => {
     if (!hasValidParams) return;
     const firstWithImage = orderedEvents.find(evt => evt.imageUrl);
@@ -211,7 +293,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
         ogType="website"
       />
       <Navbar />
-      <main className="flex-1 pb-16 pt-12 md:pt-16">
+      <main className="flex-1 pb-16 pt-24 md:pt-28">
         <div className="container mx-auto px-4 max-w-5xl">
           {hasValidParams ? (
             <>
@@ -219,6 +301,24 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
               <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
                 Browse traditions, festivals, and family-friendly events happening throughout {monthLabel}.
               </p>
+
+              <section className="mt-12">
+                <h2 className="text-2xl font-semibold text-[#28313e] text-center">
+                  Upcoming traditions on the map
+                </h2>
+                <p className="mt-2 text-sm text-gray-600 text-center max-w-2xl mx-auto">
+                  See every tradition still to come this month plotted around Philadelphia.
+                </p>
+                {mapEvents.length > 0 ? (
+                  <div className="mt-6">
+                    <EventsMap events={mapEvents} height="520px" />
+                  </div>
+                ) : (
+                  <p className="mt-6 text-center text-sm text-gray-500">
+                    We don&apos;t have map locations for the remaining traditions this month.
+                  </p>
+                )}
+              </section>
 
               <section className="mt-10 bg-white border border-gray-200 rounded-2xl shadow-sm">
                 {loading ? (
