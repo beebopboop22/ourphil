@@ -29,6 +29,7 @@ import Unsubscribe from './Unsubscribe';
 import PrivacyPage from './PrivacyPage.jsx'
 import OutletDetailPage from './OutletDetailPage';
 import BigBoardPage from './BigBoardPage.jsx';
+import NightEventsPage from './NightEventsPage.jsx';
 import AdminUsers from './AdminUsers';
 import AdminReviews from './AdminReviews';
 import AdminGroupUpdates from './AdminGroupUpdates.jsx';
@@ -121,6 +122,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               />
             ))}
             <Route path="/map" element={<LabsMapPage />} />
+            <Route path="/nights" element={<NightEventsPage />} />
             <Route path="/:view" element={<ViewRouter />} />
             <Route path="/old" element={<App />} />
             <Route path="/sports" element={<SportsPage />} />
