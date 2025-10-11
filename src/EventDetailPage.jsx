@@ -12,6 +12,7 @@ import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
 import Seo from './components/Seo.jsx';
+import EventLocationMap from './EventLocationMap.jsx';
 import { parseEventDateValue } from './utils/dateUtils';
 import {
   DEFAULT_OG_IMAGE,
@@ -439,6 +440,68 @@ export default function EventDetailPage() {
     typeof locationNameRaw === 'string' && locationNameRaw.trim()
       ? locationNameRaw.trim()
       : 'Philadelphia';
+  const eventLocationLabel = useMemo(() => {
+    if (!event) return '';
+    const candidates = [
+      event?.location_name,
+      event?.venue_name,
+      event?.venue,
+      event?.address,
+      event?.location,
+      typeof locationNameRaw === 'string' ? locationNameRaw : null,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string') {
+        const trimmed = candidate.trim();
+        if (trimmed) return trimmed;
+      }
+    }
+    return '';
+  }, [event, locationNameRaw]);
+
+  const eventLatitude = useMemo(() => {
+    if (!event) return null;
+    const candidates = [
+      event?.latitude,
+      event?.lat,
+      event?.Latitude,
+      event?.LATITUDE,
+      event?.['Latitude'],
+      event?.['latitude'],
+      event?.['E Latitude'],
+      event?.['E Lat'],
+    ];
+    for (const candidate of candidates) {
+      if (candidate == null) continue;
+      const value = typeof candidate === 'number' ? candidate : Number(candidate);
+      if (Number.isFinite(value)) {
+        return value;
+      }
+    }
+    return null;
+  }, [event]);
+
+  const eventLongitude = useMemo(() => {
+    if (!event) return null;
+    const candidates = [
+      event?.longitude,
+      event?.lng,
+      event?.Longitude,
+      event?.LONGITUDE,
+      event?.['Longitude'],
+      event?.['longitude'],
+      event?.['E Longitude'],
+      event?.['E Lng'],
+    ];
+    for (const candidate of candidates) {
+      if (candidate == null) continue;
+      const value = typeof candidate === 'number' ? candidate : Number(candidate);
+      if (Number.isFinite(value)) {
+        return value;
+      }
+    }
+    return null;
+  }, [event]);
   const absoluteImage = ensureAbsoluteUrl(event?.['E Image']);
   const ogImage = absoluteImage || DEFAULT_OG_IMAGE;
   const heroImage = event?.['E Image'] || DEFAULT_OG_IMAGE;
@@ -702,6 +765,15 @@ export default function EventDetailPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {eventLatitude != null && eventLongitude != null && (
+          <EventLocationMap
+            latitude={eventLatitude}
+            longitude={eventLongitude}
+            eventName={eventName}
+            locationLabel={eventLocationLabel || locationName}
+          />
         )}
 
         {/* Reviews */}
