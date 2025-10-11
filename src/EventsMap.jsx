@@ -82,6 +82,30 @@ export default function EventsMap({ events, height = '500px' }) {
     if (listOpen) setListOpen(false)
   }
 
+  const resolveVenue = event => {
+    if (!event?.venues) return null
+    if (Array.isArray(event.venues)) {
+      return event.venues[0] || null
+    }
+    return event.venues
+  }
+
+  const buildDetailUrl = event => {
+    if (!event) return '#'
+    if (event.detailPath) return event.detailPath
+    if (event.isBigBoard) {
+      return event.slug ? `/big-board/${event.slug}` : '#'
+    }
+    const venue = resolveVenue(event)
+    if (venue?.slug && event.slug) {
+      return `/${venue.slug}/${event.slug}`
+    }
+    if (event.slug) {
+      return `/${event.slug}`
+    }
+    return '#'
+  }
+
   return (
     <div className="flex flex-col md:flex-row mx-auto w-full max-w-screen-lg">
       {/* Mobile: toggle list */}
@@ -252,11 +276,7 @@ export default function EventsMap({ events, height = '500px' }) {
                 </p>
               )}
               <a
-                href={
-                  selectedEvent.isBigBoard
-                    ? `/big-board/${selectedEvent.slug}`
-                    : `/${selectedEvent.venues.slug}/${selectedEvent.slug}`
-                }
+                href={buildDetailUrl(selectedEvent)}
                 className="inline-block mt-2 px-4 py-2 bg-indigo-600 text-white rounded"
               >
                 More Info
@@ -309,11 +329,7 @@ export default function EventsMap({ events, height = '500px' }) {
                 </p>
               )}
               <a
-                href={
-                  selectedEvent.isBigBoard
-                    ? `/big-board/${selectedEvent.slug}`
-                    : `/${selectedEvent.venues.slug}/${selectedEvent.slug}`
-                }
+                href={buildDetailUrl(selectedEvent)}
                 className="inline-block mt-2 px-4 py-2 bg-indigo-600 text-white rounded"
               >
                 More Info
