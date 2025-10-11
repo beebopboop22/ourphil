@@ -128,6 +128,9 @@ export default function Navbar({ style, bottomBanner }) {
                     My Plans
                   </Link>
                 )}
+                <Link to="/map" className={linkClass('/map')}>
+                  Map
+                </Link>
                 <div
                   className="relative"
                   onBlur={(event) => {
@@ -249,6 +252,9 @@ export default function Navbar({ style, bottomBanner }) {
                   My Plans
                 </Link>
               )}
+              <Link to="/map" className="block" onClick={() => setMenuOpen(false)}>
+                Map
+              </Link>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Menu</p>
               <div className="space-y-4">
                 <Link to="/all-guides/" className="block" onClick={() => setMenuOpen(false)}>

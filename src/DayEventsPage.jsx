@@ -929,22 +929,57 @@ export default function DayEventsPage() {
     return tagMap[key] || [];
   };
 
-  const headline = useMemo(() => {
-    switch (range.key) {
-      case 'tomorrow':
-        return 'Events Tomorrow in Philadelphia';
-      case 'weekend':
-        return 'Events This Weekend in Philadelphia';
-      case 'custom':
-        return `Events on ${formatRangeLabel('custom', range.start, range.end)} in Philadelphia`;
-      default:
-        return 'Events Today in Philadelphia';
-    }
-  }, [range.key, range.start, range.end]);
-
   const summary = useMemo(
     () => formatSummary(range.key, detailed.total, detailed.traditions, range.start, range.end),
     [range.key, detailed.total, detailed.traditions, range.start, range.end]
+  );
+
+  const rangeLabel = useMemo(() => formatRangeLabel(range.key, range.start, range.end), [range.key, range.start, range.end]);
+
+  const timeframeLabel = useMemo(() => {
+    switch (range.key) {
+      case 'tomorrow':
+        return 'tomorrow';
+      case 'weekend':
+        return 'this weekend';
+      case 'custom':
+        return `on ${rangeLabel}`;
+      default:
+        return 'today';
+    }
+  }, [range.key, rangeLabel]);
+
+  const heroTitle = useMemo(() => {
+    if (totalVisibleEvents > 0) {
+      return `${totalVisibleEvents} ${totalVisibleEvents === 1 ? 'event' : 'events'} ${timeframeLabel} in Philly`;
+    }
+    if (range.key === 'weekend') return 'Philly weekend plans, unlocked';
+    if (range.key === 'tomorrow') return 'Philly plans for tomorrow';
+    if (range.key === 'custom') return `Philly plans for ${rangeLabel}`;
+    return 'Philly plans for today';
+  }, [range.key, rangeLabel, timeframeLabel, totalVisibleEvents]);
+
+  const mapHref = useMemo(() => {
+    const params = new URLSearchParams();
+    if (range.start) {
+      const startIso = toPhillyISODate(range.start);
+      if (startIso) params.set('start', startIso);
+    }
+    if (range.end) {
+      const endIso = toPhillyISODate(range.end);
+      if (endIso) params.set('end', endIso);
+    }
+    if (selectedTags.length) {
+      params.set('tag', selectedTags[0]);
+    }
+    const qs = params.toString();
+    return qs ? `/map?${qs}` : '/map';
+  }, [range.start, range.end, selectedTags]);
+
+  const mapCalloutMessage = useMemo(
+    () =>
+      `The map shows every submission. Once you’re there, set the dates to ${rangeLabel} to zero in on plans for your crew.`,
+    [rangeLabel]
   );
 
   const pageTitle = useMemo(() => {
@@ -998,97 +1033,141 @@ export default function DayEventsPage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-[#fdf7f2] text-[#29313f]">
       <Helmet>
         <title>{pageTitle}</title>
         <meta name="description" content={metaDescription} />
       </Helmet>
       <Navbar />
-      <main className="flex-1 pt-28 pb-16 sm:pt-32">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">All events for</p>
-            <h1 className="mt-3 text-3xl sm:text-4xl font-bold text-[#28313e]">{headline}</h1>
-            <p className="mt-3 text-sm sm:text-base text-gray-600">{summary}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.25em] text-gray-500">
-              {formatRangeLabel(range.key, range.start, range.end)}
-            </p>
-            <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-              <div className="flex flex-wrap justify-center gap-2">
-                {quickLinks.map(link => (
-                  <Link
-                    key={link.key}
-                    to={link.href}
-                    className={`px-4 py-2 rounded-full border-2 text-sm font-semibold transition ${
-                      range.key === link.key
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white text-indigo-600 border-indigo-600 hover:bg-indigo-600 hover:text-white'
+      <main className="flex-1 pt-28 pb-16">
+        <section className="relative border-b border-[#f4c9bc]/70">
+          <div
+            className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent"
+            aria-hidden="true"
+          />
+          <div className="mx-auto max-w-7xl px-6 pb-12 pt-10">
+            <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/80 px-0 backdrop-blur shadow-xl shadow-[#bf3d35]/10">
+              <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                <div className="px-8 py-10 sm:px-12 sm:py-12">
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Make your Philly plans</p>
+                  <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">{heroTitle}</h1>
+                  <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#4a5568] sm:text-lg">{summary}</p>
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#9a6f62]">{rangeLabel}</p>
+                  <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Link
+                      to={mapHref}
+                      className="inline-flex items-center justify-center rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold uppercase tracking-wider text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
+                    >
+                      View these on the map
+                    </Link>
+                  </div>
+                </div>
+                <div className="relative flex items-center justify-center overflow-hidden px-8 py-12 sm:px-10">
+                  <div
+                    className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl"
+                    aria-hidden="true"
+                  />
+                  <div className="relative flex flex-col items-center gap-6 text-center">
+                    <img
+                      src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
+                      alt="Our Philly city heart"
+                      className="h-48 w-48 object-contain drop-shadow-xl"
+                    />
+                    <div className="w-full max-w-xs rounded-2xl border border-[#29313f]/10 bg-white/85 px-6 py-5 shadow-lg shadow-[#29313f]/10">
+                      <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Need the map?</p>
+                      <p className="mt-2 text-base font-semibold text-[#29313f]">Jump to the citywide view</p>
+                      <p className="mt-2 text-sm text-[#4a5568]">{mapCalloutMessage}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-[#f4c9bc]/70 bg-white/70">
+          <div className="mx-auto max-w-7xl px-6 py-8 space-y-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold">Choose your day</h2>
+                <p className="text-sm text-[#4a5568]">Switch between quick views or pick your own date.</p>
+              </div>
+              <div className="flex flex-col gap-3 sm:items-end">
+                <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+                  {quickLinks.map(link => (
+                    <Link
+                      key={link.key}
+                      to={link.href}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
+                        range.key === link.key
+                          ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
+                          : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={handleDatePick}
+                  dateFormat="MMMM d, yyyy"
+                  className="rounded-full border border-[#f4c9bc] bg-white/90 px-4 py-2 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                  calendarClassName="rounded-xl shadow-lg"
+                  popperClassName="z-50"
+                />
+              </div>
+            </div>
+            {error && <p className="text-sm text-[#bf3d35]">{error}</p>}
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:justify-start">
+              <span className="text-sm font-semibold text-[#29313f]">Popular tags:</span>
+              {popularTags.map((tag, index) => {
+                const isActive = selectedTags.includes(tag.slug);
+                return (
+                  <button
+                    key={tag.slug}
+                    type="button"
+                    onClick={() => handleTagToggle(tag.slug, !isActive)}
+                    className={`${pillStyles[index % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold shadow transition ${
+                      isActive ? 'ring-2 ring-offset-2 ring-[#bf3d35]/60' : ''
                     }`}
                   >
-                    {link.label}
-                  </Link>
-                ))}
-              </div>
-              <DatePicker
-                selected={selectedDate}
-                onChange={handleDatePick}
-                dateFormat="MMMM d, yyyy"
-                className="px-4 py-2 border-2 border-indigo-600 rounded-full text-sm font-semibold text-indigo-600 shadow focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                calendarClassName="rounded-xl shadow-lg"
-                popperClassName="z-50"
-              />
-            </div>
-            {error && (
-              <p className="mt-4 text-sm text-red-600">{error}</p>
-            )}
-          </div>
-
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <span className="text-sm font-semibold text-gray-700">Popular tags:</span>
-            {popularTags.map((tag, index) => {
-              const isActive = selectedTags.includes(tag.slug);
-              return (
-                <button
-                  key={tag.slug}
-                  type="button"
-                  onClick={() => handleTagToggle(tag.slug, !isActive)}
-                  className={`${pillStyles[index % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold shadow transition ${
-                    isActive ? 'ring-2 ring-offset-2 ring-indigo-500' : ''
-                  }`}
-                >
-                  #{tag.label}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setIsFiltersOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full border-2 border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 shadow transition hover:bg-indigo-600 hover:text-white"
-            >
-              <Filter className="h-4 w-4" />
-              {`Filters${hasSelectedTags ? ` (${selectedTags.length})` : ''}`}
-            </button>
-            {hasSelectedTags && (
+                    #{tag.label}
+                  </button>
+                );
+              })}
               <button
                 type="button"
-                onClick={() => setSelectedTags([])}
-                className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+                onClick={() => setIsFiltersOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-4 py-2 text-sm font-semibold text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
               >
-                <XCircle className="h-4 w-4" />
-                Clear
+                <Filter className="h-4 w-4" />
+                {`Filters${hasSelectedTags ? ` (${selectedTags.length})` : ''}`}
               </button>
-            )}
+              {hasSelectedTags && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTags([])}
+                  className="inline-flex items-center gap-1 text-sm text-[#6b7280] hover:text-[#4a5568]"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
+        </section>
 
-          <TagFilterModal
-            open={isFiltersOpen}
-            tags={allTags}
-            selectedTags={selectedTags}
-            onToggle={handleTagToggle}
-            onClose={() => setIsFiltersOpen(false)}
-          />
+        <TagFilterModal
+          open={isFiltersOpen}
+          tags={allTags}
+          selectedTags={selectedTags}
+          onToggle={handleTagToggle}
+          onClose={() => setIsFiltersOpen(false)}
+        />
 
-          <div className="mt-10 space-y-6">
+        <section className="mx-auto max-w-7xl px-6 py-10">
+          <div className="mx-auto max-w-5xl space-y-6">
             {loading ? (
               Array.from({ length: 4 }).map((_, idx) => (
                 <div key={idx} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -1143,18 +1222,17 @@ export default function DayEventsPage() {
                 )}
               </>
             )}
+            <div className="mt-12 text-center">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-[#bf3d35] hover:text-[#a2322c]"
+              >
+                Back to Make Your Philly Plans
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
-
-          <div className="mt-12 text-center">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
-            >
-              Back to Make Your Philly Plans
-              <ArrowRight className="w-4 h-4" aria-hidden="true" />
-            </Link>
-          </div>
-        </div>
+        </section>
       </main>
       <Footer />
     </div>
