@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import re
 from datetime import date, datetime
@@ -10,8 +11,8 @@ from supabase import create_client, Client
 from postgrest.exceptions import APIError
 
 # ── Static config ───────────────────────────────────────────────────────────────
-GROUP_ID = "2874ddaa-7c44-4c47-bcb1-77b4283e4da7"           # Black Squirrel Club
-USER_ID  = "26f671a4-2f54-4377-9518-47c7f21663c7"           # same user as others
+GROUP_ID = "2874ddaa-7c44-4c47-bcb1-77b4283e4da7"  # Black Squirrel Club
+USER_ID = "26f671a4-2f54-4377-9518-47c7f21663c7"   # same user as others
 LISTING_URL = "https://blacksquirrelclub.com/"
 
 # ── Env & Supabase ─────────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ def coerce_year(month: int, day: int, explicit_year: int | None = None) -> int:
         candidate = date(today.year, month, day)
     except Exception:
         return today.year
+    # If the date this year is >60 days in the past, assume it's next year
     return today.year + 1 if (today - candidate).days > 60 else today.year
 
 _time_re = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*([AP]M)", re.I)
@@ -249,6 +251,7 @@ def upsert_group_events(rows: list[dict]) -> None:
     music_tag_id = get_music_tag_id()
     if not music_tag_id:
         print("⚠️  Skipping tagging: could not resolve 'Music' tag id.")
+
     for ev in rows:
         payload = {
             "group_id": ev["group_id"],
@@ -277,13 +280,20 @@ def upsert_group_events(rows: list[dict]) -> None:
         if existing:
             gid = existing[0]["id"]
             try:
-                sb.table("group_events").update(payload).eq("id", gid).execute()
+                # return updated row (works across client versions)
+                sb.table("group_events") \
+                  .update(payload, returning="representation") \
+                  .eq("id", gid) \
+                  .execute()
                 print(f"♻️  Updated: {payload['title']} ({payload['slug']})")
             except APIError as e:
                 print(f"❌ Update failed for {payload['slug']}: {e}")
         else:
             try:
-                ins = sb.table("group_events").insert(payload).select("id").execute()
+                # insert and return row (get id)
+                ins = sb.table("group_events") \
+                        .insert(payload, returning="representation") \
+                        .execute()
                 if ins.data:
                     gid = ins.data[0]["id"]
                 print(f"➕ Inserted: {payload['title']} ({payload['slug']})")

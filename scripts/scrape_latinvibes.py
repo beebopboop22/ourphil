@@ -3,8 +3,8 @@
 
 """
 Scrape Latin Vibes Group (Elementor) tiles and write into public.group_events.
-Keeps ONLY Philadelphia events. Keys off `.venuename` and stores event link.
-Also auto-tags every saved/updated event with the 'Music' tag via public.taggings.
+Keeps ONLY Philadelphia events. Keys off venue block + ticket link, stores canonical link.
+Auto-tags every saved/updated event with the 'Music' tag via public.taggings.
 
 ENV:
   - SUPABASE_URL
@@ -68,7 +68,8 @@ def slugify(text: str) -> str:
     return s.strip("-")
 
 def canon_link(u: str) -> str | None:
-    if not u: return None
+    if not u:
+        return None
     p = urlparse(u)
     scheme = "https" if p.scheme in ("http","https") else p.scheme
     netloc = (p.netloc or "").lower()
@@ -236,9 +237,8 @@ def extract_card_from_column(col, base_url: str) -> dict | None:
     # Prefer ticket link; otherwise fall back to page we scraped
     event_link = ticket_url or canon_link(base_url)
 
-    # Slug
-    slug_bits = [title]
-    if start_date: slug_bits.append(start_date)
+    # Slug (stable): latin-vibes-{title}-{start_date}
+    slug_bits = ["latin-vibes", title, (start_date or "tbd")]
     slug = slugify("-".join([b for b in slug_bits if b]))
 
     desc_parts = []
@@ -259,7 +259,7 @@ def extract_card_from_column(col, base_url: str) -> dict | None:
         "end_time": end_time,
         "image_url": image_url,
         "slug": slug,
-        "link": event_link,                   # store link on row
+        "link": event_link,                   # store on row
         "_link": canon_link(ticket_url) if ticket_url else None,
     }
 
@@ -285,14 +285,79 @@ def scrape_all() -> list[dict]:
     all_rows = []
     for u in LISTING_URLS:
         all_rows.extend(scrape_listing_page(u))
-    dedup = {}
+
+    # In-run de-dup: prefer canonical link, else slug
+    dedup: dict[str, dict] = {}
     for ev in all_rows:
         key = ev.get("_link") or ev["slug"]
         if key not in dedup:
             dedup[key] = ev
     return list(dedup.values())
 
-# ── Manual upsert + Music tagging ──────────────────────────────────────────────
+# ── Upsert (idempotent) + Music tagging ───────────────────────────────────────
+def _find_existing_id(payload: dict) -> str | None:
+    """Find an existing row by slug OR (group_id,start_date,lower(title)) OR link."""
+    try:
+        # 1) by slug
+        got = sb.table("group_events").select("id").eq("slug", payload["slug"]).execute()
+        if got.data:
+            return got.data[0]["id"]
+
+        # 2) by group_id + start_date + lower(title)
+        got2 = (
+            sb.table("group_events")
+            .select("id")
+            .eq("group_id", payload["group_id"])
+            .eq("start_date", payload["start_date"])
+            .filter("lower(title)", "eq", (payload["title"] or "").lower())
+            .execute()
+        )
+        if got2.data:
+            return got2.data[0]["id"]
+
+        # 3) by canonical link, if present
+        if payload.get("link"):
+            got3 = sb.table("group_events").select("id").eq("link", payload["link"]).execute()
+            if got3.data:
+                return got3.data[0]["id"]
+    except APIError as e:
+        print(f"⚠️  Lookup failed for {payload['slug']}: {e}")
+    return None
+
+def get_music_tag_id() -> int | None:
+    try:
+        got = sb.table("tags").select("id,slug,name").eq("slug", "music").execute()
+        if got.data:
+            return got.data[0]["id"]
+        got2 = sb.table("tags").select("id,slug,name").eq("name", "Music").execute()
+        if got2.data:
+            return got2.data[0]["id"]
+    except APIError as e:
+        print(f"⚠️  Could not fetch Music tag id: {e}")
+    return None
+
+def ensure_music_tagging(event_id: str, tag_id: int) -> None:
+    try:
+        existing = (
+            sb.table("taggings")
+            .select("id")
+            .eq("tag_id", tag_id)
+            .eq("taggable_type", "group_events")
+            .eq("taggable_id", str(event_id))
+            .execute()
+        )
+        if existing.data:
+            print("🏷️  Already tagged: Music")
+            return
+        sb.table("taggings").insert({
+            "tag_id": tag_id,
+            "taggable_type": "group_events",
+            "taggable_id": str(event_id),
+        }).execute()
+        print("🏷️  Tagged with Music")
+    except APIError as e:
+        print(f"⚠️  Tagging failed (Music): {e}")
+
 def upsert_group_events(rows: list[dict]) -> None:
     if not rows:
         print("No events to write.")
@@ -320,31 +385,28 @@ def upsert_group_events(rows: list[dict]) -> None:
             "link": ev.get("link"),
         }
 
-        gid = None
-        try:
-            sel = sb.table("group_events").select("id").eq("slug", payload["slug"]).execute()
-            existing = sel.data if hasattr(sel, "data") else []
-        except APIError as e:
-            print(f"❌ Select failed for {payload['slug']}: {e}")
-            existing = []
+        gid = _find_existing_id(payload)
 
-        if existing:
-            gid = existing[0]["id"]
+        if gid:
             try:
-                sb.table("group_events").update(payload).eq("id", gid).execute()
+                sb.table("group_events") \
+                  .update(payload, returning="representation") \
+                  .eq("id", gid) \
+                  .execute()
                 print(f"♻️  Updated: {payload['title']} ({payload['slug']})")
             except APIError as e:
                 print(f"❌ Update failed for {payload['slug']}: {e}")
         else:
             try:
-                ins = sb.table("group_events").insert(payload).select("id").execute()
+                ins = sb.table("group_events") \
+                        .insert(payload, returning="representation") \
+                        .execute()
                 if ins.data:
                     gid = ins.data[0]["id"]
                 print(f"➕ Inserted: {payload['title']} ({payload['slug']})")
             except APIError as e:
                 print(f"❌ Insert failed for {payload['slug']}: {e}")
 
-        # Always ensure Music tagging, if we have both pieces
         if music_tag_id and gid:
             ensure_music_tagging(gid, music_tag_id)
 
