@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import mapboxgl from 'mapbox-gl';
-import MapGL, { Layer, Popup, Source } from 'react-map-gl';
+import MapGL, { Layer, Marker, Popup, Source } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Helmet } from 'react-helmet';
 import { RRule } from 'rrule';
@@ -128,6 +128,9 @@ const TAG_PILL_STYLES = [
   'bg-purple-100 text-purple-800',
   'bg-red-100 text-red-800',
 ];
+
+const LOGO_MARKER_SIZE = 48;
+const LOGO_MARKER_FALLBACK_COLOR = '#bf3d35';
 
 function getEventBadgeLabel(event) {
   if (!event) return '';
@@ -551,7 +554,11 @@ const UNCLUSTERED_LAYER = {
   id: 'labs-map-unclustered',
   type: 'circle',
   source: 'labs-events',
-  filter: ['!', ['has', 'point_count']],
+  filter: [
+    'all',
+    ['!', ['has', 'point_count']],
+    ['!', ['boolean', ['get', 'hasVenueImage'], false]],
+  ],
   paint: {
     'circle-color': ['coalesce', ['get', 'themeColor'], FALLBACK_THEME.color],
     'circle-radius': [
@@ -575,7 +582,11 @@ const UNCLUSTERED_GLOW_LAYER = {
   id: 'labs-map-unclustered-glow',
   type: 'circle',
   source: 'labs-events',
-  filter: ['!', ['has', 'point_count']],
+  filter: [
+    'all',
+    ['!', ['has', 'point_count']],
+    ['!', ['boolean', ['get', 'hasVenueImage'], false]],
+  ],
   paint: {
     'circle-color': ['coalesce', ['get', 'themeColor'], FALLBACK_THEME.color],
     'circle-radius': [
@@ -598,7 +609,12 @@ const UNCLUSTERED_EMOJI_LAYER = {
   id: 'labs-map-unclustered-emoji',
   type: 'symbol',
   source: 'labs-events',
-  filter: ['all', ['!', ['has', 'point_count']], ['has', 'themeEmoji']],
+  filter: [
+    'all',
+    ['!', ['has', 'point_count']],
+    ['has', 'themeEmoji'],
+    ['!', ['boolean', ['get', 'hasVenueImage'], false]],
+  ],
   layout: {
     'text-field': ['get', 'themeEmoji'],
     'text-size': [
@@ -732,6 +748,7 @@ function normalizeAllEvent(row) {
     venueId: row.venue_id ?? null,
     venueName,
     venueSlug,
+    venueImage: joinedVenue?.image_url || '',
     detailPath,
     tags: [],
   };
@@ -767,6 +784,7 @@ function normalizeLegacyEvent(row) {
     longitude: parseNumber(row.longitude),
     venueName: '',
     venueSlug: null,
+    venueImage: '',
     detailPath,
     tags: [],
   };
@@ -822,6 +840,7 @@ function normalizeRecurringEvent(row, occurrenceDate) {
     longitude: parseNumber(row.longitude),
     venueName: row.address || '',
     venueSlug: row.venue_slug || null,
+    venueImage: '',
     detailPath,
     tags: [],
     rrule: row.rrule || '',
@@ -901,6 +920,7 @@ function normalizeGroupEvent(row) {
       row.groups?.name ||
       '',
     venueSlug: row.groups?.slug || null,
+    venueImage: '',
     detailPath,
     tags: [],
   };
@@ -946,6 +966,7 @@ function normalizeBigBoardEvent(row) {
     longitude: eventLongitude != null ? eventLongitude : null,
     venueName: row.address || '',
     venueSlug: null,
+    venueImage: '',
     detailPath,
     tags: [],
   };
@@ -965,6 +986,7 @@ function buildGeoJson(features) {
         themeKey: event.themeKey || null,
         themeEmoji: event.themeEmoji || null,
         themeColor: event.themeColor || null,
+        hasVenueImage: Boolean(event.venueImage),
       },
     })),
   };
@@ -1050,7 +1072,7 @@ function LabsMapPage() {
               latitude,
               longitude,
               venue_id,
-              venues:venue_id ( name, slug, latitude, longitude )
+              venues:venue_id ( name, slug, latitude, longitude, image_url )
             `)
             .gte('start_date', startIso)
             .lte('start_date', endIso)
@@ -1285,6 +1307,16 @@ function LabsMapPage() {
     event => event.latitude == null || event.longitude == null,
   );
 
+  const logoEvents = useMemo(
+    () =>
+      eventsWithLocation.filter(event => {
+        if (!event?.venueImage) return false;
+        if (typeof event.venueImage !== 'string') return true;
+        return event.venueImage.trim().length > 0;
+      }),
+    [eventsWithLocation],
+  );
+
   const geoJson = useMemo(() => buildGeoJson(eventsWithLocation), [eventsWithLocation]);
 
   const eventIndex = useMemo(() => {
@@ -1436,6 +1468,11 @@ function LabsMapPage() {
     },
     [eventIndex],
   );
+
+  const handleLogoMarkerClick = useCallback((eventData, markerEvent) => {
+    markerEvent?.originalEvent?.stopPropagation?.();
+    setSelectedEvent(eventData);
+  }, []);
 
   const handleLocateMe = useCallback(() => {
     setGeoError('');
@@ -1704,6 +1741,36 @@ function LabsMapPage() {
                       <Layer {...UNCLUSTERED_LAYER} />
                       <Layer {...UNCLUSTERED_EMOJI_LAYER} />
                     </Source>
+                    {logoEvents.map(event => (
+                      <Marker
+                        key={`logo-${event.id}`}
+                        longitude={event.longitude}
+                        latitude={event.latitude}
+                        anchor="bottom"
+                      >
+                        <button
+                          type="button"
+                          onClick={markerEvent => handleLogoMarkerClick(event, markerEvent)}
+                          className="group relative flex h-12 w-12 -translate-y-2 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                          aria-label={event.venueName ? `${event.venueName} details` : event.title}
+                          style={{ width: LOGO_MARKER_SIZE, height: LOGO_MARKER_SIZE }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-0 -z-10 rounded-full opacity-60 blur-md transition group-hover:opacity-80"
+                            style={{
+                              backgroundColor: event.themeColor || LOGO_MARKER_FALLBACK_COLOR,
+                            }}
+                          />
+                          <img
+                            src={event.venueImage}
+                            alt={event.venueName ? `${event.venueName} logo` : `${event.title} logo`}
+                            className="relative h-full w-full rounded-full border-2 border-white bg-white object-cover shadow-lg"
+                            loading="lazy"
+                          />
+                        </button>
+                      </Marker>
+                    ))}
                   {selectedEvent && selectedEvent.latitude != null && selectedEvent.longitude != null && (
                     <Popup
                       longitude={selectedEvent.longitude}
