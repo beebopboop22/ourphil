@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
+import GhostNewsletterEmbed from './GhostNewsletterEmbed.jsx';
 import {
   getZonedDate,
   PHILLY_TIME_ZONE,
@@ -61,9 +62,15 @@ const Footer = () => {
             aria-labelledby="footer-guides-heading"
             className="w-full max-w-sm lg:max-w-md"
           >
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-gray-400">
+                Newsletter
+              </h2>
+              <GhostNewsletterEmbed />
+            </div>
             <h2
               id="footer-guides-heading"
-              className="text-sm font-semibold uppercase tracking-[0.3em] text-gray-400"
+              className="mt-10 text-sm font-semibold uppercase tracking-[0.3em] text-gray-400"
             >
               All Guides
             </h2>
