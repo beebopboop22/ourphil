@@ -361,6 +361,8 @@ function mapGroupEventToCard(evt) {
   } else if (group?.image) {
     imageUrl = group.image;
   }
+  const endRaw = parseISODateInPhilly((evt.end_date || evt.start_date || '').slice(0, 10));
+  const endDate = endRaw ? setEndOfDay(cloneDate(endRaw)) : setEndOfDay(cloneDate(start));
   const detailPath = getDetailPathForItem({
     ...evt,
     group_slug: group?.slug,
@@ -373,6 +375,7 @@ function mapGroupEventToCard(evt) {
     description: evt.description,
     imageUrl,
     startDate: start,
+    endDate,
     start_time: evt.start_time,
     address: evt.address,
     badges: ['Group Event'],
@@ -517,7 +520,10 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   const groupEvents = (baseData.groupEvents || [])
     .map(mapGroupEventToCard)
     .filter(Boolean)
-    .filter(ev => eventOverlapsRange(ev.startDate, ev.startDate, rangeStart, rangeEnd))
+    .filter(ev => {
+      const endDate = ev.endDate || ev.startDate;
+      return eventOverlapsRange(ev.startDate, endDate, rangeStart, rangeEnd);
+    })
     .sort((a, b) => a.startDate - b.startDate || (a.start_time || '').localeCompare(b.start_time || ''));
 
   const sports = (baseData.sports || [])
