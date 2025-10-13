@@ -131,6 +131,12 @@ export default function Navbar({ style, bottomBanner }) {
                 <Link to="/map" className={linkClass('/map')}>
                   Map
                 </Link>
+                <Link
+                  to="/newsletter"
+                  className="rounded-full bg-[#bf3d35] px-4 py-2 text-white transition hover:bg-[#a3322c]"
+                >
+                  Newsletter
+                </Link>
                 <div
                   className="relative"
                   onBlur={(event) => {
@@ -254,6 +260,9 @@ export default function Navbar({ style, bottomBanner }) {
               )}
               <Link to="/map" className="block" onClick={() => setMenuOpen(false)}>
                 Map
+              </Link>
+              <Link to="/newsletter" className="block" onClick={() => setMenuOpen(false)}>
+                Newsletter
               </Link>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Menu</p>
               <div className="space-y-4">

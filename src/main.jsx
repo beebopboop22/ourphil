@@ -53,6 +53,7 @@ import GroupsFAQ from './GroupsFAQ.jsx'
 import RecurringPage from './RecurringEventPage.jsx'
 import SportsEventPage from './SportsEventPage.jsx'
 import AboutPage from './AboutPage.jsx'
+import NewsletterPage from './NewsletterPage.jsx'
 import ThisWeekendInPhiladelphia from './ThisWeekendInPhiladelphia.jsx';
 import ThisMonthInPhiladelphia from './ThisMonthInPhiladelphia.jsx';
 import PhiladelphiaEventsIndex from './PhiladelphiaEventsIndex.jsx';
@@ -251,6 +252,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/traditions-faq" element={<TraditionsFAQ />} />
             <Route path="/groups-faq" element={<GroupsFAQ />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/newsletter" element={<NewsletterPage />} />
             <Route path="/series/:slug" element={<RecurringPage />} />
             <Route path="/series/:slug/:date" element={<RecurringPage />} />
           </Routes>

@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
+import NewsletterPromo from './components/NewsletterPromo';
 import {
   getZonedDate,
   PHILLY_TIME_ZONE,
@@ -48,6 +49,7 @@ const Footer = () => {
       </div>
 
       <div className="max-w-screen-xl mx-auto relative z-10">
+        <NewsletterPromo variant="footer" className="mx-auto mb-16 mt-14 max-w-3xl" />
         <div className="flex flex-col gap-12 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-4xl sm:text-6xl md:text-7xl font-[Barrio] text-white leading-tight">
