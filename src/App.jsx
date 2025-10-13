@@ -39,6 +39,7 @@ import RecentActivity from './RecentActivity';
 import BigBoardEventsGrid from './BigBoardEventsGrid';
 import CityHolidayAlert from './CityHolidayAlert';
 import MoreEventsBanner from './MoreEventsBanner';
+import NewsletterPromo from './components/NewsletterPromo';
 
 
 
@@ -184,6 +185,7 @@ function App() {
         
         
         <HeroLanding />
+        <NewsletterPromo variant="spotlight" className="mx-6 mt-16" />
         <RecentActivity />
         <BigBoardEventsGrid />
         <MoreEventsBanner />

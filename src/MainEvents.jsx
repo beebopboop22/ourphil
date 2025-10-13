@@ -20,6 +20,7 @@ import {
 import Navbar from './Navbar';
 import Footer from './Footer';
 import RecentActivity from './RecentActivity';
+import NewsletterPromo from './components/NewsletterPromo';
 import RecurringEventsScroller from './RecurringEventsScroller';
 import SavedEventsScroller from './SavedEventsScroller';
 import FloatingAddButton from './FloatingAddButton';
@@ -1468,6 +1469,8 @@ export default function MainEvents() {
             )}
           </div>
 
+          <NewsletterPromo className="mt-12" />
+
           {SECTION_CONFIGS.map(config => (
             <EventsSection
               key={config.key}
@@ -1521,6 +1524,8 @@ export default function MainEvents() {
             );
           })}
         </div>
+
+        <NewsletterPromo variant="compact" className="container mx-auto mt-16 px-4" />
 
         <div className="mt-16 flex flex-col gap-0">
           <RecentActivity />
