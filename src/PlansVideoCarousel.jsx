@@ -1053,16 +1053,26 @@ export default function PlansVideoCarousel({
         {events.length > 0 && (
           <>
             <div className="px-4 py-8 z-10" ref={listRef}>
-              {events.map(ev => (
-                <p key={`list-${ev.key}`} className="mb-4">
-                  {ev.name}, {formatDate(ev.start)}
-                  {ev.description ? `: ${ev.description}` : ''}
-                  {(() => {
-                    const tags = tagMap[`${ev.type}-${ev.id}`] || []
-                    return tags.length ? ' ' + tags.map(t => `#${t.slug}`).join(' ') : ''
-                  })()}
-                </p>
-              ))}
+              {events.map(ev => {
+                const tags = tagMap[`${ev.type}-${ev.id}`] || []
+                const tagsText = tags.length
+                  ? ' ' + tags.map(t => `#${t.slug}`).join(' ')
+                  : ''
+                const slug = ev.slug || ''
+                const eventUrl = slug
+                  ? slug.startsWith('http')
+                    ? slug
+                    : `https://www.ourphilly.org${slug.startsWith('/') ? '' : '/'}${slug}`
+                  : ''
+                return (
+                  <p key={`list-${ev.key}`} className="mb-4">
+                    {ev.name}, {formatDate(ev.start)}
+                    {ev.description ? `: ${ev.description}` : ''}
+                    {tagsText}
+                    {eventUrl ? ` ${eventUrl}` : ''}
+                  </p>
+                )
+              })}
             </div>
             {tag === 'fitness' && (
               <div className="px-4 pb-8 z-10">
