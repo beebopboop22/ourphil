@@ -1,6 +1,6 @@
 // src/PlansVideoCarousel.jsx
 import React, { useEffect, useState, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import { RRule } from 'rrule'
@@ -93,6 +93,7 @@ export default function PlansVideoCarousel({
   sunday = false,
   limit = 15,
 }) {
+  const location = useLocation()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const containerRef = useRef(null)
@@ -104,6 +105,7 @@ export default function PlansVideoCarousel({
   const [groups, setGroups] = useState([])
   const [slides, setSlides] = useState([])
   const [tagMap, setTagMap] = useState({})
+  const pageUrl = `https://www.ourphilly.org${location.pathname}`
 
   const colors = [
     '#22C55E', // green
@@ -1059,17 +1061,19 @@ export default function PlansVideoCarousel({
                   ? ' ' + tags.map(t => `#${t.slug}`).join(' ')
                   : ''
                 const slug = ev.slug || ''
-                const eventUrl = slug
-                  ? slug.startsWith('http')
+                let eventUrl = ''
+                if (slug) {
+                  eventUrl = slug.startsWith('http')
                     ? slug
                     : `https://www.ourphilly.org${slug.startsWith('/') ? '' : '/'}${slug}`
-                  : ''
+                }
+                const finalUrl = eventUrl || pageUrl
                 return (
                   <p key={`list-${ev.key}`} className="mb-4">
                     {ev.name}, {formatDate(ev.start)}
                     {ev.description ? `: ${ev.description}` : ''}
                     {tagsText}
-                    {eventUrl ? ` ${eventUrl}` : ''}
+                    {finalUrl ? ` ${finalUrl}` : ''}
                   </p>
                 )
               })}

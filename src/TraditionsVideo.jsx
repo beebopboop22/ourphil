@@ -1,6 +1,8 @@
 // src/TraditionsVideo.jsx
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 
 function parseDateTime(datesStr) {
   if (!datesStr) return { date: null, time: null };
@@ -45,6 +47,8 @@ function formatDisplayDate(date, startTime) {
 }
 
 export default function TraditionsVideo() {
+  const location = useLocation();
+  const pageUrl = `https://www.ourphilly.org${location.pathname}`;
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
@@ -54,7 +58,7 @@ export default function TraditionsVideo() {
   async function loadEvents() {
     const { data, error } = await supabase
       .from('events')
-      .select('id, "E Name", Dates, "E Image", "E Description"')
+      .select('id, slug, "E Name", Dates, "E Image", "E Description"')
       .order('Dates', { ascending: true });
     if (error) {
       console.error(error);
@@ -65,6 +69,19 @@ export default function TraditionsVideo() {
     const upcoming = (data || [])
       .map(e => {
         const { date, time } = parseDateTime(e.Dates);
+        const slug = e.slug || '';
+        const detailPath = getDetailPathForItem({
+          ...e,
+          slug,
+        });
+        let url = '';
+        if (detailPath) {
+          url = `https://www.ourphilly.org${detailPath}`;
+        } else if (slug) {
+          url = slug.startsWith('http')
+            ? slug
+            : `https://www.ourphilly.org/events/${slug}`;
+        }
         return {
           id: e.id,
           name: e['E Name'],
@@ -73,6 +90,7 @@ export default function TraditionsVideo() {
           displayDate: formatDisplayDate(date, time),
           captionDate: formatDisplayDate(date, null),
           description: e['E Description'],
+          url,
         };
       })
       .filter(ev => ev.date && ev.date >= today)
@@ -118,11 +136,18 @@ export default function TraditionsVideo() {
       <div className="bg-white">
         <div className="h-24" />
         <div className="px-4 pb-24 text-sm text-gray-800">
-          {events.map(ev => (
-            <p key={ev.id} className="mb-2">
-              {`${ev.name} - ${ev.captionDate} - ${ev.description}`}
-            </p>
-          ))}
+          {events.map(ev => {
+            const parts = [ev.name];
+            if (ev.captionDate) parts.push(ev.captionDate);
+            if (ev.description) parts.push(ev.description);
+            const finalUrl = ev.url || pageUrl;
+            parts.push(finalUrl);
+            return (
+              <p key={ev.id} className="mb-2">
+                {parts.join(' - ')}
+              </p>
+            );
+          })}
         </div>
       </div>
     </>
