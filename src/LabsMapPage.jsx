@@ -116,8 +116,6 @@ const FALLBACK_THEME = {
   color: '#facc15',
 };
 
-const CLUSTER_THEMES = EVENT_THEMES;
-
 const TAG_PILL_STYLES = [
   'bg-green-100 text-indigo-800',
   'bg-teal-100 text-teal-800',
@@ -353,56 +351,6 @@ function MapEventRow({ event, onHighlight }) {
   );
 }
 
-function buildClusterProperties() {
-  return CLUSTER_THEMES.reduce((acc, theme) => {
-    const propertyName = `${theme.key}Count`;
-    acc[propertyName] = [
-      '+',
-      [
-        'case',
-        ['==', ['get', 'themeKey'], theme.key],
-        1,
-        0,
-      ],
-    ];
-    return acc;
-  }, {});
-}
-
-function buildDominantThemeExpression(valueKey) {
-  if (!CLUSTER_THEMES.length) {
-    return FALLBACK_THEME[valueKey];
-  }
-
-  const letArgs = [];
-  CLUSTER_THEMES.forEach(theme => {
-    letArgs.push(`count_${theme.key}`);
-    letArgs.push(['coalesce', ['get', `${theme.key}Count`], 0]);
-  });
-
-  letArgs.push('maxCount');
-  const [firstTheme, ...restThemes] = CLUSTER_THEMES;
-  letArgs.push(
-    restThemes.reduce(
-      (acc, theme) => ['max', acc, ['var', `count_${theme.key}`]],
-      ['var', `count_${firstTheme.key}`],
-    ),
-  );
-
-  const caseExpression = ['case', ['<=', ['var', 'maxCount'], 0], FALLBACK_THEME[valueKey]];
-  CLUSTER_THEMES.forEach(theme => {
-    caseExpression.push(['==', ['var', `count_${theme.key}`], ['var', 'maxCount']]);
-    caseExpression.push(theme[valueKey]);
-  });
-  caseExpression.push(FALLBACK_THEME[valueKey]);
-
-  return ['let', ...letArgs, caseExpression];
-}
-
-const CLUSTER_PROPERTIES = buildClusterProperties();
-const CLUSTER_COLOR_EXPRESSION = buildDominantThemeExpression('color');
-const CLUSTER_EMOJI_EXPRESSION = buildDominantThemeExpression('emoji');
-
 const HEATMAP_LAYER = {
   id: 'labs-map-heatmap',
   type: 'heatmap',
@@ -476,111 +424,6 @@ function resolveEventTheme(event) {
 
   return FALLBACK_THEME;
 }
-
-const CLUSTER_HALO_LAYER = {
-  id: 'labs-map-cluster-halo',
-  type: 'circle',
-  source: 'labs-events',
-  filter: ['has', 'point_count'],
-  paint: {
-    'circle-color': CLUSTER_COLOR_EXPRESSION,
-    'circle-radius': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      8,
-      20,
-      12,
-      30,
-      15,
-      38,
-    ],
-    'circle-blur': 0.45,
-    'circle-opacity': 0.16,
-  },
-};
-
-const CLUSTER_LAYER = {
-  id: 'labs-map-clusters',
-  type: 'circle',
-  source: 'labs-events',
-  filter: ['has', 'point_count'],
-  paint: {
-    'circle-color': CLUSTER_COLOR_EXPRESSION,
-    'circle-radius': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      8,
-      12,
-      11,
-      18,
-      14,
-      26,
-    ],
-    'circle-stroke-width': 2,
-    'circle-stroke-color': '#111827',
-    'circle-opacity': 0.68,
-  },
-};
-
-const CLUSTER_ICON_LAYER = {
-  id: 'labs-map-cluster-icon',
-  type: 'symbol',
-  source: 'labs-events',
-  filter: ['has', 'point_count'],
-  layout: {
-    'text-field': CLUSTER_EMOJI_EXPRESSION,
-    'text-size': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      8,
-      18,
-      12,
-      24,
-      14,
-      28,
-    ],
-    'text-allow-overlap': true,
-    'text-ignore-placement': true,
-  },
-  paint: {
-    'text-color': '#f8fafc',
-    'text-halo-color': '#1e293b',
-    'text-halo-width': 1.2,
-  },
-};
-
-const CLUSTER_COUNT_LAYER = {
-  id: 'labs-map-cluster-count',
-  type: 'symbol',
-  source: 'labs-events',
-  filter: ['has', 'point_count'],
-  layout: {
-    'text-field': ['get', 'point_count_abbreviated'],
-    'text-size': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      8,
-      16,
-      12,
-      20,
-      14,
-      24,
-    ],
-    'text-offset': [0, 1.15],
-    'text-anchor': 'top',
-    'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-    'text-allow-overlap': true,
-  },
-  paint: {
-    'text-color': '#f8fafc',
-    'text-halo-color': '#1e293b',
-    'text-halo-width': 1.6,
-  },
-};
 
 const UNCLUSTERED_LAYER = {
   id: 'labs-map-unclustered',
@@ -1579,26 +1422,6 @@ function LabsMapPage() {
     event => {
       const feature = event.features?.[0];
       if (!feature) return;
-      const map = mapRef.current?.getMap?.() || mapRef.current;
-      if (!map) return;
-
-      const clusterId = feature.properties?.cluster_id;
-      if (clusterId != null) {
-        const source = map.getSource('labs-events');
-        if (source?.getClusterExpansionZoom) {
-          source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-            if (err) return;
-            setViewState(current => ({
-              ...current,
-              longitude: feature.geometry.coordinates[0],
-              latitude: feature.geometry.coordinates[1],
-              zoom,
-              transitionDuration: 400,
-            }));
-          });
-        }
-        return;
-      }
 
       const eventId = feature.properties?.eventId;
       if (!eventId) return;
@@ -1856,8 +1679,6 @@ function LabsMapPage() {
                     mapboxAccessToken={MAPBOX_TOKEN}
                     onLoad={handleMapLoad}
                     interactiveLayerIds={[
-                      CLUSTER_LAYER.id,
-                      CLUSTER_ICON_LAYER.id,
                       UNCLUSTERED_LAYER.id,
                       UNCLUSTERED_EMOJI_LAYER.id,
                     ]}
@@ -1868,16 +1689,9 @@ function LabsMapPage() {
                       id="labs-events"
                       type="geojson"
                       data={geoJson}
-                      cluster
-                      clusterMaxZoom={14}
-                      clusterRadius={32}
-                      clusterProperties={CLUSTER_PROPERTIES}
+                      cluster={false}
                     >
                       <Layer {...HEATMAP_LAYER} />
-                      <Layer {...CLUSTER_HALO_LAYER} />
-                      <Layer {...CLUSTER_LAYER} />
-                      <Layer {...CLUSTER_ICON_LAYER} />
-                      <Layer {...CLUSTER_COUNT_LAYER} />
                       <Layer {...UNCLUSTERED_GLOW_LAYER} />
                       <Layer {...UNCLUSTERED_LAYER} />
                       <Layer {...UNCLUSTERED_EMOJI_LAYER} />
