@@ -6,6 +6,7 @@ import { FaStar } from 'react-icons/fa';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import Seo from './components/Seo.jsx';
+import WeekendEventsMap from './WeekendEventsMap.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
@@ -257,6 +258,18 @@ export default function ThisWeekendInPhiladelphia() {
               isRecurring: false,
               source_table: 'sg_events',
               taggableId: `sg-${event.id}`,
+              latitude: Number.isFinite(Number(event.venue?.location?.lat))
+                ? Number(event.venue?.location?.lat)
+                : Number.isFinite(Number(event.venue?.location?.latitude))
+                  ? Number(event.venue?.location?.latitude)
+                  : null,
+              longitude: Number.isFinite(Number(event.venue?.location?.lon))
+                ? Number(event.venue?.location?.lon)
+                : Number.isFinite(Number(event.venue?.location?.lng))
+                  ? Number(event.venue?.location?.lng)
+                  : Number.isFinite(Number(event.venue?.location?.longitude))
+                    ? Number(event.venue?.location?.longitude)
+                    : null,
             };
           })
           .filter(Boolean);
@@ -352,7 +365,9 @@ export default function ThisWeekendInPhiladelphia() {
         "E Image",
         slug,
         start_time,
-        end_time
+        end_time,
+        latitude,
+        longitude
       `)
       .order('Dates', { ascending: true });
 
@@ -417,6 +432,10 @@ export default function ThisWeekendInPhiladelphia() {
             const startDate = setStartOfDay(new Date(ys, ms - 1, ds));
             const endDate = setEndOfDay(new Date(ye, me - 1, de));
 
+            const latitudeRaw = evt.latitude ?? evt.venues?.latitude;
+            const longitudeRaw = evt.longitude ?? evt.venues?.longitude;
+            const latitude = Number.isFinite(latitudeRaw) ? latitudeRaw : Number(latitudeRaw);
+            const longitude = Number.isFinite(longitudeRaw) ? longitudeRaw : Number(longitudeRaw);
             return {
               id: evt.id,
               title: evt.name,
@@ -432,6 +451,10 @@ export default function ThisWeekendInPhiladelphia() {
               end_time: evt.end_time,
               slug: evt.slug,
               venues: evt.venues,
+              venueName: evt.venues?.name || '',
+              venue_slug: evt.venues?.slug || null,
+              latitude: Number.isFinite(latitude) ? latitude : null,
+              longitude: Number.isFinite(longitude) ? longitude : null,
               isTradition: false,
               isBigBoard: false,
               isGroupEvent: false,
@@ -463,6 +486,16 @@ export default function ThisWeekendInPhiladelphia() {
               } = supabase.storage.from('big-board').getPublicUrl(storageKey);
               imageUrl = publicUrl || '';
             }
+            const latitude = Number.isFinite(evt.latitude)
+              ? evt.latitude
+              : Number.isFinite(Number(evt.latitude))
+                ? Number(evt.latitude)
+                : null;
+            const longitude = Number.isFinite(evt.longitude)
+              ? evt.longitude
+              : Number.isFinite(Number(evt.longitude))
+                ? Number(evt.longitude)
+                : null;
             return {
               id: evt.id,
               title: evt.title,
@@ -475,8 +508,8 @@ export default function ThisWeekendInPhiladelphia() {
               start_time: evt.start_time,
               end_time: evt.end_time,
               slug: evt.slug,
-              latitude: evt.latitude,
-              longitude: evt.longitude,
+              latitude: Number.isFinite(latitude) ? latitude : null,
+              longitude: Number.isFinite(longitude) ? longitude : null,
               owner_id: evt.big_board_posts?.[0]?.user_id || null,
               isTradition: false,
               isBigBoard: true,
@@ -497,6 +530,16 @@ export default function ThisWeekendInPhiladelphia() {
             const endDate = setEndOfDay(new Date(endDateRaw));
             if (!overlaps(startDate, endDate, weekendStart, weekendEnd)) return null;
             if (endDate.getTime() - startDate.getTime() > MAX_EVENT_DURATION_MS) return null;
+            const latitude = Number.isFinite(evt.latitude)
+              ? evt.latitude
+              : Number.isFinite(Number(evt.latitude))
+                ? Number(evt.latitude)
+                : null;
+            const longitude = Number.isFinite(evt.longitude)
+              ? evt.longitude
+              : Number.isFinite(Number(evt.longitude))
+                ? Number(evt.longitude)
+                : null;
             return {
               id: evt.id,
               title: evt['E Name'],
@@ -508,6 +551,8 @@ export default function ThisWeekendInPhiladelphia() {
               start_time: evt.start_time,
               end_time: evt.end_time,
               slug: evt.slug,
+              latitude: Number.isFinite(latitude) ? latitude : null,
+              longitude: Number.isFinite(longitude) ? longitude : null,
               isTradition: true,
               isBigBoard: false,
               isGroupEvent: false,
@@ -533,6 +578,16 @@ export default function ThisWeekendInPhiladelphia() {
               group_slug: group?.slug,
               isGroupEvent: true,
             });
+            const latitude = Number.isFinite(evt.latitude)
+              ? evt.latitude
+              : Number.isFinite(Number(evt.latitude))
+                ? Number(evt.latitude)
+                : null;
+            const longitude = Number.isFinite(evt.longitude)
+              ? evt.longitude
+              : Number.isFinite(Number(evt.longitude))
+                ? Number(evt.longitude)
+                : null;
             return {
               id: evt.id,
               title: evt.title,
@@ -549,6 +604,8 @@ export default function ThisWeekendInPhiladelphia() {
               group_slug: group?.slug || null,
               slug: evt.slug || String(evt.id),
               groupName: group?.Name || group?.name || '',
+              latitude: Number.isFinite(latitude) ? latitude : null,
+              longitude: Number.isFinite(longitude) ? longitude : null,
               isTradition: false,
               isBigBoard: false,
               isGroupEvent: true,
@@ -609,6 +666,16 @@ export default function ThisWeekendInPhiladelphia() {
           const startDate = parseISODate(dateStr, PHILLY_TIME_ZONE);
           if (!startDate) return null;
           const endDate = setEndOfDay(new Date(startDate));
+          const latitude = Number.isFinite(series.latitude)
+            ? series.latitude
+            : Number.isFinite(Number(series.latitude))
+              ? Number(series.latitude)
+              : null;
+          const longitude = Number.isFinite(series.longitude)
+            ? series.longitude
+            : Number.isFinite(Number(series.longitude))
+              ? Number(series.longitude)
+              : null;
           return {
             id: `${series.id}::${dateStr}`,
             title: series.name,
@@ -622,6 +689,8 @@ export default function ThisWeekendInPhiladelphia() {
             end_time: series.end_time,
             link: `/${series.slug}/${dateStr}`,
             address: series.address,
+            latitude: Number.isFinite(latitude) ? latitude : null,
+            longitude: Number.isFinite(longitude) ? longitude : null,
             isTradition: false,
             isBigBoard: false,
             isGroupEvent: false,
@@ -640,7 +709,25 @@ export default function ThisWeekendInPhiladelphia() {
   useEffect(() => {
     const filtered = sportsEventsRaw
       .filter(evt => overlaps(evt.startDate, evt.endDate, weekendStart, weekendEnd))
-      .map(evt => ({ ...evt }));
+          .map(evt => ({
+            ...evt,
+            latitude: Number.isFinite(evt.latitude)
+              ? evt.latitude
+              : Number.isFinite(Number(evt.latitude))
+                ? Number(evt.latitude)
+                : Number.isFinite(Number(evt.venue?.location?.lat))
+                  ? Number(evt.venue?.location?.lat)
+                  : null,
+            longitude: Number.isFinite(evt.longitude)
+              ? evt.longitude
+              : Number.isFinite(Number(evt.longitude))
+                ? Number(evt.longitude)
+                : Number.isFinite(Number(evt.venue?.location?.lon))
+                  ? Number(evt.venue?.location?.lon)
+                  : Number.isFinite(Number(evt.venue?.location?.lng))
+                    ? Number(evt.venue?.location?.lng)
+                    : null,
+          }));
     setSportsEvents(filtered);
   }, [sportsEventsRaw, weekendStart, weekendEnd]);
 
@@ -759,6 +846,42 @@ export default function ThisWeekendInPhiladelphia() {
     });
   }, [dayFilteredEvents]);
 
+  const mapEvents = useMemo(() => {
+    return sortedEvents.map(evt => {
+      const latitude = Number.isFinite(evt.latitude)
+        ? evt.latitude
+        : Number.isFinite(Number(evt.latitude))
+          ? Number(evt.latitude)
+          : Number.isFinite(Number(evt.venues?.latitude))
+            ? Number(evt.venues?.latitude)
+            : null;
+      const longitude = Number.isFinite(evt.longitude)
+        ? evt.longitude
+        : Number.isFinite(Number(evt.longitude))
+          ? Number(evt.longitude)
+          : Number.isFinite(Number(evt.venues?.longitude))
+            ? Number(evt.venues?.longitude)
+            : null;
+      const startDateStr = evt.start_date || (evt.startDate ? toPhillyISODate(evt.startDate) : '');
+      const baseDetailPath = getDetailPathForItem({
+        ...evt,
+        venue_slug: evt.venues?.slug,
+      });
+      const fallbackDetailPath = evt.href || (!evt.isSports ? evt.url : '');
+      const detailUrl = evt.isSports
+        ? evt.url || evt.href || ''
+        : baseDetailPath || fallbackDetailPath || '';
+      return {
+        ...evt,
+        start_date: startDateStr,
+        detailUrl,
+        latitude: Number.isFinite(latitude) ? latitude : null,
+        longitude: Number.isFinite(longitude) ? longitude : null,
+        tags: tagMap[String(evt.taggableId)] || [],
+      };
+    });
+  }, [sortedEvents, tagMap]);
+
   const firstImage = useMemo(() => {
     for (const evt of combinedEvents) {
       if (evt?.imageUrl) return evt.imageUrl;
@@ -813,7 +936,7 @@ export default function ThisWeekendInPhiladelphia() {
         ogType="website"
       />
       <Navbar />
-      <main className="flex-1 pb-16 pt-28 sm:pt-32">
+      <main className="flex-1 pb-16 pt-36 sm:pt-40">
         <div className="container mx-auto px-4 max-w-6xl">
           <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
             {formattedWeekendEventCount} Things to Do in Philadelphia This Weekend
@@ -821,6 +944,12 @@ export default function ThisWeekendInPhiladelphia() {
           <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
             Use this guide from the most comprehensive events calendar in Philadelphia to plan your {introRange} adventures. We curated {formattedWeekendEventCount} festivals, markets, concerts, and family-friendly events for you to make the most of your weekend.
           </p>
+
+          {mapEvents.length > 0 && (
+            <div className="mt-10">
+              <WeekendEventsMap events={mapEvents} />
+            </div>
+          )}
 
           <section className="max-w-4xl mx-auto px-4 mt-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-2">Philly Traditions This Weekend</h2>
