@@ -813,7 +813,7 @@ export default function ThisWeekendInPhiladelphia() {
         ogType="website"
       />
       <Navbar />
-      <main className="flex-1 pb-16 pt-28 sm:pt-32">
+      <main className="flex-1 pb-16 pt-48 sm:pt-56">
         <div className="container mx-auto px-4 max-w-6xl">
           <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
             {formattedWeekendEventCount} Things to Do in Philadelphia This Weekend
