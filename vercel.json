@@ -1,36 +1,52 @@
 {
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "source": "/",
+      "destination": "/prerender/index.html"
+    },
+    {
+      "source": "/philadelphia-events/",
+      "destination": "/prerender/philadelphia-events/index.html"
+    },
+    {
+      "source": "/this-weekend-in-philadelphia/",
+      "destination": "/prerender/this-weekend-in-philadelphia/index.html"
     },
     {
       "source": "/events/:slug",
-      "destination": "/"
+      "destination": "/prerender/events/:slug/index.html"
     },
     {
       "source": "/seasonal/:slug",
-      "destination": "/"
+      "destination": "/prerender/seasonal/:slug/index.html"
     },
     {
       "source": "/big-board/:slug",
-      "destination": "/"
-    },
-    {
-      "source": "/groups/:slug",
-      "destination": "/"
+      "destination": "/prerender/big-board/:slug/index.html"
     },
     {
       "source": "/groups/:slug/events/:eventId",
-      "destination": "/"
-    },
-    {
-      "source": "/series/:slug",
-      "destination": "/"
+      "destination": "/prerender/groups/:slug/events/:eventId/index.html"
     },
     {
       "source": "/series/:slug/:date",
-      "destination": "/"
+      "destination": "/prerender/series/:slug/:date/index.html"
+    },
+    {
+      "source": "/series/:slug",
+      "destination": "/prerender/series/:slug/index.html"
+    },
+    {
+      "source": "/tags/:slug",
+      "destination": "/prerender/tags/:slug/index.html"
+    },
+    {
+      "source": "/:venue((?!(?:api|_next|static)$)[^/.]+)/:slug([^/.]+)",
+      "destination": "/prerender/:venue/:slug/index.html"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
     },
     {
       "source": "/sports/:id",
@@ -49,19 +65,11 @@
       "destination": "/"
     },
     {
-      "source": "/tags/:slug",
-      "destination": "/"
-    },
-    {
       "source": "/groups/type/:tagSlug",
       "destination": "/"
     },
     {
       "source": "/:venue((?!(?:api|_next|static)$)[^/.]+)",
-      "destination": "/"
-    },
-    {
-      "source": "/:venue((?!(?:api|_next|static)$)[^/.]+)/:slug([^/.]+)",
       "destination": "/"
     },
     {
