@@ -121,7 +121,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 element={<CommunityIndexPage region={region} />}
               />
             ))}
-            <Route path="/map" element={<LabsMapPage />} />
+            <Route path="/map" element={<LabsMapPage clusterEvents={false} />} />
             <Route path="/:view" element={<ViewRouter />} />
             <Route path="/old" element={<App />} />
             <Route path="/sports" element={<SportsPage />} />

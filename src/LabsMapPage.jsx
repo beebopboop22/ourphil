@@ -1035,7 +1035,7 @@ function withinBounds(event, bounds) {
   return true;
 }
 
-function LabsMapPage() {
+function LabsMapPage({ clusterEvents = true } = {}) {
   const { user } = useContext(AuthContext);
   const [viewState, setViewState] = useState(DEFAULT_VIEW);
   const [loading, setLoading] = useState(false);
@@ -1056,6 +1056,7 @@ function LabsMapPage() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const mapRef = useRef(null);
+  const clusteringEnabled = clusterEvents !== false;
 
   useEffect(() => {
     let cancelled = false;
@@ -1582,22 +1583,24 @@ function LabsMapPage() {
       const map = mapRef.current?.getMap?.() || mapRef.current;
       if (!map) return;
 
-      const clusterId = feature.properties?.cluster_id;
-      if (clusterId != null) {
-        const source = map.getSource('labs-events');
-        if (source?.getClusterExpansionZoom) {
-          source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-            if (err) return;
-            setViewState(current => ({
-              ...current,
-              longitude: feature.geometry.coordinates[0],
-              latitude: feature.geometry.coordinates[1],
-              zoom,
-              transitionDuration: 400,
-            }));
-          });
+      if (clusteringEnabled) {
+        const clusterId = feature.properties?.cluster_id;
+        if (clusterId != null) {
+          const source = map.getSource('labs-events');
+          if (source?.getClusterExpansionZoom) {
+            source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+              if (err) return;
+              setViewState(current => ({
+                ...current,
+                longitude: feature.geometry.coordinates[0],
+                latitude: feature.geometry.coordinates[1],
+                zoom,
+                transitionDuration: 400,
+              }));
+            });
+          }
+          return;
         }
-        return;
       }
 
       const eventId = feature.properties?.eventId;
@@ -1607,7 +1610,7 @@ function LabsMapPage() {
         selectEvent(selected);
       }
     },
-    [eventIndex, selectEvent],
+    [clusteringEnabled, eventIndex, selectEvent],
   );
 
   const handleLogoMarkerClick = useCallback((eventData, markerEvent) => {
@@ -1855,12 +1858,16 @@ function LabsMapPage() {
                     mapStyle={MAPBOX_STYLE}
                     mapboxAccessToken={MAPBOX_TOKEN}
                     onLoad={handleMapLoad}
-                    interactiveLayerIds={[
-                      CLUSTER_LAYER.id,
-                      CLUSTER_ICON_LAYER.id,
-                      UNCLUSTERED_LAYER.id,
-                      UNCLUSTERED_EMOJI_LAYER.id,
-                    ]}
+                    interactiveLayerIds={
+                      clusteringEnabled
+                        ? [
+                            CLUSTER_LAYER.id,
+                            CLUSTER_ICON_LAYER.id,
+                            UNCLUSTERED_LAYER.id,
+                            UNCLUSTERED_EMOJI_LAYER.id,
+                          ]
+                        : [UNCLUSTERED_LAYER.id, UNCLUSTERED_EMOJI_LAYER.id]
+                    }
                     onClick={handleMapClick}
                     style={{ width: '100%', height: '100%' }}
                   >
@@ -1868,16 +1875,20 @@ function LabsMapPage() {
                       id="labs-events"
                       type="geojson"
                       data={geoJson}
-                      cluster
-                      clusterMaxZoom={14}
-                      clusterRadius={32}
-                      clusterProperties={CLUSTER_PROPERTIES}
+                      {...(clusteringEnabled
+                        ? {
+                            cluster: true,
+                            clusterMaxZoom: 14,
+                            clusterRadius: 32,
+                            clusterProperties: CLUSTER_PROPERTIES,
+                          }
+                        : { cluster: false })}
                     >
                       <Layer {...HEATMAP_LAYER} />
-                      <Layer {...CLUSTER_HALO_LAYER} />
-                      <Layer {...CLUSTER_LAYER} />
-                      <Layer {...CLUSTER_ICON_LAYER} />
-                      <Layer {...CLUSTER_COUNT_LAYER} />
+                      {clusteringEnabled && <Layer {...CLUSTER_HALO_LAYER} />}
+                      {clusteringEnabled && <Layer {...CLUSTER_LAYER} />}
+                      {clusteringEnabled && <Layer {...CLUSTER_ICON_LAYER} />}
+                      {clusteringEnabled && <Layer {...CLUSTER_COUNT_LAYER} />}
                       <Layer {...UNCLUSTERED_GLOW_LAYER} />
                       <Layer {...UNCLUSTERED_LAYER} />
                       <Layer {...UNCLUSTERED_EMOJI_LAYER} />
