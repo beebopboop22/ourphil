@@ -6,6 +6,7 @@ import { FaStar } from 'react-icons/fa';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import Seo from './components/Seo.jsx';
+import EventsMap from './EventsMap.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
@@ -759,6 +760,25 @@ export default function ThisWeekendInPhiladelphia() {
     });
   }, [dayFilteredEvents]);
 
+  const mapEvents = useMemo(() => {
+    return sortedEvents.map(evt => {
+      const startDateStr = evt.start_date || (evt.startDate ? toPhillyISODate(evt.startDate) : '');
+      const baseDetailPath = getDetailPathForItem({
+        ...evt,
+        venue_slug: evt.venues?.slug,
+      });
+      const fallbackDetailPath = evt.href || (!evt.isSports ? evt.url : '');
+      const detailUrl = evt.isSports
+        ? evt.url || evt.href || ''
+        : baseDetailPath || fallbackDetailPath || '';
+      return {
+        ...evt,
+        start_date: startDateStr,
+        detailUrl,
+      };
+    });
+  }, [sortedEvents]);
+
   const firstImage = useMemo(() => {
     for (const evt of combinedEvents) {
       if (evt?.imageUrl) return evt.imageUrl;
@@ -813,7 +833,7 @@ export default function ThisWeekendInPhiladelphia() {
         ogType="website"
       />
       <Navbar />
-      <main className="flex-1 pb-16 pt-28 sm:pt-32">
+      <main className="flex-1 pb-16 pt-36 sm:pt-40">
         <div className="container mx-auto px-4 max-w-6xl">
           <h1 className="text-4xl sm:text-5xl font-[Barrio] text-[#28313e] text-center">
             {formattedWeekendEventCount} Things to Do in Philadelphia This Weekend
@@ -821,6 +841,12 @@ export default function ThisWeekendInPhiladelphia() {
           <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
             Use this guide from the most comprehensive events calendar in Philadelphia to plan your {introRange} adventures. We curated {formattedWeekendEventCount} festivals, markets, concerts, and family-friendly events for you to make the most of your weekend.
           </p>
+
+          {mapEvents.length > 0 && (
+            <div className="mt-10">
+              <EventsMap events={mapEvents} height="60vh" showList={false} />
+            </div>
+          )}
 
           <section className="max-w-4xl mx-auto px-4 mt-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-2">Philly Traditions This Weekend</h2>
