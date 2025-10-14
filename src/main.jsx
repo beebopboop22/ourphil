@@ -1,5 +1,4 @@
 import React from 'react'
-import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.jsx'
 import SportsPage from './SportsPage.jsx'
@@ -73,9 +72,8 @@ import { COMMUNITY_REGIONS } from './communityIndexData.js'
 
 import './index.css'
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    {/* Wrap entire app with AuthProvider to supply session & user */}
+export default function AppRoutes() {
+  return (
     <AuthProvider>
       <HeadProvider>
         <BrowserRouter>
@@ -271,5 +269,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </BrowserRouter>
       </HeadProvider>
     </AuthProvider>
-  </React.StrictMode>
-)
+  )
+}
