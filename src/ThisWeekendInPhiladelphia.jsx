@@ -10,6 +10,7 @@ import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import WeekendGuideMap from './WeekendGuideMap.jsx';
 import {
   PHILLY_TIME_ZONE,
   parseISODate,
@@ -74,6 +75,15 @@ function formatTime(timeStr) {
   const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
   hours = hours % 12 || 12;
   return `${hours}:${minutes} ${ampm}`;
+}
+
+function parseCoordinate(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function TagFilterModal({ open, tags, selectedTags, onToggle, onClose }) {
@@ -759,6 +769,75 @@ export default function ThisWeekendInPhiladelphia() {
     });
   }, [dayFilteredEvents]);
 
+  const mapEvents = useMemo(() => {
+    return dayFilteredEvents
+      .map(evt => {
+        if (!evt) return null;
+        const tags = tagMap[String(evt.taggableId)] || [];
+        const joinedVenue = Array.isArray(evt.venues) ? evt.venues[0] : evt.venues;
+        const latitude =
+          parseCoordinate(evt.latitude) ??
+          parseCoordinate(evt.lat) ??
+          parseCoordinate(joinedVenue?.latitude);
+        const longitude =
+          parseCoordinate(evt.longitude) ??
+          parseCoordinate(evt.lng) ??
+          parseCoordinate(joinedVenue?.longitude);
+        const venueName =
+          evt.venue_name ||
+          evt.venueName ||
+          joinedVenue?.name ||
+          evt.address ||
+          '';
+        const venueImage =
+          evt.venue_image ||
+          evt.venueImage ||
+          joinedVenue?.image_url ||
+          '';
+        const startDate = evt.startDate instanceof Date ? evt.startDate : weekendStart;
+        const endDate = evt.endDate instanceof Date ? evt.endDate : startDate;
+        const id = evt.isRecurring ? `${evt.taggableId}-${evt.id}` : evt.id;
+        const favoriteId =
+          evt.isSports || evt.source_table === 'sg_events'
+            ? null
+            : evt.isRecurring
+              ? evt.taggableId
+              : evt.id;
+        const detailPath =
+          evt.href ||
+          getDetailPathForItem({
+            ...evt,
+            venues: joinedVenue ? [joinedVenue] : evt.venues,
+            venue_slug: joinedVenue?.slug || evt.venue_slug,
+          }) ||
+          '';
+        const link = evt.href || evt.link || evt.url || '';
+        const image = evt.imageUrl || evt.image || '';
+        const description = evt.description || evt['E Description'] || '';
+        const sourceTable = evt.isSports ? 'sg_events' : evt.source_table;
+
+        return {
+          ...evt,
+          id,
+          title: evt.title || evt.name || evt['E Name'] || 'Untitled event',
+          description,
+          latitude,
+          longitude,
+          venueName,
+          venueImage,
+          startDate,
+          endDate,
+          favoriteId: favoriteId ? String(favoriteId) : null,
+          detailPath,
+          link,
+          image,
+          tags,
+          source_table: sourceTable,
+        };
+      })
+      .filter(Boolean);
+  }, [dayFilteredEvents, tagMap, weekendStart]);
+
   const firstImage = useMemo(() => {
     for (const evt of combinedEvents) {
       if (evt?.imageUrl) return evt.imageUrl;
@@ -821,6 +900,8 @@ export default function ThisWeekendInPhiladelphia() {
           <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
             Use this guide from the most comprehensive events calendar in Philadelphia to plan your {introRange} adventures. We curated {formattedWeekendEventCount} festivals, markets, concerts, and family-friendly events for you to make the most of your weekend.
           </p>
+
+          <WeekendGuideMap events={mapEvents} loading={loading} />
 
           <section className="max-w-4xl mx-auto px-4 mt-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-2">Philly Traditions This Weekend</h2>
