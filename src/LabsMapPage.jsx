@@ -1035,13 +1035,13 @@ function withinBounds(event, bounds) {
   return true;
 }
 
-function LabsMapPage({ clusterEvents = true } = {}) {
+function LabsMapPage({ clusterEvents = true, embedded = false, initialDatePreset = 'today' } = {}) {
   const { user } = useContext(AuthContext);
   const [viewState, setViewState] = useState(DEFAULT_VIEW);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [events, setEvents] = useState([]);
-  const [datePreset, setDatePreset] = useState('today');
+  const [datePreset, setDatePreset] = useState(() => initialDatePreset);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -1057,6 +1057,10 @@ function LabsMapPage({ clusterEvents = true } = {}) {
 
   const mapRef = useRef(null);
   const clusteringEnabled = clusterEvents !== false;
+
+  useEffect(() => {
+    setDatePreset(initialDatePreset);
+  }, [initialDatePreset]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1542,10 +1546,10 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   const handleClearFilters = useCallback(() => {
     setSearchTerm('');
     setSelectedTags([]);
-    setDatePreset('today');
+    setDatePreset(initialDatePreset);
     setCustomStart('');
     setCustomEnd('');
-  }, []);
+  }, [initialDatePreset]);
 
   const handleOpenEventModal = useCallback(() => {
     if (user) {
@@ -1649,84 +1653,13 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     return start === end ? start : `${start} – ${end}`;
   }, [rangeStart, rangeEnd]);
 
-  return (
-    <div className="min-h-screen bg-[#fdf7f2] text-[#29313f]">
-      <Helmet>
-        <title>Philadelphia Event Map | Our Philly</title>
-        <meta
-          name="description"
-          content="Track festivals, neighborhood happenings, and community events in Philadelphia on a live map curated by Our Philly."
-        />
-        <link rel="canonical" href="https://www.ourphilly.org/map" />
-      </Helmet>
-      <Navbar />
-      <main className="pt-28 pb-16 lg:pt-32">
-        <section className="relative">
-          <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent" aria-hidden="true" />
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/70 p-10 shadow-xl shadow-[#bf3d35]/10 backdrop-blur-md lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-10">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Community Event Map</p>
-                <h1 className="mt-4 text-4xl font-black leading-tight text-[#29313f] sm:text-5xl lg:text-6xl">
-                  See what&apos;s happening across Philly
-                </h1>
-                <p className="mt-4 text-base leading-relaxed text-[#4a5568] sm:text-lg">
-                  Browse festivals, block parties, and neighborhood meetups shared by organizers across the city. Add yours to help more neighbors discover it.
-                </p>
-                <div className="mt-6 flex flex-wrap items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleOpenEventModal}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold uppercase tracking-widest text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
-                  >
-                    Add your event to the map
-                  </button>
-                  <a
-                    href="#map"
-                    className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold text-[#29313f] transition hover:border-[#29313f] hover:bg-[#29313f]/10"
-                  >
-                    Jump to map <span aria-hidden="true">↓</span>
-                  </a>
-                </div>
-                <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhillyCircle(web)%20(1).png"
-                    alt="Our Philly skyline logo"
-                    className="h-12 w-12 rounded-full border border-[#29313f]/10 bg-white object-cover"
-                  />
-                  <span>Built by neighbors. Updated daily with community submissions.</span>
-                </div>
-              </div>
-              <div className="relative mt-10 flex items-center justify-center lg:mt-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl" aria-hidden="true" />
-                <div className="relative flex flex-col items-center gap-6">
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
-                    alt="Illustration of the Our Philly heart"
-                    className="h-52 w-52 object-contain drop-shadow-xl"
-                  />
-                  <div className="rounded-2xl border border-[#29313f]/10 bg-[#2b333f] px-6 py-4 text-center shadow-lg">
-                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#f0e5d0]">Our Philly</p>
-                    <p className="mt-2 text-lg font-semibold text-white">Neighborhood spotlights</p>
-                    <p className="mt-1 text-sm text-[#f0e5d0]/80">Events on the map are featured in our guides, newsletters, and Instagram.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-10 max-w-7xl px-6">
-          <div className="flex items-start gap-3 rounded-2xl border border-[#f3c7b8] bg-white/80 p-5 text-sm text-[#4a5568] shadow">
-            <span className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#bf3d35]/10 text-lg text-[#bf3d35]">ℹ️</span>
-            <p>
-              Not every submission includes an address yet. Events without map pins appear in the “Still gathering addresses” list below—organizers can add a venue to get featured on the map instantly.
-            </p>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-10 max-w-7xl px-6" id="map">
-          <div className="rounded-3xl border border-[#f3c7b8] bg-white/80 p-6 shadow-xl shadow-[#29313f]/5 backdrop-blur">
+  const mapSection = (
+    <>
+      <section
+        className={`mx-auto ${embedded ? 'mt-0' : 'mt-10'} max-w-7xl px-6`}
+        id={embedded ? undefined : 'map'}
+      >
+        <div className="rounded-3xl border border-[#f3c7b8] bg-white/80 p-6 shadow-xl shadow-[#29313f]/5 backdrop-blur">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
@@ -1842,87 +1775,89 @@ function LabsMapPage({ clusterEvents = true } = {}) {
               </span>
             )}
           </div>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="mx-auto mt-10 grid max-w-7xl gap-6 px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <div className="space-y-6">
-            <div className="relative h-[520px] overflow-hidden rounded-3xl border border-[#1d2432] bg-[#101722] shadow-2xl shadow-[#101722]/40">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#bf3d35]/15 via-transparent to-[#0b1120]" aria-hidden="true" />
-              {MAPBOX_TOKEN ? (
-                <>
-                  <MapGL
-                    {...viewState}
-                    ref={mapRef}
-                    onMove={handleMove}
-                    mapStyle={MAPBOX_STYLE}
-                    mapboxAccessToken={MAPBOX_TOKEN}
-                    onLoad={handleMapLoad}
-                    interactiveLayerIds={
-                      clusteringEnabled
-                        ? [
-                            CLUSTER_LAYER.id,
-                            CLUSTER_ICON_LAYER.id,
-                            UNCLUSTERED_LAYER.id,
-                            UNCLUSTERED_EMOJI_LAYER.id,
-                          ]
-                        : [UNCLUSTERED_LAYER.id, UNCLUSTERED_EMOJI_LAYER.id]
-                    }
-                    onClick={handleMapClick}
-                    style={{ width: '100%', height: '100%' }}
+      <section
+        className={`mx-auto ${embedded ? 'mt-8' : 'mt-10'} grid max-w-7xl gap-6 px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]`}
+      >
+        <div className="space-y-6">
+          <div className="relative h-[520px] overflow-hidden rounded-3xl border border-[#1d2432] bg-[#101722] shadow-2xl shadow-[#101722]/40">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#bf3d35]/15 via-transparent to-[#0b1120]" aria-hidden="true" />
+            {MAPBOX_TOKEN ? (
+              <>
+                <MapGL
+                  {...viewState}
+                  ref={mapRef}
+                  onMove={handleMove}
+                  mapStyle={MAPBOX_STYLE}
+                  mapboxAccessToken={MAPBOX_TOKEN}
+                  onLoad={handleMapLoad}
+                  interactiveLayerIds={
+                    clusteringEnabled
+                      ? [
+                          CLUSTER_LAYER.id,
+                          CLUSTER_ICON_LAYER.id,
+                          UNCLUSTERED_LAYER.id,
+                          UNCLUSTERED_EMOJI_LAYER.id,
+                        ]
+                      : [UNCLUSTERED_LAYER.id, UNCLUSTERED_EMOJI_LAYER.id]
+                  }
+                  onClick={handleMapClick}
+                  style={{ width: '100%', height: '100%' }}
+                >
+                  <Source
+                    id="labs-events"
+                    type="geojson"
+                    data={geoJson}
+                    {...(clusteringEnabled
+                      ? {
+                          cluster: true,
+                          clusterMaxZoom: 14,
+                          clusterRadius: 32,
+                          clusterProperties: CLUSTER_PROPERTIES,
+                        }
+                      : { cluster: false })}
                   >
-                    <Source
-                      id="labs-events"
-                      type="geojson"
-                      data={geoJson}
-                      {...(clusteringEnabled
-                        ? {
-                            cluster: true,
-                            clusterMaxZoom: 14,
-                            clusterRadius: 32,
-                            clusterProperties: CLUSTER_PROPERTIES,
-                          }
-                        : { cluster: false })}
+                    <Layer {...HEATMAP_LAYER} />
+                    {clusteringEnabled && <Layer {...CLUSTER_HALO_LAYER} />}
+                    {clusteringEnabled && <Layer {...CLUSTER_LAYER} />}
+                    {clusteringEnabled && <Layer {...CLUSTER_ICON_LAYER} />}
+                    {clusteringEnabled && <Layer {...CLUSTER_COUNT_LAYER} />}
+                    <Layer {...UNCLUSTERED_GLOW_LAYER} />
+                    <Layer {...UNCLUSTERED_LAYER} />
+                    <Layer {...UNCLUSTERED_EMOJI_LAYER} />
+                  </Source>
+                  {logoEvents.map(event => (
+                    <Marker
+                      key={`logo-${event.id}`}
+                      longitude={event.longitude}
+                      latitude={event.latitude}
+                      anchor="bottom"
                     >
-                      <Layer {...HEATMAP_LAYER} />
-                      {clusteringEnabled && <Layer {...CLUSTER_HALO_LAYER} />}
-                      {clusteringEnabled && <Layer {...CLUSTER_LAYER} />}
-                      {clusteringEnabled && <Layer {...CLUSTER_ICON_LAYER} />}
-                      {clusteringEnabled && <Layer {...CLUSTER_COUNT_LAYER} />}
-                      <Layer {...UNCLUSTERED_GLOW_LAYER} />
-                      <Layer {...UNCLUSTERED_LAYER} />
-                      <Layer {...UNCLUSTERED_EMOJI_LAYER} />
-                    </Source>
-                    {logoEvents.map(event => (
-                      <Marker
-                        key={`logo-${event.id}`}
-                        longitude={event.longitude}
-                        latitude={event.latitude}
-                        anchor="bottom"
+                      <button
+                        type="button"
+                        onClick={markerEvent => handleLogoMarkerClick(event, markerEvent)}
+                        className="group relative flex h-12 w-12 -translate-y-2 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        aria-label={event.venueName ? `${event.venueName} details` : event.title}
+                        style={{ width: LOGO_MARKER_SIZE, height: LOGO_MARKER_SIZE }}
                       >
-                        <button
-                          type="button"
-                          onClick={markerEvent => handleLogoMarkerClick(event, markerEvent)}
-                          className="group relative flex h-12 w-12 -translate-y-2 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                          aria-label={event.venueName ? `${event.venueName} details` : event.title}
-                          style={{ width: LOGO_MARKER_SIZE, height: LOGO_MARKER_SIZE }}
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="absolute inset-0 -z-10 rounded-full opacity-60 blur-md transition group-hover:opacity-80"
-                            style={{
-                              backgroundColor: event.themeColor || LOGO_MARKER_FALLBACK_COLOR,
-                            }}
-                          />
-                          <img
-                            src={event.venueImage}
-                            alt={event.venueName ? `${event.venueName} logo` : `${event.title} logo`}
-                            className="relative h-full w-full rounded-full border-2 border-white bg-white object-cover shadow-lg"
-                            loading="lazy"
-                          />
-                        </button>
-                      </Marker>
-                    ))}
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-0 -z-10 rounded-full opacity-60 blur-md transition group-hover:opacity-80"
+                          style={{
+                            backgroundColor: event.themeColor || LOGO_MARKER_FALLBACK_COLOR,
+                          }}
+                        />
+                        <img
+                          src={event.venueImage}
+                          alt={event.venueName ? `${event.venueName} logo` : `${event.title} logo`}
+                          className="relative h-full w-full rounded-full border-2 border-white bg-white object-cover shadow-lg"
+                          loading="lazy"
+                        />
+                      </button>
+                    </Marker>
+                  ))}
                   {selectedEvent && selectedEvent.latitude != null && selectedEvent.longitude != null && (
                     <Popup
                       longitude={selectedEvent.longitude}
@@ -2038,87 +1973,172 @@ function LabsMapPage({ clusterEvents = true } = {}) {
                       </div>
                     </Popup>
                   )}
-                  </MapGL>
-                </>
-              ) : (
-                <div className="flex h-full items-center justify-center bg-[#0f172a] text-center text-sm font-medium text-white/80">
-                  Map view unavailable — missing Mapbox access token.
-                </div>
-              )}
-              {loading && MAPBOX_TOKEN && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0f172a]/70 backdrop-blur-sm">
-                  <span className="text-sm font-semibold text-white">Loading events…</span>
-                </div>
+                </MapGL>
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center bg-[#0f172a] text-center text-sm font-medium text-white/80">
+                Map view unavailable — missing Mapbox access token.
+              </div>
+            )}
+            {loading && MAPBOX_TOKEN && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#0f172a]/70 backdrop-blur-sm">
+                <span className="text-sm font-semibold text-white">Loading events…</span>
+              </div>
+            )}
+          </div>
+          <div className="rounded-3xl border border-[#f3c7b8] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-[#29313f]">
+                Events lighting up the map <span className="text-sm text-[#7c889d]">({sortedMapEvents.length})</span>
+              </h2>
+              {!limitToMap && bounds && (
+                <span className="text-xs font-semibold uppercase tracking-wide text-[#9ba3b2]">Showing the full Philly radius</span>
               )}
             </div>
-            <div className="rounded-3xl border border-[#f3c7b8] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-semibold text-[#29313f]">
-                  Events lighting up the map <span className="text-sm text-[#7c889d]">({sortedMapEvents.length})</span>
-                </h2>
-                {!limitToMap && bounds && (
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[#9ba3b2]">Showing the full Philly radius</span>
-                )}
-              </div>
-              <ul className="mt-4 space-y-4">
-                {sortedMapEvents.map(event => (
-                  <MapEventRow key={event.id} event={event} onHighlight={focusEventOnMap} />
-                ))}
-                {!sortedMapEvents.length && !loading && (
-                  <li className="rounded-xl border border-dashed border-[#f3c7b8] bg-[#fdf4ef] p-6 text-center text-sm text-[#9ba3b2]">
-                    No events match these filters yet—try widening the dates or removing a tag.
-                  </li>
-                )}
-              </ul>
+            <ul className="mt-4 space-y-4">
+              {sortedMapEvents.map(event => (
+                <MapEventRow key={event.id} event={event} onHighlight={focusEventOnMap} />
+              ))}
+              {!sortedMapEvents.length && !loading && (
+                <li className="rounded-xl border border-dashed border-[#f3c7b8] bg-[#fdf4ef] p-6 text-center text-sm text-[#9ba3b2]">
+                  No events match these filters yet—try widening the dates or removing a tag.
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+
+        <aside className="space-y-4">
+          <div className="rounded-3xl border border-[#d9e0ec] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
+            <h2 className="text-xl font-semibold text-[#29313f]">
+              Still gathering addresses <span className="text-sm text-[#7c889d]">({eventsWithoutLocation.length})</span>
+            </h2>
+            <p className="mt-1 text-sm text-[#4a5568]">
+              These events were submitted without an exact venue. Add a location and they'll move onto the map within minutes.
+            </p>
+            <div className="mt-4 space-y-6">
+              {groupedNoLocation.map(([label, items]) => (
+                <div key={label} className="space-y-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-widest text-[#9ba3b2]">{label}</h3>
+                  <ul className="space-y-3">
+                    {items.map(item => (
+                      <li key={item.id} className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-3">
+                        <p className="text-sm font-semibold text-[#29313f]">{item.title}</p>
+                        <p className="text-xs text-[#4a5568]">{formatDateRange(item)}</p>
+                        {(item.detailPath || item.link) && (
+                          <a
+                            href={item.detailPath || item.link}
+                            className="mt-1 inline-flex text-xs font-semibold text-[#bf3d35] hover:text-[#a2322c]"
+                          >
+                            View details →
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              {!groupedNoLocation.length && !loading && (
+                <p className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-4 text-sm text-[#4a5568]">
+                  Everything in this range has a map location. 🎉
+                </p>
+              )}
             </div>
           </div>
 
-          <aside className="space-y-4">
-            <div className="rounded-3xl border border-[#d9e0ec] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
-              <h2 className="text-xl font-semibold text-[#29313f]">
-                Still gathering addresses <span className="text-sm text-[#7c889d]">({eventsWithoutLocation.length})</span>
-              </h2>
-              <p className="mt-1 text-sm text-[#4a5568]">
-                These events were submitted without an exact venue. Add a location and they&apos;ll move onto the map within minutes.
-              </p>
-              <div className="mt-4 space-y-6">
-                {groupedNoLocation.map(([label, items]) => (
-                  <div key={label} className="space-y-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-widest text-[#9ba3b2]">{label}</h3>
-                    <ul className="space-y-3">
-                      {items.map(item => (
-                        <li key={item.id} className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-3">
-                          <p className="text-sm font-semibold text-[#29313f]">{item.title}</p>
-                          <p className="text-xs text-[#4a5568]">{formatDateRange(item)}</p>
-                          {(item.detailPath || item.link) && (
-                            <a
-                              href={item.detailPath || item.link}
-                              className="mt-1 inline-flex text-xs font-semibold text-[#bf3d35] hover:text-[#a2322c]"
-                            >
-                              View details →
-                            </a>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+          {error && (
+            <div className="rounded-3xl border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-700 shadow">
+              <p className="font-semibold">We hit a snag loading events.</p>
+              <p className="mt-1 opacity-80">{error.message || 'Unknown error'}</p>
+            </div>
+          )}
+        </aside>
+      </section>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="w-full">{mapSection}</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#fdf7f2] text-[#29313f]">
+      <Helmet>
+        <title>Philadelphia Event Map | Our Philly</title>
+        <meta
+          name="description"
+          content="Track festivals, neighborhood happenings, and community events in Philadelphia on a live map curated by Our Philly."
+        />
+        <link rel="canonical" href="https://www.ourphilly.org/map" />
+      </Helmet>
+      <Navbar />
+      <main className="pt-28 pb-16 lg:pt-32">
+        <section className="relative">
+          <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent" aria-hidden="true" />
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/70 p-10 shadow-xl shadow-[#bf3d35]/10 backdrop-blur-md lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-10">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Community Event Map</p>
+                <h1 className="mt-4 text-4xl font-black leading-tight text-[#29313f] sm:text-5xl lg:text-6xl">
+                  See what&apos;s happening across Philly
+                </h1>
+                <p className="mt-4 text-base leading-relaxed text-[#4a5568] sm:text-lg">
+                  Browse festivals, block parties, and neighborhood meetups shared by organizers across the city. Add yours to help more neighbors discover it.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={handleOpenEventModal}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold uppercase tracking-widest text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
+                  >
+                    Add your event to the map
+                  </button>
+                  <a
+                    href="#map"
+                    className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold text-[#29313f] transition hover:border-[#29313f] hover:bg-[#29313f]/10"
+                  >
+                    Jump to map <span aria-hidden="true">↓</span>
+                  </a>
+                </div>
+                <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
+                  <img
+                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhillyCircle(web)%20(1).png"
+                    alt="Our Philly skyline logo"
+                    className="h-12 w-12 rounded-full border border-[#29313f]/10 bg-white object-cover"
+                  />
+                  <span>Built by neighbors. Updated daily with community submissions.</span>
+                </div>
+              </div>
+              <div className="relative mt-10 flex items-center justify-center lg:mt-0">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl" aria-hidden="true" />
+                <div className="relative flex flex-col items-center gap-6">
+                  <img
+                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
+                    alt="Illustration of the Our Philly heart"
+                    className="h-52 w-52 object-contain drop-shadow-xl"
+                  />
+                  <div className="rounded-2xl border border-[#29313f]/10 bg-[#2b333f] px-6 py-4 text-center shadow-lg">
+                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#f0e5d0]">Our Philly</p>
+                    <p className="mt-2 text-lg font-semibold text-white">Neighborhood spotlights</p>
+                    <p className="mt-1 text-sm text-[#f0e5d0]/80">Events on the map are featured in our guides, newsletters, and Instagram.</p>
                   </div>
-                ))}
-                {!groupedNoLocation.length && !loading && (
-                  <p className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-4 text-sm text-[#4a5568]">
-                    Everything in this range has a map location. 🎉
-                  </p>
-                )}
+                </div>
               </div>
             </div>
-
-            {error && (
-              <div className="rounded-3xl border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-700 shadow">
-                <p className="font-semibold">We hit a snag loading events.</p>
-                <p className="mt-1 opacity-80">{error.message || 'Unknown error'}</p>
-              </div>
-            )}
-          </aside>
+          </div>
         </section>
+
+        <section className="mx-auto mt-10 max-w-7xl px-6">
+          <div className="flex items-start gap-3 rounded-2xl border border-[#f3c7b8] bg-white/80 p-5 text-sm text-[#4a5568] shadow">
+            <span className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#bf3d35]/10 text-lg text-[#bf3d35]">ℹ️</span>
+            <p>
+              Not every submission includes an address yet. Events without map pins appear in the “Still gathering addresses” list below—organizers can add a venue to get featured on the map instantly.
+            </p>
+          </div>
+        </section>
+
+        {mapSection}
+
       </main>
       <FloatingAddButton onClick={handleOpenEventModal} />
       <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
