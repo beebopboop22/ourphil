@@ -239,6 +239,7 @@ async function fetchBigBoardEvents() {
       end_time,
       end_date,
       slug,
+      area:areas(name),
       big_board_posts!big_board_posts_event_id_fkey (image_url)
     `)
     .order('start_date', { ascending: true });
@@ -275,7 +276,8 @@ async function fetchBaseData() {
         end_time,
         end_date,
         slug,
-        venue_id(name, slug)
+        area:areas(name),
+        venue_id(name, slug, area:areas(name))
       `)
       .order('start_date', { ascending: true }),
     supabase
@@ -288,13 +290,15 @@ async function fetchBaseData() {
         "End Date",
         "E Image",
         slug,
-        start_time
+        start_time,
+        area:areas(name)
       `)
       .order('Dates', { ascending: true }),
     supabase
       .from('group_events')
       .select(`
         *,
+        area:areas(name),
         groups(Name, imag, slug, status)
       `)
       .order('start_date', { ascending: true }),
@@ -312,7 +316,8 @@ async function fetchBaseData() {
         start_time,
         end_time,
         rrule,
-        image_url
+        image_url,
+        area:areas(name)
       `)
       .eq('is_active', true),
     fetchBigBoardEvents(),
@@ -367,6 +372,7 @@ function mapGroupEventToCard(evt) {
     group_slug: group?.slug,
     isGroupEvent: true,
   });
+  const areaName = evt.area?.name || null;
   return {
     id: `group-${evt.id}`,
     sourceId: evt.id,
@@ -381,6 +387,7 @@ function mapGroupEventToCard(evt) {
     source_table: 'group_events',
     favoriteId: evt.id,
     group,
+    areaName,
   };
 }
 
@@ -416,6 +423,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         detailPath,
         source_table: 'big_board_events',
         favoriteId: ev.id,
+        areaName: ev.area?.name || null,
       };
     })
     .sort((a, b) => a.startDate - b.startDate || (a.start_time || '').localeCompare(b.start_time || ''));
@@ -436,6 +444,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         slug: row.slug,
         isTradition: true,
         start_time: row.start_time ?? row.time ?? row['Start Time'] ?? null,
+        areaName: row.area?.name || null,
       };
     })
     .filter(Boolean)
@@ -454,6 +463,9 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
       const start = parseISODateInPhilly(rawStart);
       if (!start) return null;
       const end = parseISODateInPhilly((evt.end_date || '').slice(0, 10)) || start;
+      const venue = evt.venue_id;
+      const venueArea = Array.isArray(venue) ? venue[0]?.area?.name : venue?.area?.name;
+      const areaName = evt.area?.name || venueArea || null;
       return {
         id: `event-${evt.id}`,
         sourceId: evt.id,
@@ -464,7 +476,8 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         endDate: end,
         start_time: evt.start_time,
         slug: evt.slug,
-        venues: evt.venue_id,
+        venues: venue,
+        areaName,
       };
     })
     .filter(Boolean)
@@ -507,6 +520,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
           }),
           source_table: 'recurring_events',
           favoriteId: series.id,
+          areaName: series.area?.name || null,
         };
       });
     } catch (err) {
@@ -581,6 +595,7 @@ function buildTraditionsSection(baseData, rangeStart, rangeEnd, limit = 8) {
         endDate: end,
         slug: row.slug,
         start_time: row.start_time ?? row.time ?? row['Start Time'] ?? null,
+        areaName: row.area?.name || null,
       };
     })
     .filter(Boolean)
@@ -706,6 +721,21 @@ function EventCard({ event, tags = [], showDatePill = false }) {
     ? formatFeaturedCommunityDateLabel(startDate, { endDate, isActive })
     : '';
 
+  const venueAreaName = event.venues
+    ? Array.isArray(event.venues)
+      ? event.venues[0]?.area?.name
+      : event.venues?.area?.name
+    : null;
+  const relatedVenueArea = event.venue
+    ? Array.isArray(event.venue)
+      ? event.venue[0]?.area?.name
+      : event.venue?.area?.name
+    : null;
+  const areaLabel =
+    [event.areaName, event.area?.name, venueAreaName, relatedVenueArea]
+      .map(candidate => (typeof candidate === 'string' ? candidate.trim() : ''))
+      .find(Boolean) || 'Philadelphia';
+
   const handleFavoriteClick = e => {
     e.preventDefault();
     e.stopPropagation();
@@ -722,6 +752,15 @@ function EventCard({ event, tags = [], showDatePill = false }) {
         isFavorite && canFavorite ? 'ring-2 ring-indigo-600' : ''
       }`}
     >
+      {areaLabel && (
+        <div
+          className="flex items-center justify-center gap-1 bg-[#28313e] px-3 py-1 text-xs font-semibold leading-none text-white"
+          title={areaLabel}
+        >
+          <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+          <span className="truncate">{areaLabel}</span>
+        </div>
+      )}
       <div className="relative h-40 w-full overflow-hidden bg-gray-100">
         {event.imageUrl ? (
           <img src={event.imageUrl} alt={event.title} className="h-full w-full object-cover" loading="lazy" />
