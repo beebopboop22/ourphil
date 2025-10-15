@@ -44,6 +44,7 @@ import {
   parseISODate,
   parseEventDateValue,
 } from './utils/dateUtils';
+import { fetchWeekendEventCount } from './utils/weekendEventCount';
 
 const SECTION_CONFIGS = [
   {
@@ -1087,6 +1088,8 @@ export default function MainEvents() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [tagMap, setTagMap] = useState({});
   const [featuredCommunities, setFeaturedCommunities] = useState([]);
+  const [weekendGuideCount, setWeekendGuideCount] = useState(null);
+  const [weekendGuideLoading, setWeekendGuideLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -1123,6 +1126,28 @@ export default function MainEvents() {
       cancelled = true;
     };
   }, [rangeMeta]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWeekendGuideLoading(true);
+    fetchWeekendEventCount(weekendStart, weekendEnd)
+      .then(count => {
+        if (!cancelled) {
+          setWeekendGuideCount(count);
+          setWeekendGuideLoading(false);
+        }
+      })
+      .catch(err => {
+        console.error('Error loading weekend event count', err);
+        if (!cancelled) {
+          setWeekendGuideCount(null);
+          setWeekendGuideLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [weekendStart, weekendEnd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1426,6 +1451,10 @@ export default function MainEvents() {
     };
   }, [displayedEvents]);
 
+  const quickLinksLoading = loading || weekendGuideLoading;
+  const quickLinksCount =
+    typeof weekendGuideCount === 'number' ? weekendGuideCount : sections.weekend.total;
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Helmet>
@@ -1438,9 +1467,9 @@ export default function MainEvents() {
       <Navbar />
       <div className="pt-24 sm:pt-28">
         <TopQuickLinks
-          weekendCount={sections.weekend.total}
+          weekendCount={quickLinksCount}
           weekendHref="/this-weekend-in-philadelphia/"
-          loading={loading}
+          loading={quickLinksLoading}
           className="mb-0"
         />
       </div>

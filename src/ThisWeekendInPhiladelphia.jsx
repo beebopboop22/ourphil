@@ -22,6 +22,11 @@ import {
   formatDateRangeForTitle,
   getZonedDate,
 } from './utils/dateUtils';
+import {
+  MAX_ALL_EVENT_DURATION_DAYS,
+  MAX_EVENT_DURATION_MS,
+  toPhillyISODate,
+} from './utils/weekendEventCount';
 
 const pillStyles = [
   'bg-green-100 text-indigo-800',
@@ -53,18 +58,6 @@ const dayViewLabels = {
 
 const DEFAULT_OG_IMAGE = 'https://ourphilly.org/og-image.png';
 const CANONICAL_URL = 'https://ourphilly.org/this-weekend-in-philadelphia/';
-const MAX_EVENT_DURATION_DAYS = 30;
-const MAX_EVENT_DURATION_MS = MAX_EVENT_DURATION_DAYS * 24 * 60 * 60 * 1000;
-const MAX_ALL_EVENT_DURATION_DAYS = 10;
-
-function toPhillyISODate(date) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-}
 
 function formatTime(timeStr) {
   if (!timeStr) return '';
