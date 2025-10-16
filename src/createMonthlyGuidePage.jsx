@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 import { RRule } from 'rrule';
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -254,9 +255,11 @@ export default function createMonthlyGuidePage(config) {
               start_time,
               end_time,
               slug,
+              area_id,
               venues:venue_id (
                 name,
-                slug
+                slug,
+                area_id
               )
             `;
             const aggregated = [];
@@ -282,7 +285,8 @@ export default function createMonthlyGuidePage(config) {
             return aggregated;
           };
 
-          const [allRows, bigRes, tradRes, groupRes, recurringRes, seasonalRes, tagRes] = await Promise.all([
+          const [areasRes, allRows, bigRes, tradRes, groupRes, recurringRes, seasonalRes, tagRes] = await Promise.all([
+            supabase.from('areas').select('id, name'),
             fetchAllEventsForMonth(),
             supabase
               .from('big_board_events')
@@ -295,6 +299,7 @@ export default function createMonthlyGuidePage(config) {
               start_time,
               end_time,
               slug,
+              area_id,
               latitude,
               longitude,
               big_board_posts!big_board_posts_event_id_fkey (
@@ -313,7 +318,8 @@ export default function createMonthlyGuidePage(config) {
               Dates,
               "End Date",
               "E Image",
-              slug
+              slug,
+              area_id
             `),
             supabase
               .from('group_events')
@@ -327,6 +333,7 @@ export default function createMonthlyGuidePage(config) {
               start_time,
               end_time,
               slug,
+              area_id,
               group_id,
               groups:group_id (
                 Name,
@@ -351,6 +358,7 @@ export default function createMonthlyGuidePage(config) {
               end_time,
               rrule,
               image_url,
+              area_id,
               latitude,
               longitude
             `)
@@ -365,7 +373,8 @@ export default function createMonthlyGuidePage(config) {
               start_date,
               end_date,
               image_url,
-              location
+              location,
+              area_id
             `)
               .lte('start_date', endIso)
               .or(`end_date.gte.${startIso},end_date.is.null`),
@@ -373,6 +382,15 @@ export default function createMonthlyGuidePage(config) {
           ]);
 
           if (cancelled) return;
+
+          if (areasRes.error) {
+            console.error('Failed to load areas', areasRes.error);
+          }
+          const areaLookup = (areasRes.data || []).reduce((acc, area) => {
+            if (!area || !area.id) return acc;
+            acc[area.id] = area.name || '';
+            return acc;
+          }, {});
 
           const allRecords = (allRows || [])
             .map(evt => {
@@ -391,6 +409,13 @@ export default function createMonthlyGuidePage(config) {
                 venues: evt.venues,
                 venue_slug: evt.venues?.slug,
               });
+              const venueAreaId = Array.isArray(evt.venues)
+                ? evt.venues[0]?.area_id
+                : evt.venues?.area_id;
+              const areaName =
+                (evt.area_id && areaLookup[evt.area_id]) ||
+                (venueAreaId && areaLookup[venueAreaId]) ||
+                null;
               return {
                 id: evt.id,
                 title: evt.name,
@@ -409,6 +434,7 @@ export default function createMonthlyGuidePage(config) {
                 externalUrl: evt.link || null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
+                areaName,
                 isTradition: false,
                 isBigBoard: false,
                 isGroupEvent: false,
@@ -435,6 +461,7 @@ export default function createMonthlyGuidePage(config) {
                 ...evt,
                 isBigBoard: true,
               });
+              const areaName = evt.area_id ? areaLookup[evt.area_id] || null : null;
               return {
                 id: evt.id,
                 title: evt.title,
@@ -452,6 +479,7 @@ export default function createMonthlyGuidePage(config) {
                 externalUrl: null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
+                areaName,
                 isTradition: false,
                 isBigBoard: true,
                 isGroupEvent: false,
@@ -472,6 +500,7 @@ export default function createMonthlyGuidePage(config) {
                 ...evt,
                 isTradition: true,
               });
+              const areaName = evt.area_id ? areaLookup[evt.area_id] || null : null;
               return {
                 id: evt.id,
                 title: evt['E Name'],
@@ -487,6 +516,7 @@ export default function createMonthlyGuidePage(config) {
                 externalUrl: null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
+                areaName,
                 isTradition: true,
                 isBigBoard: false,
                 isGroupEvent: false,
@@ -516,6 +546,7 @@ export default function createMonthlyGuidePage(config) {
                 group_slug: evt.groups?.slug,
                 isGroupEvent: true,
               });
+              const areaName = evt.area_id ? areaLookup[evt.area_id] || null : null;
               return {
                 id: evt.id,
                 title: evt.title,
@@ -534,6 +565,7 @@ export default function createMonthlyGuidePage(config) {
                 externalUrl: null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
+                areaName,
                 isTradition: false,
                 isBigBoard: false,
                 isGroupEvent: true,
@@ -554,6 +586,7 @@ export default function createMonthlyGuidePage(config) {
                 ...evt,
                 isSeasonal: true,
               });
+              const areaName = evt.area_id ? areaLookup[evt.area_id] || null : null;
               return {
                 id: evt.id,
                 title: evt.name,
@@ -570,6 +603,7 @@ export default function createMonthlyGuidePage(config) {
                 externalUrl: null,
                 taggableId: String(evt.id),
                 favoriteId: evt.id,
+                areaName,
                 isTradition: false,
                 isBigBoard: false,
                 isGroupEvent: false,
@@ -604,6 +638,7 @@ export default function createMonthlyGuidePage(config) {
               return;
             }
             const occurrences = rule.between(monthStart, monthEnd, true);
+            const areaName = series.area_id ? areaLookup[series.area_id] || null : null;
             occurrences.forEach(instance => {
               const local = new Date(instance.getFullYear(), instance.getMonth(), instance.getDate());
               const startDate = setStartOfDay(local);
@@ -636,6 +671,7 @@ export default function createMonthlyGuidePage(config) {
                 externalUrl: series.link || null,
                 taggableId: String(series.id),
                 favoriteId: String(series.id),
+                areaName,
                 isTradition: false,
                 isBigBoard: false,
                 isGroupEvent: false,
@@ -1131,6 +1167,9 @@ export default function createMonthlyGuidePage(config) {
                           const summary = evt.description?.trim() || 'Details coming soon.';
                           const shouldRenderPastHeading =
                             hasPastEvents && upcomingCount > 0 && index === upcomingCount;
+                          const areaLabel = [evt.areaName, evt.area?.name, evt.area_name]
+                            .map(candidate => (typeof candidate === 'string' ? candidate.trim() : ''))
+                            .find(Boolean);
                           return (
                             <React.Fragment key={`${evt.source_table}-${evt.id}`}>
                               {shouldRenderPastHeading && (
@@ -1152,6 +1191,12 @@ export default function createMonthlyGuidePage(config) {
                                       loading="lazy"
                                       className="absolute inset-0 h-full w-full object-cover"
                                     />
+                                    {areaLabel && (
+                                      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-[#28313e]/90 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white">
+                                        <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+                                        <span className="truncate">{areaLabel}</span>
+                                      </div>
+                                    )}
                                     {evt.isTradition && (
                                       <span className="absolute top-2 left-2 bg-yellow-100 text-yellow-700 text-xs font-semibold px-2 py-0.5 rounded-full">
                                         Tradition
@@ -1163,12 +1208,16 @@ export default function createMonthlyGuidePage(config) {
                                       </span>
                                     )}
                                     {evt.isGroupEvent && (
-                                      <span className="absolute bottom-2 left-2 bg-green-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                      <span
+                                        className={`absolute ${areaLabel ? 'bottom-12' : 'bottom-2'} left-2 bg-green-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full`}
+                                      >
                                         Group Event
                                       </span>
                                     )}
                                     {evt.isSeasonal && (
-                                      <span className="absolute bottom-2 right-2 bg-orange-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                      <span
+                                        className={`absolute ${areaLabel ? 'bottom-12' : 'bottom-2'} right-2 bg-orange-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full`}
+                                      >
                                         Seasonal
                                       </span>
                                     )}
