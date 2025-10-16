@@ -5,7 +5,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { RRule } from 'rrule';
 import { FaStar } from 'react-icons/fa';
-import { ArrowRight, Filter, Sparkles, XCircle } from 'lucide-react';
+import { ArrowRight, Filter, MapPin, Sparkles, XCircle } from 'lucide-react';
 
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -91,6 +91,17 @@ function formatTime(timeStr) {
 
 function cloneDate(date) {
   return new Date(date.getTime());
+}
+
+function getVenueAreaId(venue) {
+  if (!venue) return null;
+  if (Array.isArray(venue)) {
+    for (const entry of venue) {
+      if (entry?.area_id) return entry.area_id;
+    }
+    return null;
+  }
+  return venue.area_id || null;
 }
 
 function TagFilterModal({ open, tags, selectedTags, onToggle, onClose }) {
@@ -193,6 +204,7 @@ async function fetchBigBoardEvents() {
       end_time,
       end_date,
       slug,
+      area_id,
       big_board_posts!big_board_posts_event_id_fkey (image_url)
     `)
     .order('start_date', { ascending: true });
@@ -231,7 +243,8 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
         end_time,
         end_date,
         slug,
-        venues:venue_id(name, slug)
+        area_id,
+        venues:venue_id(area_id, name, slug)
       `);
 
   if (startFilter && endFilter) {
@@ -245,7 +258,8 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
 
   allEventsQuery = allEventsQuery.order('start_date', { ascending: true }).limit(5000);
 
-  const [allEventsRes, traditionsRes, groupEventsRes, recurringRes, bigBoardEvents, sportsEvents] = await Promise.all([
+  const [areasRes, allEventsRes, traditionsRes, groupEventsRes, recurringRes, bigBoardEvents, sportsEvents] = await Promise.all([
+    supabase.from('areas').select('id,name'),
     allEventsQuery,
     supabase
       .from('events')
@@ -257,7 +271,8 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
         "End Date",
         "E Image",
         slug,
-        start_time
+        start_time,
+        area_id
       `)
       .order('Dates', { ascending: true }),
     supabase
@@ -281,19 +296,22 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
         start_time,
         end_time,
         rrule,
-        image_url
+        image_url,
+        area_id
       `)
       .eq('is_active', true),
     fetchBigBoardEvents(),
     fetchSportsEvents(),
   ]);
 
+  if (areasRes.error) throw areasRes.error;
   if (allEventsRes.error) throw allEventsRes.error;
   if (traditionsRes.error) throw traditionsRes.error;
   if (groupEventsRes.error) throw groupEventsRes.error;
   if (recurringRes.error) throw recurringRes.error;
 
   return {
+    areaLookup: Object.fromEntries((areasRes.data || []).map(area => [area.id, area.name])),
     allEvents: allEventsRes.data || [],
     traditions: traditionsRes.data || [],
     groupEvents: groupEventsRes.data || [],
@@ -316,6 +334,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
     rangeDays.push(toPhillyISODate(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
+
+  const areaLookup = baseData.areaLookup || {};
 
   const bigBoard = (baseData.bigBoard || [])
     .map(ev => {
@@ -345,6 +365,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         source: 'big_board_events',
         source_table: 'big_board_events',
         favoriteId: ev.id,
+        area_id: ev.area_id,
+        areaName: ev.area_id ? areaLookup[ev.area_id] || null : null,
       };
     });
 
@@ -363,6 +385,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         endDate: end,
         slug: row.slug,
         start_time: row.start_time || null,
+        area_id: row.area_id,
+        areaName: row.area_id ? areaLookup[row.area_id] || null : null,
       };
     })
     .filter(Boolean)
@@ -385,6 +409,9 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       const [ye, me, de] = endKey.split('-').map(Number);
       const startDate = new Date(ys, ms - 1, ds);
       const endDate = new Date(ye, me - 1, de);
+      const venueAreaId = getVenueAreaId(evt.venues);
+      const areaName =
+        (evt.area_id && areaLookup[evt.area_id]) || (venueAreaId && areaLookup[venueAreaId]) || null;
       return {
         id: `event-${evt.id}`,
         sourceId: evt.id,
@@ -399,6 +426,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         end_time: evt.end_time,
         slug: evt.slug,
         venues: evt.venues,
+        area_id: evt.area_id,
+        areaName,
       };
     })
     .filter(Boolean)
@@ -456,6 +485,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
           source: 'recurring_events',
           source_table: 'recurring_events',
           favoriteId: series.id,
+          area_id: series.area_id,
+          areaName: series.area_id ? areaLookup[series.area_id] || null : null,
         };
       });
     } catch (err) {
@@ -509,6 +540,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         group: groupRecord,
         isFeaturedGroup,
         groupStatus: groupRecord?.status || '',
+        area_id: evt.area_id,
+        areaName: evt.area_id ? areaLookup[evt.area_id] || null : null,
       };
     })
     .filter(Boolean)
@@ -598,6 +631,10 @@ function EventListItem({ event, now, tags = [], variant = 'default' }) {
   const navigate = useNavigate();
   const label = formatEventTiming(event, now);
   const badges = event.badges || [];
+  const areaLabel =
+    [event.areaName, event.area?.name, event.area_name]
+      .map(candidate => (typeof candidate === 'string' ? candidate.trim() : ''))
+      .find(Boolean) || null;
   const Wrapper = event.detailPath ? Link : 'div';
   const wrapperProps = event.detailPath ? { to: event.detailPath } : {};
   const baseContainerClass =
@@ -658,6 +695,12 @@ function EventListItem({ event, now, tags = [], variant = 'default' }) {
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
               <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{label}</span>
+              {areaLabel && (
+                <span className="inline-flex items-center gap-1 bg-[#f2cfc3] text-[#29313f] px-2 py-0.5 rounded-full normal-case">
+                  <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                  {areaLabel}
+                </span>
+              )}
               {badges.map(badge => (
                 <span
                   key={badge}
