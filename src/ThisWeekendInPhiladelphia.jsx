@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Filter, List, XCircle } from 'lucide-react';
+import { Filter, List, MapPin, XCircle } from 'lucide-react';
 import { RRule } from 'rrule';
 import { FaStar } from 'react-icons/fa';
 import Navbar from './Navbar';
@@ -164,6 +164,7 @@ export default function ThisWeekendInPhiladelphia() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isListView, setIsListView] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [areaLookup, setAreaLookup] = useState({});
 
   const today = useMemo(() => setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE)), []);
 
@@ -179,6 +180,34 @@ export default function ThisWeekendInPhiladelphia() {
         }
         setAllTags(data || []);
       });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('areas')
+      .select('id,name')
+      .order('name', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('areas load error', error);
+          return;
+        }
+        if (cancelled) return;
+        const lookup = {};
+        (data || []).forEach(area => {
+          if (!area?.id) return;
+          lookup[area.id] = area.name || '';
+        });
+        setAreaLookup(lookup);
+      })
+      .catch(error => {
+        console.error('areas load error', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -294,12 +323,14 @@ export default function ThisWeekendInPhiladelphia() {
         start_time,
         end_time,
         slug,
+        area_id,
         venue_id,
         venues:venue_id (
           name,
           slug,
           latitude,
-          longitude
+          longitude,
+          area_id
         )
       `);
 
@@ -325,6 +356,7 @@ export default function ThisWeekendInPhiladelphia() {
         start_time,
         end_time,
         slug,
+        area_id,
         latitude,
         longitude,
         big_board_posts!big_board_posts_event_id_fkey (
@@ -345,7 +377,8 @@ export default function ThisWeekendInPhiladelphia() {
         "E Image",
         slug,
         start_time,
-        end_time
+        end_time,
+        area_id
       `)
       .order('Dates', { ascending: true });
 
@@ -373,7 +406,8 @@ export default function ThisWeekendInPhiladelphia() {
         rrule,
         image_url,
         latitude,
-        longitude
+        longitude,
+        area_id
       `)
       .eq('is_active', true);
 
@@ -425,6 +459,7 @@ export default function ThisWeekendInPhiladelphia() {
               end_time: evt.end_time,
               slug: evt.slug,
               venues: evt.venues,
+              area_id: evt.area_id || null,
               isTradition: false,
               isBigBoard: false,
               isGroupEvent: false,
@@ -471,6 +506,7 @@ export default function ThisWeekendInPhiladelphia() {
               latitude: evt.latitude,
               longitude: evt.longitude,
               owner_id: evt.big_board_posts?.[0]?.user_id || null,
+              area_id: evt.area_id || null,
               isTradition: false,
               isBigBoard: true,
               isGroupEvent: false,
@@ -501,6 +537,7 @@ export default function ThisWeekendInPhiladelphia() {
               start_time: evt.start_time,
               end_time: evt.end_time,
               slug: evt.slug,
+              area_id: evt.area_id || null,
               isTradition: true,
               isBigBoard: false,
               isGroupEvent: false,
@@ -542,6 +579,7 @@ export default function ThisWeekendInPhiladelphia() {
               group_slug: group?.slug || null,
               slug: evt.slug || String(evt.id),
               groupName: group?.Name || group?.name || '',
+              area_id: evt.area_id || null,
               isTradition: false,
               isBigBoard: false,
               isGroupEvent: true,
@@ -615,6 +653,7 @@ export default function ThisWeekendInPhiladelphia() {
             end_time: series.end_time,
             link: `/${series.slug}/${dateStr}`,
             address: series.address,
+            area_id: series.area_id || null,
             isTradition: false,
             isBigBoard: false,
             isGroupEvent: false,
@@ -954,6 +993,17 @@ export default function ThisWeekendInPhiladelphia() {
                       venue_slug: evt.venues?.slug,
                     }) || '/';
                   const linkProps = { to: detailPath };
+                  const venueAreaId = Array.isArray(evt.venues)
+                    ? evt.venues[0]?.area_id
+                    : evt.venues?.area_id;
+                  const areaLabel =
+                    evt.areaName ||
+                    evt.area?.name ||
+                    evt.area?.Name ||
+                    (typeof evt.area === 'string' ? evt.area : null) ||
+                    (evt.area_id && areaLookup[evt.area_id]) ||
+                    (venueAreaId && areaLookup[venueAreaId]) ||
+                    null;
 
                   return (
                     <FavoriteState
@@ -1026,17 +1076,20 @@ export default function ThisWeekendInPhiladelphia() {
                                           src={evt.imageUrl || evt.image || ''}
                                           alt={evt.title || evt.name}
                                           className="w-full h-full object-cover"
-                                        />
-                                      ) : null}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
-                                        <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{timingLabel}</span>
-                                        {badges.map(badge => (
-                                          <span
-                                            key={badge}
-                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${
-                                              badge === 'Tradition'
+                                    />
+                                  ) : null}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
+                                    <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{timingLabel}</span>
+                                    {areaLabel && (
+                                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">{areaLabel}</span>
+                                    )}
+                                    {badges.map(badge => (
+                                      <span
+                                        key={badge}
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${
+                                          badge === 'Tradition'
                                                 ? 'bg-yellow-100 text-yellow-800'
                                                 : badge === 'Submission'
                                                   ? 'bg-purple-100 text-purple-800'
@@ -1093,6 +1146,15 @@ export default function ThisWeekendInPhiladelphia() {
                                 : `bg-white ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`
                             }`}
                           >
+                            {areaLabel && (
+                              <div
+                                className="flex items-center justify-center gap-1 bg-[#28313e] px-3 py-1 text-xs font-semibold leading-none text-white"
+                                title={areaLabel}
+                              >
+                                <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+                                <span className="truncate">{areaLabel}</span>
+                              </div>
+                            )}
                             <div className="relative w-full h-48">
                               <img
                                 src={evt.imageUrl || evt.image || ''}
