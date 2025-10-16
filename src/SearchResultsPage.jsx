@@ -184,6 +184,7 @@ async function fetchBigBoardEvents() {
       end_time,
       end_date,
       slug,
+      area_id,
       big_board_posts!big_board_posts_event_id_fkey (image_url)
     `)
     .order('start_date', { ascending: true });
@@ -222,8 +223,9 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
         end_time,
         end_date,
         slug,
+        area_id,
         venue_id,
-        venues:venue_id(name, slug)
+        venues:venue_id(area_id, name, slug)
       `);
 
   if (startFilter && endFilter) {
@@ -237,55 +239,61 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
 
   allEventsQuery = allEventsQuery.order('start_date', { ascending: true }).limit(5000);
 
-  const [allEventsRes, traditionsRes, groupEventsRes, recurringRes, bigBoardEvents, sportsEvents] = await Promise.all([
-    allEventsQuery,
-    supabase
-      .from('events')
-      .select(`
-        id,
-        "E Name",
-        "E Description",
-        Dates,
-        "End Date",
-        "E Image",
-        slug,
-        start_time
-      `)
-      .order('Dates', { ascending: true }),
-    supabase
-      .from('group_events')
-      .select(`
-        *,
-        groups(Name, imag, slug, status)
-      `)
-      .order('start_date', { ascending: true }),
-    supabase
-      .from('recurring_events')
-      .select(`
-        id,
-        name,
-        description,
-        address,
-        link,
-        slug,
-        start_date,
-        end_date,
-        start_time,
-        end_time,
-        rrule,
-        image_url
-      `)
-      .eq('is_active', true),
-    fetchBigBoardEvents(),
-    fetchSportsEvents(),
-  ]);
+  const [areasRes, allEventsRes, traditionsRes, groupEventsRes, recurringRes, bigBoardEvents, sportsEvents] =
+    await Promise.all([
+      supabase.from('areas').select('id,name'),
+      allEventsQuery,
+      supabase
+        .from('events')
+        .select(`
+          id,
+          "E Name",
+          "E Description",
+          Dates,
+          "End Date",
+          "E Image",
+          slug,
+          start_time,
+          area_id
+        `)
+        .order('Dates', { ascending: true }),
+      supabase
+        .from('group_events')
+        .select(`
+          *,
+          groups(Name, imag, slug, status)
+        `)
+        .order('start_date', { ascending: true }),
+      supabase
+        .from('recurring_events')
+        .select(`
+          id,
+          name,
+          description,
+          address,
+          link,
+          slug,
+          start_date,
+          end_date,
+          start_time,
+          end_time,
+          rrule,
+          image_url,
+          area_id
+        `)
+        .eq('is_active', true),
+      fetchBigBoardEvents(),
+      fetchSportsEvents(),
+    ]);
 
+  if (areasRes.error) throw areasRes.error;
   if (allEventsRes.error) throw allEventsRes.error;
   if (traditionsRes.error) throw traditionsRes.error;
   if (groupEventsRes.error) throw groupEventsRes.error;
   if (recurringRes.error) throw recurringRes.error;
 
   return {
+    areaLookup: Object.fromEntries((areasRes.data || []).map((area) => [area.id, area.name])),
     allEvents: allEventsRes.data || [],
     traditions: traditionsRes.data || [],
     groupEvents: groupEventsRes.data || [],
@@ -303,6 +311,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
   const MS_PER_DAY = 1000 * 60 * 60 * 24;
   const rangeDays = [];
   const cursor = setStartOfDay(cloneDate(rangeStart));
+  const areaLookup = baseData.areaLookup || {};
   while (cursor.getTime() <= rangeEnd.getTime()) {
     rangeDays.push(toPhillyISODate(cursor));
     cursor.setDate(cursor.getDate() + 1);
@@ -334,6 +343,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       source_table: 'big_board_events',
       favoriteId: ev.id,
       badges: ['Submission'],
+      areaName: ev.area_id ? areaLookup[ev.area_id] || null : null,
     }));
 
   const traditions = (baseData.traditions || [])
@@ -351,6 +361,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         endDate: end,
         slug: row.slug,
         start_time: row.start_time || null,
+        areaName: row.area_id ? areaLookup[row.area_id] || null : null,
       };
     })
     .filter(Boolean)
@@ -373,6 +384,10 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       const [ye, me, de] = endKey.split('-').map(Number);
       const startDate = new Date(ys, ms - 1, ds);
       const endDate = new Date(ye, me - 1, de);
+      const venue = evt.venues;
+      const venueAreaId = Array.isArray(venue) ? venue[0]?.area_id : venue?.area_id;
+      const areaName =
+        (evt.area_id && areaLookup[evt.area_id]) || (venueAreaId && areaLookup[venueAreaId]) || null;
       return {
         id: `event-${evt.id}`,
         sourceId: evt.id,
@@ -387,6 +402,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         end_time: evt.end_time,
         slug: evt.slug,
         venues: evt.venues,
+        areaName,
+        area_id: evt.area_id,
       };
     })
     .filter(Boolean)
@@ -444,6 +461,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
           source: 'recurring_events',
           source_table: 'recurring_events',
           favoriteId: series.id,
+          areaName: series.area_id ? areaLookup[series.area_id] || null : null,
+          area_id: series.area_id,
         };
       });
     } catch (err) {
@@ -497,6 +516,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         group: groupRecord,
         isFeaturedGroup,
         groupStatus: groupRecord?.status || '',
+        areaName: evt.area_id ? areaLookup[evt.area_id] || null : null,
       };
     })
     .filter(Boolean)
@@ -517,6 +537,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         externalUrl: evt.url,
         source: 'sports',
         badges: ['Sports'],
+        areaName: null,
       };
     })
     .filter(Boolean)
@@ -580,6 +601,12 @@ function EventListItem({ event, now, tags = [] }) {
   const navigate = useNavigate();
   const label = formatEventTiming(event, now);
   const badges = event.badges || [];
+  const areaLabel =
+    event.areaName ||
+    event.area?.name ||
+    event.area?.Name ||
+    (typeof event.area === 'string' ? event.area : null) ||
+    null;
   const Wrapper = event.detailPath ? Link : 'div';
   const wrapperProps = event.detailPath ? { to: event.detailPath } : {};
   const containerClass = event.detailPath
@@ -635,6 +662,9 @@ function EventListItem({ event, now, tags = [] }) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
               <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-800">{label}</span>
+              {areaLabel && (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">{areaLabel}</span>
+              )}
               {badges.map((badge) => (
                 <span
                   key={badge}
