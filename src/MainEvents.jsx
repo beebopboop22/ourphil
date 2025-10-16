@@ -239,6 +239,7 @@ async function fetchBigBoardEvents() {
       end_time,
       end_date,
       slug,
+      area_id,
       big_board_posts!big_board_posts_event_id_fkey (image_url)
     `)
     .order('start_date', { ascending: true });
@@ -261,7 +262,8 @@ async function fetchBigBoardEvents() {
 }
 
 async function fetchBaseData() {
-  const [allEventsRes, traditionsRes, groupEventsRes, recurringRes, bigBoardEvents, sportsEvents] = await Promise.all([
+  const [areasRes, allEventsRes, traditionsRes, groupEventsRes, recurringRes, bigBoardEvents, sportsEvents] = await Promise.all([
+    supabase.from('areas').select('id,name'),
     supabase
       .from('all_events')
       .select(`
@@ -275,7 +277,8 @@ async function fetchBaseData() {
         end_time,
         end_date,
         slug,
-        venue_id(name, slug)
+        area_id,
+        venue_id(area_id, name, slug)
       `)
       .order('start_date', { ascending: true }),
     supabase
@@ -288,7 +291,8 @@ async function fetchBaseData() {
         "End Date",
         "E Image",
         slug,
-        start_time
+        start_time,
+        area_id
       `)
       .order('Dates', { ascending: true }),
     supabase
@@ -312,19 +316,22 @@ async function fetchBaseData() {
         start_time,
         end_time,
         rrule,
-        image_url
+        image_url,
+        area_id
       `)
       .eq('is_active', true),
     fetchBigBoardEvents(),
     fetchSportsEvents(),
   ]);
 
+  if (areasRes.error) throw areasRes.error;
   if (allEventsRes.error) throw allEventsRes.error;
   if (traditionsRes.error) throw traditionsRes.error;
   if (groupEventsRes.error) throw groupEventsRes.error;
   if (recurringRes.error) throw recurringRes.error;
 
   return {
+    areaLookup: Object.fromEntries((areasRes.data || []).map(area => [area.id, area.name])),
     allEvents: allEventsRes.data || [],
     traditions: traditionsRes.data || [],
     groupEvents: groupEventsRes.data || [],
@@ -338,7 +345,7 @@ function eventOverlapsRange(start, end, rangeStart, rangeEnd) {
   return start <= rangeEnd && end >= rangeStart;
 }
 
-function mapGroupEventToCard(evt) {
+function mapGroupEventToCard(evt, areaLookup = {}) {
   const start = parseISODateInPhilly((evt.start_date || '').slice(0, 10));
   if (!start) return null;
   const groupRecord = Array.isArray(evt.groups) ? evt.groups[0] : evt.groups;
@@ -381,12 +388,14 @@ function mapGroupEventToCard(evt) {
     source_table: 'group_events',
     favoriteId: evt.id,
     group,
+    areaName: evt.area_id ? areaLookup[evt.area_id] || null : null,
   };
 }
 
 function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   const rangeStartMs = rangeStart.getTime();
   const rangeEndMs = rangeEnd.getTime();
+  const areaLookup = baseData.areaLookup || {};
 
   const bigBoard = (baseData.bigBoard || [])
     .map(ev => {
@@ -416,6 +425,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         detailPath,
         source_table: 'big_board_events',
         favoriteId: ev.id,
+        areaName: ev.area_id ? areaLookup[ev.area_id] || null : null,
       };
     })
     .sort((a, b) => a.startDate - b.startDate || (a.start_time || '').localeCompare(b.start_time || ''));
@@ -436,6 +446,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         slug: row.slug,
         isTradition: true,
         start_time: row.start_time ?? row.time ?? row['Start Time'] ?? null,
+        areaName: row.area_id ? areaLookup[row.area_id] || null : null,
       };
     })
     .filter(Boolean)
@@ -454,6 +465,10 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
       const start = parseISODateInPhilly(rawStart);
       if (!start) return null;
       const end = parseISODateInPhilly((evt.end_date || '').slice(0, 10)) || start;
+      const venue = evt.venue_id;
+      const venueAreaId = Array.isArray(venue) ? venue[0]?.area_id : venue?.area_id;
+      const areaName =
+        (evt.area_id && areaLookup[evt.area_id]) || (venueAreaId && areaLookup[venueAreaId]) || null;
       return {
         id: `event-${evt.id}`,
         sourceId: evt.id,
@@ -464,7 +479,9 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         endDate: end,
         start_time: evt.start_time,
         slug: evt.slug,
-        venues: evt.venue_id,
+        venues: venue,
+        areaName,
+        area_id: evt.area_id,
       };
     })
     .filter(Boolean)
@@ -507,6 +524,8 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
           }),
           source_table: 'recurring_events',
           favoriteId: series.id,
+          areaName: series.area_id ? areaLookup[series.area_id] || null : null,
+          area_id: series.area_id,
         };
       });
     } catch (err) {
@@ -516,7 +535,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   }).sort((a, b) => a.startDate - b.startDate || (a.start_time || '').localeCompare(b.start_time || ''));
 
   const groupEvents = (baseData.groupEvents || [])
-    .map(mapGroupEventToCard)
+    .map(evt => mapGroupEventToCard(evt, areaLookup))
     .filter(Boolean)
     .filter(ev => eventOverlapsRange(ev.startDate, ev.startDate, rangeStart, rangeEnd))
     .sort((a, b) => a.startDate - b.startDate || (a.start_time || '').localeCompare(b.start_time || ''));
@@ -565,6 +584,7 @@ function buildTraditionsSection(baseData, rangeStart, rangeEnd, limit = 8) {
     ? setStartOfDay(cloneDate(rangeStart))
     : setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE));
   const endBoundary = rangeEnd ? setEndOfDay(cloneDate(rangeEnd)) : null;
+  const areaLookup = baseData.areaLookup || {};
 
   const traditions = (baseData.traditions || [])
     .map(row => {
@@ -581,6 +601,7 @@ function buildTraditionsSection(baseData, rangeStart, rangeEnd, limit = 8) {
         endDate: end,
         slug: row.slug,
         start_time: row.start_time ?? row.time ?? row['Start Time'] ?? null,
+        areaName: row.area_id ? areaLookup[row.area_id] || null : null,
       };
     })
     .filter(Boolean)
@@ -622,8 +643,9 @@ function buildFeaturedCommunities(baseData, referenceStart, limit = 4) {
   const startBoundary = referenceStart
     ? setStartOfDay(cloneDate(referenceStart))
     : setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE));
+  const areaLookup = baseData.areaLookup || {};
   const events = (baseData.groupEvents || [])
-    .map(mapGroupEventToCard)
+    .map(evt => mapGroupEventToCard(evt, areaLookup))
     .filter(event => event && event.group?.status === 'home')
     .filter(event => event.startDate >= startBoundary)
     .sort((a, b) => a.startDate - b.startDate || (a.start_time || '').localeCompare(b.start_time || ''));
@@ -706,6 +728,11 @@ function EventCard({ event, tags = [], showDatePill = false }) {
     ? formatFeaturedCommunityDateLabel(startDate, { endDate, isActive })
     : '';
 
+  const areaLabel =
+    [event.areaName, event.area?.name]
+      .map(candidate => (typeof candidate === 'string' ? candidate.trim() : ''))
+      .find(Boolean) || null;
+
   const handleFavoriteClick = e => {
     e.preventDefault();
     e.stopPropagation();
@@ -722,6 +749,15 @@ function EventCard({ event, tags = [], showDatePill = false }) {
         isFavorite && canFavorite ? 'ring-2 ring-indigo-600' : ''
       }`}
     >
+      {areaLabel && (
+        <div
+          className="flex items-center justify-center gap-1 bg-[#28313e] px-3 py-1 text-xs font-semibold leading-none text-white"
+          title={areaLabel}
+        >
+          <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+          <span className="truncate">{areaLabel}</span>
+        </div>
+      )}
       <div className="relative h-40 w-full overflow-hidden bg-gray-100">
         {event.imageUrl ? (
           <img src={event.imageUrl} alt={event.title} className="h-full w-full object-cover" loading="lazy" />
@@ -1028,6 +1064,7 @@ export default function MainEvents() {
       iconBg: iconStyles[index % iconStyles.length],
     }));
   }, []);
+  const [areaLookup, setAreaLookup] = useState({});
   const [savedEvents, setSavedEvents] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [showFlyerModal, setShowFlyerModal] = useState(false);
@@ -1098,6 +1135,7 @@ export default function MainEvents() {
         setLoading(true);
         const baseData = await fetchBaseData();
         if (cancelled) return;
+        setAreaLookup(baseData.areaLookup || {});
         setSections({
           today: buildEventsForRange(rangeMeta.today.start, rangeMeta.today.end, baseData),
           tomorrow: buildEventsForRange(rangeMeta.tomorrow.start, rangeMeta.tomorrow.end, baseData),
@@ -1183,7 +1221,7 @@ export default function MainEvents() {
         if (idsByTable.all_events?.length) {
           const { data } = await supabase
             .from('all_events')
-            .select('id,name,slug,image,start_date,venues:venue_id(slug)')
+            .select('id,name,slug,image,start_date,area_id,venues:venue_id(area_id,slug)')
             .in('id', idsByTable.all_events);
           data?.forEach(row => {
             aggregated.push({
@@ -1194,13 +1232,15 @@ export default function MainEvents() {
               start_date: row.start_date,
               source_table: 'all_events',
               venues: row.venues,
+              area_id: row.area_id,
+              areaName: row.area_id ? areaLookup[row.area_id] || null : null,
             });
           });
         }
         if (idsByTable.events?.length) {
           const { data } = await supabase
             .from('events')
-            .select('id,slug,"E Name","E Image",Dates,"End Date",start_time')
+            .select('id,slug,"E Name","E Image",Dates,"End Date",start_time,area_id')
             .in('id', idsByTable.events);
           data?.forEach(row => {
             aggregated.push({
@@ -1212,13 +1252,15 @@ export default function MainEvents() {
               end_date: row['End Date'],
               start_time: row.start_time ?? row['Start Time'] ?? null,
               source_table: 'events',
+              area_id: row.area_id,
+              areaName: row.area_id ? areaLookup[row.area_id] || null : null,
             });
           });
         }
         if (idsByTable.big_board_events?.length) {
           const { data } = await supabase
             .from('big_board_events')
-            .select('id,slug,title,start_date,start_time,big_board_posts!big_board_posts_event_id_fkey(image_url)')
+            .select('id,slug,title,start_date,start_time,area_id,big_board_posts!big_board_posts_event_id_fkey(image_url)')
             .in('id', idsByTable.big_board_events);
           data?.forEach(event => {
             let imageUrl = '';
@@ -1237,13 +1279,15 @@ export default function MainEvents() {
               start_time: event.start_time,
               imageUrl,
               source_table: 'big_board_events',
+              area_id: event.area_id,
+              areaName: event.area_id ? areaLookup[event.area_id] || null : null,
             });
           });
         }
         if (idsByTable.group_events?.length) {
           const { data } = await supabase
             .from('group_events')
-            .select('id,slug,title,start_date,start_time,groups(imag,slug)')
+            .select('id,slug,title,start_date,start_time,area_id,groups(imag,slug)')
             .in('id', idsByTable.group_events);
           data?.forEach(event => {
             aggregated.push({
@@ -1255,13 +1299,15 @@ export default function MainEvents() {
               image: event.groups?.imag || '',
               group: event.groups,
               source_table: 'group_events',
+              area_id: event.area_id,
+              areaName: event.area_id ? areaLookup[event.area_id] || null : null,
             });
           });
         }
         if (idsByTable.recurring_events?.length) {
           const { data } = await supabase
             .from('recurring_events')
-            .select('id,slug,name,start_date,start_time,end_date,rrule,image_url')
+            .select('id,slug,name,start_date,start_time,end_date,rrule,image_url,area_id')
             .in('id', idsByTable.recurring_events);
           data?.forEach(series => {
             aggregated.push({
@@ -1274,6 +1320,8 @@ export default function MainEvents() {
               imageUrl: series.image_url,
               rrule: series.rrule,
               source_table: 'recurring_events',
+              area_id: series.area_id,
+              areaName: series.area_id ? areaLookup[series.area_id] || null : null,
             });
           });
         }
@@ -1367,7 +1415,7 @@ export default function MainEvents() {
     return () => {
       cancelled = true;
     };
-  }, [user, todayInPhilly]);
+  }, [user, todayInPhilly, areaLookup]);
 
   const handleDatePick = date => {
     if (!date) return;
