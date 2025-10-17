@@ -1047,6 +1047,8 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [limitToMap, setLimitToMap] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [userPosition, setUserPosition] = useState(null);
   const [bounds, setBounds] = useState(null);
   const [geoError, setGeoError] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -1619,28 +1621,46 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   }, [selectEvent]);
 
   const handleLocateMe = useCallback(() => {
-    setGeoError('');
+    if (isLocating) return;
     if (!navigator?.geolocation) {
+      setUserPosition(null);
       setGeoError('Geolocation is not available in this browser.');
       return;
     }
+    setIsLocating(true);
+    setGeoError('');
     navigator.geolocation.getCurrentPosition(
       position => {
         const { latitude, longitude } = position.coords;
+        setUserPosition({ latitude, longitude });
+        setLimitToMap(true);
         setViewState(current => ({
           ...current,
           latitude,
           longitude,
-          zoom: Math.max(current.zoom, 13),
+          zoom: Math.max(current.zoom ?? DEFAULT_VIEW.zoom, 13),
           transitionDuration: 600,
         }));
+        const map = mapRef.current?.getMap?.() || mapRef.current;
+        if (map?.flyTo) {
+          map.flyTo({
+            center: [longitude, latitude],
+            zoom: Math.max(map.getZoom?.() ?? DEFAULT_VIEW.zoom, 13),
+            essential: true,
+          });
+        }
+        updateBounds(map);
+        setIsLocating(false);
+        setGeoError('');
       },
       err => {
+        setUserPosition(null);
         setGeoError(err.message || 'Unable to determine your location.');
+        setIsLocating(false);
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
-  }, []);
+  }, [isLocating, updateBounds]);
 
   const activeRangeLabel = useMemo(() => {
     if (!rangeStart || !rangeEnd) return '';
@@ -1831,11 +1851,14 @@ function LabsMapPage({ clusterEvents = true } = {}) {
             <button
               type="button"
               onClick={handleLocateMe}
-              className="inline-flex items-center gap-2 rounded-full border border-[#bf3d35]/40 bg-white px-4 py-2 text-sm font-semibold text-[#bf3d35] transition hover:border-[#bf3d35] hover:bg-[#bf3d35]/10"
+              disabled={isLocating}
+              className="inline-flex items-center gap-2 rounded-full border border-[#bf3d35]/40 bg-white px-4 py-2 text-sm font-semibold text-[#bf3d35] transition hover:border-[#bf3d35] hover:bg-[#bf3d35]/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Near me
+              {isLocating ? 'Locating…' : 'Near me'}
             </button>
-            {geoError && <span className="text-xs text-rose-500">{geoError}</span>}
+            {geoError && (
+              <span className="text-xs font-medium text-rose-500">{geoError}</span>
+            )}
             {!limitToMap && (
               <span className="basis-full text-xs text-[#9ba3b2]">
                 Keep this toggled off to let the map surface surprises beyond the current frame.

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Map, { Marker, Popup } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -45,12 +45,51 @@ export default function MonthlyEventsMap({ events = [], height = 360 }) {
 
   const [viewState, setViewState] = useState(DEFAULT_VIEW_STATE);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [geoError, setGeoError] = useState('');
+  const mapRef = useRef(null);
 
   useEffect(() => {
     if (validEvents.length) {
       setViewState(view => ({ ...view, ...calculateCenter(validEvents) }));
     }
   }, [validEvents]);
+
+  const handleLocateMe = useCallback(() => {
+    if (isLocating) return;
+    if (!navigator?.geolocation) {
+      setGeoError('Geolocation is not available in this browser.');
+      return;
+    }
+    setIsLocating(true);
+    setGeoError('');
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const { latitude, longitude } = position.coords;
+        setViewState(current => ({
+          ...current,
+          latitude,
+          longitude,
+          zoom: Math.max(current.zoom ?? DEFAULT_VIEW_STATE.zoom, 13),
+        }));
+        const map = mapRef.current?.getMap?.() || mapRef.current;
+        if (map?.flyTo) {
+          map.flyTo({
+            center: [longitude, latitude],
+            zoom: Math.max(map.getZoom?.() ?? DEFAULT_VIEW_STATE.zoom, 13),
+            essential: true,
+          });
+        }
+        setIsLocating(false);
+        setGeoError('');
+      },
+      err => {
+        setGeoError(err.message || 'Unable to determine your location.');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }, [isLocating]);
 
   if (!mapboxToken) {
     return (
@@ -66,8 +105,24 @@ export default function MonthlyEventsMap({ events = [], height = 360 }) {
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-gray-200 shadow-sm" style={{ height }}>
+      <div className="pointer-events-none absolute right-3 top-3 z-10 flex max-w-[60%] flex-col items-end gap-1 text-xs">
+        <button
+          type="button"
+          onClick={handleLocateMe}
+          disabled={isLocating}
+          className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-indigo-500/60 bg-white px-3 py-1 text-xs font-semibold text-indigo-600 shadow-sm transition hover:border-indigo-600 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isLocating ? 'Locating…' : 'Near me'}
+        </button>
+        {geoError && (
+          <span className="pointer-events-auto rounded-full bg-white/90 px-2 py-1 font-medium text-rose-500 shadow">
+            {geoError}
+          </span>
+        )}
+      </div>
       <Map
         {...viewState}
+        ref={mapRef}
         onMove={evt => setViewState(evt.viewState)}
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/light-v11"
