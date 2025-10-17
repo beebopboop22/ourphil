@@ -753,6 +753,8 @@ function normalizeAllEvent(row) {
   const resolvedLongitude = longitude != null ? longitude : venueLongitude;
   const venueName = joinedVenue?.name || '';
   const venueSlug = joinedVenue?.slug || null;
+  const venueAreaId = joinedVenue?.area_id != null ? joinedVenue.area_id : null;
+  const areaId = row.area_id != null ? row.area_id : venueAreaId;
   const detailPath = getDetailPathForItem({
     ...row,
     source_table: 'all_events',
@@ -783,6 +785,8 @@ function normalizeAllEvent(row) {
     venueImage: joinedVenue?.image_url || '',
     detailPath,
     tags: [],
+    area_id: areaId != null ? areaId : null,
+    venue_area_id: venueAreaId != null ? venueAreaId : null,
   };
 }
 
@@ -795,6 +799,7 @@ function normalizeLegacyEvent(row) {
     isTradition: true,
     source_table: 'events',
   });
+  const areaId = row.area_id != null ? row.area_id : null;
   return {
     id: `events-${row.id}`,
     taggableId: row.id ? String(row.id) : null,
@@ -819,6 +824,7 @@ function normalizeLegacyEvent(row) {
     venueImage: '',
     detailPath,
     tags: [],
+    area_id: areaId,
   };
 }
 
@@ -841,6 +847,7 @@ function normalizeRecurringEvent(row, occurrenceDate) {
   const startIso = occurrenceIso || fallbackStartIso;
   const endIso = occurrenceIso || fallbackEndIso;
   const occurrenceReference = occurrenceIso || fallbackStartIso;
+  const areaId = row.area_id != null ? row.area_id : null;
 
   const detailPath = getDetailPathForItem({
     ...row,
@@ -877,6 +884,7 @@ function normalizeRecurringEvent(row, occurrenceDate) {
     tags: [],
     rrule: row.rrule || '',
     occurrenceDate: occurrenceReference,
+    area_id: areaId,
   };
 }
 
@@ -926,6 +934,7 @@ function normalizeGroupEvent(row) {
     source_table: 'group_events',
     isGroupEvent: true,
   });
+  const areaId = row.area_id != null ? row.area_id : null;
   return {
     id: `group_events-${row.id}`,
     taggableId: row.id ? String(row.id) : null,
@@ -955,6 +964,7 @@ function normalizeGroupEvent(row) {
     venueImage: '',
     detailPath,
     tags: [],
+    area_id: areaId,
   };
 }
 
@@ -977,6 +987,7 @@ function normalizeBigBoardEvent(row) {
   }
   const eventLatitude = parseNumber(row.latitude);
   const eventLongitude = parseNumber(row.longitude);
+  const areaId = row.area_id != null ? row.area_id : null;
   return {
     id: `big_board_events-${row.id}`,
     taggableId: row.id ? String(row.id) : null,
@@ -1001,6 +1012,7 @@ function normalizeBigBoardEvent(row) {
     venueImage: '',
     detailPath,
     tags: [],
+    area_id: areaId,
   };
 }
 
@@ -1046,6 +1058,8 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   const [customEnd, setCustomEnd] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedArea, setSelectedArea] = useState('');
+  const [recurringOnly, setRecurringOnly] = useState(false);
   const [limitToMap, setLimitToMap] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [userPosition, setUserPosition] = useState(null);
@@ -1056,6 +1070,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   const [selectedLocationIndex, setSelectedLocationIndex] = useState(0);
   const [showFlyerModal, setShowFlyerModal] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [areaLookup, setAreaLookup] = useState({});
 
   const mapRef = useRef(null);
   const clusteringEnabled = clusterEvents !== false;
@@ -1087,6 +1102,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
             end_time,
             latitude,
             longitude,
+            area_id,
             big_board_posts!big_board_posts_event_id_fkey (
               image_url
             )
@@ -1094,7 +1110,10 @@ function LabsMapPage({ clusterEvents = true } = {}) {
           .order('start_date', { ascending: true })
           .limit(400);
 
-        const [allEventsRes, legacyRes, recurringRes, groupRes, bigBoardRes] = await Promise.all([
+        const areasPromise = supabase.from('areas').select('id,name');
+
+        const [areasRes, allEventsRes, legacyRes, recurringRes, groupRes, bigBoardRes] = await Promise.all([
+          areasPromise,
           supabase
             .from('all_events')
             .select(`
@@ -1110,8 +1129,9 @@ function LabsMapPage({ clusterEvents = true } = {}) {
               slug,
               latitude,
               longitude,
+              area_id,
               venue_id,
-              venues:venue_id ( name, slug, latitude, longitude, image_url )
+              venues:venue_id ( name, slug, latitude, longitude, image_url, area_id )
             `)
             .gte('start_date', startIso)
             .lte('start_date', endIso)
@@ -1131,7 +1151,8 @@ function LabsMapPage({ clusterEvents = true } = {}) {
               start_time,
               end_time,
               latitude,
-              longitude
+              longitude,
+              area_id
             `)
             .limit(400),
           supabase
@@ -1150,7 +1171,8 @@ function LabsMapPage({ clusterEvents = true } = {}) {
               rrule,
               image_url,
               latitude,
-              longitude
+              longitude,
+              area_id
             `)
             .eq('is_active', true)
             .limit(400),
@@ -1169,6 +1191,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
               link,
               latitude,
               longitude,
+              area_id,
               groups:group_id ( Name, slug )
             `)
             .gte('start_date', startIso)
@@ -1177,11 +1200,17 @@ function LabsMapPage({ clusterEvents = true } = {}) {
           bigBoardQuery,
         ]);
 
+        if (areasRes.error) throw areasRes.error;
         if (allEventsRes.error) throw allEventsRes.error;
         if (legacyRes.error) throw legacyRes.error;
         if (recurringRes.error) throw recurringRes.error;
         if (groupRes.error) throw groupRes.error;
         if (bigBoardRes.error) throw bigBoardRes.error;
+
+        const areaEntries = (areasRes.data || [])
+          .filter(area => area && area.id != null && area.name)
+          .map(area => [String(area.id), area.name]);
+        const nextAreaLookup = Object.fromEntries(areaEntries);
 
         const normalized = [
           ...(allEventsRes.data || []).map(normalizeAllEvent).filter(Boolean),
@@ -1246,7 +1275,24 @@ function LabsMapPage({ clusterEvents = true } = {}) {
         });
 
         if (!cancelled) {
-          const themed = bounded.map(event => {
+          const withAreas = bounded.map(event => {
+            const eventAreaId = event.area_id != null ? String(event.area_id) : null;
+            const venueAreaId = event.venue_area_id != null ? String(event.venue_area_id) : null;
+            const primaryAreaId = eventAreaId || venueAreaId;
+            const areaName = primaryAreaId
+              ? nextAreaLookup[primaryAreaId] || event.areaName || null
+              : event.areaName || null;
+            return {
+              ...event,
+              area_id: primaryAreaId,
+              venue_area_id: venueAreaId,
+              areaName,
+            };
+          });
+
+          setAreaLookup(nextAreaLookup);
+
+          const themed = withAreas.map(event => {
             const theme = resolveEventTheme(event);
             return {
               ...event,
@@ -1304,6 +1350,20 @@ function LabsMapPage({ clusterEvents = true } = {}) {
 
   const searchValue = searchTerm.trim().toLowerCase();
 
+  const areaOptions = useMemo(() => {
+    return Object.entries(areaLookup)
+      .map(([id, name]) => ({ id: String(id), name }))
+      .filter(option => option.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [areaLookup]);
+
+  useEffect(() => {
+    if (!selectedArea) return;
+    if (!areaLookup[selectedArea]) {
+      setSelectedArea('');
+    }
+  }, [areaLookup, selectedArea]);
+
   const filteredEvents = useMemo(() => {
     return events.filter(event => {
       if (!event) return false;
@@ -1312,6 +1372,17 @@ function LabsMapPage({ clusterEvents = true } = {}) {
       }
       if (rangeStart && rangeEnd) {
         if (!overlaps(event.startDate, event.endDate, rangeStart, rangeEnd)) {
+          return false;
+        }
+      }
+      if (recurringOnly && event.source_table !== 'recurring_events') {
+        return false;
+      }
+      if (selectedArea) {
+        const areaCandidates = [event.area_id, event.venue_area_id]
+          .map(value => (value == null ? null : String(value)))
+          .filter(Boolean);
+        if (!areaCandidates.includes(selectedArea)) {
           return false;
         }
       }
@@ -1337,7 +1408,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
       }
       return true;
     });
-  }, [events, rangeStart, rangeEnd, searchValue, selectedTags, limitToMap, bounds]);
+  }, [events, rangeStart, rangeEnd, searchValue, selectedTags, limitToMap, bounds, recurringOnly, selectedArea]);
 
   const eventsWithLocation = filteredEvents.filter(
     event => event.latitude != null && event.longitude != null,
@@ -1547,6 +1618,10 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     setDatePreset('today');
     setCustomStart('');
     setCustomEnd('');
+    setSelectedArea('');
+    setRecurringOnly(false);
+    setLimitToMap(false);
+    setBounds(null);
   }, []);
 
   const handleOpenEventModal = useCallback(() => {
@@ -1810,6 +1885,33 @@ function LabsMapPage({ clusterEvents = true } = {}) {
                 Clear filters
               </button>
             </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-[#4a5568]">
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={recurringOnly}
+                onChange={event => setRecurringOnly(event.target.checked)}
+                className="h-4 w-4 rounded border-[#f3c7b8] text-[#bf3d35] focus:ring-[#bf3d35]"
+              />
+              Recurring events only
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-[0.3em] text-[#9ba3b2]">Neighborhood</span>
+              <select
+                value={selectedArea}
+                onChange={event => setSelectedArea(event.target.value)}
+                className="rounded-full border border-[#f3c7b8] bg-white px-4 py-2 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+              >
+                <option value="">All neighborhoods</option>
+                {areaOptions.map(option => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           {tagOptions.length > 0 && (
