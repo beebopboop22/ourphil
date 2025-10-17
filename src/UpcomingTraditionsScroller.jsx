@@ -107,11 +107,14 @@ export default function UpcomingTraditionsScroller() {
                       }
                       await toggleFavorite();
                     };
+                    const detailPath = getDetailPathForItem(evt);
+                    const Wrapper = detailPath ? Link : 'div';
+                    const wrapperProps = detailPath ? { to: detailPath } : {};
 
                     return (
                       <div className="w-40 flex-shrink-0 flex flex-col">
-                        <Link
-                          to={getDetailPathForItem(evt) || '/'}
+                        <Wrapper
+                          {...wrapperProps}
                           className={`block relative w-full h-24 rounded-lg overflow-hidden shadow ${
                             isFavorite ? 'ring-2 ring-indigo-600' : ''
                           }`}
@@ -120,7 +123,7 @@ export default function UpcomingTraditionsScroller() {
                           <div className="absolute top-1 left-1 bg-yellow-400 text-white p-1 rounded-full">
                             <FaStar className="w-3 h-3" />
                           </div>
-                        </Link>
+                        </Wrapper>
                         <div className="mt-2 h-20 flex flex-col items-center justify-between text-center">
                           <h4 className="text-sm font-semibold text-gray-800 line-clamp-2">{evt['E Name']}</h4>
                           <p className="text-xs text-gray-500">{relativeDayLabel(evt.start, evt.end)}</p>

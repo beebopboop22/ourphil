@@ -57,12 +57,11 @@ export default function SavedEventCard({ event, onRemove }) {
 
   const img = imageUrl || image || ''
   const isRecurring = source_table === 'recurring_events'
-  const detailPath =
-    getDetailPathForItem({
-      ...event,
-      group_slug: group?.slug,
-      venue_slug: venues?.slug,
-    }) || '/'
+  const detailPath = getDetailPathForItem({
+    ...event,
+    group_slug: group?.slug,
+    venue_slug: venues?.slug,
+  })
 
   const d = source_table === 'events'
     ? parseMMDDYYYY(start_date)
@@ -79,9 +78,12 @@ export default function SavedEventCard({ event, onRemove }) {
     if (wasFavorite && onRemove) onRemove()
   }
 
+  const Wrapper = detailPath ? Link : 'div'
+  const wrapperProps = detailPath ? { to: detailPath } : {}
+
   return (
-    <Link
-      to={detailPath}
+    <Wrapper
+      {...wrapperProps}
       className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col"
     >
       <div className="relative w-full h-48">
@@ -107,6 +109,6 @@ export default function SavedEventCard({ event, onRemove }) {
           </button>
         </div>
       </div>
-    </Link>
+    </Wrapper>
   )
 }

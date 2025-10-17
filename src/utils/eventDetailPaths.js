@@ -8,7 +8,20 @@ function normalizePath(path) {
   if (!isNonEmptyString(path)) return null
   const trimmed = path.trim()
   if (!trimmed) return null
-  if (/^https?:\/\//i.test(trimmed)) return null
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed)
+      const hostname = url.hostname.toLowerCase()
+      if (hostname === 'ourphilly.org' || hostname === 'www.ourphilly.org') {
+        const relative = `${url.pathname || '/'}` + `${url.search}` + `${url.hash}`
+        const normalizedRelative = relative.startsWith('/') ? relative : `/${relative}`
+        return INTERNAL_PATH_REGEX.test(normalizedRelative) ? normalizedRelative : null
+      }
+    } catch (err) {
+      // fall through to null below for malformed URLs
+    }
+    return null
+  }
   const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
   return INTERNAL_PATH_REGEX.test(normalized) ? normalized : null
 }

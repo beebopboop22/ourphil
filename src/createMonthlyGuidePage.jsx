@@ -1163,7 +1163,7 @@ export default function createMonthlyGuidePage(config) {
                           </div>
                         )}
                         {visibleEvents.map((evt, index) => {
-                          const detailPath = evt.detailPath || '/';
+                          const detailPath = evt.detailPath || null;
                           const summary = evt.description?.trim() || 'Details coming soon.';
                           const shouldRenderPastHeading =
                             hasPastEvents && upcomingCount > 0 && index === upcomingCount;
@@ -1224,12 +1224,16 @@ export default function createMonthlyGuidePage(config) {
                                   </div>
                                 </div>
                                 <div className="flex-1 flex flex-col">
-                                  <Link
-                                    to={detailPath}
-                                    className="text-2xl font-semibold text-[#28313e] hover:underline"
-                                  >
-                                    {evt.title}
-                                  </Link>
+                                  {detailPath ? (
+                                    <Link
+                                      to={detailPath}
+                                      className="text-2xl font-semibold text-[#28313e] hover:underline"
+                                    >
+                                      {evt.title}
+                                    </Link>
+                                  ) : (
+                                    <span className="text-2xl font-semibold text-[#28313e]">{evt.title}</span>
+                                  )}
                                   <p className="mt-2 text-sm font-semibold text-gray-700">
                                     {formatEventDateRange(evt.startDate, evt.endDate, PHILLY_TIME_ZONE)}
                                   </p>

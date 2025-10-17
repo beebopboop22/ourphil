@@ -175,12 +175,14 @@ export default function EventsPageHero() {
             {events.map((evt, i) => {
               // Compute “Today / Tomorrow / This …” text
               const { text: relativeDay } = getBubble(evt.start, evt.isActive)
-              const detailPath = getDetailPathForItem(evt) || '/'
+              const detailPath = getDetailPathForItem(evt)
+              const Wrapper = detailPath ? Link : 'div'
+              const wrapperProps = detailPath ? { to: detailPath } : {}
 
               return (
-                <Link
+                <Wrapper
                   key={evt.id}
-                  to={detailPath}
+                  {...wrapperProps}
                   className="relative w-full flex-shrink-0 h-full block"
                   style={{ minWidth: '100%' }}
                 >
@@ -238,7 +240,7 @@ export default function EventsPageHero() {
                       </div>
                     </div>
                   </div>
-                </Link>
+                </Wrapper>
               )
             })}
           </div>

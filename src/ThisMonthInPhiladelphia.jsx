@@ -287,7 +287,7 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
                     )}
                     {orderedEvents.map((evt, index) => {
                       const summary = evt.description?.trim() || 'Details coming soon.';
-                      const detailPath = getDetailPathForItem(evt) || '/';
+                      const detailPath = getDetailPathForItem(evt);
                       const shouldRenderPastHeading = hasPastEvents && upcomingCount > 0 && index === upcomingCount;
                       return (
                         <React.Fragment key={`${evt.source_table || 'events'}-${evt.id}`}>
@@ -311,12 +311,13 @@ export default function ThisMonthInPhiladelphia({ monthSlugOverride, yearOverrid
                               </div>
                             </div>
                             <div className="flex-1 flex flex-col">
-                              <Link
-                                to={detailPath}
-                                className="text-2xl font-semibold text-[#28313e] hover:underline"
-                              >
-                                {evt.title}
-                              </Link>
+                              {(() => {
+                                const TitleWrapper = detailPath ? Link : 'span';
+                                const titleProps = detailPath
+                                  ? { to: detailPath, className: 'text-2xl font-semibold text-[#28313e] hover:underline' }
+                                  : { className: 'text-2xl font-semibold text-[#28313e]' };
+                                return <TitleWrapper {...titleProps}>{evt.title}</TitleWrapper>;
+                              })()}
                               <p className="mt-2 text-sm font-semibold text-gray-700">
                                 {formatEventDateRange(evt.startDate, evt.endDate, PHILLY_TIME_ZONE)}
                               </p>

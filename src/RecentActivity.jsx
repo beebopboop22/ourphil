@@ -88,12 +88,13 @@ export default function RecentActivity() {
       className="text-lg"
     >
       {who} just reviewed{' '}
-      <Link
-        to={detailPath || '/'}
-        className="font-semibold text-indigo-600 hover:underline"
-      >
-        {name}
-      </Link>
+      {detailPath ? (
+        <Link to={detailPath} className="font-semibold text-indigo-600 hover:underline">
+          {name}
+        </Link>
+      ) : (
+        <span className="font-semibold text-gray-900">{name}</span>
+      )}
     </motion.div>
   </AnimatePresence>
 </div>
