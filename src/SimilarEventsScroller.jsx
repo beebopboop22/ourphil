@@ -89,11 +89,13 @@ export default function SimilarEventsScroller({ tagSlugs = [], excludeId }) {
         <div className="overflow-x-auto scrollbar-hide">
           <div className="flex gap-4 pb-4 px-2">
             {events.map(ev => {
-              const detailPath = getDetailPathForItem(ev) || '/';
+              const detailPath = getDetailPathForItem(ev);
+              const Wrapper = detailPath ? Link : 'div';
+              const wrapperProps = detailPath ? { to: detailPath } : {};
               return (
-                <Link
+                <Wrapper
                   key={ev.id}
-                  to={detailPath}
+                  {...wrapperProps}
                   className="relative w-[240px] h-[340px] flex-shrink-0 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-transform hover:scale-105 bg-white"
                 >
                   {ev['E Image'] && (
@@ -110,7 +112,7 @@ export default function SimilarEventsScroller({ tagSlugs = [], excludeId }) {
                   <span className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-sm font-semibold px-3 py-1 rounded-full z-20">
                     {getBubble(ev.start)}
                   </span>
-                </Link>
+                </Wrapper>
               );
             })}
           </div>

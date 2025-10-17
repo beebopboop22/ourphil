@@ -69,30 +69,32 @@ export default function SavedEventsScroller({ events = [] }) {
           const img = imageUrl || image || ''
           const groupSlug = Array.isArray(group) ? group[0]?.slug : group?.slug
           const venueSlug = Array.isArray(venues) ? venues[0]?.slug : venues?.slug
-          const link =
-            getDetailPathForItem({
-              ...ev,
-              group_slug: groupSlug,
-              venue_slug: venueSlug,
-            }) || '/'
+          const detailPath = getDetailPathForItem({
+            ...ev,
+            group_slug: groupSlug,
+            venue_slug: venueSlug,
+          })
           const d = source_table === 'events'
             ? parseMMDDYYYY(start_date)
             : parseISODateLocal(start_date)
           const isWeekend = d && d >= weekendStart && d <= weekendEnd
           const { text, color, pulse } = getBubble(d)
+          const Wrapper = detailPath ? Link : 'div'
+          const wrapperProps = detailPath ? { to: detailPath } : {}
+
           return (
             <FavoriteState key={`${source_table}-${id}`} event_id={id} source_table={source_table}>
               {({ isFavorite, toggleFavorite, loading }) => (
                 <div className="w-[260px] sm:w-[300px] flex-shrink-0 flex flex-col">
-                  <Link
-                    to={link}
+                  <Wrapper
+                    {...wrapperProps}
                     className={`relative w-full h-[380px] sm:h-[420px] rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`}
                   >
-                    {img && (
-                      <img
-                        src={img}
-                        alt={title}
-                        className="absolute inset-0 w-full h-full object-cover"
+                      {img && (
+                        <img
+                          src={img}
+                          alt={title}
+                          className="absolute inset-0 w-full h-full object-cover"
                       />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
@@ -109,12 +111,12 @@ export default function SavedEventsScroller({ events = [] }) {
                     <h3 className="absolute bottom-20 left-4 right-4 text-center text-white text-3xl font-[Barrio] font-bold z-20 leading-tight">
                       {title}
                     </h3>
-                    <span
-                      className={`absolute bottom-6 left-1/2 transform -translate-x-1/2 ${color} text-white text-base font-bold px-6 py-1 rounded-full whitespace-nowrap min-w-[6rem] ${pulse ? 'animate-pulse' : ''} z-20`}
-                    >
-                      {text}
-                    </span>
-                  </Link>
+                      <span
+                        className={`absolute bottom-6 left-1/2 transform -translate-x-1/2 ${color} text-white text-base font-bold px-6 py-1 rounded-full whitespace-nowrap min-w-[6rem] ${pulse ? 'animate-pulse' : ''} z-20`}
+                      >
+                        {text}
+                      </span>
+                  </Wrapper>
                   <button
                     onClick={e => {
                       e.preventDefault()

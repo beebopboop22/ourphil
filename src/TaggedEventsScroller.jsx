@@ -215,11 +215,10 @@ export default function TaggedEventsScroller({
           const start = parseDate(e.Dates);
           const end   = e['End Date'] ? parseDate(e['End Date']) : start;
           const startTime = e.start_time ?? e.time ?? e['Start Time'] ?? null;
-          const href =
-            getDetailPathForItem({
-              ...e,
-              slug: e.slug,
-            }) || '/';
+          const href = getDetailPathForItem({
+            ...e,
+            slug: e.slug,
+          });
           merged.push({
             id: e.id,
             source_table: 'events',
@@ -239,11 +238,10 @@ export default function TaggedEventsScroller({
             : '';
           const start = parseLocalYMD(ev.start_date);
           const end   = ev.end_date ? parseLocalYMD(ev.end_date) : start;
-          const href =
-            getDetailPathForItem({
-              ...ev,
-              isBigBoard: true,
-            }) || '/';
+          const href = getDetailPathForItem({
+            ...ev,
+            isBigBoard: true,
+          });
           merged.push({
             id: ev.id,
             source_table: 'big_board_events',
@@ -258,14 +256,13 @@ export default function TaggedEventsScroller({
         (aeRes.data || []).forEach(ev => {
           const start = parseLocalYMD(ev.start_date);
           const venueSlug = ev.venue_id?.slug;
-          const href =
-            getDetailPathForItem({
-              ...ev,
-              venue_slug: venueSlug,
-              venues: ev.venue_id
-                ? { name: ev.venue_id.name, slug: venueSlug }
-                : null,
-            }) || '/';
+          const href = getDetailPathForItem({
+            ...ev,
+            venue_slug: venueSlug,
+            venues: ev.venue_id
+              ? { name: ev.venue_id.name, slug: venueSlug }
+              : null,
+          });
           merged.push({
             id: ev.id,
             source_table: 'all_events',
@@ -294,12 +291,11 @@ export default function TaggedEventsScroller({
           }
 
           const groupSlug = groupMap[ev.group_id];
-          const href =
-            getDetailPathForItem({
-              ...ev,
-              group_slug: groupSlug,
-              isGroupEvent: true,
-            }) || '/';
+          const href = getDetailPathForItem({
+            ...ev,
+            group_slug: groupSlug,
+            isGroupEvent: true,
+          });
           merged.push({
             id: ev.id,
             source_table: 'group_events',
@@ -411,10 +407,13 @@ export default function TaggedEventsScroller({
             );
             const timeLabel = buildTimeLabel(evt);
             if (evt.source_table === 'sg_events') {
+              const detailPath = evt.href;
+              const Wrapper = detailPath ? Link : 'div';
+              const wrapperProps = detailPath ? { to: detailPath } : {};
               return (
                 <div key={`${evt.id}-${evt.start}`} className="flex-shrink-0 w-[260px]">
-                  <Link
-                    to={evt.href}
+                  <Wrapper
+                    {...wrapperProps}
                     className="relative block w-full h-[380px] rounded-2xl overflow-hidden shadow-lg bg-green-50 border-2 border-green-500"
                   >
                     <img
@@ -437,7 +436,7 @@ export default function TaggedEventsScroller({
                     >
                       {text}
                     </span>
-                  </Link>
+                  </Wrapper>
                   {timeLabel && (
                     <p className="mt-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
                       {timeLabel}
@@ -464,18 +463,23 @@ export default function TaggedEventsScroller({
               >
                 {({ isFavorite, toggleFavorite, loading }) => (
                   <div className="flex-shrink-0 w-[260px]">
-                    <Link
-                      to={evt.href}
-                      className={`relative block w-full h-[380px] rounded-2xl overflow-hidden shadow-lg ${
-                        tagMeta.isSeasonal
-                          ? isFavorite
-                            ? 'ring-4 ring-indigo-600'
-                            : 'ring-4 ring-[#004C55]'
-                          : isFavorite
-                            ? 'ring-2 ring-indigo-600'
-                            : ''
-                      }`}
-                    >
+                    {(() => {
+                      const detailPath = evt.href;
+                      const Wrapper = detailPath ? Link : 'div';
+                      const wrapperProps = detailPath ? { to: detailPath } : {};
+                      return (
+                        <Wrapper
+                          {...wrapperProps}
+                          className={`relative block w-full h-[380px] rounded-2xl overflow-hidden shadow-lg ${
+                            tagMeta.isSeasonal
+                              ? isFavorite
+                                ? 'ring-4 ring-indigo-600'
+                                : 'ring-4 ring-[#004C55]'
+                              : isFavorite
+                                ? 'ring-2 ring-indigo-600'
+                                : ''
+                          }`}
+                        >
                       <img
                         src={evt.imageUrl}
                         alt={evt.title}
@@ -506,7 +510,9 @@ export default function TaggedEventsScroller({
                       >
                         {text}
                       </span>
-                    </Link>
+                        </Wrapper>
+                      );
+                    })()}
                     {timeLabel && (
                       <p className="mt-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
                         {timeLabel}

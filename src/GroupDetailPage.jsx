@@ -481,12 +481,11 @@ export default function GroupDetailPage() {
             } else {
               imageUrl = group.imag
             }
-            const detailPath =
-              getDetailPathForItem({
-                ...evt,
-                group_slug: group.slug,
-                isGroupEvent: true,
-              }) || '/'
+            const detailPath = getDetailPathForItem({
+              ...evt,
+              group_slug: group.slug,
+              isGroupEvent: true,
+            })
             const timeLabel = formatTimeLabel(evt.start_time)
             const secondaryMeta = [timeLabel, evt.address].filter(Boolean).join(' · ')
 
