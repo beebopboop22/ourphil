@@ -7,7 +7,6 @@ import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import useFollow from './utils/useFollow';
 import PostFlyerModal from './PostFlyerModal';
-import FloatingAddButton from './FloatingAddButton';
 import TriviaTonightBanner from './TriviaTonightBanner';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
@@ -20,13 +19,13 @@ import {
   ensureAbsoluteUrl,
   buildEventJsonLd,
 } from './utils/seoHelpers.js';
+import UnifiedEventHeader from './components/UnifiedEventHeader.jsx';
 
 const FALLBACK_BIG_BOARD_TITLE = 'Community Event – Our Philly';
 const FALLBACK_BIG_BOARD_DESCRIPTION =
   'Discover community-submitted events happening around Philadelphia with Our Philly.';
 const CommentsSection = lazy(() => import('./CommentsSection'));
 import {
-  CalendarCheck,
   CalendarPlus,
   ExternalLink,
   Pencil,
@@ -516,6 +515,46 @@ export default function BigBoardEventPage() {
     ? siblings[(currentIndex + 1) % siblings.length]
     : null;
 
+  const headerDateText = startDateObj
+    ? event.start_time
+      ? `${startDateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at ${formatTime(event.start_time)}`
+      : `${startDateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} (Time TBA)`
+    : '';
+  const locationMeta = event.address ? event.address.split(',')[0].trim() : 'Philadelphia';
+  const headerTags = tagsList
+    .filter(t => selectedTags.includes(t.id))
+    .map(tag => ({
+      name: tag.name,
+      slug: tag.name ? tag.name.toLowerCase() : undefined,
+      href: tag.name ? `/tags/${tag.name.toLowerCase()}` : '#',
+    }));
+  const posterHandle = poster?.username
+    ? poster.username.startsWith('@')
+      ? poster.username
+      : `@${poster.username}`
+    : '';
+  const headerContext = poster
+    ? (
+        <span>
+          Submitted by{' '}
+          {poster.slug ? (
+            <Link to={`/u/${poster.slug}`} className="font-semibold text-indigo-700">
+              {posterHandle}
+            </Link>
+          ) : (
+            <span className="font-semibold">{posterHandle}</span>
+          )}
+        </span>
+      )
+    : null;
+  const headerMap = event.latitude && event.longitude
+    ? {
+        latitude: event.latitude,
+        longitude: event.longitude,
+        address: event.address,
+      }
+    : null;
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Seo
@@ -528,64 +567,98 @@ export default function BigBoardEventPage() {
       />
       <Navbar />
 
-      <main className="flex-grow relative mt-32">
-          {/* Hero banner */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event.imageUrl})` }}
-          />
+      <main className="flex-grow relative mt-32 pb-24 md:pb-0">
+        <UnifiedEventHeader
+          title={event.title}
+          dateText={headerDateText}
+          locationText={locationMeta}
+          tags={headerTags}
+          getTagClassName={index => pillStyles[index % pillStyles.length]}
+          onToggleFavorite={handleFavorite}
+          isFavorite={isFavorite}
+          favoriteLoading={favLoading}
+          coverImage={event.imageUrl}
+          contextCallout={headerContext}
+          mapCoordinates={headerMap}
+          mapLabel={event.address}
+        />
 
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-4 pt-4">
+          <div className="flex flex-wrap items-center gap-3 text-sm font-medium text-indigo-600">
+            <button type="button" onClick={handleShare} className="inline-flex items-center gap-2 text-indigo-600 hover:underline">
+              <Share2 className="h-4 w-4" />
+              Share
+            </button>
+            <a
+              href={gcalLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-indigo-600 hover:underline"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              Google Calendar
+            </a>
+            {event.link && (
+              <a
+                href={event.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-indigo-600 hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Visit Site
+              </a>
+            )}
+            <Link to="/" className="inline-flex items-center gap-2 text-indigo-600 hover:underline">
+              ← Back to Events
+            </Link>
+          </div>
+          {event.owner_id === user?.id && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={startEditing}
+                className="inline-flex items-center gap-2 rounded-md bg-indigo-100 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-200"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </button>
+              <button
+                onClick={handleDelete}
+                className="inline-flex items-center gap-2 rounded-md bg-red-100 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-200"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
             </div>
           )}
+        </div>
 
-          {/* Overlapping centered card */}
-          <div className={`relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 transform z-10 ${user ? '-mt-24' : ''}`}>
-            {prev && (
-              <button
-                onClick={() => navigate(`/big-board/${prev.slug}`)}
-                className="absolute top-1/2 left-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >←</button>
-            )}
-            {next && (
-              <button
-                onClick={() => navigate(`/big-board/${next.slug}`)}
-                className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >→</button>
-            )}
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold">{event.title}</h1>
-              <p className="text-lg font-medium">
-                {whenText}
-                {event.start_time && ` — ${formatTime(event.start_time)}`}
-                {event.address && (
-                  <> • <a
-                    href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {event.address}
-                  </a></>
-                )}
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {tagsList
-                  .filter(t => selectedTags.includes(t.id))
-                  .map((tag, i) => (
-                    <Link
-                      key={tag.id}
-                      to={`/tags/${tag.name.toLowerCase()}`}
-                      className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-lg font-semibold`}
-                    >
-                      #{tag.name}
-                    </Link>
-                  ))}
-              </div>
-            </div>
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4">
+          {prev ? (
+            <button
+              type="button"
+              onClick={() => navigate(`/big-board/${prev.slug}`)}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+            >
+              ← {prev.title}
+            </button>
+          ) : <span />}
+          {next ? (
+            <button
+              type="button"
+              onClick={() => navigate(`/big-board/${next.slug}`)}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+            >
+              {next.title} →
+            </button>
+          ) : <span />}
+        </div>
+
+        {!user && (
+          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
           </div>
+        )}
 
           {poster && (
             <div className="max-w-4xl mx-auto mt-6 px-4">
@@ -775,15 +848,6 @@ export default function BigBoardEventPage() {
                     </div>
                   )}
                   <div className="space-y-4">
-                    <button
-                      onClick={handleFavorite}
-                      disabled={favLoading}
-                      className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                    >
-                      <CalendarCheck className="w-5 h-5" />
-                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                    </button>
-
                     {event.link && (
                       <a
                         href={event.link}
@@ -795,51 +859,6 @@ export default function BigBoardEventPage() {
                         Visit Site
                       </a>
                     )}
-
-                    <div className="flex items-center justify-center gap-6 pt-2">
-                      <button
-                        onClick={handleShare}
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <Share2 className="w-5 h-5" />
-                        Share
-                      </button>
-                      <a
-                        href={gcalLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                        Google Calendar
-                      </a>
-                    </div>
-
-                    {event.owner_id === user?.id && (
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          onClick={startEditing}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                        >
-                          <Pencil className="w-4 h-4" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={handleDelete}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-red-100 text-red-700 hover:bg-red-200"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
-                      </div>
-                    )}
-
-                    <Link
-                      to="/"
-                      className="block text-center text-indigo-600 hover:underline font-medium"
-                    >
-                      ← Back to Events
-                    </Link>
                   </div>
                   </>
                 )}
@@ -923,21 +942,14 @@ export default function BigBoardEventPage() {
             )}
           </div>
 
-          <SubmitEventSection onNext={file => {
-            setInitialFlyer(file);
-            setModalStartStep(2);
-            setShowFlyerModal(true);
-          }} />
-      </main>
+      <SubmitEventSection onNext={file => {
+        setInitialFlyer(file);
+        setModalStartStep(2);
+        setShowFlyerModal(true);
+      }} />
+  </main>
 
-      <Footer />
-      <FloatingAddButton
-        onClick={() => {
-          setModalStartStep(1);
-          setInitialFlyer(null);
-          setShowFlyerModal(true);
-        }}
-      />
+  <Footer />
       <PostFlyerModal
         isOpen={showFlyerModal}
         onClose={() => setShowFlyerModal(false)}

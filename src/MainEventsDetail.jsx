@@ -7,7 +7,6 @@ import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import { RRule } from 'rrule';
 import PostFlyerModal from './PostFlyerModal';
-import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
@@ -23,7 +22,6 @@ import {
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
 import {
-  CalendarCheck,
   CalendarPlus,
   ExternalLink,
   Pencil,
@@ -31,6 +29,7 @@ import {
   Trash2,
   Instagram,
 } from 'lucide-react';
+import UnifiedEventHeader from './components/UnifiedEventHeader.jsx';
 
 const FALLBACK_MAIN_EVENT_TITLE = 'Philadelphia Event – Our Philly';
 const FALLBACK_MAIN_EVENT_DESCRIPTION =
@@ -636,6 +635,35 @@ export default function MainEventsDetail() {
     );
   })();
 
+  const headerDateText = sd
+    ? timeText
+      ? `${sd.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at ${timeText}`
+      : `${sd.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} (Time TBA)`
+    : '';
+  const locationMeta = (() => {
+    if (venueData?.name) return venueData.name;
+    if (event.address) return event.address.split(',')[0].trim();
+    if (venueData?.address) return venueData.address.split(',')[0].trim();
+    return 'Philadelphia';
+  })();
+  const headerTags = eventTags.map(tag => ({ name: tag.name, slug: tag.slug }));
+  const venueSlugLink = venueData?.slug || venue || event?.venues?.slug || null;
+  const venueDisplayName = venueData?.name || event.address || venueData?.address || '';
+  const headerContext = venueDisplayName
+    ? (
+        <span>
+          At:{' '}
+          {venueSlugLink ? (
+            <Link to={`/${venueSlugLink}`} className="font-semibold text-indigo-700">
+              {venueDisplayName}
+            </Link>
+          ) : (
+            <span className="font-semibold">{venueDisplayName}</span>
+          )}
+        </span>
+      )
+    : null;
+
   // Which address to_SEARCH for Google Maps:
   const resolvedAddress = event.address?.trim() || venueData?.address?.trim();
   // Link text is always venue name if available:
@@ -662,76 +690,82 @@ export default function MainEventsDetail() {
 
       <Navbar/>
 
-      <main className="flex-grow mt-32">
-          {/* Hero */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event.image})` }}
-          />
+      <main className="flex-grow mt-32 pb-24 md:pb-0">
+        <UnifiedEventHeader
+          title={event.name}
+          dateText={headerDateText}
+          locationText={locationMeta}
+          tags={headerTags}
+          getTagClassName={index => TAG_PILL_STYLES[index % TAG_PILL_STYLES.length]}
+          onToggleFavorite={handleFavorite}
+          isFavorite={isFavorite}
+          favoriteLoading={toggling}
+          coverImage={event.image}
+          contextCallout={headerContext}
+          mapCoordinates={null}
+          mapLabel={resolvedAddress}
+        />
 
-          {/* Overlap Card */}
-          <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform relative">
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold">{event.name}</h1>
-              <p className="text-lg font-medium flex flex-wrap justify-center items-center gap-2 text-center">
-                <span>
-                  {whenText}
-                  {timeText && ` — ${timeText}`}
-                  {endTimeText && ` to ${endTimeText}`}
-                </span>
-                {resolvedAddress ? (
-                  <span className="inline-flex items-center gap-2">
-                    •
-                    <a
-                      href={`https://maps.google.com?q=${encodeURIComponent(resolvedAddress)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:underline"
-                    >
-                      {linkText}
-                    </a>
-                    {instagramUrl && instagramHandle && (
-                      <a
-                        href={instagramUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
-                      >
-                        <Instagram className="w-4 h-4" />
-                        @{instagramHandle}
-                      </a>
-                    )}
-                  </span>
-                ) : (
-                  instagramUrl &&
-                  instagramHandle && (
-                    <a
-                      href={instagramUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
-                    >
-                      <Instagram className="w-4 h-4" />
-                      @{instagramHandle}
-                    </a>
-                  )
-                )}
-              </p>
-              {eventTags.length > 0 && (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {eventTags.map((tag, i) => (
-                    <Link
-                      key={tag.slug}
-                      to={`/tags/${tag.slug}`}
-                      className={`${TAG_PILL_STYLES[i % TAG_PILL_STYLES.length]} px-4 py-2 rounded-full text-sm font-semibold hover:opacity-80 transition`}
-                    >
-                      #{tag.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-4 pt-4">
+          <div className="flex flex-wrap items-center gap-3 text-sm font-medium text-indigo-600">
+            <button type="button" onClick={handleShare} className="inline-flex items-center gap-2 text-indigo-600 hover:underline">
+              <Share2 className="h-4 w-4" />
+              Share
+            </button>
+            <a
+              href={gcalLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-indigo-600 hover:underline"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              Google Calendar
+            </a>
+            {event.link && (
+              <a
+                href={event.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-indigo-600 hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Visit Site
+              </a>
+            )}
+            {instagramUrl && instagramHandle && (
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
+              >
+                <Instagram className="h-4 w-4" />
+                @{instagramHandle}
+              </a>
+            )}
+            <Link to="/" className="inline-flex items-center gap-2 text-indigo-600 hover:underline">
+              ← Back to Events
+            </Link>
           </div>
+          {isAdmin && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setIsEditing(true)}
+                className="inline-flex items-center gap-2 rounded-md bg-indigo-100 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-200"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </button>
+              <button
+                onClick={handleDelete}
+                className="inline-flex items-center gap-2 rounded-md bg-red-100 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-200"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
 
           {!user && (
             <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
@@ -867,15 +901,6 @@ export default function MainEventsDetail() {
                     </div>
                   )}
                   <div className="space-y-4">
-                    <button
-                      onClick={handleFavorite}
-                      disabled={toggling}
-                      className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                    >
-                      <CalendarCheck className="w-5 h-5" />
-                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                    </button>
-
                     {event.link && (
                       <a
                         href={event.link}
@@ -886,44 +911,6 @@ export default function MainEventsDetail() {
                         <ExternalLink className="w-5 h-5" />
                         Visit Site
                       </a>
-                    )}
-
-                    <div className="flex items-center justify-center gap-6 pt-2">
-                      <button
-                        onClick={handleShare}
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <Share2 className="w-5 h-5" />
-                        Share
-                      </button>
-                      <a
-                        href={gcalLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                        Google Calendar
-                      </a>
-                    </div>
-
-                    {isAdmin && (
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          onClick={() => setIsEditing(true)}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                        >
-                          <Pencil className="w-4 h-4" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={handleDelete}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-red-100 text-red-700 hover:bg-red-200"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
-                      </div>
                     )}
                   </div>
                 </>
@@ -1054,7 +1041,6 @@ export default function MainEventsDetail() {
       </main>
 
       <Footer/>
-      <FloatingAddButton onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }} />
       <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
     </div>
   );
