@@ -601,12 +601,25 @@ function EventListItem({ event, now, tags = [] }) {
   const navigate = useNavigate();
   const label = formatEventTiming(event, now);
   const badges = event.badges || [];
-  const areaLabel =
-    event.areaName ||
-    event.area?.name ||
-    event.area?.Name ||
-    (typeof event.area === 'string' ? event.area : null) ||
-    null;
+  const areaName = event.areaName || event.area?.name || event.area?.Name || null;
+  const areaString = typeof event.area === 'string' ? event.area : null;
+  const areaLabel = areaName || areaString || null;
+  let displayLocationPrefix = 'at';
+  let displayLocationValue = null;
+
+  if (event.venues?.name) {
+    displayLocationValue = event.venues.name;
+  } else if (event.address) {
+    displayLocationValue = event.address;
+  } else if (areaName) {
+    displayLocationPrefix = 'in';
+    displayLocationValue = areaName;
+  } else if (areaString) {
+    displayLocationPrefix = 'in';
+    displayLocationValue = areaString;
+  }
+
+  const displayLocation = displayLocationValue ? `${displayLocationPrefix} ${displayLocationValue}` : null;
   const Wrapper = event.detailPath ? Link : 'div';
   const wrapperProps = event.detailPath ? { to: event.detailPath } : {};
   const containerClass = event.detailPath
@@ -690,14 +703,9 @@ function EventListItem({ event, now, tags = [] }) {
               ))}
             </div>
             <h3 className="mt-2 break-words text-lg font-bold text-gray-800">{event.title}</h3>
+            {displayLocation && <p className="mt-1 text-sm text-gray-500">{displayLocation}</p>}
             {event.description && (
               <p className="mt-1 line-clamp-2 text-sm text-gray-600">{event.description}</p>
-            )}
-            {event.venues?.name && (
-              <p className="mt-1 text-sm text-gray-500">at {event.venues.name}</p>
-            )}
-            {event.address && !event.venues?.name && (
-              <p className="mt-1 text-sm text-gray-500">at {event.address}</p>
             )}
             {tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
