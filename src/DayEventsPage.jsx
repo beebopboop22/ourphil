@@ -342,10 +342,13 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       const start = parseISODateInPhilly(ev.start_date);
       const end = parseISODateInPhilly(ev.end_date || ev.start_date) || start;
       if (!start) return null;
+      const areaId = ev.area_id ?? null;
       return {
         ...ev,
         startDate: start,
         endDate: end,
+        area_id: areaId,
+        areaName: areaId ? areaLookup[areaId] || null : null,
       };
     })
     .filter(Boolean)
@@ -410,8 +413,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       const startDate = new Date(ys, ms - 1, ds);
       const endDate = new Date(ye, me - 1, de);
       const venueAreaId = getVenueAreaId(evt.venues);
-      const areaName =
-        (evt.area_id && areaLookup[evt.area_id]) || (venueAreaId && areaLookup[venueAreaId]) || null;
+      const areaId = evt.area_id ?? venueAreaId ?? null;
+      const areaName = areaId ? areaLookup[areaId] || null : null;
       return {
         id: `event-${evt.id}`,
         sourceId: evt.id,
@@ -426,7 +429,7 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         end_time: evt.end_time,
         slug: evt.slug,
         venues: evt.venues,
-        area_id: evt.area_id,
+        area_id: areaId,
         areaName,
       };
     })
@@ -819,6 +822,8 @@ export default function DayEventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState('');
+  const [recurringOnly, setRecurringOnly] = useState(false);
   const [tagMap, setTagMap] = useState({});
   const [allTags, setAllTags] = useState([]);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -932,16 +937,46 @@ export default function DayEventsPage() {
     };
   }, [detailed.events]);
 
+  const areaLookup = useMemo(() => baseData?.areaLookup || {}, [baseData]);
+
+  const areaOptions = useMemo(() => {
+    return Object.entries(areaLookup)
+      .map(([id, name]) => ({ id: String(id), name }))
+      .filter(option => option.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [areaLookup]);
+
+  useEffect(() => {
+    if (!selectedNeighborhood) return;
+    if (!areaOptions.some(option => option.id === selectedNeighborhood)) {
+      setSelectedNeighborhood('');
+    }
+  }, [areaOptions, selectedNeighborhood]);
+
   const filteredEvents = useMemo(() => {
-    if (!selectedTags.length) return detailed.events;
     return detailed.events.filter(event => {
+      if (recurringOnly && event.source_table !== 'recurring_events') {
+        return false;
+      }
+
+      if (selectedNeighborhood) {
+        const eventAreaId = event.area_id != null ? String(event.area_id) : '';
+        if (eventAreaId !== selectedNeighborhood) {
+          return false;
+        }
+      }
+
+      if (!selectedTags.length) {
+        return true;
+      }
+
       if (!event.source_table || !event.favoriteId) return false;
       const key = `${event.source_table}:${event.favoriteId}`;
       const tagsForEvent = tagMap[key] || [];
       if (!tagsForEvent.length) return false;
       return tagsForEvent.some(tag => selectedTags.includes(tag.slug));
     });
-  }, [selectedTags, detailed.events, tagMap]);
+  }, [detailed.events, recurringOnly, selectedNeighborhood, selectedTags, tagMap]);
 
   const featuredEvents = useMemo(() => {
     const seenGroups = new Set();
@@ -1015,9 +1050,15 @@ export default function DayEventsPage() {
     if (selectedTags.length) {
       params.set('tag', selectedTags[0]);
     }
+    if (recurringOnly) {
+      params.set('recurring', '1');
+    }
+    if (selectedNeighborhood) {
+      params.set('area', selectedNeighborhood);
+    }
     const qs = params.toString();
     return qs ? `/map?${qs}` : '/map';
-  }, [range.start, range.end, selectedTags]);
+  }, [range.start, range.end, selectedTags, recurringOnly, selectedNeighborhood]);
 
   const mapCalloutMessage = useMemo(
     () =>
@@ -1067,7 +1108,14 @@ export default function DayEventsPage() {
     });
   };
 
-  const hasSelectedTags = selectedTags.length > 0;
+  const handleClearFilters = () => {
+    setSelectedTags([]);
+    setSelectedNeighborhood('');
+    setRecurringOnly(false);
+  };
+
+  const filterCount = selectedTags.length + (recurringOnly ? 1 : 0) + (selectedNeighborhood ? 1 : 0);
+  const hasActiveFilters = filterCount > 0;
 
   const quickLinks = [
     { key: 'today', label: 'Today', href: '/today' },
@@ -1185,18 +1233,44 @@ export default function DayEventsPage() {
                 className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-4 py-2 text-sm font-semibold text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
               >
                 <Filter className="h-4 w-4" />
-                {`Filters${hasSelectedTags ? ` (${selectedTags.length})` : ''}`}
+                {`Filters${filterCount ? ` (${filterCount})` : ''}`}
               </button>
-              {hasSelectedTags && (
+              {hasActiveFilters && (
                 <button
                   type="button"
-                  onClick={() => setSelectedTags([])}
+                  onClick={handleClearFilters}
                   className="inline-flex items-center gap-1 text-sm text-[#6b7280] hover:text-[#4a5568]"
                 >
                   <XCircle className="h-4 w-4" />
                   Clear
                 </button>
               )}
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-[#29313f]">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={recurringOnly}
+                  onChange={event => setRecurringOnly(event.target.checked)}
+                  className="h-4 w-4 rounded border-[#f4c9bc] text-[#bf3d35] focus:ring-[#bf3d35]"
+                />
+                Recurring events only
+              </label>
+              <label className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-[0.2em] text-[#9ba3b2]">Neighborhood</span>
+                <select
+                  value={selectedNeighborhood}
+                  onChange={event => setSelectedNeighborhood(event.target.value)}
+                  className="rounded-full border border-[#f4c9bc] bg-white/90 px-4 py-2 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                >
+                  <option value="">All neighborhoods</option>
+                  {areaOptions.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
         </section>
@@ -1258,8 +1332,8 @@ export default function DayEventsPage() {
                 )}
                 {totalVisibleEvents === 0 && (
                   <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-600">
-                    {hasSelectedTags
-                      ? 'No events match the selected tags. Try clearing a filter.'
+                    {hasActiveFilters
+                      ? 'No events match the selected filters. Try clearing a filter.'
                       : 'No events listed yet — check back soon!'}
                   </div>
                 )}
