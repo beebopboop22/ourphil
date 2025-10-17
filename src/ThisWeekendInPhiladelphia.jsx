@@ -5,6 +5,7 @@ import { RRule } from 'rrule';
 import { FaStar } from 'react-icons/fa';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import LabsMapPage from './LabsMapPage.jsx';
 import Seo from './components/Seo.jsx';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
@@ -853,6 +854,10 @@ export default function ThisWeekendInPhiladelphia() {
           <p className="mt-6 text-lg text-gray-700 text-center max-w-3xl mx-auto">
             Use this guide from the most comprehensive events calendar in Philadelphia to plan your {introRange} adventures. We curated {formattedWeekendEventCount} festivals, markets, concerts, and family-friendly events for you to make the most of your weekend.
           </p>
+
+          <div className="mt-12">
+            <LabsMapPage embedded initialDatePreset="weekend" />
+          </div>
 
           <section className="max-w-4xl mx-auto px-4 mt-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-2">Philly Traditions This Weekend</h2>
