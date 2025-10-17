@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { RRule } from 'rrule';
@@ -753,9 +753,15 @@ export default function SearchResultsPage() {
   const rangeStartKey = useMemo(() => toPhillyISODate(todayInPhilly), [todayInPhilly]);
   const rangeEndKey = useMemo(() => toPhillyISODate(rangeEnd), [rangeEnd]);
 
+  const previousQueryRef = useRef(query);
+
   useEffect(() => {
-    setSelectedTags([]);
-    setSelectedDateKey('all');
+    const previousQuery = previousQueryRef.current;
+    if (previousQuery && !query) {
+      setSelectedTags([]);
+      setSelectedDateKey('all');
+    }
+    previousQueryRef.current = query;
   }, [query]);
 
   useEffect(() => {
