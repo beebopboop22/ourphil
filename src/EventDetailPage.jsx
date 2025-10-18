@@ -5,7 +5,6 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
-import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import HeroLanding from './HeroLanding';
 import SubmitEventSection from './SubmitEventSection';
@@ -19,7 +18,7 @@ import {
   ensureAbsoluteUrl,
   buildEventJsonLd,
 } from './utils/seoHelpers.js';
-import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
+import UnifiedEventHeader from './components/UnifiedEventHeader.jsx';
 
 const FALLBACK_EVENT_TITLE = 'Philadelphia Event Details – Our Philly';
 const FALLBACK_EVENT_DESCRIPTION =
@@ -158,17 +157,6 @@ export default function EventDetailPage() {
     else prefix = normalized.toLocaleDateString('en-US', { weekday: 'long' });
     const md = normalized.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
     return `${prefix}, ${md}`;
-  }
-
-  function copyLinkFallback(url) {
-    navigator.clipboard.writeText(url).catch(console.error);
-  }
-
-  function handleShare() {
-    const url = window.location.href;
-    const title = document.title;
-    if (navigator.share) navigator.share({ title, url }).catch(console.error);
-    else copyLinkFallback(url);
   }
 
   // ─── Load event, favorites & community subs ───────────────────────────
@@ -443,6 +431,42 @@ export default function EventDetailPage() {
   const ogImage = absoluteImage || DEFAULT_OG_IMAGE;
   const heroImage = event?.['E Image'] || DEFAULT_OG_IMAGE;
 
+  const neighborhoodMetaCandidate =
+    event?.Neighborhood ||
+    event?.neighborhood ||
+    event?.['E Neighborhood'] ||
+    event?.Area ||
+    event?.area ||
+    '';
+  const locationMeta = neighborhoodMetaCandidate
+    ? String(neighborhoodMetaCandidate).split(',')[0].trim()
+    : locationName;
+
+  const headerDateText = displayDate
+    ? event?.time
+      ? `${displayDate} at ${event.time}`
+      : `${displayDate} (Time TBA)`
+    : event?.time || '';
+
+  const headerTags = eventTags.map(tag => ({
+    name: tag.name,
+    slug: tag.slug,
+  }));
+
+  const headerMap = (() => {
+    const lat = event?.latitude ?? event?.Latitude ?? null;
+    const lng = event?.longitude ?? event?.Longitude ?? null;
+    if (lat == null || lng == null) return null;
+    const parsedLat = typeof lat === 'string' ? parseFloat(lat) : lat;
+    const parsedLng = typeof lng === 'string' ? parseFloat(lng) : lng;
+    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) return null;
+    return {
+      latitude: parsedLat,
+      longitude: parsedLng,
+      address: locationName,
+    };
+  })();
+
   const seoTitle = eventName
     ? `${eventName}${displayDate ? ` – ${displayDate}` : ''} – Our Philly`
     : FALLBACK_EVENT_TITLE;
@@ -480,24 +504,28 @@ export default function EventDetailPage() {
     );
   }
 
-  const gcalLink = (() => {
-    const toCalendarDate = date =>
-      date ? date.toISOString().slice(0, 10).replace(/-/g, '') : '';
-    const start = toCalendarDate(startDate);
-    const end = toCalendarDate(effectiveEndDate);
-    if (!start) return '';
-    const url =
-      typeof window !== 'undefined' && window.location
-        ? window.location.href
-        : canonicalUrl;
-    const text = eventName || 'Our Philly Event';
-    return (
-      'https://www.google.com/calendar/render?action=TEMPLATE' +
-      `&text=${encodeURIComponent(text)}` +
-      `&dates=${start}/${end || start}` +
-      `&details=${encodeURIComponent('Details: ' + url)}`
-    );
-  })();
+  const longDescription = event?.longDescription?.trim() || '';
+  const headerDescription = shortDescription || longDescription
+    ? (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500">
+            What to Expect
+          </p>
+          {shortDescription && (
+            <p className="text-base text-gray-700 whitespace-pre-line">{shortDescription}</p>
+          )}
+          {longDescription && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500">
+                About this Philly Description
+              </p>
+              <p className="text-base text-gray-700 whitespace-pre-line">{longDescription}</p>
+            </div>
+          )}
+        </div>
+      )
+    : null;
+  const visitLink = event?.['E Link']?.trim() ? event['E Link'].trim() : '';
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -512,57 +540,23 @@ export default function EventDetailPage() {
 
       <Navbar />
 
-      <main className="flex-grow mt-32">
-        {/* Hero */}
-        <div
-          className="relative w-full h-screen bg-cover bg-center flex items-end"
-          style={{ backgroundImage: `url(${heroImage})` }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
-          <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white text-center">
-            <h1 className="text-6xl font-[Barrio] mb-4">{event['E Name']}</h1>
-            <p className="text-xl mb-6">
-              {displayDate}
-              {event.time && ` — ${event.time}`}
-            </p>
-            <div className="flex flex-col items-center gap-4 mb-6">
-              <div className="flex flex-wrap justify-center gap-4">
-                <button
-                  onClick={toggleFav}
-                  disabled={toggling}
-                  className={`flex items-center gap-2 px-4 py-2 rounded font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                >
-                  <CalendarCheck className="w-5 h-5" />
-                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                </button>
-                {event['E Link'] && (
-                  <a
-                    href={event['E Link']}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
-                  >
-                    <ExternalLink className="w-5 h-5" />
-                    Visit Site
-                  </a>
-                )}
-              </div>
-            </div>
-            {eventTags.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-3 mt-4">
-                {eventTags.map((tag, i) => (
-                  <Link
-                    key={tag.slug}
-                    to={`/tags/${tag.slug}`}
-                    className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-base font-semibold hover:opacity-80 transition`}
-                  >
-                    #{tag.name}
-                  </Link>
-                ))}
-              </div>
-            )}
-        </div>
-        </div>
+      <main className="flex-grow mt-32 pb-24 md:pb-0">
+        <UnifiedEventHeader
+          title={event['E Name']}
+          dateText={headerDateText}
+          locationText={locationMeta}
+          tags={headerTags}
+          getTagClassName={index => pillStyles[index % pillStyles.length]}
+          onToggleFavorite={toggleFav}
+          isFavorite={isFavorite}
+          favoriteLoading={toggling}
+          coverImage={heroImage}
+          description={headerDescription}
+          visitLink={visitLink}
+          mapCoordinates={headerMap}
+          mapLabel={locationName}
+        />
+
         {!user && (
           <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
             <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
@@ -588,77 +582,6 @@ export default function EventDetailPage() {
             >
               Do you manage this Philly tradition? Read our FAQ for traditions hosts
             </a>
-          </div>
-        </div>
-
-        {/* What to Expect */}
-        {event['E Description'] && (
-          <>
-            <div className="max-w-4xl mx-auto mt-8 px-4">
-              <div className="flex items-start gap-4">
-                <img
-                  src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
-                  alt="Our Philly concierge"
-                  className="w-12 h-12 mt-1"
-                />
-                <div>
-                  <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-2">What to Expect</h2>
-                  <p className="text-gray-700 text-lg">{event['E Description']}</p>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-gray-200 w-3/4 mx-auto mt-6" />
-          </>
-        )}
-
-        {/* Description & Image */}
-        <div className="max-w-4xl mx-auto mt-8 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div>
-            {event.longDescription && (
-              <div className="mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">About this Philly Tradition</h2>
-                <p className="text-gray-700">{event.longDescription}</p>
-              </div>
-            )}
-            <div className="mb-6 space-y-4">
-              <button
-                onClick={toggleFav}
-                disabled={toggling}
-                className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-              >
-                <CalendarCheck className="w-5 h-5" />
-                {isFavorite ? 'In the Plans' : 'Add to Plans'}
-              </button>
-              <div className="flex items-center justify-center gap-6 pt-2">
-                <button
-                  onClick={handleShare}
-                  className="flex items-center gap-2 text-indigo-600 hover:underline"
-                >
-                  <Share2 className="w-5 h-5" />
-                  Share
-                </button>
-                {gcalLink && (
-                  <a
-                    href={gcalLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-indigo-600 hover:underline"
-                  >
-                    <CalendarPlus className="w-5 h-5" />
-                    Google Calendar
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-          <div>
-            {event['E Image'] && (
-              <img
-                src={event['E Image']}
-                alt={event['E Name']}
-                className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
-              />
-            )}
           </div>
         </div>
 
@@ -951,13 +874,6 @@ export default function EventDetailPage() {
       </main>
 
       <Footer />
-      <FloatingAddButton onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}} />
-      <button
-        onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}}
-        className="fixed bottom-0 left-0 w-full bg-indigo-600 text-white py-4 text-center font-bold sm:hidden z-50"
-      >
-        Post Event
-      </button>
       <PostFlyerModal
         isOpen={showFlyerModal}
         onClose={() => setShowFlyerModal(false)}
