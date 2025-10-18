@@ -19,7 +19,8 @@ import {
   ensureAbsoluteUrl,
   buildEventJsonLd,
 } from './utils/seoHelpers.js';
-import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
+import { CalendarPlus, Share2 } from 'lucide-react';
+import UnifiedEventHeader from './components/UnifiedEventHeader.jsx';
 
 const FALLBACK_EVENT_TITLE = 'Philadelphia Event Details – Our Philly';
 const FALLBACK_EVENT_DESCRIPTION =
@@ -37,6 +38,12 @@ function buildShortDescription(text, maxLength = 160) {
   if (normalized.length <= maxLength) return normalized;
   const sliced = normalized.slice(0, maxLength - 1).trimEnd();
   return `${sliced}…`;
+}
+
+function parseCoordinateValue(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
 
 export default function EventDetailPage() {
@@ -443,6 +450,103 @@ export default function EventDetailPage() {
   const ogImage = absoluteImage || DEFAULT_OG_IMAGE;
   const heroImage = event?.['E Image'] || DEFAULT_OG_IMAGE;
 
+  const locationLabel = typeof locationNameRaw === 'string' && locationNameRaw.trim() ? locationNameRaw.trim() : '';
+  const timeLabel = typeof event?.time === 'string' && event.time.trim() ? event.time.trim() : '';
+  const metaSegments = [];
+  if (displayDate) metaSegments.push(displayDate);
+  if (timeLabel) metaSegments.push(timeLabel);
+  metaSegments.push(locationLabel || 'Location TBA');
+  const metaLine = metaSegments.filter(Boolean).join(' · ');
+
+  const headerTags = eventTags.map((tag, i) => ({
+    id: tag.slug || tag.id || tag.name,
+    name: tag.name,
+    href: `/tags/${tag.slug}`,
+    className: pillStyles[i % pillStyles.length],
+  }));
+
+  const headerContextCallouts = (
+    <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-center text-indigo-800">
+      <a
+        href="/traditions-faq"
+        className="font-medium underline"
+        onClick={() =>
+          window.gtag &&
+          window.gtag('event', 'cta_click', {
+            event_category: 'traditions_faq',
+            event_label: 'events_page_notice',
+          })
+        }
+      >
+        Do you manage this Philly tradition? Read our FAQ for traditions hosts
+      </a>
+    </div>
+  );
+
+  const latitude = parseCoordinateValue(
+    event?.latitude ??
+      event?.Latitude ??
+      event?.lat ??
+      event?.Lat ??
+      event?.['latitude'] ??
+      event?.['Latitude'] ??
+      event?.['E Latitude']
+  );
+  const longitude = parseCoordinateValue(
+    event?.longitude ??
+      event?.Longitude ??
+      event?.lng ??
+      event?.Lng ??
+      event?.['longitude'] ??
+      event?.['Longitude'] ??
+      event?.['E Longitude']
+  );
+
+  const mapLocation =
+    latitude !== null && longitude !== null
+      ? {
+          latitude,
+          longitude,
+          address: locationLabel,
+        }
+      : null;
+
+  const headerActionRow = (
+    <>
+      <button onClick={handleShare} className="flex items-center gap-2 text-indigo-600 hover:underline">
+        <Share2 className="h-4 w-4" />
+        Share
+      </button>
+      {gcalLink && (
+        <a
+          href={gcalLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-indigo-600 hover:underline"
+        >
+          <CalendarPlus className="h-4 w-4" />
+          Google Calendar
+        </a>
+      )}
+      <Link to="/upcoming-events" className="flex items-center gap-2 text-slate-600 hover:text-indigo-600">
+        ← Back to Events
+      </Link>
+    </>
+  );
+
+  const descriptionCandidates = [];
+  if (typeof event.longDescription === 'string' && event.longDescription.trim()) {
+    descriptionCandidates.push(event.longDescription.trim());
+  }
+  if (
+    typeof event['E Description'] === 'string' &&
+    event['E Description'].trim() &&
+    event['E Description'].trim() !== (event.longDescription || '').trim()
+  ) {
+    descriptionCandidates.push(event['E Description'].trim());
+  }
+  const primaryDescription = descriptionCandidates.length ? descriptionCandidates : null;
+
   const seoTitle = eventName
     ? `${eventName}${displayDate ? ` – ${displayDate}` : ''} – Our Philly`
     : FALLBACK_EVENT_TITLE;
@@ -512,155 +616,41 @@ export default function EventDetailPage() {
 
       <Navbar />
 
-      <main className="flex-grow mt-32">
-        {/* Hero */}
-        <div
-          className="relative w-full h-screen bg-cover bg-center flex items-end"
-          style={{ backgroundImage: `url(${heroImage})` }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
-          <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white text-center">
-            <h1 className="text-6xl font-[Barrio] mb-4">{event['E Name']}</h1>
-            <p className="text-xl mb-6">
-              {displayDate}
-              {event.time && ` — ${event.time}`}
-            </p>
-            <div className="flex flex-col items-center gap-4 mb-6">
-              <div className="flex flex-wrap justify-center gap-4">
-                <button
-                  onClick={toggleFav}
-                  disabled={toggling}
-                  className={`flex items-center gap-2 px-4 py-2 rounded font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                >
-                  <CalendarCheck className="w-5 h-5" />
-                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                </button>
-                {event['E Link'] && (
-                  <a
-                    href={event['E Link']}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
-                  >
-                    <ExternalLink className="w-5 h-5" />
-                    Visit Site
-                  </a>
-                )}
-              </div>
-            </div>
-            {eventTags.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-3 mt-4">
-                {eventTags.map((tag, i) => (
-                  <Link
-                    key={tag.slug}
-                    to={`/tags/${tag.slug}`}
-                    className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-base font-semibold hover:opacity-80 transition`}
-                  >
-                    #{tag.name}
-                  </Link>
-                ))}
-              </div>
-            )}
-        </div>
-        </div>
+      <main className="flex-grow pt-32">
+        <UnifiedEventHeader
+          title={event['E Name']}
+          meta={metaLine}
+          tags={headerTags}
+          visitSiteUrl={event['E Link']}
+          imageUrl={heroImage}
+          isFavorite={isFavorite}
+          onToggleFavorite={toggleFav}
+          favoriteLoading={toggling}
+          contextCallouts={headerContextCallouts}
+          mapLocation={mapLocation}
+          actionRow={headerActionRow}
+        />
+
         {!user && (
-          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
+          <div className="w-full bg-indigo-600 py-4 text-center text-xl text-white sm:text-2xl">
+            <Link to="/login" className="font-semibold underline">Log in</Link> or{' '}
+            <Link to="/signup" className="font-semibold underline">sign up</Link> free to add to your Plans
           </div>
         )}
-        {reviewPhotoUrls.length > 0 && (
-          <ReviewPhotoGrid photos={reviewPhotoUrls} />
-        )}
 
-        {/* Traditions FAQ notice */}
-        <div className="max-w-4xl mx-auto mt-8 px-4">
-          <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-center rounded-md p-4">
-            <a
-              href="/traditions-faq"
-              onClick={() =>
-                window.gtag &&
-                window.gtag('event', 'cta_click', {
-                  event_category: 'traditions_faq',
-                  event_label: 'events_page_notice',
-                })
-              }
-              className="font-medium underline"
-            >
-              Do you manage this Philly tradition? Read our FAQ for traditions hosts
-            </a>
-          </div>
-        </div>
+        {reviewPhotoUrls.length > 0 && <ReviewPhotoGrid photos={reviewPhotoUrls} />}
 
-        {/* What to Expect */}
-        {event['E Description'] && (
-          <>
-            <div className="max-w-4xl mx-auto mt-8 px-4">
-              <div className="flex items-start gap-4">
-                <img
-                  src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/Our-Philly-Concierge_Illustration-1.png"
-                  alt="Our Philly concierge"
-                  className="w-12 h-12 mt-1"
-                />
-                <div>
-                  <h2 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-2">What to Expect</h2>
-                  <p className="text-gray-700 text-lg">{event['E Description']}</p>
-                </div>
-              </div>
+        {primaryDescription && (
+          <section className="mx-auto mt-10 max-w-4xl px-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-600">What to Expect</p>
+            <h2 className="mt-2 text-3xl font-[Barrio] text-slate-900">About this Philly Tradition</h2>
+            <div className="mt-4 space-y-4 text-base leading-relaxed text-slate-700">
+              {primaryDescription.map((paragraph, idx) => (
+                <p key={idx}>{paragraph}</p>
+              ))}
             </div>
-            <div className="border-t border-gray-200 w-3/4 mx-auto mt-6" />
-          </>
+          </section>
         )}
-
-        {/* Description & Image */}
-        <div className="max-w-4xl mx-auto mt-8 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div>
-            {event.longDescription && (
-              <div className="mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">About this Philly Tradition</h2>
-                <p className="text-gray-700">{event.longDescription}</p>
-              </div>
-            )}
-            <div className="mb-6 space-y-4">
-              <button
-                onClick={toggleFav}
-                disabled={toggling}
-                className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-              >
-                <CalendarCheck className="w-5 h-5" />
-                {isFavorite ? 'In the Plans' : 'Add to Plans'}
-              </button>
-              <div className="flex items-center justify-center gap-6 pt-2">
-                <button
-                  onClick={handleShare}
-                  className="flex items-center gap-2 text-indigo-600 hover:underline"
-                >
-                  <Share2 className="w-5 h-5" />
-                  Share
-                </button>
-                {gcalLink && (
-                  <a
-                    href={gcalLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-indigo-600 hover:underline"
-                  >
-                    <CalendarPlus className="w-5 h-5" />
-                    Google Calendar
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-          <div>
-            {event['E Image'] && (
-              <img
-                src={event['E Image']}
-                alt={event['E Name']}
-                className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
-              />
-            )}
-          </div>
-        </div>
 
         {isFeaturedTradition && matchingGroups.length > 0 && (
           <div className="max-w-4xl mx-auto mt-10 px-4">

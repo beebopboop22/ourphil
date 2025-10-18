@@ -5,10 +5,8 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
-import useFollow from './utils/useFollow';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
-import TriviaTonightBanner from './TriviaTonightBanner';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import { isTagActive } from './utils/tagUtils';
@@ -20,15 +18,14 @@ import {
   ensureAbsoluteUrl,
   buildEventJsonLd,
 } from './utils/seoHelpers.js';
+import UnifiedEventHeader from './components/UnifiedEventHeader.jsx';
 
 const FALLBACK_BIG_BOARD_TITLE = 'Community Event – Our Philly';
 const FALLBACK_BIG_BOARD_DESCRIPTION =
   'Discover community-submitted events happening around Philadelphia with Our Philly.';
 const CommentsSection = lazy(() => import('./CommentsSection'));
 import {
-  CalendarCheck,
   CalendarPlus,
-  ExternalLink,
   Pencil,
   Share2,
   Trash2,
@@ -44,8 +41,6 @@ export default function BigBoardEventPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Siblings for prev/next
-  const [siblings, setSiblings] = useState([]);
 
   // Mapbox Search Box setup
   const geocoderToken = getMapboxToken();
@@ -107,11 +102,6 @@ export default function BigBoardEventPage() {
 
   // Event poster info
   const [poster, setPoster] = useState(null);
-  const {
-    isFollowing: isPosterFollowing,
-    toggleFollow: togglePosterFollow,
-    loading: followLoading,
-  } = useFollow(event?.owner_id);
 
   // Helpers
   function parseLocalYMD(str) {
@@ -126,6 +116,12 @@ export default function BigBoardEventPage() {
     const ampm = h >= 12 ? 'p.m.' : 'a.m.';
     h = h % 12 || 12;
     return `${h}:${m} ${ampm}`;
+  }
+
+  function parseCoordinateValue(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
   }
 
   // Share fallback & handler
@@ -204,18 +200,6 @@ export default function BigBoardEventPage() {
     })();
   }, [slug]);
 
-  // Fetch siblings same-day
-  useEffect(() => {
-    if (!event) return;
-    (async () => {
-      const { data } = await supabase
-        .from('big_board_events')
-        .select('slug,title,start_time')
-        .eq('start_date', event.start_date)
-        .order('start_time',{ ascending: true });
-      setSiblings(data || []);
-    })();
-  }, [event]);
 
   // Fetch event poster profile
   useEffect(() => {
@@ -507,14 +491,92 @@ export default function BigBoardEventPage() {
     image: ogImage,
   });
 
-  // Prev/Next logic
-  const currentIndex = siblings.findIndex(e => e.slug === slug);
-  const prev = siblings.length
-    ? siblings[(currentIndex - 1 + siblings.length) % siblings.length]
+  const startTimeLabel = event.start_time ? formatTime(event.start_time) : '';
+  const endTimeLabel = event.end_time ? formatTime(event.end_time) : '';
+  const timeRangeText = startTimeLabel
+    ? endTimeLabel
+      ? `${startTimeLabel} to ${endTimeLabel}`
+      : startTimeLabel
+    : endTimeLabel
+      ? `Until ${endTimeLabel}`
+      : '';
+  const locationLabel = event.address?.trim() || 'Location TBA';
+  const metaSegments = [whenText, timeRangeText, locationLabel].filter(Boolean);
+  const metaLine = metaSegments.join(' · ');
+
+  const headerTags = tagsList
+    .filter(tag => selectedTags.includes(tag.id))
+    .map((tag, index) => ({
+      id: tag.id,
+      name: tag.name,
+      href: `/tags/${tag.name.toLowerCase()}`,
+      className: pillStyles[index % pillStyles.length],
+    }));
+
+  const headerContextCallouts = poster
+    ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700">
+          Submitted by{' '}
+          {poster.slug ? (
+            <Link to={`/u/${poster.slug}`} className="font-semibold text-indigo-600 hover:underline">
+              @{poster.username}
+            </Link>
+          ) : (
+            <span className="font-semibold">@{poster.username}</span>
+          )}
+        </div>
+      )
     : null;
-  const next = siblings.length
-    ? siblings[(currentIndex + 1) % siblings.length]
-    : null;
+
+  const latitude = parseCoordinateValue(event.latitude ?? event.lat ?? event.Latitude);
+  const longitude = parseCoordinateValue(event.longitude ?? event.lng ?? event.Longitude);
+  const mapLocation =
+    latitude !== null && longitude !== null
+      ? {
+          latitude,
+          longitude,
+          address: event.address || '',
+        }
+      : null;
+
+  const headerActionRow = (
+    <>
+      <button onClick={handleShare} className="flex items-center gap-2 text-indigo-600 hover:underline">
+        <Share2 className="h-4 w-4" />
+        Share
+      </button>
+      <a
+        href={gcalLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 text-indigo-600 hover:underline"
+      >
+        <CalendarPlus className="h-4 w-4" />
+        Google Calendar
+      </a>
+      {event.owner_id === user?.id && (
+        <>
+          <button
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-2 text-indigo-600 hover:underline"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-2 text-red-600 hover:underline"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+        </>
+      )}
+      <Link to="/board" className="flex items-center gap-2 text-slate-600 hover:text-indigo-600">
+        ← Back to Events
+      </Link>
+    </>
+  );
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -528,339 +590,182 @@ export default function BigBoardEventPage() {
       />
       <Navbar />
 
-      <main className="flex-grow relative mt-32">
-          {/* Hero banner */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event.imageUrl})` }}
+      <main className="flex-grow pt-32">
+        <UnifiedEventHeader
+          title={event.title}
+          meta={metaLine}
+          tags={headerTags}
+          visitSiteUrl={event.link}
+          imageUrl={event.imageUrl}
+          isFavorite={isFavorite}
+          onToggleFavorite={handleFavorite}
+          favoriteLoading={favLoading}
+          contextCallouts={headerContextCallouts}
+          mapLocation={mapLocation}
+          actionRow={headerActionRow}
+        />
+
+        {!user && (
+          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
+          </div>
+        )}
+
+        {isEditing && (
+          <div className="max-w-4xl mx-auto mt-12 px-4">
+            <form onSubmit={handleSave} className="space-y-6">
+                              {/* Title */}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">Title</label>
+                                <input
+                                  name="title"
+                                  value={formData.title}
+                                  onChange={handleChange}
+                                  required
+                                  className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                                />
+                              </div>
+                              {/* Description */}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">Description</label>
+                                <textarea
+                                  name="description"
+                                  rows="3"
+                                  value={formData.description}
+                                  onChange={handleChange}
+                                  className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                                />
+                              </div>
+                              {/* Address with suggestions */}
+                              <div className="relative">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                                <input
+                                  name="address"
+                                  type="text"
+                                  autoComplete="off"
+                                  ref={suggestRef}
+                                  value={formData.address}
+                                  onChange={handleChange}
+                                  className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                                  placeholder="Start typing an address…"
+                                />
+                                {addressSuggestions.length > 0 && (
+                                  <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
+                                    {addressSuggestions.map(feat => (
+                                      <li
+                                        key={feat.mapbox_id}
+                                        onClick={() => pickSuggestion(feat)}
+                                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                                      >
+                                        {feat.name} — {feat.full_address || feat.place_formatted}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                              {/* Times */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">Start Time</label>
+                                  <input
+                                    name="start_time"
+                                    type="time"
+                                    value={formData.start_time}
+                                    onChange={handleChange}
+                                    className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">End Time</label>
+                                  <input
+                                    name="end_time"
+                                    type="time"
+                                    value={formData.end_time}
+                                    onChange={handleChange}
+                                    className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                                  />
+                                </div>
+                              </div>
+                              {/* Dates */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                                  <input
+                                    name="start_date"
+                                    type="date"
+                                    value={formData.start_date}
+                                    onChange={handleChange}
+                                    required
+                                    className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">End Date</label>
+                                  <input
+                                    name="end_date"
+                                    type="date"
+                                    value={formData.end_date}
+                                    onChange={handleChange}
+                                    className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                                  />
+                                </div>
+                              </div>
+                              {/* Tags */}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                                <div className="flex flex-wrap gap-3">
+                                  {tagsList.map((tagOpt, i) => {
+                                    const isSel = selectedTags.includes(tagOpt.id);
+                                    return (
+                                      <button
+                                        key={tagOpt.id}
+                                        type="button"
+                                        onClick={() =>
+                                          setSelectedTags(prev =>
+                                            isSel
+                                              ? prev.filter(x => x !== tagOpt.id)
+                                              : [...prev, tagOpt.id]
+                                          )
+                                        }
+                                        className={`${
+                                          isSel
+                                            ? pillStyles[i % pillStyles.length]
+                                            : 'bg-gray-200 text-gray-700'
+                                        } px-4 py-2 rounded-full text-sm font-semibold`}
+                                      >
+                                        {tagOpt.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              {/* Save / Cancel */}
+                              <div className="flex space-x-4">
+                                <button
+                                  type="submit"
+                                  disabled={saving}
+                                  className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
+                                >
+                                  {saving ? 'Saving…' : 'Save'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEditing(false)}
+                                  className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+          </div>
+        )}
+
+        <Suspense fallback={<div>Loading comments…</div>}>
+          <CommentsSection
+            source_table="big_board_events"
+            event_id={event.id}
           />
-
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-            </div>
-          )}
-
-          {/* Overlapping centered card */}
-          <div className={`relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 transform z-10 ${user ? '-mt-24' : ''}`}>
-            {prev && (
-              <button
-                onClick={() => navigate(`/big-board/${prev.slug}`)}
-                className="absolute top-1/2 left-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >←</button>
-            )}
-            {next && (
-              <button
-                onClick={() => navigate(`/big-board/${next.slug}`)}
-                className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >→</button>
-            )}
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold">{event.title}</h1>
-              <p className="text-lg font-medium">
-                {whenText}
-                {event.start_time && ` — ${formatTime(event.start_time)}`}
-                {event.address && (
-                  <> • <a
-                    href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {event.address}
-                  </a></>
-                )}
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {tagsList
-                  .filter(t => selectedTags.includes(t.id))
-                  .map((tag, i) => (
-                    <Link
-                      key={tag.id}
-                      to={`/tags/${tag.name.toLowerCase()}`}
-                      className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-lg font-semibold`}
-                    >
-                      #{tag.name}
-                    </Link>
-                  ))}
-              </div>
-            </div>
-          </div>
-
-          {poster && (
-            <div className="max-w-4xl mx-auto mt-6 px-4">
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg py-3 flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 text-center">
-                <span className="text-2xl sm:text-3xl font-[Barrio] whitespace-nowrap">Posted by</span>
-                <Link to={`/u/${poster.slug}`} className="flex items-center gap-2">
-                  {poster.image ? (
-                    <img src={poster.image} alt="avatar" className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-gray-300" />
-                  )}
-                  <span className="text-2xl sm:text-3xl font-[Barrio] break-words">{poster.username}</span>
-                </Link>
-                {poster.cultures?.map(c => (
-                  <span key={c.emoji} title={c.name} className="text-2xl sm:text-3xl">
-                    {c.emoji}
-                  </span>
-                ))}
-                {user && user.id !== poster.id && (
-                  <button
-                    onClick={togglePosterFollow}
-                    disabled={followLoading}
-                    className="border border-indigo-700 rounded px-2 py-0.5 text-sm hover:bg-indigo-700 hover:text-white transition"
-                  >
-                    {isPosterFollowing ? 'Unfollow' : 'Follow'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Description, form / details, and image */}
-          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left: description / edit form / buttons */}
-            <div>
-              {isEditing ? (
-                <form onSubmit={handleSave} className="space-y-6">
-                  {/* Title */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Title</label>
-                    <input
-                      name="title"
-                      value={formData.title}
-                      onChange={handleChange}
-                      required
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  {/* Description */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea
-                      name="description"
-                      rows="3"
-                      value={formData.description}
-                      onChange={handleChange}
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  {/* Address with suggestions */}
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                    <input
-                      name="address"
-                      type="text"
-                      autoComplete="off"
-                      ref={suggestRef}
-                      value={formData.address}
-                      onChange={handleChange}
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Start typing an address…"
-                    />
-                    {addressSuggestions.length > 0 && (
-                      <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
-                        {addressSuggestions.map(feat => (
-                          <li
-                            key={feat.mapbox_id}
-                            onClick={() => pickSuggestion(feat)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                          >
-                            {feat.name} — {feat.full_address || feat.place_formatted}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {/* Times */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Start Time</label>
-                      <input
-                        name="start_time"
-                        type="time"
-                        value={formData.start_time}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">End Time</label>
-                      <input
-                        name="end_time"
-                        type="time"
-                        value={formData.end_time}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  {/* Dates */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                      <input
-                        name="start_date"
-                        type="date"
-                        value={formData.start_date}
-                        onChange={handleChange}
-                        required
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">End Date</label>
-                      <input
-                        name="end_date"
-                        type="date"
-                        value={formData.end_date}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  {/* Tags */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
-                    <div className="flex flex-wrap gap-3">
-                      {tagsList.map((tagOpt, i) => {
-                        const isSel = selectedTags.includes(tagOpt.id);
-                        return (
-                          <button
-                            key={tagOpt.id}
-                            type="button"
-                            onClick={() =>
-                              setSelectedTags(prev =>
-                                isSel
-                                  ? prev.filter(x => x !== tagOpt.id)
-                                  : [...prev, tagOpt.id]
-                              )
-                            }
-                            className={`${
-                              isSel
-                                ? pillStyles[i % pillStyles.length]
-                                : 'bg-gray-200 text-gray-700'
-                            } px-4 py-2 rounded-full text-sm font-semibold`}
-                          >
-                            {tagOpt.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {/* Save / Cancel */}
-                  <div className="flex space-x-4">
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
-                    >
-                      {saving ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(false)}
-                      className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  {event.description && (
-                    <div className="mb-6">
-                      <h2 className="text-2xl font-semibold text-gray-900 mb-2">Description</h2>
-                      <p className="text-gray-700">{event.description}</p>
-                    </div>
-                  )}
-                  <div className="space-y-4">
-                    <button
-                      onClick={handleFavorite}
-                      disabled={favLoading}
-                      className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                    >
-                      <CalendarCheck className="w-5 h-5" />
-                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                    </button>
-
-                    {event.link && (
-                      <a
-                        href={event.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
-                      >
-                        <ExternalLink className="w-5 h-5" />
-                        Visit Site
-                      </a>
-                    )}
-
-                    <div className="flex items-center justify-center gap-6 pt-2">
-                      <button
-                        onClick={handleShare}
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <Share2 className="w-5 h-5" />
-                        Share
-                      </button>
-                      <a
-                        href={gcalLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                        Google Calendar
-                      </a>
-                    </div>
-
-                    {event.owner_id === user?.id && (
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          onClick={startEditing}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                        >
-                          <Pencil className="w-4 h-4" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={handleDelete}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-red-100 text-red-700 hover:bg-red-200"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
-                      </div>
-                    )}
-
-                    <Link
-                      to="/"
-                      className="block text-center text-indigo-600 hover:underline font-medium"
-                    >
-                      ← Back to Events
-                    </Link>
-                  </div>
-                  </>
-                )}
-              </div>
-
-            {/* Right: full image */}
-            <div>
-              <img
-                src={event.imageUrl}
-                alt={event.title}
-                className="w-full h-auto rounded-lg shadow-lg max-h-[60vh]"
-              />
-            </div>
-          </div>
-
-          <Suspense fallback={<div>Loading comments…</div>}>
-            <CommentsSection
-              source_table="big_board_events"
-              event_id={event.id}
-            />
-          </Suspense>
+        </Suspense>
 
           {/* More Upcoming Community Submissions */}
           <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">

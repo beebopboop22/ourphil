@@ -23,14 +23,13 @@ import {
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
 import {
-  CalendarCheck,
   CalendarPlus,
-  ExternalLink,
   Pencil,
   Share2,
   Trash2,
   Instagram,
 } from 'lucide-react';
+import UnifiedEventHeader from './components/UnifiedEventHeader.jsx';
 
 const FALLBACK_MAIN_EVENT_TITLE = 'Philadelphia Event – Our Philly';
 const FALLBACK_MAIN_EVENT_DESCRIPTION =
@@ -84,6 +83,12 @@ function normalizeInstagramHandle(value) {
     .replace(/\?.*$/, '')
     .replace(/\/$/, '')
     .replace(/^@/, '');
+}
+
+function parseCoordinateValue(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
 
 function AddToPlansButton({ eventId, sourceTable }) {
@@ -649,6 +654,130 @@ export default function MainEventsDetail() {
     : null;
   const instagramHandle = normalizeInstagramHandle(instagramUrlRaw || instagramUrl || '');
 
+  const timeRangeText = timeText
+    ? endTimeText
+      ? `${timeText} to ${endTimeText}`
+      : timeText
+    : endTimeText
+      ? `Until ${endTimeText}`
+      : '';
+  const locationNode = resolvedAddress ? (
+    <span className="inline-flex items-center gap-2">
+      <Link to={`/${venueData?.slug || venue}`} className="font-medium text-indigo-600 hover:underline">
+        {linkText}
+      </Link>
+      {instagramUrl && (
+        <a
+          href={instagramUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-slate-500 hover:text-indigo-600"
+        >
+          <Instagram className="h-4 w-4" />
+        </a>
+      )}
+    </span>
+  ) : (
+    <span>Location TBA</span>
+  );
+
+  const metaSegments = [
+    whenText,
+    timeRangeText,
+    locationNode,
+  ].filter(Boolean);
+
+  const metaLine = (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      {metaSegments.map((segment, index) => (
+        <React.Fragment key={index}>
+          {index > 0 && <span className="text-slate-400">·</span>}
+          {segment}
+        </React.Fragment>
+      ))}
+    </span>
+  );
+
+  const headerTags = eventTags.map((tag, i) => ({
+    id: tag.slug || tag.id || tag.name,
+    name: tag.name,
+    href: `/tags/${tag.slug}`,
+    className: TAG_PILL_STYLES[i % TAG_PILL_STYLES.length],
+  }));
+
+  const headerContextCallouts = venueData?.name ? (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700">
+      <p>
+        <span className="font-semibold text-slate-900">At:</span>{' '}
+        <Link to={`/${venueData.slug || venue}`}>{venueData.name}</Link>
+      </p>
+      {venueDescription && <p className="mt-2 text-sm text-slate-600">{venueDescription}</p>}
+    </div>
+  ) : null;
+
+  const latitude = parseCoordinateValue(
+    event?.latitude ??
+      event?.lat ??
+      event?.Latitude ??
+      venueData?.latitude ??
+      venueData?.lat
+  );
+  const longitude = parseCoordinateValue(
+    event?.longitude ??
+      event?.lng ??
+      event?.Longitude ??
+      venueData?.longitude ??
+      venueData?.lng
+  );
+
+  const mapLocation =
+    latitude !== null && longitude !== null
+      ? {
+          latitude,
+          longitude,
+          address: resolvedAddress || venueData?.name || '',
+        }
+      : null;
+
+  const headerActionRow = (
+    <>
+      <button onClick={handleShare} className="flex items-center gap-2 text-indigo-600 hover:underline">
+        <Share2 className="h-4 w-4" />
+        Share
+      </button>
+      <a
+        href={gcalLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 text-indigo-600 hover:underline"
+      >
+        <CalendarPlus className="h-4 w-4" />
+        Google Calendar
+      </a>
+      {isAdmin && (
+        <>
+          <button
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-2 text-indigo-600 hover:underline"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-2 text-red-600 hover:underline"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+        </>
+      )}
+      <Link to="/upcoming-events" className="flex items-center gap-2 text-slate-600 hover:text-indigo-600">
+        ← Back to Events
+      </Link>
+    </>
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Seo
@@ -662,89 +791,33 @@ export default function MainEventsDetail() {
 
       <Navbar/>
 
-      <main className="flex-grow mt-32">
-          {/* Hero */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event.image})` }}
-          />
+      <main className="flex-grow pt-32">
+        <UnifiedEventHeader
+          title={event.name}
+          meta={metaLine}
+          tags={headerTags}
+          visitSiteUrl={event.link}
+          imageUrl={event.image}
+          isFavorite={isFavorite}
+          onToggleFavorite={handleFavorite}
+          favoriteLoading={toggling}
+          contextCallouts={headerContextCallouts}
+          mapLocation={mapLocation}
+          actionRow={headerActionRow}
+        />
 
-          {/* Overlap Card */}
-          <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform relative">
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold">{event.name}</h1>
-              <p className="text-lg font-medium flex flex-wrap justify-center items-center gap-2 text-center">
-                <span>
-                  {whenText}
-                  {timeText && ` — ${timeText}`}
-                  {endTimeText && ` to ${endTimeText}`}
-                </span>
-                {resolvedAddress ? (
-                  <span className="inline-flex items-center gap-2">
-                    •
-                    <a
-                      href={`https://maps.google.com?q=${encodeURIComponent(resolvedAddress)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:underline"
-                    >
-                      {linkText}
-                    </a>
-                    {instagramUrl && instagramHandle && (
-                      <a
-                        href={instagramUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
-                      >
-                        <Instagram className="w-4 h-4" />
-                        @{instagramHandle}
-                      </a>
-                    )}
-                  </span>
-                ) : (
-                  instagramUrl &&
-                  instagramHandle && (
-                    <a
-                      href={instagramUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
-                    >
-                      <Instagram className="w-4 h-4" />
-                      @{instagramHandle}
-                    </a>
-                  )
-                )}
-              </p>
-              {eventTags.length > 0 && (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {eventTags.map((tag, i) => (
-                    <Link
-                      key={tag.slug}
-                      to={`/tags/${tag.slug}`}
-                      className={`${TAG_PILL_STYLES[i % TAG_PILL_STYLES.length]} px-4 py-2 rounded-full text-sm font-semibold hover:opacity-80 transition`}
-                    >
-                      #{tag.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+        {!user && (
+          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
           </div>
+        )}
 
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-            </div>
-          )}
+        {reviewPhotos.length > 0 && (
+          <ReviewPhotoGrid photos={reviewPhotos} />
+        )}
 
-          {reviewPhotos.length > 0 && (
-            <ReviewPhotoGrid photos={reviewPhotos} />
-          )}
-
-          {/* Content */}
-          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Content */}
+        <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left */}
             <div>
               {isEditing ? (
@@ -866,82 +939,23 @@ export default function MainEventsDetail() {
                       <p className="text-gray-700 leading-relaxed">{event.description}</p>
                     </div>
                   )}
-                  <div className="space-y-4">
-                    <button
-                      onClick={handleFavorite}
-                      disabled={toggling}
-                      className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                    >
-                      <CalendarCheck className="w-5 h-5" />
-                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                    </button>
-
-                    {event.link && (
+                  {instagramUrl && !resolvedAddress && instagramHandle && (
+                    <div className="mt-4 flex justify-center">
                       <a
-                        href={event.link}
+                        href={instagramUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                        className="inline-flex items-center gap-2 text-indigo-600 hover:underline"
                       >
-                        <ExternalLink className="w-5 h-5" />
-                        Visit Site
-                      </a>
-                    )}
-
-                    <div className="flex items-center justify-center gap-6 pt-2">
-                      <button
-                        onClick={handleShare}
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <Share2 className="w-5 h-5" />
-                        Share
-                      </button>
-                      <a
-                        href={gcalLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                        Google Calendar
+                        <Instagram className="h-4 w-4" />
+                        <span className="text-sm font-medium">Follow on Instagram</span>
                       </a>
                     </div>
-
-                    {isAdmin && (
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          onClick={() => setIsEditing(true)}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                        >
-                          <Pencil className="w-4 h-4" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={handleDelete}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-red-100 text-red-700 hover:bg-red-200"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </>
               )}
             </div>
 
-            {/* Right: image */}
-            <div>
-              {event.image ? (
-                <img
-                  src={event.image}
-                  alt={event.name}
-                  className="w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-lg"
-                />
-              ) : (
-                <div className="w-full h-[240px] bg-gray-200 rounded-lg" />
-              )}
-          </div>
           </div>
 
           <CommentsSection
