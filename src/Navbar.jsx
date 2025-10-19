@@ -86,7 +86,12 @@ export default function Navbar({ style, bottomBanner }) {
 
   return (
     <>
-      <nav ref={navRef} className="fixed top-0 w-full bg-white shadow z-50" style={style}>
+      <nav
+        ref={navRef}
+        data-navbar
+        className="fixed top-0 w-full bg-white shadow z-50"
+        style={style}
+      >
         <div className="mx-auto w-full max-w-screen-xl px-4 py-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
             {/* Logo and mobile menu toggle */}
