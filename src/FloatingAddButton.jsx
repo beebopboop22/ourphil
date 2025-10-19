@@ -4,7 +4,7 @@ import { PlusIcon } from '@heroicons/react/24/solid'
 import { AuthContext } from './AuthProvider'
 import LoginPromptModal from './LoginPromptModal'
 
-export default function FloatingAddButton({ onClick }) {
+export default function FloatingAddButton({ onClick, showMobile = true }) {
   const { user } = useContext(AuthContext)
   const [showLogin, setShowLogin] = useState(false)
 
@@ -34,21 +34,23 @@ export default function FloatingAddButton({ onClick }) {
       </button>
 
       {/* Mobile: full-width sticky bar */}
-      <button
-        onClick={handleClick}
-        className="
-          md:hidden
-          fixed bottom-0 left-0 right-0 z-50
-          bg-indigo-600 hover:bg-indigo-700
-          text-white flex items-center justify-center space-x-2
-          py-4 px-6
-          shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-300
-          transition
-        "
-      >
-        <PlusIcon className="h-6 w-6" />
-        <span className="font-semibold">Post Event</span>
-      </button>
+      {showMobile && (
+        <button
+          onClick={handleClick}
+          className="
+            md:hidden
+            fixed bottom-0 left-0 right-0 z-50
+            bg-indigo-600 hover:bg-indigo-700
+            text-white flex items-center justify-center space-x-2
+            py-4 px-6
+            shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-300
+            transition
+          "
+        >
+          <PlusIcon className="h-6 w-6" />
+          <span className="font-semibold">Post Event</span>
+        </button>
+      )}
 
       {showLogin && <LoginPromptModal onClose={() => setShowLogin(false)} />}
     </>
