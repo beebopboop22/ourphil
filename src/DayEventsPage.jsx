@@ -629,7 +629,7 @@ function FavoriteState({ eventId, sourceTable, children }) {
   return children(state);
 }
 
-function EventListItem({ event, now, tags = [], variant = 'default' }) {
+export function EventListItem({ event, now, tags = [], variant = 'default' }) {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const label = formatEventTiming(event, now);
