@@ -7,7 +7,6 @@ import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import { RRule } from 'rrule';
 import PostFlyerModal from './PostFlyerModal';
-import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
@@ -26,6 +25,7 @@ import {
   CalendarCheck,
   CalendarPlus,
   ExternalLink,
+  MapPin,
   Pencil,
   Share2,
   Trash2,
@@ -86,7 +86,7 @@ function normalizeInstagramHandle(value) {
     .replace(/^@/, '');
 }
 
-function AddToPlansButton({ eventId, sourceTable }) {
+function AddToPlansButton({ eventId, sourceTable, size = 'md', showIcon = false, className = '' }) {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const { isFavorite, toggleFavorite, loading } = useEventFavorite({
@@ -95,6 +95,18 @@ function AddToPlansButton({ eventId, sourceTable }) {
   });
 
   if (!eventId) return null;
+
+  const baseClasses =
+    'border border-indigo-600 rounded-full font-semibold transition-colors';
+  const sizeClasses =
+    size === 'lg'
+      ? 'w-full inline-flex items-center justify-center gap-2 px-6 py-3 text-sm'
+      : showIcon
+        ? 'inline-flex items-center justify-center gap-2 px-4 py-2 text-sm'
+        : 'px-4 py-2 text-sm';
+  const stateClasses = isFavorite
+    ? 'bg-indigo-600 text-white'
+    : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white';
 
   return (
     <button
@@ -109,12 +121,11 @@ function AddToPlansButton({ eventId, sourceTable }) {
         toggleFavorite();
       }}
       disabled={loading}
-      className={`border border-indigo-600 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-        isFavorite
-          ? 'bg-indigo-600 text-white'
-          : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
-      }`}
+      className={`${baseClasses} ${sizeClasses} ${stateClasses} ${
+        loading ? 'opacity-70' : ''
+      } ${className}`.trim()}
     >
+      {showIcon && <CalendarCheck className="h-4 w-4" aria-hidden="true" />}
       {isFavorite ? 'In the Plans' : 'Add to Plans'}
     </button>
   );
@@ -267,6 +278,8 @@ export default function MainEventsDetail() {
   const [sameDayEventTags, setSameDayEventTags] = useState({});
   const [eventTags, setEventTags] = useState([]);
   const [reviewPhotos, setReviewPhotos] = useState([]);
+  const [areaLookup, setAreaLookup] = useState({});
+  const [navOffset, setNavOffset] = useState(0);
 
   // post flyer modal state
   const [showFlyerModal, setShowFlyerModal] = useState(false);
@@ -363,6 +376,57 @@ export default function MainEventsDetail() {
       });
   }, [event]);
 
+  useEffect(() => {
+    let isMounted = true;
+    supabase
+      .from('areas')
+      .select('id,name')
+      .then(({ data, error }) => {
+        if (!isMounted) return;
+        if (error) {
+          console.error(error);
+          setAreaLookup({});
+          return;
+        }
+        const map = {};
+        (data || []).forEach(area => {
+          if (area?.id == null) return;
+          map[area.id] = area.name || '';
+        });
+        setAreaLookup(map);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const measure = () => {
+      const navEl = document.querySelector('nav');
+      if (!navEl) return;
+      setNavOffset(navEl.getBoundingClientRect().height);
+    };
+
+    measure();
+
+    const handleResize = () => measure();
+    window.addEventListener('resize', handleResize);
+
+    let observer;
+    const navEl = document.querySelector('nav');
+    if (typeof ResizeObserver !== 'undefined' && navEl) {
+      observer = new ResizeObserver(measure);
+      observer.observe(navEl);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (observer) observer.disconnect();
+    };
+  }, []);
+
   // Fetch everything
   useEffect(() => {
     (async () => {
@@ -374,7 +438,8 @@ export default function MainEventsDetail() {
           .select(`
             id, venue_id, name, description, link, image,
             start_date, end_date, start_time, end_time,
-            address, created_at, slug
+            address, created_at, slug, area_id,
+            venues:venue_id ( area_id, name, slug )
           `)
           .eq('slug', slug)
           .limit(1);
@@ -386,7 +451,7 @@ export default function MainEventsDetail() {
         if (ev.venue_id) {
           const { data: vens } = await supabase
             .from('venues')
-            .select('id,name,slug,address,description,website,instagram')
+            .select('id,name,slug,address,description,website,instagram,area_id')
             .eq('id', ev.venue_id)
             .limit(1);
           setVenueData(vens?.[0] || null);
@@ -586,17 +651,26 @@ export default function MainEventsDetail() {
     );
   }
 
-  // Friendly date/time
-  const sd = parseLocalYMD(event.start_date);
-  const today0 = new Date(); today0.setHours(0,0,0,0);
-  const daysDiff = Math.round((sd - today0)/(1000*60*60*24));
-  const whenText =
-    daysDiff === 0 ? 'Today' :
-    daysDiff === 1 ? 'Tomorrow' :
-    sd.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
-  const timeText = event.start_time ? formatTime(event.start_time) : '';
-  const endTimeText = event.end_time ? formatTime(event.end_time) : '';
-  const weekdayName = sd.toLocaleDateString('en-US',{ weekday:'long' });
+  const startDateObj = event.start_date ? parseLocalYMD(event.start_date) : null;
+  const endDateObj = event.end_date ? parseLocalYMD(event.end_date) : startDateObj;
+  const dateFormatter = { weekday: 'long', month: 'long', day: 'numeric' };
+  const startDateLabel = startDateObj
+    ? startDateObj.toLocaleDateString('en-US', dateFormatter)
+    : 'Date TBA';
+  const endDateLabel = endDateObj && startDateObj && endDateObj.getTime() !== startDateObj.getTime()
+    ? endDateObj.toLocaleDateString('en-US', dateFormatter)
+    : null;
+  const dateLabel = endDateLabel ? `${startDateLabel} – ${endDateLabel}` : startDateLabel;
+  const startTimeLabel = event.start_time ? formatTime(event.start_time) : '';
+  const endTimeLabel = event.end_time ? formatTime(event.end_time) : '';
+  let timeLabel = '';
+  if (startTimeLabel && endTimeLabel) timeLabel = `${startTimeLabel} – ${endTimeLabel}`;
+  else if (startTimeLabel) timeLabel = startTimeLabel;
+  else if (endTimeLabel) timeLabel = `Ends ${endTimeLabel}`;
+  const dateTimeDisplay = timeLabel ? `${dateLabel} · ${timeLabel}` : dateLabel;
+  const weekdayName = startDateObj
+    ? startDateObj.toLocaleDateString('en-US', { weekday: 'long' })
+    : '';
   const venueSlugForCanonical = venueData?.slug || venue;
   const canonicalPath =
     getDetailPathForItem({
@@ -624,6 +698,17 @@ export default function MainEventsDetail() {
     image: eventImage,
   });
 
+  const venueRelation = event.venues;
+  const venueAreaId = Array.isArray(venueRelation)
+    ? (venueRelation.find(entry => entry?.area_id != null) || {}).area_id ?? null
+    : venueRelation?.area_id ?? null;
+  const fallbackVenueAreaId = venueData?.area_id ?? null;
+  const areaId = event.area_id ?? venueAreaId ?? fallbackVenueAreaId ?? null;
+  const areaName = areaId != null ? areaLookup[areaId] || null : null;
+  const neighborhoodName = areaName?.trim() || 'Neighborhood TBA';
+  const stickyStyle = { top: `${navOffset}px` };
+  const mainStyle = { paddingTop: `${navOffset}px` };
+
   const gcalLink = (() => {
     const start = event.start_date.replace(/-/g, '');
     const end = (event.end_date || event.start_date).replace(/-/g, '');
@@ -640,6 +725,7 @@ export default function MainEventsDetail() {
   const resolvedAddress = event.address?.trim() || venueData?.address?.trim();
   // Link text is always venue name if available:
   const linkText = venueData?.name || resolvedAddress;
+  const shortAddress = resolvedAddress ? resolvedAddress.split(',')[0].trim() : null;
   const venueDescription = venueData?.description?.trim();
   const instagramUrlRaw = venueData?.instagram?.trim();
   const instagramUrl = instagramUrlRaw
@@ -662,89 +748,59 @@ export default function MainEventsDetail() {
 
       <Navbar/>
 
-      <main className="flex-grow mt-32">
-          {/* Hero */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event.image})` }}
-          />
-
-          {/* Overlap Card */}
-          <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 -mt-24 transform relative">
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold">{event.name}</h1>
-              <p className="text-lg font-medium flex flex-wrap justify-center items-center gap-2 text-center">
-                <span>
-                  {whenText}
-                  {timeText && ` — ${timeText}`}
-                  {endTimeText && ` to ${endTimeText}`}
-                </span>
-                {resolvedAddress ? (
-                  <span className="inline-flex items-center gap-2">
-                    •
-                    <a
-                      href={`https://maps.google.com?q=${encodeURIComponent(resolvedAddress)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:underline"
-                    >
-                      {linkText}
-                    </a>
-                    {instagramUrl && instagramHandle && (
-                      <a
-                        href={instagramUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
-                      >
-                        <Instagram className="w-4 h-4" />
-                        @{instagramHandle}
-                      </a>
+      <main className="flex-grow relative pb-24 sm:pb-0" style={mainStyle}>
+        <header className="sticky z-40" style={stickyStyle}>
+          <div className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:py-5">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">
+                  {event.name}
+                </h1>
+                <div className="mt-2 flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                  <span className="font-medium text-gray-900">{dateTimeDisplay}</span>
+                  <span className="flex min-w-0 items-center gap-1 font-medium text-gray-700">
+                    <MapPin className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                    <span className="truncate text-gray-900">{neighborhoodName}</span>
+                    {shortAddress && (
+                      <span className="truncate text-gray-500">· {shortAddress}</span>
                     )}
                   </span>
-                ) : (
-                  instagramUrl &&
-                  instagramHandle && (
-                    <a
-                      href={instagramUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
-                    >
-                      <Instagram className="w-4 h-4" />
-                      @{instagramHandle}
-                    </a>
-                  )
-                )}
-              </p>
-              {eventTags.length > 0 && (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {eventTags.map((tag, i) => (
-                    <Link
-                      key={tag.slug}
-                      to={`/tags/${tag.slug}`}
-                      className={`${TAG_PILL_STYLES[i % TAG_PILL_STYLES.length]} px-4 py-2 rounded-full text-sm font-semibold hover:opacity-80 transition`}
-                    >
-                      #{tag.name}
-                    </Link>
-                  ))}
                 </div>
-              )}
+                {!!eventTags.length && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {eventTags.map((tag, i) => (
+                      <Link
+                        key={tag.slug}
+                        to={`/tags/${tag.slug}`}
+                        className={`${TAG_PILL_STYLES[i % TAG_PILL_STYLES.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
+                      >
+                        #{tag.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="hidden sm:flex flex-shrink-0 items-center">
+                <AddToPlansButton eventId={event.id} sourceTable="all_events" showIcon />
+              </div>
             </div>
           </div>
+        </header>
 
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-            </div>
-          )}
+        {!user && (
+          <div className="mt-6 w-full bg-indigo-600 py-4 text-center text-xl text-white sm:text-2xl">
+            <Link to="/login" className="font-semibold underline">Log in</Link> or{' '}
+            <Link to="/signup" className="font-semibold underline">sign up</Link> free to add to your Plans
+          </div>
+        )}
 
-          {reviewPhotos.length > 0 && (
+        {reviewPhotos.length > 0 && (
+          <div className="mt-6">
             <ReviewPhotoGrid photos={reviewPhotos} />
-          )}
+          </div>
+        )}
 
-          {/* Content */}
-          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="max-w-4xl mx-auto mt-8 px-4 grid grid-cols-1 gap-8 lg:grid-cols-2">
             {/* Left */}
             <div>
               {isEditing ? (
@@ -907,6 +963,29 @@ export default function MainEventsDetail() {
                       </a>
                     </div>
 
+                    {resolvedAddress && (
+                      <a
+                        href={`https://maps.google.com?q=${encodeURIComponent(resolvedAddress)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 text-indigo-600 hover:underline"
+                      >
+                        <MapPin className="w-5 h-5" />
+                        {linkText}
+                      </a>
+                    )}
+                    {instagramUrl && instagramHandle && (
+                      <a
+                        href={instagramUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 text-indigo-600 hover:underline"
+                      >
+                        <Instagram className="w-5 h-5" />
+                        @{instagramHandle}
+                      </a>
+                    )}
+
                     {isAdmin && (
                       <div className="flex gap-3 pt-2">
                         <button
@@ -1050,11 +1129,14 @@ export default function MainEventsDetail() {
             )}
           </section>
 
+          <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <AddToPlansButton eventId={event.id} sourceTable="all_events" size="lg" showIcon />
+          </div>
+
           <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
       </main>
 
       <Footer/>
-      <FloatingAddButton onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }} />
       <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
     </div>
   );
