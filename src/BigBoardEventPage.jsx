@@ -1,5 +1,5 @@
 // src/BigBoardEventPage.jsx
-import React, { useEffect, useState, useContext, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useContext, useRef, lazy, Suspense, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -34,10 +34,224 @@ import {
   Trash2,
 } from 'lucide-react';
 
+const STATIC_AREA_LOOKUP = Object.freeze({});
+const FALLBACK_NEIGHBORHOOD = 'Neighborhood TBA';
+const DEFAULT_STICKY_BUFFER = 10;
+
+function formatHeaderDateLabel(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return 'Date TBA';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return 'Date TBA';
+  const [yearStr, monthStr, dayStr] = parts;
+  const year = Number.parseInt(yearStr, 10);
+  const month = Number.parseInt(monthStr, 10);
+  const day = Number.parseInt(dayStr, 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return 'Date TBA';
+  }
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return 'Date TBA';
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatHeaderTimePart(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return '';
+  const [hourStr, minuteStr = '00'] = timeStr.split(':');
+  const hour = Number.parseInt(hourStr, 10);
+  if (!Number.isFinite(hour)) return '';
+  const normalizedMinute = minuteStr.padStart(2, '0').slice(0, 2);
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const normalizedHour = ((hour + 11) % 12) + 1;
+  return `${normalizedHour}:${normalizedMinute} ${period}`;
+}
+
+function formatHeaderWhenLabel(startDate, startTime, endTime) {
+  const dateLabel = formatHeaderDateLabel(startDate);
+  const startLabel = formatHeaderTimePart(startTime);
+  const endLabel = formatHeaderTimePart(endTime);
+  const parts = [];
+  if (dateLabel) parts.push(dateLabel);
+  if (startLabel && endLabel) {
+    parts.push(`${startLabel}–${endLabel}`);
+  } else if (startLabel) {
+    parts.push(startLabel);
+  } else {
+    parts.push('Time TBA');
+  }
+  return parts.join(' • ');
+}
+
+function extractAreaLookupFromWindow() {
+  if (typeof window === 'undefined') return {};
+  const merged = {};
+  const candidates = [
+    window.__AREA_LOOKUP__,
+    window.__AREAS_LOOKUP__,
+    window.__AREAS_CACHE__,
+    window.__OURPHILLY_AREA_LOOKUP__,
+  ];
+  candidates.forEach(candidate => {
+    if (!candidate || typeof candidate !== 'object') return;
+    Object.entries(candidate).forEach(([key, value]) => {
+      if (!key) return;
+      if (value) merged[key] = value;
+    });
+  });
+  try {
+    const stored = window.localStorage?.getItem('areaLookupCache');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === 'object') {
+        Object.entries(parsed).forEach(([key, value]) => {
+          if (!key) return;
+          if (value) merged[key] = value;
+        });
+      }
+    }
+  } catch (err) {
+    // ignore storage access errors
+  }
+  return merged;
+}
+
+function BigBoardEventStickyHeader({
+  title,
+  whenLabel,
+  areaName,
+  addressLine,
+  tags,
+  pillStyles,
+  submittedBy,
+  submittedBySlug,
+  onAddToPlans,
+  isFavorite,
+  favLoading,
+}) {
+  const [stickyTop, setStickyTop] = useState(128 + DEFAULT_STICKY_BUFFER);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const measure = () => {
+      const nav = document.querySelector('nav');
+      if (!nav) {
+        setStickyTop(128 + DEFAULT_STICKY_BUFFER);
+        return;
+      }
+      const rect = nav.getBoundingClientRect();
+      const buffer = DEFAULT_STICKY_BUFFER;
+      setStickyTop(Math.ceil(rect.height) + buffer);
+    };
+    measure();
+    const nav = document.querySelector('nav');
+    let observer;
+    if (window.ResizeObserver && nav) {
+      observer = new ResizeObserver(measure);
+      observer.observe(nav);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      if (observer) observer.disconnect();
+    };
+  }, []);
+
+  const backgroundStyle = {
+    marginLeft: 'calc(-50vw + 50%)',
+    marginRight: 'calc(-50vw + 50%)',
+  };
+
+  return (
+    <div className="sticky z-40" style={{ top: `${stickyTop}px` }}>
+      <div
+        className="border-b border-gray-200 bg-white/95 backdrop-blur"
+        style={backgroundStyle}
+      >
+        <div className="mx-auto flex max-w-screen-xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-2">
+              <p className="truncate text-base font-semibold text-gray-900 md:text-lg" title={title}>
+                {title}
+              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-700">
+                {whenLabel && <span>{whenLabel}</span>}
+                <span className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+                  <span aria-hidden="true" role="img">📍</span>
+                  <span className="font-semibold text-indigo-700">
+                    {areaName || FALLBACK_NEIGHBORHOOD}
+                  </span>
+                  {addressLine && (
+                    <span className="text-gray-500">— {addressLine}</span>
+                  )}
+                </span>
+              </div>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {tags.map((tag, index) => (
+                    <Link
+                      key={tag.id}
+                      to={`/tags/${tag.name.toLowerCase()}`}
+                      className={`${pillStyles[index % pillStyles.length]} rounded-full px-3 py-1 text-xs font-semibold md:text-sm`}
+                    >
+                      #{tag.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {submittedBy && (
+                <div className="text-xs text-gray-600 md:text-sm">
+                  Submitted by{' '}
+                  {submittedBySlug ? (
+                    <Link to={`/u/${submittedBySlug}`} className="font-semibold text-indigo-700">
+                      @{submittedBy}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-indigo-700">@{submittedBy}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onAddToPlans}
+              disabled={favLoading}
+              className={`hidden rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition md:inline-flex md:items-center md:gap-2 ${
+                isFavorite
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-white text-indigo-600 hover:bg-indigo-50'
+              } ${favLoading ? 'opacity-60' : ''}`}
+            >
+              <CalendarPlus className="h-4 w-4" />
+              {isFavorite ? 'In the Plans' : 'Add to Plans'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BigBoardEventPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+
+  const areaLookup = useMemo(() => {
+    const combined = { ...STATIC_AREA_LOOKUP };
+    const extracted = extractAreaLookupFromWindow();
+    Object.entries(extracted).forEach(([key, value]) => {
+      if (!key || value == null || value === '') return;
+      if (combined[key] == null) {
+        combined[key] = value;
+      }
+    });
+    return combined;
+  }, []);
 
   // Main event state
   const [event, setEvent] = useState(null);
@@ -166,6 +380,7 @@ export default function BigBoardEventPage() {
             id, post_id, title, description, link,
             start_date, end_date, start_time, end_time,
             address, latitude, longitude,
+            area_id,
             created_at, slug
           `)
           .eq('slug', slug)
@@ -516,6 +731,40 @@ export default function BigBoardEventPage() {
     ? siblings[(currentIndex + 1) % siblings.length]
     : null;
 
+  const headerWhenLabel = formatHeaderWhenLabel(
+    event.start_date,
+    event.start_time,
+    event.end_time
+  );
+
+  const headerAreaName = (() => {
+    if (event.area_id == null) return null;
+    const idVariants = [event.area_id, String(event.area_id)];
+    for (const key of idVariants) {
+      if (key in areaLookup && areaLookup[key]) {
+        return areaLookup[key];
+      }
+    }
+    return null;
+  })();
+
+  const headerAddressLine = (() => {
+    const addr = event.address;
+    if (!addr || typeof addr !== 'string') return '';
+    const [first] = addr.split(',');
+    const trimmed = first?.trim();
+    if (trimmed) return trimmed;
+    return addr.trim();
+  })();
+
+  const headerTags = tagsList.filter(tag => selectedTags.includes(tag.id));
+
+  const submittedByUsername = (() => {
+    const username = poster?.username || '';
+    if (!username) return '';
+    return username.replace(/^@+/, '');
+  })();
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Seo
@@ -529,6 +778,19 @@ export default function BigBoardEventPage() {
       <Navbar />
 
       <main className="flex-grow relative mt-32">
+          <BigBoardEventStickyHeader
+            title={event.title}
+            whenLabel={headerWhenLabel}
+            areaName={headerAreaName}
+            addressLine={headerAddressLine}
+            tags={headerTags}
+            pillStyles={pillStyles}
+            submittedBy={submittedByUsername}
+            submittedBySlug={poster?.slug || null}
+            onAddToPlans={handleFavorite}
+            isFavorite={isFavorite}
+            favLoading={favLoading}
+          />
           {/* Hero banner */}
           <div
             className="w-full h-[40vh] bg-cover bg-center"
