@@ -1,14 +1,11 @@
 // src/GroupEventDetailPage.jsx
 import React, { useEffect, useState, useContext } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { CalendarCheck, ExternalLink } from 'lucide-react'
+import { CalendarCheck, ExternalLink, MapPin } from 'lucide-react'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
 import Footer from './Footer'
-import GroupProgressBar from './GroupProgressBar'
 import { AuthContext } from './AuthProvider'
-import EventFavorite from './EventFavorite.jsx'
-import CommentsSection from './CommentsSection'
 import Seo from './components/Seo.jsx'
 import PlansCard from './components/PlansCard.jsx'
 import useEventFavorite from './utils/useEventFavorite'
@@ -90,6 +87,7 @@ export default function GroupEventDetailPage() {
   const [loadingSubs, setLoadingSubs] = useState(true)
   const [moreEvents, setMoreEvents] = useState([])
   const [loadingMoreEvents, setLoadingMoreEvents] = useState(false)
+  const [navOffset, setNavOffset] = useState(0)
 
   const {
     isFavorite,
@@ -250,6 +248,33 @@ export default function GroupEventDetailPage() {
     }
   }, [group?.id, group?.slug, group?.imag, evt?.id, evt?.image])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const measure = () => {
+      const navEl = document.querySelector('nav')
+      if (!navEl) return
+      setNavOffset(navEl.getBoundingClientRect().height)
+    }
+
+    measure()
+
+    const handleResize = () => measure()
+    window.addEventListener('resize', handleResize)
+
+    let observer
+    const navEl = document.querySelector('nav')
+    if (typeof ResizeObserver !== 'undefined' && navEl) {
+      observer = new ResizeObserver(measure)
+      observer.observe(navEl)
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (observer) observer.disconnect()
+    }
+  }, [])
+
   // ── EDIT HANDLERS ─────────────────────────────────────────────────
   const startEditing = () => {
     setFormData({
@@ -366,6 +391,8 @@ export default function GroupEventDetailPage() {
         image: ogImage,
       })
     : null
+  const stickyStyle = { top: `${navOffset}px` }
+  const mainStyle = { paddingTop: `${navOffset}px` }
 
   let content
   if (loading) {
@@ -395,259 +422,288 @@ export default function GroupEventDetailPage() {
           })
     const t1 = formatTime(evt.start_time)
     const t2 = formatTime(evt.end_time)
+    const timeRange = t1 && t2 ? `${t1} – ${t2}` : t1 || ''
+    const dateTimeDisplay = [when, timeRange].filter(Boolean).join(' · ')
+    const locationDisplay = evt.address?.trim() || ''
+    const mapsUrl = locationDisplay
+      ? `https://maps.google.com?q=${encodeURIComponent(locationDisplay)}`
+      : ''
+    const aboutText = group?.Description?.trim?.()
+      ? group.Description.trim()
+      : 'Learn more about this group and explore their upcoming events.'
+    const descriptionText = evt?.description?.trim?.()
+      ? evt.description.trim()
+      : 'Details coming soon.'
 
     content = (
       <>
-        <div>
-          <GroupProgressBar />
-
-          <div
-            className="w-full h-[200px] bg-cover bg-center"
-            style={{
-              backgroundImage:
-                'url("https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images//Group%20Event%20Banner.png")',
-            }}
-          />
-
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">
-                Log in
-              </Link>{' '}
-              or{' '}
-              <Link to="/signup" className="underline font-semibold">
-                sign up
-              </Link>{' '}
-              free to add to your Plans
-            </div>
-          )}
-
-          <div
-            className={`max-w-3xl mx-auto bg-white shadow-xl rounded-xl relative z-10 ${
-              user ? '-mt-24' : ''
-            }`}
-          >
-            <EventFavorite
-              event_id={evt.id}
-              source_table="group_events"
-              className="absolute left-6 top-6 text-3xl"
-            />
-
-            <div className="w-full bg-blue-50 px-6 py-3 text-center text-blue-700 font-semibold rounded-t-xl">
-              Created by&nbsp;
-              <Link to={`/groups/${group.slug}`} className="underline">
-                {group.Name}
-              </Link>
-            </div>
-
-            <div className="flex flex-col lg:flex-row">
-              <div className="lg:w-1/2 p-6 flex items-center justify-center">
-                {evt.image ? (
-                  <img
-                    src={evt.image}
-                    alt={evt.title}
-                    className="w-full h-auto object-cover rounded-lg"
-                  />
-                ) : (
-                  <div className="w-full h-64 bg-gray-100 rounded-lg" />
+        <header className="sticky z-40" style={stickyStyle}>
+          <div className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:py-5">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-indigo-600">
+                  Created by{' '}
+                  <Link to={`/groups/${group.slug}`} className="hover:underline">
+                    {group.Name}
+                  </Link>
+                </p>
+                <h1 className="mt-2 text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">
+                  {evt.title}
+                </h1>
+                <div className="mt-2 flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                  {dateTimeDisplay && (
+                    <span className="font-medium text-gray-900">{dateTimeDisplay}</span>
+                  )}
+                  {locationDisplay && (
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex min-w-0 items-center gap-1 font-medium text-gray-700 hover:text-gray-900"
+                    >
+                      <MapPin className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                      <span className="truncate">{locationDisplay}</span>
+                    </a>
+                  )}
+                </div>
+                {selectedTags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {tagsList
+                      .filter(tag => selectedTags.includes(tag.id))
+                      .map((tg, i) => (
+                        <span
+                          key={tg.id}
+                          className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-xs font-semibold`}
+                        >
+                          #{tg.name}
+                        </span>
+                      ))}
+                  </div>
                 )}
               </div>
+              <div className="hidden sm:flex flex-shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={toggleFavorite}
+                  disabled={togglingFavorite}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition ${
+                    isFavorite
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                  } ${togglingFavorite ? 'opacity-70' : ''}`}
+                >
+                  <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
 
-              <div className="lg:w-1/2 p-6 space-y-4">
-                {isEditing ? (
-                  <form onSubmit={handleSave} className="space-y-6">
-                    <input
-                      name="title"
-                      value={formData.title}
-                      onChange={handleChange}
-                      required
-                      className="w-full border rounded px-3 py-2"
-                    />
+        {!user && (
+          <div className="mt-6 w-full bg-indigo-600 py-4 text-center text-xl text-white sm:text-2xl">
+            <Link to="/login" className="font-semibold underline">
+              Log in
+            </Link>{' '}
+            or{' '}
+            <Link to="/signup" className="font-semibold underline">
+              sign up
+            </Link>{' '}
+            free to add to your Plans
+          </div>
+        )}
 
-                    <textarea
-                      name="description"
-                      rows={4}
-                      value={formData.description}
-                      onChange={handleChange}
-                      className="w-full border rounded px-3 py-2"
-                    />
-
-                    <div>
-                      <label className="block text-sm font-medium">Tags</label>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {tagsList.map((tg, i) => {
-                          const sel = selectedTags.includes(tg.id)
-                          const cls = sel
-                            ? pillStyles[i % pillStyles.length]
-                            : 'bg-gray-200 text-gray-700'
-                          return (
-                            <button
-                              key={tg.id}
-                              type="button"
-                              onClick={() => toggleTag(tg.id)}
-                              className={`${cls} px-3 py-1 rounded-full text-sm`}
-                            >
-                              {tg.name}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    <input
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      placeholder="Address"
-                      className="w-full border rounded px-3 py-2"
-                    />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <input
-                        name="start_date"
-                        type="date"
-                        value={formData.start_date}
-                        onChange={handleChange}
-                        required
-                        className="w-full border rounded px-3 py-2"
-                      />
-                      <input
-                        name="end_date"
-                        type="date"
-                        value={formData.end_date}
-                        onChange={handleChange}
-                        className="w-full border rounded px-3 py-2"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <input
-                        name="start_time"
-                        type="time"
-                        value={formData.start_time}
-                        onChange={handleChange}
-                        className="w-full border rounded px-3 py-2"
-                      />
-                      <input
-                        name="end_time"
-                        type="time"
-                        value={formData.end_time}
-                        onChange={handleChange}
-                        className="w-full border rounded px-3 py-2"
-                      />
-                    </div>
-
-                    <div className="flex space-x-4">
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        className="flex-1 bg-indigo-600 text-white py-2 rounded"
-                      >
-                        {saving ? 'Saving…' : 'Save'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditing(false)}
-                        className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    <h1 className="text-2xl font-bold text-gray-900">{evt.title}</h1>
-                    <p className="text-gray-600">
-                      {when}
-                      {t1 && ` — ${t1}`}
-                      {t2 && ` to ${t2}`}
-                    </p>
-                    {evt.address && (
-                      <p className="text-sm text-blue-600">
-                        <a
-                          href={`https://maps.google.com?q=${encodeURIComponent(evt.address)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
+        <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-8 sm:pb-12">
+          {isEditing ? (
+            <form onSubmit={handleSave} className="space-y-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Title</label>
+                  <input
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
+                    placeholder="Event title"
+                    className="mt-1 w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleChange}
+                    placeholder="Description"
+                    className="mt-1 w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    rows="4"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Address</label>
+                  <input
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    placeholder="Address"
+                    className="mt-1 w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Tags</label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {tagsList.map((tg, i) => {
+                      const sel = selectedTags.includes(tg.id)
+                      const cls = sel
+                        ? pillStyles[i % pillStyles.length]
+                        : 'bg-gray-200 text-gray-700'
+                      return (
+                        <button
+                          key={tg.id}
+                          type="button"
+                          onClick={() => toggleTag(tg.id)}
+                          className={`${cls} px-3 py-1 rounded-full text-sm font-medium transition hover:opacity-80`}
                         >
-                          {evt.address}
-                        </a>
-                      </p>
-                    )}
+                          #{tg.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Start date</label>
+                  <input
+                    name="start_date"
+                    type="date"
+                    value={formData.start_date}
+                    onChange={handleChange}
+                    required
+                    className="mt-1 w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">End date</label>
+                  <input
+                    name="end_date"
+                    type="date"
+                    value={formData.end_date}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Start time</label>
+                  <input
+                    name="start_time"
+                    type="time"
+                    value={formData.start_time}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">End time</label>
+                  <input
+                    name="end_time"
+                    type="time"
+                    value={formData.end_time}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
 
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 rounded bg-indigo-600 py-2 font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 rounded bg-gray-200 py-2 font-semibold text-gray-800 transition hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+              <div className="space-y-8">
+                <section>
+                  <h2 className="text-xl font-semibold text-gray-900">About this Group</h2>
+                  <p className="mt-3 text-gray-700 whitespace-pre-line">{aboutText}</p>
+                </section>
+
+                <section className="space-y-4">
+                  <div className="sm:hidden">
                     <button
                       type="button"
                       onClick={toggleFavorite}
                       disabled={togglingFavorite}
-                      className={`w-full flex items-center justify-center gap-2 rounded-lg border border-indigo-600 px-4 py-2 font-semibold transition-colors ${
+                      className={`w-full rounded-full border border-indigo-600 px-4 py-2 font-semibold transition ${
                         isFavorite
                           ? 'bg-indigo-600 text-white'
                           : 'bg-white text-indigo-600 hover:bg-indigo-50'
                       } disabled:opacity-50`}
                     >
-                      <CalendarCheck className="w-5 h-5" />
+                      <CalendarCheck className="mr-2 inline h-4 w-4" aria-hidden="true" />
                       {isFavorite ? 'In the Plans' : 'Add to Plans'}
                     </button>
+                  </div>
 
-                    {evt.link && (
-                      <a
-                        href={ensureAbsoluteUrl(evt.link)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-600 px-4 py-2 font-semibold text-indigo-600 hover:bg-indigo-50"
+                  <h2 className="text-xl font-semibold text-gray-900">Event Description</h2>
+                  <p className="text-gray-700 whitespace-pre-line">{descriptionText}</p>
+
+                  {evt.link && (
+                    <a
+                      href={ensureAbsoluteUrl(evt.link)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-indigo-600 px-4 py-2 font-semibold text-indigo-600 transition hover:bg-indigo-50 sm:w-auto"
+                    >
+                      <ExternalLink className="h-5 w-5" />
+                      Visit Site
+                    </a>
+                  )}
+
+                  {evt.user_id === user?.id && (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <button
+                        onClick={startEditing}
+                        className="rounded bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700"
                       >
-                        <ExternalLink className="h-5 w-5" />
-                        Visit Site
-                      </a>
-                    )}
-
-                    {selectedTags.length > 0 && (
-                      <div className="mb-4">
-                        <h2 className="text-sm font-medium text-gray-700 mb-1">Tags</h2>
-                        <div className="flex flex-wrap gap-2">
-                          {tagsList
-                            .filter(tag => selectedTags.includes(tag.id))
-                            .map((tg, i) => (
-                              <span
-                                key={tg.id}
-                                className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-sm`}
-                              >
-                                {tg.name}
-                              </span>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <p className="mt-4 text-gray-700">{evt.description}</p>
-                    <div className="mt-4">
-                      <h2 className="text-lg font-semibold">About this Group</h2>
-                      <p className="text-gray-700">{group.Description}</p>
+                        Edit event
+                      </button>
+                      <button
+                        onClick={handleDelete}
+                        className="rounded bg-red-600 px-4 py-2 font-semibold text-white transition hover:bg-red-700"
+                      >
+                        Delete
+                      </button>
                     </div>
-
-                    {evt.user_id === user?.id && (
-                      <div className="mt-6 flex space-x-4">
-                        <button
-                          onClick={startEditing}
-                          className="bg-indigo-600 text-white px-4 py-2 rounded"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={handleDelete}
-                          className="bg-red-600 text-white px-4 py-2 rounded"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </>
+                  )}
+                </section>
+              </div>
+              <div className="flex flex-col items-stretch gap-4">
+                {evt.image ? (
+                  <img
+                    src={evt.image}
+                    alt={evt.title}
+                    className="w-full rounded-xl object-cover shadow"
+                  />
+                ) : (
+                  <div className="flex h-64 w-full items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-500">
+                    Event image coming soon
+                  </div>
                 )}
               </div>
             </div>
-          </div>
+          )}
         </div>
-
-        <CommentsSection source_table="group_events" event_id={evt.id} />
 
         {(loadingMoreEvents || moreEvents.length > 0) && (
           <section className="w-full bg-neutral-100 py-12 border-t border-neutral-200">
@@ -736,7 +792,7 @@ export default function GroupEventDetailPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-50">
+    <div className="flex flex-col min-h-screen bg-white">
       <Seo
         title={seoTitle}
         description={seoDescription}
@@ -748,7 +804,7 @@ export default function GroupEventDetailPage() {
 
       <Navbar />
 
-      <main className="flex-grow pt-32">
+      <main className="flex-grow relative pb-24 sm:pb-0" style={mainStyle}>
         {content}
       </main>
 
