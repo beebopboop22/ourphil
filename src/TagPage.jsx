@@ -1,995 +1,1095 @@
-// src/TagPage.jsx
-import React, { useEffect, useState, useMemo, useContext } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { supabase } from './supabaseClient'
-import Navbar from './Navbar'
-import Footer from './Footer'
-import PostFlyerModal from './PostFlyerModal'
-import { Helmet } from 'react-helmet'
-import { RRule } from 'rrule'
-import { Clock } from 'lucide-react'
-import { FaStar } from 'react-icons/fa'
-import useEventFavorite from './utils/useEventFavorite'
-import { AuthContext } from './AuthProvider'
-import { getDetailPathForItem } from './utils/eventDetailPaths.js'
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import Map, { Marker, Popup } from 'react-map-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { Helmet } from 'react-helmet';
+import { RRule } from 'rrule';
+import Navbar from './Navbar.jsx';
+import Footer from './Footer.jsx';
+import { supabase } from './supabaseClient.js';
+import { EventListItem } from './DayEventsPage.jsx';
+import useAreaLookup from './utils/useAreaLookup.js';
+import { getMapboxToken } from './config/mapboxToken.js';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import {
+  PHILLY_TIME_ZONE,
+  parseISODate,
+  getWeekendWindow,
+  setStartOfDay,
+  setEndOfDay,
+  getZonedDate,
+} from './utils/dateUtils.js';
 
-// ── Helpers ───────────────────────────────────────────────────────
-function parseISODateLocal(str) {
-  if (!str) return null
-  const [y, m, d] = str.split('-').map(Number)
-  const date = new Date(y, m - 1, d)
-  return isNaN(date) ? null : date
-}
-function parseDate(datesStr) {
-  if (!datesStr) return null
-  const [first] = datesStr.split(/through|–|-/)
-  const [m, d, y] = first.trim().split('/').map(Number)
-  const date = new Date(y, m - 1, d)
-  return isNaN(date) ? null : date
-}
+const DEFAULT_VIEW_STATE = {
+  latitude: 39.9526,
+  longitude: -75.1652,
+  zoom: 12,
+};
 
-function formatTime(t) {
-  if (!t) return ''
-  const [h, m] = t.split(':')
-  let hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? 'p.m.' : 'a.m.'
-  hour = hour % 12 || 12
-  return `${hour}:${m.padStart(2,'0')} ${ampm}`
-}
-
-function startOfDay(date) {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function endOfDay(date) {
-  const d = new Date(date)
-  d.setHours(23, 59, 59, 999)
-  return d
+function parseDateField(value) {
+  if (!value) return null;
+  const [first] = value.split(/through|–|-/);
+  if (!first) return null;
+  const parts = first.trim().split('/').map(Number);
+  if (parts.length !== 3) return null;
+  const [month, day, year] = parts;
+  if (Number.isNaN(month) || Number.isNaN(day) || Number.isNaN(year)) return null;
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
-function formatWeekdayAbbrev(date) {
-  if (!date) return ''
-  return date.toLocaleDateString('en-US', { weekday: 'short' })
-}
-
-function formatMonthDay(date) {
-  if (!date) return ''
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+function parseISODateLocal(value) {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if ([year, month, day].some(Number.isNaN)) return null;
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 function toISODateString(date) {
-  if (!(date instanceof Date)) return null
-  if (Number.isNaN(date.getTime())) return null
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function getUpcomingWeekendRange(baseDate = new Date()) {
-  const start = startOfDay(baseDate)
-  const day = start.getDay()
-  if (day >= 1 && day <= 4) {
-    start.setDate(start.getDate() + (5 - day))
-  } else if (day === 0) {
-    start.setDate(start.getDate() - 2)
-  } else if (day === 6) {
-    start.setDate(start.getDate() - 1)
+function parseNumber(value) {
+  if (value == null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function calculateCenter(events) {
+  if (!events.length) {
+    return DEFAULT_VIEW_STATE;
   }
-  const endDate = new Date(start)
-  endDate.setDate(start.getDate() + 2)
-  return { start, end: endOfDay(endDate) }
-}
-
-function buildTimingLabel(startDate, endDate, startTime) {
-  if (startDate && endDate && startOfDay(startDate).getTime() !== startOfDay(endDate).getTime()) {
-    return `Runs thru ${formatMonthDay(endDate)}`
+  const points = events
+    .map(evt => ({
+      latitude: parseNumber(evt.latitude),
+      longitude: parseNumber(evt.longitude),
+    }))
+    .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+  if (!points.length) {
+    return DEFAULT_VIEW_STATE;
   }
-  if (!startDate) return 'Upcoming'
-  const eventDay = startOfDay(startDate)
-  const today = startOfDay(new Date())
-  const diffDays = Math.round((eventDay - today) / (1000 * 60 * 60 * 24))
-  const timeLabel = startTime ? ` · ${formatTime(startTime)}` : ''
-  if (diffDays === 0) return `Today${timeLabel}`
-  if (diffDays === 1) return `Tomorrow${timeLabel}`
-  return `${formatWeekdayAbbrev(startDate)} ${formatMonthDay(startDate)}${timeLabel}`
+  const { latitude, longitude } = points.reduce(
+    (acc, point) => {
+      acc.latitude += point.latitude;
+      acc.longitude += point.longitude;
+      return acc;
+    },
+    { latitude: 0, longitude: 0 },
+  );
+  return {
+    latitude: latitude / points.length,
+    longitude: longitude / points.length,
+    zoom: 12,
+  };
 }
 
-const pillStyles = [
-  'bg-green-100 text-indigo-800',
-  'bg-teal-100 text-teal-800',
-  'bg-pink-100 text-pink-800',
-  'bg-blue-100 text-blue-800',
-  'bg-orange-100 text-orange-800',
-  'bg-yellow-100 text-yellow-800',
-  'bg-purple-100 text-purple-800',
-  'bg-red-100 text-red-800',
-]
-
-function EventRow({ evt, tags, profileMap }) {
-  const navigate = useNavigate()
-  const { user } = useContext(AuthContext)
-
-  const favoriteEventId = evt.isSports
-    ? null
-    : evt.favoriteId ?? (evt.isRecurring ? String(evt.id).split('::')[0] : evt.id ?? null)
-  const favoriteSource = evt.isSports
-    ? null
-    : evt.source_table ?? (
-        evt.isBigBoard
-          ? 'big_board_events'
-          : evt.isTradition
-            ? 'events'
-            : evt.isGroupEvent
-              ? 'group_events'
-              : evt.isRecurring
-                ? 'recurring_events'
-                : 'all_events'
-      )
-
-  const { isFavorite, toggleFavorite, loading } = useEventFavorite({
-    event_id: favoriteEventId ?? null,
-    source_table: favoriteSource ?? null,
-  })
-
-  const startDate = evt.start instanceof Date
-    ? evt.start
-    : evt.start_date
-      ? parseISODateLocal(evt.start_date)
-      : null
-  const endDate = evt.end instanceof Date
-    ? evt.end
-    : evt.end_date
-      ? parseISODateLocal(evt.end_date)
-      : startDate
-  const timingLabel = buildTimingLabel(startDate, endDate, evt.start_time)
-  const dateRangeText = startDate && endDate && startOfDay(startDate).getTime() !== startOfDay(endDate).getTime()
-    ? `${formatMonthDay(startDate)} – ${formatMonthDay(endDate)}`
-    : ''
-
-  const badges = []
-  if (evt.isTradition) badges.push({ label: 'Tradition', className: 'bg-yellow-100 text-yellow-800', icon: <FaStar className="text-yellow-500" /> })
-  if (evt.isBigBoard) badges.push({ label: 'Submission', className: 'bg-purple-100 text-purple-800' })
-  if (evt.isGroupEvent) badges.push({ label: 'Group Event', className: 'bg-emerald-100 text-emerald-800' })
-  if (evt.isRecurring) badges.push({ label: 'Recurring', className: 'bg-blue-100 text-blue-800' })
-  if (evt.isSports) badges.push({ label: 'Sports', className: 'bg-green-100 text-green-800' })
-
-  const detailPath = evt.href || getDetailPathForItem({
-    ...evt,
-    venue_slug: evt.venues?.slug,
-  }) || '/'
-
-  const imageSrc = evt.imageUrl || evt.image || ''
-  const submitter = evt.isBigBoard ? profileMap[evt.owner_id] : null
-
-  const seenTags = new Set()
-  const uniqueTags = []
-  tags.forEach(tag => {
-    if (!tag?.slug || seenTags.has(tag.slug)) return
-    seenTags.add(tag.slug)
-    uniqueTags.push(tag)
-  })
-  const shownTags = uniqueTags.slice(0, 3)
-  const extraCount = Math.max(0, uniqueTags.length - shownTags.length)
-
-  const addressLabel = evt.venues?.name
-    ? `at ${evt.venues.name}`
-    : evt.address
-      ? evt.address
-      : ''
-
-  const actions = evt.isSports
-    ? (evt.url ? (
-        <a
-          href={evt.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="w-full border border-indigo-600 rounded-full px-4 py-2 text-sm font-semibold text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors text-center"
-        >
-          Get Tickets
-        </a>
-      ) : null)
-    : (
-        <button
-          onClick={e => {
-            e.preventDefault()
-            e.stopPropagation()
-            if (!user) {
-              navigate('/login')
-              return
-            }
-            toggleFavorite()
-          }}
-          disabled={loading || !favoriteEventId || !favoriteSource}
-          className={`w-full border border-indigo-600 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-        >
-          {isFavorite ? 'In the Plans' : 'Add to Plans'}
-        </button>
-      )
-
-  const containerClass = `block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${isFavorite && !evt.isSports ? 'ring-2 ring-indigo-600' : ''}`
-
+function eventWithinBounds(event, bounds) {
+  if (!bounds) return true;
+  const lat = parseNumber(event.latitude);
+  const lon = parseNumber(event.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
   return (
-    <Link to={detailPath} className={containerClass}>
-      <div className="flex flex-col gap-4 p-4 sm:p-6 sm:flex-row sm:items-stretch">
-        <div className="w-full sm:w-48 flex-shrink-0">
-          <div className="overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
-            {imageSrc ? (
-              <img src={imageSrc} alt={evt.title || evt.name} className="h-full w-full object-cover" />
-            ) : (
-              <div className="h-full w-full bg-gradient-to-br from-slate-100 to-slate-200" />
-            )}
-          </div>
-        </div>
-        <div className="flex-1 min-w-0 flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
-            <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{timingLabel}</span>
-            {badges.map(badge => (
-              <span key={badge.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${badge.className}`}>
-                {badge.icon}
-                {badge.label}
-              </span>
-            ))}
-            {isFavorite && !evt.isSports && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-600 text-white">
-                In the Plans
-              </span>
-            )}
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold text-[#28313e] break-words">{evt.title || evt.name}</h3>
-            {dateRangeText && (
-              <p className="mt-1 text-sm text-gray-500">{dateRangeText}</p>
-            )}
-            {evt.description && (
-              <p className="mt-2 text-sm text-gray-600 line-clamp-2">{evt.description}</p>
-            )}
-            {addressLabel && (
-              <p className="mt-1 text-sm text-gray-500">{addressLabel}</p>
-            )}
-          </div>
-          {shownTags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {shownTags.map((tag, index) => (
-                <Link
-                  key={tag.slug}
-                  to={`/tags/${tag.slug}`}
-                  onClick={e => e.stopPropagation()}
-                  className={`${pillStyles[index % pillStyles.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
-                >
-                  #{tag.name}
-                </Link>
-              ))}
-              {extraCount > 0 && <span className="text-xs text-gray-500">+{extraCount} more</span>}
-            </div>
-          )}
-          {submitter?.username && (
-            <p className="text-xs text-gray-500">Submitted by <span className="font-medium text-gray-600">{submitter.username}</span></p>
-          )}
-        </div>
-        {actions && <div className="flex flex-col items-stretch justify-center gap-2 sm:w-44">{actions}</div>}
-      </div>
-    </Link>
-  )
+    lon >= bounds.west &&
+    lon <= bounds.east &&
+    lat >= bounds.south &&
+    lat <= bounds.north
+  );
+}
+
+function formatPopupDate(event) {
+  if (!event?.startDate) return '';
+  const start = event.startDate;
+  const end = event.endDate || start;
+  const startLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (end && end.getTime() !== start.getTime()) {
+    const endLabel = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${startLabel} – ${endLabel}`;
+  }
+  return startLabel;
+}
+
+function normalizeTradition(row) {
+  if (!row) return null;
+  const startDate = parseDateField(row.Dates);
+  const endDate = parseDateField(row['End Date']) || startDate;
+  return {
+    id: `events-${row.id}`,
+    taggableId: row.id,
+    favoriteId: row.id,
+    source_table: 'events',
+    title: row['E Name'] || 'Philadelphia tradition',
+    description: row['E Description'] || '',
+    imageUrl: row['E Image'] || '',
+    startDate,
+    endDate,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null,
+    detailPath: getDetailPathForItem({ ...row, slug: row.slug }),
+    badges: ['Tradition'],
+    latitude: parseNumber(row.latitude),
+    longitude: parseNumber(row.longitude),
+    area_id: row.area_id != null ? row.area_id : null,
+  };
+}
+
+function normalizeBigBoard(row) {
+  if (!row) return null;
+  const startDate = parseISODateLocal(row.start_date);
+  const endDate = parseISODateLocal(row.end_date || row.start_date) || startDate;
+  let imageUrl = row.image_url || '';
+  const storageKey = row.big_board_posts?.[0]?.image_url;
+  if (!imageUrl && storageKey) {
+    const { data } = supabase.storage.from('big-board').getPublicUrl(storageKey);
+    imageUrl = data?.publicUrl || '';
+  }
+  return {
+    id: `big-board-${row.id}`,
+    taggableId: row.id,
+    favoriteId: row.id,
+    source_table: 'big_board_events',
+    title: row.title || 'Community submission',
+    description: row.description || '',
+    imageUrl,
+    startDate,
+    endDate,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null,
+    detailPath: getDetailPathForItem({ ...row, isBigBoard: true }),
+    badges: ['Submission'],
+    latitude: parseNumber(row.latitude),
+    longitude: parseNumber(row.longitude),
+    area_id: row.area_id != null ? row.area_id : null,
+    address: row.address || '',
+    externalUrl: row.link || null,
+  };
+}
+
+function normalizeGroupEvent(row, groupSlugMap = {}) {
+  if (!row) return null;
+  const startDate = parseISODateLocal(row.start_date);
+  const endDate = parseISODateLocal(row.end_date || row.start_date) || startDate;
+  let imageUrl = row.image_url || '';
+  if (imageUrl && !imageUrl.startsWith('http')) {
+    const { data } = supabase.storage.from('big-board').getPublicUrl(imageUrl);
+    imageUrl = data?.publicUrl || '';
+  }
+  const groupSlug = groupSlugMap[row.group_id] || row.groups?.slug || null;
+  return {
+    id: `group-${row.id}`,
+    taggableId: row.id,
+    favoriteId: row.id,
+    source_table: 'group_events',
+    title: row.title || 'Group event',
+    description: row.description || '',
+    imageUrl,
+    startDate,
+    endDate,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null,
+    detailPath: getDetailPathForItem({ ...row, group_slug: groupSlug, isGroupEvent: true }),
+    badges: ['Group Event'],
+    latitude: parseNumber(row.latitude),
+    longitude: parseNumber(row.longitude),
+    area_id: row.area_id != null ? row.area_id : null,
+  };
+}
+
+function normalizeAllEvent(row) {
+  if (!row) return null;
+  const startDate = parseISODateLocal(row.start_date);
+  const endDate = parseISODateLocal(row.end_date || row.start_date) || startDate;
+  const venue = Array.isArray(row.venues) ? row.venues[0] : row.venues;
+  const detailPath = getDetailPathForItem({
+    ...row,
+    venues: venue ? { name: venue.name, slug: venue.slug } : null,
+    venue_slug: venue?.slug || null,
+  });
+  const venueLatitude = parseNumber(venue?.latitude);
+  const venueLongitude = parseNumber(venue?.longitude);
+  const venueAreaId = venue?.area_id != null ? venue.area_id : null;
+  return {
+    id: `all-${row.id}`,
+    taggableId: row.id,
+    favoriteId: row.id,
+    source_table: 'all_events',
+    title: row.name || 'Philadelphia event',
+    description: row.description || '',
+    imageUrl: row.image || '',
+    startDate,
+    endDate,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null,
+    detailPath,
+    badges: [],
+    latitude: parseNumber(row.latitude) ?? venueLatitude,
+    longitude: parseNumber(row.longitude) ?? venueLongitude,
+    area_id: row.area_id != null ? row.area_id : venueAreaId,
+    venues: venue ? { name: venue.name, slug: venue.slug } : null,
+    externalUrl: row.link || null,
+  };
+}
+
+function normalizeRecurringInstance(series, date) {
+  if (!series || !date) return null;
+  const occurrence = new Date(date);
+  occurrence.setHours(0, 0, 0, 0);
+  const isoDate = toISODateString(occurrence);
+  return {
+    id: `recurring-${series.id}-${isoDate}`,
+    taggableId: series.id,
+    favoriteId: series.id,
+    source_table: 'recurring_events',
+    title: series.name || 'Recurring event',
+    description: series.description || '',
+    imageUrl: series.image_url || '',
+    startDate: occurrence,
+    endDate: occurrence,
+    start_time: series.start_time || null,
+    end_time: series.end_time || null,
+    detailPath: `/series/${series.slug}/${isoDate}`,
+    badges: ['Recurring'],
+    latitude: parseNumber(series.latitude),
+    longitude: parseNumber(series.longitude),
+    area_id: series.area_id != null ? series.area_id : null,
+    address: series.address || '',
+    externalUrl: series.link || null,
+    isRecurring: true,
+  };
+}
+
+function expandRecurringSeries(seriesList) {
+  if (!Array.isArray(seriesList)) return [];
+  const now = new Date();
+  return seriesList.flatMap(series => {
+    if (!series?.rrule || !series?.start_date) return [];
+    const options = RRule.parseString(series.rrule);
+    const startTime = series.start_time || '00:00:00';
+    const dtstart = new Date(`${series.start_date}T${startTime}`);
+    if (Number.isNaN(dtstart.getTime())) return [];
+    options.dtstart = dtstart;
+    if (series.end_date) {
+      options.until = new Date(`${series.end_date}T23:59:59`);
+    }
+    const rule = new RRule(options);
+    const upcoming = [];
+    let next = rule.after(now, true);
+    for (let i = 0; next && i < 5; i += 1) {
+      upcoming.push(new Date(next));
+      next = rule.after(next, false);
+    }
+    return upcoming.map(date => normalizeRecurringInstance(series, date)).filter(Boolean);
+  });
+}
+
+function normalizeSportsEvent(event) {
+  if (!event) return null;
+  const dt = new Date(event.datetime_local);
+  if (Number.isNaN(dt.getTime())) return null;
+  const performers = event.performers || [];
+  const home = performers.find(p => p.home_team) || performers[0] || {};
+  const away = performers.find(p => p.id !== home.id) || {};
+  const title =
+    event.short_title ||
+    `${(home.name || '').replace(/^Philadelphia\s+/i, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/i, '')}`;
+  const venue = event.venue || {};
+  const latitude = parseNumber(venue.location?.lat);
+  const longitude = parseNumber(venue.location?.lon);
+  return {
+    id: `sports-${event.id}`,
+    taggableId: null,
+    favoriteId: null,
+    source_table: null,
+    title,
+    description: '',
+    imageUrl: home.image || away.image || '',
+    startDate: dt,
+    endDate: dt,
+    start_time: event.datetime_local ? event.datetime_local.slice(11, 16) : null,
+    end_time: null,
+    detailPath: null,
+    badges: ['Sports'],
+    latitude,
+    longitude,
+    area_id: null,
+    externalUrl: event.url || null,
+  };
+}
+
+async function fetchSportsEvents() {
+  const clientId = import.meta.env.VITE_SEATGEEK_CLIENT_ID;
+  if (!clientId) return [];
+  try {
+    const teamSlugs = [
+      'philadelphia-phillies',
+      'philadelphia-76ers',
+      'philadelphia-eagles',
+      'philadelphia-flyers',
+      'philadelphia-union',
+    ];
+    const events = [];
+    for (const slug of teamSlugs) {
+      const response = await fetch(
+        `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=50&sort=datetime_local.asc&client_id=${clientId}`,
+      );
+      if (!response.ok) continue;
+      const json = await response.json();
+      events.push(...(json.events || []));
+    }
+    return events.map(normalizeSportsEvent).filter(Boolean);
+  } catch (error) {
+    console.error('Failed to load sports events', error);
+    return [];
+  }
+}
+
+async function buildTagMap(events) {
+  const idsByType = events.reduce((acc, event) => {
+    if (!event?.source_table || !event.taggableId) return acc;
+    const type = event.source_table;
+    if (!acc[type]) acc[type] = new Set();
+    acc[type].add(event.taggableId);
+    return acc;
+  }, {});
+  const entries = Object.entries(idsByType).filter(([, ids]) => ids.size > 0);
+  if (!entries.length) return {};
+  const results = await Promise.all(
+    entries.map(([type, ids]) =>
+      supabase
+        .from('taggings')
+        .select('taggable_id,tags(name,slug)')
+        .eq('taggable_type', type)
+        .in('taggable_id', Array.from(ids)),
+    ),
+  );
+  const map = {};
+  results.forEach(({ data, error }, index) => {
+    if (error) {
+      console.error('Failed to load tags for events', error);
+      return;
+    }
+    const type = entries[index][0];
+    (data || []).forEach(row => {
+      if (!row?.taggable_id || !row.tags) return;
+      const key = `${type}:${row.taggable_id}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(row.tags);
+    });
+  });
+  return map;
+}
+
+async function fetchTagData(slug) {
+  const { data: tag, error: tagError } = await supabase
+    .from('tags')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+  if (tagError) throw tagError;
+  if (!tag) return { tag: null, events: [], tagMap: {} };
+
+  const { data: taggings, error: taggingError } = await supabase
+    .from('taggings')
+    .select('taggable_type,taggable_id')
+    .eq('tag_id', tag.id);
+  if (taggingError) throw taggingError;
+
+  const idsByType = taggings.reduce((acc, row) => {
+    if (!row?.taggable_type || row.taggable_id == null) return acc;
+    const type = row.taggable_type;
+    if (!acc[type]) acc[type] = new Set();
+    acc[type].add(row.taggable_id);
+    return acc;
+  }, {});
+
+  const groupIds = Array.from(idsByType.group_events || []);
+  const groupSlugMap = {};
+  if (groupIds.length) {
+    const { data: groups, error: groupError } = await supabase
+      .from('groups')
+      .select('id,slug')
+      .in('id', groupIds);
+    if (!groupError) {
+      (groups || []).forEach(group => {
+        if (!group?.id) return;
+        groupSlugMap[group.id] = group.slug || null;
+      });
+    }
+  }
+
+  const queries = await Promise.all([
+    idsByType.events?.size
+      ? supabase
+          .from('events')
+          .select('id,"E Name","E Description","E Image",Dates,"End Date",start_time,end_time,slug,latitude,longitude,area_id')
+          .in('id', Array.from(idsByType.events))
+      : { data: [] },
+    idsByType.big_board_events?.size
+      ? supabase
+          .from('big_board_events')
+          .select(
+            `id,title,description,link,slug,address,start_date,end_date,start_time,end_time,latitude,longitude,area_id,big_board_posts!big_board_posts_event_id_fkey(image_url)`,
+          )
+          .in('id', Array.from(idsByType.big_board_events))
+      : { data: [] },
+    idsByType.group_events?.size
+      ? supabase
+          .from('group_events')
+          .select(
+            'id,title,description,image_url,start_date,end_date,start_time,end_time,group_id,latitude,longitude,area_id,groups:group_id(slug)',
+          )
+          .in('id', Array.from(idsByType.group_events))
+      : { data: [] },
+    idsByType.all_events?.size
+      ? supabase
+          .from('all_events')
+          .select(
+            'id,name,description,link,image,start_date,end_date,start_time,end_time,slug,latitude,longitude,area_id,venues:venue_id(name,slug,latitude,longitude,area_id)',
+          )
+          .in('id', Array.from(idsByType.all_events))
+      : { data: [] },
+    idsByType.recurring_events?.size
+      ? supabase
+          .from('recurring_events')
+          .select(
+            'id,name,description,address,link,slug,start_date,end_date,start_time,end_time,rrule,image_url,latitude,longitude,area_id',
+          )
+          .in('id', Array.from(idsByType.recurring_events))
+      : { data: [] },
+  ]);
+
+  const [traditionsRes, bigBoardRes, groupRes, allEventsRes, recurringRes] = queries;
+
+  const events = [
+    ...(traditionsRes.data || []).map(normalizeTradition).filter(Boolean),
+    ...(bigBoardRes.data || []).map(normalizeBigBoard).filter(Boolean),
+    ...(groupRes.data || []).map(row => normalizeGroupEvent(row, groupSlugMap)).filter(Boolean),
+    ...(allEventsRes.data || []).map(normalizeAllEvent).filter(Boolean),
+    ...expandRecurringSeries(recurringRes.data || []),
+  ];
+
+  const tagMap = await buildTagMap(events);
+
+  return { tag, events, tagMap };
+}
+
+function getEventKey(event) {
+  if (!event) return null;
+  if (event.source_table && event.taggableId != null) {
+    return `${event.source_table}:${event.taggableId}`;
+  }
+  return event.id ? `evt:${event.id}` : null;
 }
 
 export default function TagPage() {
-  const params = useParams()
-  const slug = (params.slug || '').replace(/^#/, '')
-  const { user } = useContext(AuthContext)
+  const params = useParams();
+  const slug = (params.slug || '').replace(/^#/, '');
+  const areaLookup = useAreaLookup();
+  const mapboxToken = getMapboxToken();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // ── State hooks ────────────────────────────────────────────────
-  const [tag, setTag] = useState(null)
-  const [traditions, setTraditions] = useState([])
-  const [bigBoard, setBigBoard] = useState([])
-  const [groupEvents, setGroupEvents] = useState([])
-  const [allEvents, setAllEvents] = useState([])
-  const [recSeries, setRecSeries] = useState([])
-  const [profileMap, setProfileMap] = useState({})
-  const [tagMap, setTagMap] = useState({})
-  const [loading, setLoading] = useState(true)
+  const [tag, setTag] = useState(null);
+  const [baseEvents, setBaseEvents] = useState([]);
+  const [tagMap, setTagMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [sportsEvents, setSportsEvents] = useState([]);
 
-  // modal toggles
-  const [showFlyerModal, setShowFlyerModal] = useState(false)
-  const [modalStartStep, setModalStartStep] = useState(1)
-  const [initialFlyer, setInitialFlyer] = useState(null)
-  const [dateFilter, setDateFilter] = useState('all')
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
+  const [dateFilter, setDateFilter] = useState(() => {
+    const value = searchParams.get('date');
+    return value === 'today' || value === 'weekend' || value === 'custom' ? value : 'weekend';
+  });
+  const [customStart, setCustomStart] = useState(() => searchParams.get('start') || '');
+  const [customEnd, setCustomEnd] = useState(() => searchParams.get('end') || '');
+  const [selectedArea, setSelectedArea] = useState(() => searchParams.get('area') || '');
+  const [selectedTags, setSelectedTags] = useState(() => {
+    const value = searchParams.get('tags');
+    return value ? value.split(',').filter(Boolean) : [];
+  });
+  const [limitToMap, setLimitToMap] = useState(() => searchParams.get('limit') === 'map');
+  const [locationQuery, setLocationQuery] = useState(() => searchParams.get('loc') || '');
 
-  // ── Load tag + all data ────────────────────────────────────────
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      // 1) fetch tag
-      const { data: t } = await supabase
-        .from('tags')
-        .select('*')
-        .eq('slug', slug)
-        .single()
-      if (!t) {
-        setLoading(false)
-        return
-      }
-      setTag(t)
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [mapBounds, setMapBounds] = useState(null);
+  const [userMovedMap, setUserMovedMap] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [geoError, setGeoError] = useState('');
 
-      // 2) fetch taggings
-      const { data: taggings } = await supabase
-        .from('taggings')
-        .select('taggable_type,taggable_id')
-        .eq('tag_id', t.id)
-      const byType = taggings.reduce((acc, { taggable_type, taggable_id }) => {
-        acc[taggable_type] = acc[taggable_type] || []
-        acc[taggable_type].push(taggable_id)
-        return acc
-      }, {})
-      const recurringIds = byType.recurring_events || []
-
-      // 3) parallel fetch all sources
-      const [trRes, bbRes, geRes, aeRes, recRes] = await Promise.all([
-        byType.events?.length
-          ? supabase
-              .from('events')
-              .select('id,"E Name","E Description","E Image",slug,Dates,"End Date",start_time,end_time')
-              .in('id', byType.events)
-          : { data: [] },
-        byType.big_board_events?.length
-          ? supabase
-              .from('big_board_events')
-              .select('id,title,description,slug,start_date,end_date,start_time,end_time,big_board_posts!big_board_posts_event_id_fkey(image_url,user_id)')
-              .in('id', byType.big_board_events)
-          : { data: [] },
-        byType.group_events?.length
-          ? supabase
-              .from('group_events')
-              .select('id,title,description,start_date,end_date,start_time,end_time,image_url,group_id')
-              .in('id', byType.group_events)
-          : { data: [] },
-        byType.all_events?.length
-          ? supabase
-              .from('all_events')
-              .select('id,name,description,slug,image,link,start_date,end_date,start_time,end_time,venue_id(name,slug)')
-              .in('id', byType.all_events)
-          : { data: [] },
-        recurringIds.length
-          ? supabase
-              .from('recurring_events')
-              .select('id,name,slug,description,address,link,image_url,start_date,end_date,start_time,end_time,rrule')
-              .in('id', recurringIds)
-          : { data: [] },
-      ])
-
-      // 4) build group_id → slug map for groupEvents
-      const evGroupIds = [...new Set((geRes.data || []).map(ev => ev.group_id))]
-      const { data: groupRows = [] } = evGroupIds.length
-        ? await supabase
-            .from('groups')
-            .select('id,slug')
-            .in('id', evGroupIds)
-        : { data: [] }
-      const groupSlugMap = {}
-      groupRows.forEach(g => { groupSlugMap[g.id] = g.slug })
-
-      // 5) shape and store data
-      setTraditions((trRes.data || []).map(e => {
-        const start = parseDate(e.Dates)
-        const end   = parseDate(e['End Date']) || start
-        const href =
-          getDetailPathForItem({
-            ...e,
-            slug: e.slug,
-          }) || '/'
-        return {
-          id: e.id,
-          title: e['E Name'],
-          description: e['E Description'] || '',
-          imageUrl: e['E Image'] || '',
-          start,
-          end,
-          start_date: start ? start.toISOString().slice(0,10) : null,
-          end_date: end ? end.toISOString().slice(0,10) : null,
-          slug: e.slug,
-          href,
-          isTradition: true,
-          start_time: e.start_time || null,
-          end_time: e.end_time || null,
-          favoriteId: e.id,
-          source_table: 'events',
-          taggableId: e.id,
-        }
-      }))
-
-      setBigBoard((bbRes.data || []).map(ev => {
-        const key = ev.big_board_posts?.[0]?.image_url
-        const owner = ev.big_board_posts?.[0]?.user_id
-        const url = key
-          ? supabase.storage
-              .from('big-board')
-              .getPublicUrl(key).data.publicUrl
-          : ''
-        const start = parseISODateLocal(ev.start_date)
-        const end   = parseISODateLocal(ev.end_date || ev.start_date)
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            isBigBoard: true,
-          }) || '/'
-        return {
-          id: ev.id,
-          title: ev.title,
-          description: ev.description || '',
-          imageUrl: url,
-          start,
-          end,
-          start_date: ev.start_date,
-          end_date: ev.end_date || ev.start_date,
-          slug: ev.slug,
-          owner_id: owner,
-          href,
-          isBigBoard: true,
-          start_time: ev.start_time || null,
-          end_time: ev.end_time || null,
-          favoriteId: ev.id,
-          source_table: 'big_board_events',
-          taggableId: ev.id,
-        }
-      }))
-
-      setGroupEvents((geRes.data || []).map(ev => {
-        const start = parseISODateLocal(ev.start_date)
-        const end   = parseISODateLocal(ev.end_date || ev.start_date)
-        let imgUrl = ''
-        if (ev.image_url) {
-          imgUrl = ev.image_url.startsWith('http')
-            ? ev.image_url
-            : supabase.storage
-                .from('big-board')
-                .getPublicUrl(ev.image_url).data.publicUrl
-        }
-        const slug = groupSlugMap[ev.group_id]
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            group_slug: slug,
-            isGroupEvent: true,
-          }) || '/'
-        return {
-          id: ev.id,
-          title: ev.title,
-          description: ev.description || '',
-          imageUrl: imgUrl,
-          start,
-          end,
-          start_date: ev.start_date,
-          end_date: ev.end_date || ev.start_date,
-          group_slug: slug,
-          href,
-          isGroupEvent: true,
-          start_time: ev.start_time || null,
-          end_time: ev.end_time || null,
-          favoriteId: ev.id,
-          source_table: 'group_events',
-          taggableId: ev.id,
-        }
-      }))
-
-      setAllEvents((aeRes.data || []).map(ev => {
-        const start = parseISODateLocal(ev.start_date)
-        const end   = parseISODateLocal(ev.end_date || ev.start_date)
-        const venueSlug = ev.venue_id?.slug || null
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            venue_slug: venueSlug,
-            venues: ev.venue_id
-              ? { name: ev.venue_id.name, slug: venueSlug }
-              : null,
-          }) || '/'
-        return {
-          id: ev.id,
-          title: ev.name,
-          description: ev.description || '',
-          imageUrl: ev.image || '',
-          start,
-          end,
-          start_date: ev.start_date,
-          end_date: ev.end_date || ev.start_date,
-          slug: ev.slug,
-          venues: ev.venue_id
-            ? { name: ev.venue_id.name, slug: venueSlug }
-            : null,
-          href,
-          start_time: ev.start_time || null,
-          end_time: ev.end_time || null,
-          link: ev.link || null,
-          favoriteId: ev.id,
-          source_table: 'all_events',
-          taggableId: ev.id,
-        }
-      }))
-
-      if (slug === 'sports') {
-        try {
-          const teamSlugs = [
-            'philadelphia-phillies',
-            'philadelphia-76ers',
-            'philadelphia-eagles',
-            'philadelphia-flyers',
-            'philadelphia-union',
-          ]
-          let all = []
-          for (const ts of teamSlugs) {
-            const res = await fetch(
-              `https://api.seatgeek.com/2/events?performers.slug=${ts}&venue.city=Philadelphia&per_page=50&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
-            )
-            const json = await res.json()
-            all.push(...(json.events || []))
-          }
-          const mappedSports = all.map(e => {
-            const dt = new Date(e.datetime_local)
-            const performers = e.performers || []
-            const home = performers.find(p => p.home_team) || performers[0] || {}
-            const away = performers.find(p => p.id !== home.id) || {}
-            const title =
-              e.short_title ||
-              `${(home.name || '').replace(/^Philadelphia\s+/, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/, '')}`
-            return {
-              id: `sg-${e.id}`,
-              title,
-              description: e.description || '',
-              imageUrl: home.image || away.image || '',
-              start: dt,
-              end: dt,
-              start_date: dt.toISOString().slice(0,10),
-              end_date: dt.toISOString().slice(0,10),
-              start_time: dt.toTimeString().slice(0,5),
-              end_time: dt.toTimeString().slice(0,5),
-              venues: e.venue ? { name: e.venue.name, slug: null } : null,
-              href: `/sports/${e.id}`,
-              url: e.url,
-              isSports: true,
-              favoriteId: null,
-              source_table: null,
-              taggableId: e.id,
-            }
-          })
-          setAllEvents(prev => [...prev, ...mappedSports])
-        } catch (err) {
-          console.error('Failed to load sports events', err)
-        }
-      }
-
-      setRecSeries(recRes.data || [])
-      setLoading(false)
-    }
-    load()
-  }, [slug])
-
-  // Load profile info for big-board submitters
-  useEffect(() => {
-    const ids = Array.from(new Set(bigBoard.map(e => e.owner_id).filter(Boolean)))
-    if (!ids.length) { setProfileMap({}); return }
-    ;(async () => {
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id,username,image_url')
-        .in('id', ids)
-      const map = {}
-      for (const p of profs || []) {
-        let img = p.image_url || ''
-        if (img && !img.startsWith('http')) {
-          const { data: { publicUrl } } = supabase
-            .storage
-            .from('profile-images')
-            .getPublicUrl(img)
-          img = publicUrl
-        }
-        map[p.id] = { username: p.username, image: img, cultures: [] }
-      }
-      const { data: rows } = await supabase
-        .from('profile_tags')
-        .select('profile_id, culture_tags(id,name,emoji)')
-        .in('profile_id', ids)
-        .eq('tag_type', 'culture')
-      rows?.forEach(r => {
-        if (!map[r.profile_id]) map[r.profile_id] = { username: '', image: '', cultures: [] }
-        if (r.culture_tags?.emoji) {
-          map[r.profile_id].cultures.push({ emoji: r.culture_tags.emoji, name: r.culture_tags.name })
-        }
-      })
-      setProfileMap(map)
-    })()
-  }, [bigBoard])
-
-  // ── derive recurring instances ─────────────────────────────────
-  const recEventsList = useMemo(() => {
-    return recSeries.flatMap(series => {
-      if (!series.start_date) return []
-      const opts = RRule.parseString(series.rrule)
-      const startTime = series.start_time || '00:00:00'
-      const dtstart = new Date(`${series.start_date}T${startTime}`)
-      if (isNaN(dtstart)) return []
-      opts.dtstart = dtstart
-      if (series.end_date) opts.until = new Date(`${series.end_date}T23:59:59`)
-      const rule = new RRule(opts)
-      const upcoming = []
-      let next = rule.after(new Date(), true)
-      for (let i = 0; next && i < 3; i++) {
-        upcoming.push(next)
-        next = rule.after(next, false)
-      }
-      return upcoming.map(d => ({
-        id: `${series.id}::${d.toISOString().slice(0,10)}`,
-        title: series.name,
-        description: series.description || '',
-        imageUrl: series.image_url,
-        start: d,
-        end: d,
-        start_date: d.toISOString().slice(0,10),
-        end_date: d.toISOString().slice(0,10),
-        start_time: series.start_time,
-        end_time: series.end_time,
-        slug: series.slug,
-        address: series.address,
-        link: series.link,
-        href: `/series/${series.slug}/${d.toISOString().slice(0,10)}`,
-        isRecurring: true,
-        favoriteId: series.id,
-        source_table: 'recurring_events',
-        taggableId: series.id,
-      }))
-    })
-  }, [recSeries])
-  const allList = useMemo(() => [
-    ...traditions,
-    ...bigBoard,
-    ...groupEvents,
-    ...allEvents,
-    ...recEventsList,
-  ], [traditions, bigBoard, groupEvents, allEvents, recEventsList])
-
-  const upcoming = useMemo(() => {
-    const today0 = new Date()
-    today0.setHours(0,0,0,0)
-
-    const isUpcoming = evt => {
-      const start = evt.start || null
-      const end = evt.end || start
-      if (!start && !end) return false
-      if (start && start >= today0) return true
-      if (end && end >= today0) return true
-      return false
-    }
-
-    const getSortDate = evt => {
-      const start = evt.start || null
-      const end = evt.end || start
-      if (start && start >= today0) return start
-      if (end && end >= today0) return end
-      return start || end || today0
-    }
-
-    return allList
-      .filter(isUpcoming)
-      .sort((a,b) => getSortDate(a) - getSortDate(b))
-  }, [allList])
-
-  const weekendRange = useMemo(() => getUpcomingWeekendRange(), [])
-
-  const filteredEvents = useMemo(() => {
-    if (!upcoming.length) return []
-    const events = upcoming
-
-    const filterByRange = (rangeStart, rangeEnd) => {
-      return events.filter(evt => {
-        const rawStart = evt.start instanceof Date ? evt.start : evt.start_date ? parseISODateLocal(evt.start_date) : null
-        const rawEnd = evt.end instanceof Date ? evt.end : evt.end_date ? parseISODateLocal(evt.end_date) : rawStart
-        const evtStart = rawStart ? startOfDay(rawStart) : null
-        const evtEnd = rawEnd ? endOfDay(rawEnd) : evtStart
-        if (rangeStart && evtEnd && evtEnd < rangeStart) return false
-        if (rangeEnd && evtStart && evtStart > rangeEnd) return false
-        return true
-      })
-    }
-
-    switch (dateFilter) {
-      case 'today': {
-        const todayStart = startOfDay(new Date())
-        const todayEnd = endOfDay(new Date())
-        return filterByRange(todayStart, todayEnd)
-      }
-      case 'weekend': {
-        return filterByRange(weekendRange.start, weekendRange.end)
-      }
-      case 'range': {
-        const startInput = customStart ? parseISODateLocal(customStart) : null
-        const endInput = customEnd ? parseISODateLocal(customEnd) : null
-        const rangeStart = startInput ? startOfDay(startInput) : null
-        const rangeEnd = endInput ? endOfDay(endInput) : null
-        if (!rangeStart && !rangeEnd) return events
-        if (rangeStart && rangeEnd && rangeEnd < rangeStart) {
-          return filterByRange(rangeEnd, endOfDay(rangeStart))
-        }
-        return filterByRange(rangeStart, rangeEnd)
-      }
-      default:
-        return events
-    }
-  }, [upcoming, dateFilter, customStart, customEnd, weekendRange])
-
-  const mapDateRange = useMemo(() => {
-    switch (dateFilter) {
-      case 'today': {
-        const today = startOfDay(new Date())
-        return { start: today, end: today }
-      }
-      case 'weekend':
-        return { start: weekendRange.start, end: weekendRange.end }
-      case 'range': {
-        const startInput = customStart ? parseISODateLocal(customStart) : null
-        const endInput = customEnd ? parseISODateLocal(customEnd) : null
-        const start = startInput ? startOfDay(startInput) : null
-        const end = endInput ? startOfDay(endInput) : null
-        if (!start && !end) return null
-        if (start && end && end < start) {
-          return { start: end, end: start }
-        }
-        return { start: start || end, end: end || start }
-      }
-      default:
-        return null
-    }
-  }, [dateFilter, customStart, customEnd, weekendRange])
-
-  const mapHref = useMemo(() => {
-    const params = new URLSearchParams()
-    if (tag?.slug) {
-      params.set('tag', tag.slug)
-    } else if (tag?.name) {
-      params.set('tag', tag.name)
-    }
-    if (mapDateRange?.start) {
-      const startIso = toISODateString(mapDateRange.start)
-      if (startIso) params.set('start', startIso)
-    }
-    if (mapDateRange?.end) {
-      const endIso = toISODateString(mapDateRange.end)
-      if (endIso) params.set('end', endIso)
-    }
-    const qs = params.toString()
-    return qs ? `/map?${qs}` : '/map'
-  }, [tag, mapDateRange])
+  const mapRef = useRef(null);
+  const [viewState, setViewState] = useState(DEFAULT_VIEW_STATE);
 
   useEffect(() => {
-    if (!upcoming.length) {
-      setTagMap({})
-      return
-    }
-    const idsByType = upcoming.reduce((acc, evt) => {
-      if (!evt.source_table || !evt.taggableId) return acc
-      const key = evt.source_table
-      if (!acc[key]) acc[key] = new Set()
-      acc[key].add(evt.taggableId)
-      return acc
-    }, {})
-    const entries = Object.entries(idsByType).filter(([, ids]) => ids.size)
-    if (!entries.length) {
-      setTagMap({})
-      return
-    }
-    Promise.all(
-      entries.map(([type, ids]) =>
-        supabase
-          .from('taggings')
-          .select('tags(name,slug),taggable_id')
-          .eq('taggable_type', type)
-          .in('taggable_id', Array.from(ids))
-      )
-    )
-      .then(results => {
-        const map = {}
-        results.forEach(({ data, error }, index) => {
-          if (error) {
-            console.error('Failed to load additional tags', error)
-            return
-          }
-          const type = entries[index][0]
-          data?.forEach(row => {
-            if (!row?.taggable_id || !row.tags) return
-            const key = `${type}:${row.taggable_id}`
-            map[key] = map[key] || []
-            map[key].push(row.tags)
-          })
-        })
-        setTagMap(map)
+    let active = true;
+    setLoading(true);
+    setError('');
+    fetchTagData(slug)
+      .then(async ({ tag: fetchedTag, events, tagMap: loadedTagMap }) => {
+        if (!active) return;
+        setTag(fetchedTag);
+        setBaseEvents(events);
+        setTagMap(loadedTagMap);
+        if (slug === 'sports') {
+          const sports = await fetchSportsEvents();
+          if (active) setSportsEvents(sports);
+        } else {
+          setSportsEvents([]);
+        }
       })
       .catch(err => {
-        console.error('Tag map fetch error', err)
+        console.error('Failed to load tag data', err);
+        if (active) {
+          setError('We had trouble loading this tag. Please try again later.');
+          setTag(null);
+          setBaseEvents([]);
+          setTagMap({});
+          setSportsEvents([]);
+        }
       })
-  }, [upcoming])
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [slug]);
 
-  if (loading) return <p className="text-center py-20">Loading…</p>
-  if (!tag)    return <p className="text-center py-20 text-red-600">Tag not found</p>
+  useEffect(() => {
+    if (!tag) return;
+    setSelectedTags(prev => {
+      if (prev.length) return prev;
+      return [tag.slug];
+    });
+  }, [tag]);
 
-  const eventCount = filteredEvents.length
-  const filterOptions = [
-    { value: 'all', label: 'All dates' },
-    { value: 'today', label: 'Today' },
-    { value: 'weekend', label: 'This weekend' },
-    { value: 'range', label: 'Custom range' },
-  ]
-  const showCustomRange = dateFilter === 'range'
-  const heroDescription = tag.description || `Discover upcoming #${tag.name} things to do in Philadelphia, curated by Our Philly.`
+  useEffect(() => {
+    const paramsToSet = new URLSearchParams();
+    paramsToSet.set('date', dateFilter);
+    if (dateFilter === 'custom') {
+      if (customStart) paramsToSet.set('start', customStart);
+      if (customEnd) paramsToSet.set('end', customEnd);
+    }
+    if (selectedArea) paramsToSet.set('area', selectedArea);
+    if (selectedTags.length) paramsToSet.set('tags', selectedTags.join(','));
+    if (limitToMap) paramsToSet.set('limit', 'map');
+    if (locationQuery) paramsToSet.set('loc', locationQuery);
+    setSearchParams(paramsToSet, { replace: true });
+  }, [dateFilter, customStart, customEnd, selectedArea, selectedTags, limitToMap, locationQuery, setSearchParams]);
+
+  const tagOptions = useMemo(() => {
+    const map = new Map();
+    if (tag?.slug) {
+      map.set(tag.slug, tag.name || tag.slug);
+    }
+    Object.values(tagMap).forEach(list => {
+      (list || []).forEach(entry => {
+        if (!entry?.slug) return;
+        if (!map.has(entry.slug)) {
+          map.set(entry.slug, entry.name || entry.slug);
+        }
+      });
+    });
+    return Array.from(map.entries()).map(([slugValue, name]) => ({ slug: slugValue, name }));
+  }, [tag, tagMap]);
+
+  const weekendWindow = useMemo(() => getWeekendWindow(new Date(), PHILLY_TIME_ZONE), []);
+  const todayStart = useMemo(() => setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE)), []);
+  const todayEnd = useMemo(() => setEndOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE)), []);
+
+  const decoratedEvents = useMemo(() => {
+    const events = [...baseEvents, ...sportsEvents].map(event => {
+      const areaName = event.area_id != null ? areaLookup[event.area_id] || null : null;
+      return {
+        ...event,
+        areaName,
+      };
+    });
+    return events
+      .filter(event => {
+        const start = event.startDate;
+        const end = event.endDate || start;
+        if (!start && !end) return false;
+        const startTime = start ? start.getTime() : Number.NEGATIVE_INFINITY;
+        const endTime = end ? end.getTime() : Number.NEGATIVE_INFINITY;
+        return endTime >= todayStart.getTime();
+      })
+      .sort((a, b) => {
+        const aTime = a.startDate ? a.startDate.getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.startDate ? b.startDate.getTime() : Number.MAX_SAFE_INTEGER;
+        if (aTime !== bTime) return aTime - bTime;
+        return (a.title || '').localeCompare(b.title || '');
+      });
+  }, [areaLookup, baseEvents, sportsEvents, todayStart]);
+
+  const filteredEvents = useMemo(() => {
+    let events = decoratedEvents;
+
+    let rangeStart = null;
+    let rangeEnd = null;
+    if (dateFilter === 'today') {
+      rangeStart = todayStart;
+      rangeEnd = todayEnd;
+    } else if (dateFilter === 'weekend') {
+      rangeStart = weekendWindow.start;
+      rangeEnd = weekendWindow.end;
+    } else if (dateFilter === 'custom') {
+      const parsedStart = customStart ? parseISODate(customStart, PHILLY_TIME_ZONE) : null;
+      const parsedEnd = customEnd ? parseISODate(customEnd, PHILLY_TIME_ZONE) : null;
+      rangeStart = parsedStart || null;
+      rangeEnd = parsedEnd ? setEndOfDay(parsedEnd) : null;
+    }
+
+    if (rangeStart || rangeEnd) {
+      events = events.filter(event => {
+        const start = event.startDate;
+        const end = event.endDate || start;
+        if (!start && !end) return false;
+        if (rangeStart && end && end.getTime() < rangeStart.getTime()) return false;
+        if (rangeEnd && start && start.getTime() > rangeEnd.getTime()) return false;
+        return true;
+      });
+    }
+
+    if (selectedArea) {
+      events = events.filter(event => String(event.area_id || '') === selectedArea);
+    }
+
+    if (locationQuery.trim()) {
+      const needle = locationQuery.trim().toLowerCase();
+      events = events.filter(event => (event.areaName || '').toLowerCase().includes(needle));
+    }
+
+    if (selectedTags.length) {
+      events = events.filter(event => {
+        const key = getEventKey(event);
+        const extraTags = key && tagMap[key] ? tagMap[key] : [];
+        const tagSet = new Set(
+          extraTags
+            .filter(t => t?.slug)
+            .map(t => t.slug),
+        );
+        if (tag?.slug) {
+          tagSet.add(tag.slug);
+        }
+        return selectedTags.every(slugValue => tagSet.has(slugValue));
+      });
+    }
+
+    if (limitToMap && mapBounds) {
+      events = events.filter(event => eventWithinBounds(event, mapBounds));
+    }
+
+    return events;
+  }, [
+    customEnd,
+    customStart,
+    dateFilter,
+    decoratedEvents,
+    limitToMap,
+    locationQuery,
+    mapBounds,
+    selectedArea,
+    selectedTags,
+    tag,
+    tagMap,
+    todayEnd,
+    todayStart,
+    weekendWindow.end,
+    weekendWindow.start,
+  ]);
+
+  useEffect(() => {
+    if (!mapboxToken) return;
+    const withCoordinates = filteredEvents.filter(
+      event => Number.isFinite(parseNumber(event.latitude)) && Number.isFinite(parseNumber(event.longitude)),
+    );
+    if (!withCoordinates.length) return;
+    if (userMovedMap) return;
+    const center = calculateCenter(withCoordinates);
+    setViewState(prev => ({ ...prev, ...center }));
+  }, [filteredEvents, mapboxToken, userMovedMap]);
+
+  const updateBounds = useCallback(() => {
+    const mapInstance = mapRef.current?.getMap?.() || mapRef.current;
+    if (!mapInstance?.getBounds) return;
+    const bounds = mapInstance.getBounds();
+    setMapBounds({
+      west: bounds.getWest(),
+      east: bounds.getEast(),
+      south: bounds.getSouth(),
+      north: bounds.getNorth(),
+    });
+  }, []);
+
+  const handleMove = useCallback(event => {
+    setViewState(event.viewState);
+    setUserMovedMap(true);
+  }, []);
+
+  const handleMoveEnd = useCallback(() => {
+    updateBounds();
+  }, [updateBounds]);
+
+  useEffect(() => {
+    if (limitToMap) {
+      updateBounds();
+    }
+  }, [limitToMap, updateBounds]);
+
+  useEffect(() => {
+    setUserMovedMap(false);
+  }, [
+    dateFilter,
+    customStart,
+    customEnd,
+    selectedArea,
+    limitToMap,
+    locationQuery,
+    selectedTags.join(','),
+  ]);
+
+  const selectedEvent = useMemo(() => {
+    if (!selectedEventId) return null;
+    return filteredEvents.find(event => event.id === selectedEventId) || null;
+  }, [filteredEvents, selectedEventId]);
+
+  const handleLocateMe = useCallback(() => {
+    if (isLocating) return;
+    if (!navigator?.geolocation) {
+      setGeoError('Geolocation is not available on this device.');
+      return;
+    }
+    setIsLocating(true);
+    setGeoError('');
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const { latitude, longitude } = position.coords;
+        setViewState(prev => ({ ...prev, latitude, longitude, zoom: Math.max(prev.zoom, 13) }));
+        setUserMovedMap(true);
+        setIsLocating(false);
+        setGeoError('');
+        setTimeout(updateBounds, 300);
+      },
+      err => {
+        setIsLocating(false);
+        setGeoError(err.message || 'We could not determine your location.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }, [isLocating, updateBounds]);
+
+  const areaOptions = useMemo(() => {
+    return Object.entries(areaLookup)
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [areaLookup]);
+
+  const now = useMemo(() => new Date(), []);
+
+  const mapReady = Boolean(mapboxToken);
+
+  const emptyState = filteredEvents.length === 0;
 
   return (
     <>
       <Helmet>
-        <title>#{tag.name} events in Philadelphia | Our Philly</title>
+        <title>{tag ? `#${tag.name} events in Philadelphia | Our Philly` : 'Philadelphia events | Our Philly'}</title>
         <meta
           name="description"
-          content={`Explore ${eventCount || 'upcoming'} ${tag.name} events in Philadelphia with Our Philly.`}
+          content={
+            tag
+              ? `Discover upcoming #${tag.name} events, mapped and ready to plan with Our Philly.`
+              : 'Discover upcoming Philadelphia events on Our Philly.'
+          }
         />
       </Helmet>
-
-      <div className="min-h-screen bg-[#fdf7f2] text-[#29313f]">
+      <div className="flex min-h-screen flex-col bg-slate-50">
         <Navbar />
-        <main className="pt-28 pb-16">
-          <section className="relative border-b border-[#f4c9bc]/70">
-            <div
-              className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent"
-              aria-hidden="true"
-            />
-            <div className="mx-auto max-w-7xl px-6 pb-12 pt-10">
-              <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/80 px-0 backdrop-blur shadow-xl shadow-[#bf3d35]/10">
-                <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-                  <div className="px-8 py-10 sm:px-12 sm:py-12">
-                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Philly tag spotlight</p>
-                    <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
-                      {eventCount > 0
-                        ? `${eventCount} upcoming #${tag.name} events in Philly`
-                        : `Upcoming #${tag.name} events in Philly`}
-                    </h1>
-                    {tag.is_seasonal && (
-                      <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#d9e9ea] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#004C55]">
-                        <Clock className="h-4 w-4" />
-                        Seasonal tag
-                      </span>
+        <main className="flex-1 pt-[92px]">
+          <section className="bg-white shadow-sm">
+            <div className="relative mx-auto max-w-[min(1100px,100%)] px-4 pb-4 pt-2">
+              <div className="relative h-[360px] overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                {mapReady ? (
+                  <Map
+                    ref={mapRef}
+                    {...viewState}
+                    onMove={handleMove}
+                    onMoveEnd={handleMoveEnd}
+                    onLoad={updateBounds}
+                    mapStyle="mapbox://styles/mapbox/light-v11"
+                    mapboxAccessToken={mapboxToken}
+                    style={{ width: '100%', height: '100%' }}
+                  >
+                {filteredEvents
+                      .map(event => {
+                        const latitude = parseNumber(event.latitude);
+                        const longitude = parseNumber(event.longitude);
+                        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                          return null;
+                        }
+                        return (
+                          <Marker
+                            key={event.id}
+                            latitude={latitude}
+                            longitude={longitude}
+                            anchor="bottom"
+                            onClick={e => {
+                              e.originalEvent.stopPropagation();
+                              setSelectedEventId(event.id);
+                            }}
+                          >
+                            <span
+                              className="flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-semibold text-white shadow"
+                              aria-label={event.title}
+                            >
+                              ●
+                            </span>
+                          </Marker>
+                        );
+                      })}
+                    {selectedEvent && Number.isFinite(parseNumber(selectedEvent.latitude)) && Number.isFinite(parseNumber(selectedEvent.longitude)) && (
+                      <Popup
+                        latitude={Number(selectedEvent.latitude)}
+                        longitude={Number(selectedEvent.longitude)}
+                        anchor="top"
+                        closeOnClick={false}
+                        onClose={() => setSelectedEventId(null)}
+                        className="text-sm"
+                      >
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Upcoming Event</p>
+                          <p className="text-base font-semibold text-slate-900">{selectedEvent.title}</p>
+                          <p className="text-xs text-slate-600">{formatPopupDate(selectedEvent)}</p>
+                          {selectedEvent.detailPath && (
+                            <a
+                              href={selectedEvent.detailPath}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                            >
+                              View details
+                              <span aria-hidden="true">→</span>
+                            </a>
+                          )}
+                        </div>
+                      </Popup>
                     )}
-                    <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#4a5568] sm:text-lg">{heroDescription}</p>
-                    <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <button
-                        onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }}
-                        className="inline-flex items-center justify-center rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
-                      >
-                        Submit an event
-                      </button>
-                      <Link
-                        to={mapHref}
-                        className="inline-flex items-center justify-center rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold uppercase tracking-wider text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
-                      >
-                        View these on the map
-                      </Link>
-                    </div>
+                  </Map>
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-slate-100 text-sm text-slate-600">
+                    Map view unavailable — missing Mapbox access token.
                   </div>
-                  <div className="relative flex items-center justify-center overflow-hidden px-8 py-12 sm:px-10">
-                    <div
-                      className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl"
-                      aria-hidden="true"
-                    />
-                    <div className="relative flex flex-col items-center gap-6 text-center">
-                      <img
-                        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
-                        alt="Our Philly city heart"
-                        className="h-48 w-48 object-contain drop-shadow-xl"
-                      />
-                      <div className="w-full max-w-xs rounded-2xl border border-[#29313f]/10 bg-white/85 px-6 py-5 shadow-lg shadow-[#29313f]/10">
-                        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Need the map?</p>
-                        <p className="mt-2 text-base font-semibold text-[#29313f]">Jump to the citywide view</p>
-                        <p className="mt-2 text-sm text-[#4a5568]">
-                          The map shows every submission. Once you’re there, pick the #{tag.name} filter to zero in on plans for your crew.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="border-b border-[#f4c9bc]/70 bg-white/70">
-            <div className="mx-auto max-w-7xl px-6 py-6 flex flex-col gap-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold">Dial in the dates</h2>
-                  <p className="text-sm text-[#4a5568]">Everything is sorted with the next upcoming events first.</p>
-                </div>
-                <div className="flex flex-col gap-3 sm:items-end">
-                  <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-                    {filterOptions.map(option => (
-                      <button
-                        key={option.value}
-                        onClick={() => setDateFilter(option.value)}
-                        className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
-                          dateFilter === option.value
-                            ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
-                            : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  {showCustomRange && (
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
-                      <label className="flex items-center gap-2">
-                        <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">Start</span>
-                        <input
-                          type="date"
-                          value={customStart}
-                          onChange={e => setCustomStart(e.target.value)}
-                          className="rounded-lg border border-[#f4c9bc] bg-white/80 px-3 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                        />
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">End</span>
-                        <input
-                          type="date"
-                          value={customEnd}
-                          onChange={e => setCustomEnd(e.target.value)}
-                          className="rounded-lg border border-[#f4c9bc] bg-white/80 px-3 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                        />
-                      </label>
-                    </div>
+                )}
+                <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleLocateMe}
+                    disabled={isLocating}
+                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-indigo-500/60 bg-white px-3 py-1 text-xs font-semibold text-indigo-600 shadow-sm transition hover:border-indigo-600 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isLocating ? 'Locating…' : 'Near me'}
+                  </button>
+                  {geoError && (
+                    <span className="pointer-events-auto rounded-full bg-white/90 px-3 py-1 font-medium text-rose-500 shadow">
+                      {geoError}
+                    </span>
                   )}
                 </div>
               </div>
             </div>
           </section>
 
-          <section className="mx-auto max-w-7xl px-6 py-10">
-            {eventCount === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#f4c9bc] bg-white/80 px-6 py-12 text-center text-[#4a5568] shadow-sm">
-                <p className="text-lg font-semibold text-[#29313f]">No #{tag.name} events match these dates yet.</p>
-                <p className="mt-3">Be the first to add one and help the city discover it.</p>
-                <button
-                  onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }}
-                  className="mt-6 inline-flex items-center justify-center rounded-full bg-[#bf3d35] px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
-                >
-                  Submit an event
-                </button>
+          <section className="border-b border-slate-200 bg-white/95">
+            <div className="mx-auto max-w-[min(1100px,100%)] px-4 py-4">
+              {tag && (
+                <h1 className="mb-3 text-xl font-semibold text-slate-900">#{tag.name} around Philadelphia</h1>
+              )}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {['today', 'weekend', 'custom'].map(option => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setDateFilter(option)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                        dateFilter === option
+                          ? 'bg-indigo-600 text-white shadow'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {option === 'today' ? 'Today' : option === 'weekend' ? 'Weekend' : 'Custom'}
+                    </button>
+                  ))}
+                </div>
+                {dateFilter === 'custom' && (
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                    <label className="flex items-center gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start</span>
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={event => setCustomStart(event.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      />
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">End</span>
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={event => setCustomEnd(event.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      />
+                    </label>
+                  </div>
+                )}
+                <label className="ml-auto flex items-center gap-2 text-sm text-slate-600">
+                  <span className="hidden text-xs font-semibold uppercase tracking-wide text-slate-500 sm:inline">Neighborhood</span>
+                  <select
+                    value={selectedArea}
+                    onChange={event => setSelectedArea(event.target.value)}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">All neighborhoods</option>
+                    {areaOptions.map(option => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={limitToMap}
+                    onChange={event => setLimitToMap(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  Limit to map view
+                </label>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {tagOptions.map((tagOption, index) => {
+                  const isActive = selectedTags.includes(tagOption.slug);
+                  return (
+                    <button
+                      key={tagOption.slug}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTags(current => {
+                          if (current.includes(tagOption.slug)) {
+                            return current.filter(slugValue => slugValue !== tagOption.slug);
+                          }
+                          return [...current, tagOption.slug];
+                        });
+                      }}
+                      className={`rounded-full px-3 py-1 text-sm font-semibold transition ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      #{tagOption.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {geoError && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                  <label className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">ZIP / Neighborhood</span>
+                    <input
+                      type="text"
+                      value={locationQuery}
+                      onChange={event => setLocationQuery(event.target.value)}
+                      placeholder="Try 19107 or Fishtown"
+                      className="rounded-lg border border-rose-200 bg-white px-3 py-1 text-sm shadow-sm focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-200/50"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="mx-auto max-w-[min(1100px,100%)] px-4 py-8">
+            {loading ? (
+              <div className="py-20 text-center text-slate-500">Loading events…</div>
+            ) : error ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-12 text-center text-rose-600 shadow-sm">
+                <p className="text-base font-semibold">{error}</p>
+              </div>
+            ) : !tag ? (
+              <div className="py-20 text-center text-slate-500">We couldn’t find this tag.</div>
+            ) : emptyState ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-slate-600 shadow-sm">
+                <p className="text-lg font-semibold text-slate-900">No events match these filters just yet.</p>
+                <p className="mt-3">Try widening the search to see more options around Philadelphia.</p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedArea('')}
+                    className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+                  >
+                    Show all neighborhoods
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFilter('custom');
+                      setCustomStart('');
+                      setCustomEnd('');
+                    }}
+                    className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+                  >
+                    Expand the dates
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTags(tag ? [tag.slug] : [])}
+                    className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+                  >
+                    Reset tag filters
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col divide-y divide-gray-200">
-                {filteredEvents.map(evt => {
-                  const baseId = evt.taggableId ?? evt.id
-                  const mapKey = evt.source_table ? `${evt.source_table}:${baseId}` : `evt:${baseId}`
-                  const extraTags = mapKey && tagMap[mapKey] ? tagMap[mapKey] : []
-                  const tagsForRow = Array.isArray(extraTags) ? [...extraTags] : []
-                  if (!tagsForRow.some(t => t?.slug === tag.slug)) {
-                    tagsForRow.push({ slug: tag.slug, name: tag.name })
+              <div className="space-y-6">
+                {filteredEvents.map(event => {
+                  const key = getEventKey(event);
+                  const extraTags = key && tagMap[key] ? tagMap[key] : [];
+                  const tagList = [];
+                  const seen = new Set();
+                  extraTags
+                    .filter(t => t?.slug)
+                    .forEach(t => {
+                      if (seen.has(t.slug)) return;
+                      seen.add(t.slug);
+                      tagList.push({ slug: t.slug, name: t.name || t.slug });
+                    });
+                  if (tag?.slug && !seen.has(tag.slug)) {
+                    tagList.push({ slug: tag.slug, name: tag.name });
                   }
-                  const rowKey = `${mapKey}-${evt.start_date || ''}-${evt.start_time || ''}`
-                  return <EventRow key={rowKey} evt={evt} tags={tagsForRow} profileMap={profileMap} />
+                  return (
+                    <EventListItem key={event.id} event={event} now={now} tags={tagList} />
+                  );
                 })}
               </div>
             )}
           </section>
         </main>
-
-        {showFlyerModal && (
-          <PostFlyerModal
-            isOpen
-            onClose={() => setShowFlyerModal(false)}
-            startStep={modalStartStep}
-            initialFile={initialFlyer}
-          />
-        )}
-
         <Footer />
       </div>
     </>
-  )
+  );
 }
