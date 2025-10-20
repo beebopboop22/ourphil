@@ -1,59 +1,516 @@
-// src/BigBoardEventPage.jsx
-import React, { useEffect, useState, useContext, useRef, lazy, Suspense } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { supabase } from './supabaseClient';
-import Navbar from './Navbar';
-import Footer from './Footer';
-import { AuthContext } from './AuthProvider';
-import useFollow from './utils/useFollow';
-import PostFlyerModal from './PostFlyerModal';
-import FloatingAddButton from './FloatingAddButton';
-import TriviaTonightBanner from './TriviaTonightBanner';
-import SubmitEventSection from './SubmitEventSection';
-import useEventFavorite from './utils/useEventFavorite';
-import { isTagActive } from './utils/tagUtils';
-import Seo from './components/Seo.jsx';
-import { getMapboxToken } from './config/mapboxToken.js';
-import {
-  SITE_BASE_URL,
-  DEFAULT_OG_IMAGE,
-  ensureAbsoluteUrl,
-  buildEventJsonLd,
-} from './utils/seoHelpers.js';
-
-const FALLBACK_BIG_BOARD_TITLE = 'Community Event – Our Philly';
-const FALLBACK_BIG_BOARD_DESCRIPTION =
-  'Discover community-submitted events happening around Philadelphia with Our Philly.';
-const CommentsSection = lazy(() => import('./CommentsSection'));
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import MapGL from 'react-map-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import {
   CalendarCheck,
-  CalendarPlus,
   ExternalLink,
+  MapPin,
   Pencil,
-  Share2,
   Trash2,
 } from 'lucide-react';
+
+import Navbar from './Navbar';
+import Footer from './Footer';
+import { supabase } from './supabaseClient';
+import { AuthContext } from './AuthProvider';
+import useEventFavorite from './utils/useEventFavorite';
+import useFollow from './utils/useFollow';
+import SubmitEventSection from './SubmitEventSection';
+import FloatingAddButton from './FloatingAddButton';
+import PostFlyerModal from './PostFlyerModal';
+import TriviaTonightBanner from './TriviaTonightBanner';
+import Seo from './components/Seo.jsx';
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_BASE_URL,
+  buildEventJsonLd,
+  ensureAbsoluteUrl,
+} from './utils/seoHelpers.js';
+import {
+  PHILLY_TIME_ZONE,
+  getZonedDate,
+  parseISODate,
+  setEndOfDay,
+  setStartOfDay,
+} from './utils/dateUtils.js';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import { getMapboxToken } from './config/mapboxToken.js';
+import { ensureAreaCache } from './utils/areaCache.js';
+
+const MAPBOX_STYLE = 'mapbox://styles/mapbox/light-v11';
+const MAP_WARNING_KEY = 'bigBoardEventMapWarning';
+
+const FALLBACK_TITLE = 'Community Event – Our Philly';
+const FALLBACK_DESCRIPTION =
+  'Discover community-submitted events happening around Philadelphia with Our Philly.';
+
+const pillStyles = [
+  'bg-red-100 text-red-800',
+  'bg-green-100 text-green-800',
+  'bg-blue-100 text-blue-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-purple-100 text-purple-800',
+  'bg-orange-100 text-orange-800',
+];
+
+const recommendationCache = new Map();
+const RECOMMENDATION_TTL = 1000 * 60 * 60 * 24; // 24 hours
+
+function formatTimeLabel(date) {
+  if (!date) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: PHILLY_TIME_ZONE,
+  }).format(date);
+}
+
+function buildPhillyDate(dateStr, timeStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const trimmed = dateStr.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  const [y, m, d] = trimmed.split('-').map(Number);
+  if ([y, m, d].some(Number.isNaN)) return null;
+  let hours = 0;
+  let minutes = 0;
+  if (typeof timeStr === 'string' && timeStr.trim()) {
+    const [h, min = '00'] = timeStr.trim().split(':');
+    const parsedHours = Number.parseInt(h, 10);
+    const parsedMinutes = Number.parseInt(min, 10);
+    if (!Number.isNaN(parsedHours) && parsedHours >= 0 && parsedHours < 24) {
+      hours = parsedHours;
+    }
+    if (!Number.isNaN(parsedMinutes) && parsedMinutes >= 0 && parsedMinutes < 60) {
+      minutes = parsedMinutes;
+    }
+  }
+  try {
+    const utc = new Date(Date.UTC(y, m - 1, d, hours, minutes, 0));
+    return getZonedDate(utc, PHILLY_TIME_ZONE);
+  } catch (error) {
+    console.warn('Failed to build zoned date', error);
+    return null;
+  }
+}
+
+function formatHeaderDate(startDate) {
+  if (!startDate) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: PHILLY_TIME_ZONE,
+  }).format(startDate);
+}
+
+function formatDateRange(event) {
+  const start = buildPhillyDate(event?.start_date, event?.start_time);
+  const end = event?.end_time
+    ? buildPhillyDate(event?.start_date, event?.end_time)
+    : null;
+  const dateLabel = formatHeaderDate(start);
+  const timeLabel = start ? formatTimeLabel(start) : '';
+  const endLabel = end ? formatTimeLabel(end) : '';
+
+  if (!dateLabel) {
+    return { dateLabel: '', timeLabel: 'Time TBA' };
+  }
+
+  if (!timeLabel && !endLabel) {
+    return { dateLabel, timeLabel: 'Time TBA' };
+  }
+
+  if (timeLabel && endLabel) {
+    if (timeLabel.split(' ').slice(-1)[0] === endLabel.split(' ').slice(-1)[0]) {
+      const [startTime, meridiem] = timeLabel.split(' ');
+      const [endTime] = endLabel.split(' ');
+      return { dateLabel, timeLabel: `${startTime}–${endTime} ${meridiem}` };
+    }
+    return { dateLabel, timeLabel: `${timeLabel} – ${endLabel}` };
+  }
+
+  return { dateLabel, timeLabel: timeLabel || 'Time TBA' };
+}
+
+function formatFullDateRange(event) {
+  const start = buildPhillyDate(event?.start_date, event?.start_time);
+  const endDateStr = event?.end_date || event?.start_date;
+  const end = buildPhillyDate(endDateStr, event?.end_time || event?.start_time);
+  if (!start) return '';
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    timeZone: PHILLY_TIME_ZONE,
+  });
+  const startLabel = dateFormatter.format(start);
+  if (!end || end.getTime() === start.getTime()) {
+    return startLabel;
+  }
+  const endLabel = dateFormatter.format(end);
+  return `${startLabel} – ${endLabel}`;
+}
+
+function FavoriteButton({ eventId, sourceTable }) {
+  const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
+  const { isFavorite, toggleFavorite, loading } = useEventFavorite({
+    event_id: eventId,
+    source_table: sourceTable,
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!user) {
+          navigate('/login');
+          return;
+        }
+        toggleFavorite();
+      }}
+      disabled={loading}
+      className={`inline-flex items-center justify-center gap-2 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition-colors ${
+        isFavorite
+          ? 'bg-indigo-600 text-white'
+          : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+      }`}
+    >
+      <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+    </button>
+  );
+}
+
+function RecommendationSkeleton({ title }) {
+  return (
+    <section className="mt-12">
+      <div className="mb-4 h-6 w-56 rounded bg-gray-200" aria-label={`${title} loading`} />
+      <div className="space-y-4">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-24 rounded-2xl border border-gray-200 bg-gray-100 animate-pulse"
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FavoriteState({ eventId, sourceTable, children }) {
+  const state = useEventFavorite({ event_id: eventId, source_table: sourceTable });
+  return children(state);
+}
+
+function formatEventTiming(event, now) {
+  if (!event?.startDate) return 'Time TBA';
+  const dayFormatter = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    timeZone: PHILLY_TIME_ZONE,
+  });
+  const today = setStartOfDay(new Date(now));
+  const eventDay = setStartOfDay(new Date(event.startDate));
+  const diffDays = Math.round(
+    (eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  let prefix;
+  if (diffDays === 0) prefix = 'Today';
+  else if (diffDays === 1) prefix = 'Tomorrow';
+  else prefix = dayFormatter.format(event.startDate);
+
+  if (!event.start_time) {
+    return `${prefix} · Time TBA`;
+  }
+  const timeLabel = formatTimeLabel(buildPhillyDate(event.start_date ?? event.startDateISO, event.start_time));
+  return timeLabel ? `${prefix} · ${timeLabel}` : `${prefix} · Time TBA`;
+}
+
+function RecommendationList({ title, events }) {
+  const now = useMemo(() => getZonedDate(new Date(), PHILLY_TIME_ZONE), []);
+
+  if (!events?.length) {
+    return null;
+  }
+
+  return (
+    <section className="mt-12" aria-label={title}>
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">{title}</h2>
+      <div className="space-y-4">
+        {events.map(event => {
+          const areaLabel =
+            [event.areaName, event.area?.name, event.area_name]
+              .map(value => (typeof value === 'string' ? value.trim() : ''))
+              .find(Boolean) || null;
+          return (
+            <Link
+              key={`${event.source_table}:${event.favoriteId}`}
+              to={event.detailPath}
+              className="block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-6">
+                <div className="flex items-start gap-4">
+                  <div className="hidden h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:block">
+                    {event.imageUrl && (
+                      <img
+                        src={event.imageUrl}
+                        alt={event.title}
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
+                      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-800">
+                        {formatEventTiming(event, now)}
+                      </span>
+                      {areaLabel && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#f2cfc3] px-2 py-0.5 text-[#29313f]">
+                          <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                          {areaLabel}
+                        </span>
+                      )}
+                      {(event.badges || []).map(badge => (
+                        <span
+                          key={badge}
+                          className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-purple-800"
+                        >
+                          {badge}
+                        </span>
+                      ))}
+                    </div>
+                    <h3 className="mt-2 text-lg font-semibold text-gray-900">{event.title}</h3>
+                    {event.description && (
+                      <p className="mt-1 line-clamp-2 text-sm text-gray-600">{event.description}</p>
+                    )}
+                    {event.address && (
+                      <p className="mt-1 text-sm text-gray-500">{event.address}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex w-full items-center justify-start gap-3 md:w-auto md:justify-end">
+                  {event.source_table ? (
+                    <FavoriteState eventId={event.favoriteId} sourceTable={event.source_table}>
+                      {({ isFavorite, toggleFavorite, loading }) => (
+                        <button
+                          type="button"
+                          onClick={evt => {
+                            evt.preventDefault();
+                            evt.stopPropagation();
+                            toggleFavorite();
+                          }}
+                          disabled={loading}
+                          className={`rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition-colors ${
+                            isFavorite
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                          }`}
+                        >
+                          {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                        </button>
+                      )}
+                    </FavoriteState>
+                  ) : null}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function mergeRecommendations(list, areaId) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const prioritized = [...list].sort((a, b) => {
+    const aAreaMatch = a.area_id && areaId && a.area_id === areaId ? 0 : 1;
+    const bAreaMatch = b.area_id && areaId && b.area_id === areaId ? 0 : 1;
+    if (aAreaMatch !== bAreaMatch) return aAreaMatch - bAreaMatch;
+    const startDiff = (a.startDate?.getTime?.() || 0) - (b.startDate?.getTime?.() || 0);
+    if (startDiff !== 0) return startDiff;
+    return (a.start_time || '').localeCompare(b.start_time || '');
+  });
+  return prioritized.filter(event => {
+    const key = `${event.source_table}:${event.favoriteId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeBigBoardEvent(row, areaLookup) {
+  const start = parseISODate(row.start_date, PHILLY_TIME_ZONE);
+  const end = parseISODate(row.end_date || row.start_date, PHILLY_TIME_ZONE) || start;
+  const areaName = row.area_id ? areaLookup?.[row.area_id] || null : null;
+  return {
+    id: `big-${row.id}`,
+    favoriteId: row.id,
+    source_table: 'big_board_events',
+    title: row.title,
+    description: row.description,
+    imageUrl: row.imageUrl || '',
+    startDate: start,
+    endDate: end,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    address: row.address || '',
+    area_id: row.area_id,
+    areaName,
+    detailPath: `/big-board/${row.slug}`,
+    badges: ['Submission'],
+  };
+}
+
+function normalizeAllEvent(row, areaLookup) {
+  const startKey = (row.start_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startKey)) return null;
+  const startDate = new Date(startKey);
+  const endKey = ((row.end_date || row.start_date) || '').slice(0, 10) || startKey;
+  const endDate = new Date(endKey);
+  const areaId = row.area_id ?? row.venue_id?.area_id ?? null;
+  const areaName = areaId ? areaLookup?.[areaId] || null : null;
+  return {
+    id: `all-${row.id}`,
+    favoriteId: row.id,
+    source_table: 'all_events',
+    title: row.name,
+    description: row.description,
+    imageUrl: row.image || '',
+    startDate,
+    endDate,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    address: row.venues?.name || '',
+    area_id: areaId,
+    areaName,
+    detailPath: getDetailPathForItem(row) || `/events/${row.slug}`,
+    badges: ['Listed Event'],
+  };
+}
+
+function normalizeGroupEvent(row, areaLookup) {
+  const startKey = (row.start_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startKey)) return null;
+  const startDate = new Date(startKey);
+  const endKey = (row.end_date || row.start_date || '').slice(0, 10) || startKey;
+  const endDate = new Date(endKey);
+  const groupRecord = Array.isArray(row.groups) ? row.groups[0] : row.groups;
+  const areaId = row.area_id ?? null;
+  const areaName = areaId ? areaLookup?.[areaId] || null : null;
+  let imageUrl = '';
+  if (row.image_url) {
+    if (row.image_url.startsWith('http')) {
+      imageUrl = row.image_url;
+    } else {
+      const { data } = supabase.storage.from('big-board').getPublicUrl(row.image_url);
+      imageUrl = data?.publicUrl || '';
+    }
+  } else if (groupRecord?.imag) {
+    imageUrl = groupRecord.imag;
+  }
+  const detailPath = getDetailPathForItem({
+    ...row,
+    group_slug: groupRecord?.slug,
+    isGroupEvent: true,
+  });
+  return {
+    id: `group-${row.id}`,
+    favoriteId: row.id,
+    source_table: 'group_events',
+    title: row.title,
+    description: row.description,
+    imageUrl,
+    startDate,
+    endDate,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    area_id: areaId,
+    areaName,
+    detailPath,
+    badges: ['Group Event'],
+  };
+}
+
+function normalizeRecurringEvent(row, areaLookup, occurrenceDate) {
+  const date = parseISODate(occurrenceDate, PHILLY_TIME_ZONE);
+  if (!date) return null;
+  const areaId = row.area_id ?? null;
+  const areaName = areaId ? areaLookup?.[areaId] || null : null;
+  return {
+    id: `${row.id}::${occurrenceDate}`,
+    favoriteId: row.id,
+    source_table: 'recurring_events',
+    title: row.name,
+    description: row.description,
+    imageUrl: row.image_url || '',
+    startDate: date,
+    endDate: date,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    address: row.address || '',
+    area_id: areaId,
+    areaName,
+    detailPath: getDetailPathForItem({
+      id: `${row.id}::${occurrenceDate}`,
+      slug: row.slug,
+      start_date: occurrenceDate,
+      isRecurring: true,
+    }),
+    badges: ['Recurring'],
+  };
+}
+
+function normalizeTradition(row, areaLookup) {
+  const start = parseISODate(row.Dates, PHILLY_TIME_ZONE);
+  const end = parseISODate(row['End Date'] || row.Dates, PHILLY_TIME_ZONE) || start;
+  const areaId = row.area_id ?? null;
+  const areaName = areaId ? areaLookup?.[areaId] || null : null;
+  return {
+    id: `trad-${row.id}`,
+    favoriteId: row.id,
+    source_table: 'events',
+    title: row['E Name'],
+    description: row['E Description'],
+    imageUrl: row['E Image'] || '',
+    startDate: start,
+    endDate: end,
+    start_time: row.start_time,
+    end_time: null,
+    area_id: areaId,
+    areaName,
+    detailPath: getDetailPathForItem({ ...row, isTradition: true }),
+    badges: ['Tradition'],
+  };
+}
+
+function storeRecommendations(slug, key, data) {
+  const existing = recommendationCache.get(slug) || {};
+  recommendationCache.set(slug, {
+    ...existing,
+    [key]: { data, timestamp: Date.now() },
+  });
+}
+
+function readRecommendations(slug, key) {
+  const cached = recommendationCache.get(slug)?.[key];
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp > RECOMMENDATION_TTL) return null;
+  return cached.data;
+}
 
 export default function BigBoardEventPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
 
-  // Main event state
   const [event, setEvent] = useState(null);
+  const [tags, setTags] = useState([]);
+  const [poster, setPoster] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Siblings for prev/next
-  const [siblings, setSiblings] = useState([]);
-
-  // Mapbox Search Box setup
-  const geocoderToken = getMapboxToken();
-  const sessionToken = useRef(crypto.randomUUID());
-  const suggestRef = useRef(null);
-  const [addressSuggestions, setAddressSuggestions] = useState([]);
-
-  // Edit form state
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -68,456 +525,568 @@ export default function BigBoardEventPage() {
     longitude: null,
   });
   const [saving, setSaving] = useState(false);
-
-  const {
-    isFavorite,
-    toggleFavorite,
-    loading: favLoading,
-  } = useEventFavorite({ event_id: event?.id, source_table: 'big_board_events' });
-
-  const handleFavorite = async () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    await toggleFavorite();
-  };
-
-  // Tag state
-  const pillStyles = [
-    'bg-red-100 text-red-800',
-    'bg-green-100 text-green-800',
-    'bg-blue-100 text-blue-800',
-    'bg-yellow-100 text-yellow-800',
-    'bg-purple-100 text-purple-800',
-    'bg-orange-100 text-orange-800',
-  ];
-  const [tagsList, setTagsList] = useState([]);
-  const [selectedTags, setSelectedTags] = useState([]);
-
-  // Upcoming community submissions
-  const [moreEvents, setMoreEvents] = useState([]);
-  const [loadingMore, setLoadingMore] = useState(true);
-  const [moreTagMap, setMoreTagMap] = useState({});
-
-  // Post flyer modal
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [similarEvents, setSimilarEvents] = useState(null);
+  const [nearbyEvents, setNearbyEvents] = useState(null);
+  const [loadingSimilar, setLoadingSimilar] = useState(true);
+  const [loadingNearby, setLoadingNearby] = useState(true);
   const [showFlyerModal, setShowFlyerModal] = useState(false);
   const [modalStartStep, setModalStartStep] = useState(1);
   const [initialFlyer, setInitialFlyer] = useState(null);
 
-  // Event poster info
-  const [poster, setPoster] = useState(null);
-  const {
-    isFollowing: isPosterFollowing,
-    toggleFollow: togglePosterFollow,
-    loading: followLoading,
-  } = useFollow(event?.owner_id);
+  const geocoderToken = getMapboxToken();
+  const sessionToken = useRef(crypto.randomUUID());
+  const suggestRef = useRef(null);
 
-  // Helpers
-  function parseLocalYMD(str) {
-    const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-  function formatTime(timeStr) {
-    if (!timeStr) return '';
-    let [h, m] = timeStr.split(':');
-    h = parseInt(h, 10);
-    m = (m || '00').padStart(2, '0');
-    const ampm = h >= 12 ? 'p.m.' : 'a.m.';
-    h = h % 12 || 12;
-    return `${h}:${m} ${ampm}`;
-  }
+  const { isFollowing: isPosterFollowing, toggleFollow: togglePosterFollow } = useFollow(
+    poster?.id,
+  );
 
-  // Share fallback & handler
-  function copyLinkFallback(url) {
-    navigator.clipboard.writeText(url).catch(console.error);
-  }
-  function handleShare() {
-    const url = window.location.href;
-    const title = document.title;
-    if (navigator.share) {
-      navigator.share({ title, url }).catch(console.error);
-    } else {
-      copyLinkFallback(url);
-    }
-  }
-
-  const gcalLink = event ? (() => {
-    const start = event.start_date?.replace(/-/g, '') || '';
-    const end = (event.end_date || event.start_date || '').replace(/-/g, '');
-    const url = window.location.href;
-    return (
-      'https://www.google.com/calendar/render?action=TEMPLATE' +
-      `&text=${encodeURIComponent(event.title)}` +
-      `&dates=${start}/${end}` +
-      `&details=${encodeURIComponent('Details: ' + url)}`
-    );
-  })() : '#';
-
-  // Fetch main event (including lat/lng)
   useEffect(() => {
-    (async () => {
+    ensureAreaCache().catch(() => {
+      /* handled via console warning */
+    });
+  }, []);
+
+  const mapboxToken = useMemo(() => getMapboxToken(), []);
+
+  useEffect(() => {
+    async function loadEvent() {
       setLoading(true);
       setError(null);
       try {
-        const { data: ev, error: evErr } = await supabase
+        const { data: eventRow, error: eventError } = await supabase
           .from('big_board_events')
-          .select(`
-            id, post_id, title, description, link,
-            start_date, end_date, start_time, end_time,
-            address, latitude, longitude,
-            created_at, slug
-          `)
+          .select(
+            `id, slug, title, description, link, start_date, end_date, start_time, end_time, address, latitude, longitude, post_id, area_id`,
+          )
           .eq('slug', slug)
           .single();
-        if (evErr) throw evErr;
+        if (eventError) throw eventError;
+        if (!eventRow) throw new Error('Event not found');
 
-        // load image & owner
-        const { data: post } = await supabase
-          .from('big_board_posts')
-          .select('image_url, user_id')
-          .eq('id', ev.post_id)
-          .single();
-        const { data: { publicUrl } } = supabase
-          .storage.from('big-board')
-          .getPublicUrl(post.image_url);
+        const [{ data: postRow }, { data: tagRows }, areaLookup] = await Promise.all([
+          supabase
+            .from('big_board_posts')
+            .select('image_url, user_id')
+            .eq('id', eventRow.post_id)
+            .single(),
+          supabase
+            .from('taggings')
+            .select('tag_id, tags(name, slug, id)')
+            .eq('taggable_type', 'big_board_events')
+            .eq('taggable_id', eventRow.id),
+          ensureAreaCache(),
+        ]);
 
-        // load tags list & existing tags
-        const { data: tagsData } = await supabase
-          .from('tags')
-          .select('id,name,rrule,season_start,season_end');
-        setTagsList((tagsData || []).filter(isTagActive));
-        const { data: taggings = [] } = await supabase
-          .from('taggings')
-          .select('tag_id')
-          .eq('taggable_type','big_board_events')
-          .eq('taggable_id', ev.id);
-        setSelectedTags(taggings.map(t => t.tag_id));
+        let imageUrl = '';
+        if (postRow?.image_url) {
+          const { data } = supabase.storage.from('big-board').getPublicUrl(postRow.image_url);
+          imageUrl = data?.publicUrl || '';
+        }
 
-        setEvent({ ...ev, imageUrl: publicUrl, owner_id: post.user_id });
+        const areaName = eventRow.area_id ? areaLookup?.[eventRow.area_id] || null : null;
+
+        setEvent({
+          ...eventRow,
+          imageUrl,
+          owner_id: postRow?.user_id || null,
+          areaName,
+        });
+        setTags((tagRows || []).map(row => row.tags).filter(Boolean));
       } catch (err) {
         console.error(err);
         setError('Could not load event.');
       } finally {
         setLoading(false);
       }
-    })();
+    }
+
+    loadEvent();
   }, [slug]);
 
-  // Fetch siblings same-day
   useEffect(() => {
-    if (!event) return;
-    (async () => {
-      const { data } = await supabase
-        .from('big_board_events')
-        .select('slug,title,start_time')
-        .eq('start_date', event.start_date)
-        .order('start_time',{ ascending: true });
-      setSiblings(data || []);
-    })();
-  }, [event]);
-
-  // Fetch event poster profile
-  useEffect(() => {
-    if (!event?.owner_id) return;
-    (async () => {
+    if (!event?.owner_id) {
+      setPoster(null);
+      return;
+    }
+    async function loadPoster() {
       try {
-        const { data: prof } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
-          .select('username,image_url,slug')
+          .select('id, username, image_url, slug')
           .eq('id', event.owner_id)
           .single();
-        let img = prof?.image_url || '';
-        if (img && !img.startsWith('http')) {
-          const { data: { publicUrl } } = supabase
-            .storage
-            .from('profile-images')
-            .getPublicUrl(img);
-          img = publicUrl;
+        let image = profile?.image_url || '';
+        if (image && !image.startsWith('http')) {
+          const { data } = supabase.storage.from('profile-images').getPublicUrl(image);
+          image = data?.publicUrl || '';
         }
-        const { data: tags } = await supabase
-          .from('profile_tags')
-          .select('culture_tags(name,emoji)')
-          .eq('profile_id', event.owner_id)
-          .eq('tag_type', 'culture');
-        const cultures = [];
-        tags?.forEach(t => {
-          if (t.culture_tags?.emoji) {
-            cultures.push({ emoji: t.culture_tags.emoji, name: t.culture_tags.name });
-          }
-        });
         setPoster({
-          id: event.owner_id,
-          username: prof?.username || 'User',
-          image: img,
-          slug: prof?.slug || null,
-          cultures,
+          id: profile?.id,
+          username: profile?.username || '',
+          image,
+          slug: profile?.slug || null,
         });
-      } catch (e) {
-        console.error(e);
+      } catch (posterError) {
+        console.error('Failed to load poster', posterError);
+        setPoster(null);
       }
-    })();
-  }, [event]);
+    }
+    loadPoster();
+  }, [event?.owner_id]);
 
-  // Fetch more community submissions
+  useEffect(() => {
+    if (!event || !isEditing) return;
+    setFormData({
+      title: event.title,
+      description: event.description || '',
+      link: event.link || '',
+      start_date: event.start_date || '',
+      end_date: event.end_date || '',
+      start_time: event.start_time || '',
+      end_time: event.end_time || '',
+      address: event.address || '',
+      latitude: event.latitude,
+      longitude: event.longitude,
+    });
+  }, [event, isEditing]);
+
   useEffect(() => {
     if (!event) return;
-    setLoadingMore(true);
-    (async () => {
-      try {
-        const todayStr = new Date().toISOString().slice(0,10);
-        const { data: list } = await supabase
-          .from('big_board_events')
-          .select('id, post_id, title, start_date, slug')
-          .gte('start_date', todayStr)
-          .neq('id', event.id)
-          .order('start_date',{ ascending: true })
-          .limit(39);
-        const enriched = await Promise.all(
-          list.map(async itm => {
-            const { data: p } = await supabase
-              .from('big_board_posts')
-              .select('image_url')
-              .eq('id', itm.post_id)
-              .single();
-            const { data: { publicUrl } } = supabase
-              .storage.from('big-board')
-              .getPublicUrl(p.image_url);
-            return { ...itm, imageUrl: publicUrl };
-          })
-        );
-        setMoreEvents(enriched);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoadingMore(false);
+    async function loadRecommendations() {
+      const cachedSimilar = readRecommendations(slug, 'similar');
+      const cachedNearby = readRecommendations(slug, 'nearby');
+      if (cachedSimilar) {
+        setSimilarEvents(cachedSimilar);
+        setLoadingSimilar(false);
       }
-    })();
-  }, [event]);
+      if (cachedNearby) {
+        setNearbyEvents(cachedNearby);
+        setLoadingNearby(false);
+      }
+      if (cachedSimilar && cachedNearby) return;
 
-  // Fetch tags for those submissions
-  useEffect(() => {
-    if (!moreEvents.length) return;
-    const ids = moreEvents.map(e => e.id);
-    supabase
-      .from('taggings')
-      .select('tags(name,slug),taggable_id')
-      .eq('taggable_type','big_board_events')
-      .in('taggable_id', ids)
-      .then(({ data, error }) => {
-        if (error) throw error;
-        const map = {};
-        data.forEach(({ taggable_id, tags }) => {
-          map[taggable_id] = map[taggable_id] || [];
-          map[taggable_id].push(tags);
-        });
-        setMoreTagMap(map);
-      })
-      .catch(console.error);
-  }, [moreEvents]);
+      const areaLookup = await ensureAreaCache();
 
-  // Enter edit mode
-  const startEditing = () => {
-    setFormData({
-      title:       event.title,
-      description: event.description || '',
-      link:        event.link || '',
-      start_date:  event.start_date,
-      end_date:    event.end_date   || '',
-      start_time:  event.start_time || '',
-      end_time:    event.end_time   || '',
-      address:     event.address    || '',
-      latitude:    event.latitude   || null,
-      longitude:   event.longitude  || null,
-    });
-    setIsEditing(true);
-  };
+      async function fetchImageForBigBoard(id) {
+        const { data } = await supabase
+          .from('big_board_posts')
+          .select('image_url')
+          .eq('event_id', id)
+          .single();
+        if (data?.image_url) {
+          const { data: storage } = supabase.storage
+            .from('big-board')
+            .getPublicUrl(data.image_url);
+          return storage?.publicUrl || '';
+        }
+        return '';
+      }
 
-  // Handle form field change
-  const handleChange = e => {
-    const { name, value } = e.target;
-    setFormData(fd => ({ ...fd, [name]: value }));
-  };
+      async function loadSimilar() {
+        if (!tags.length) {
+          setSimilarEvents([]);
+          setLoadingSimilar(false);
+          return;
+        }
+        try {
+          setLoadingSimilar(true);
+          const tagIds = tags.map(tag => tag.id).filter(Boolean);
+          if (!tagIds.length) {
+            setSimilarEvents([]);
+            setLoadingSimilar(false);
+            return;
+          }
 
-  // Address suggestions effect (Mapbox Search Box /suggest)
+          const { data: taggingsRows, error: taggingsError } = await supabase
+            .from('taggings')
+            .select('taggable_id, taggable_type')
+            .in('tag_id', tagIds)
+            .neq('taggable_id', event.id);
+          if (taggingsError) throw taggingsError;
+
+          const idsByType = taggingsRows.reduce((acc, row) => {
+            const type = row.taggable_type;
+            if (!acc[type]) acc[type] = new Set();
+            acc[type].add(row.taggable_id);
+            return acc;
+          }, {});
+
+          const [bigBoardRes, allEventsRes, traditionsRes, groupEventsRes, recurringRes] = await Promise.all([
+            idsByType.big_board_events && idsByType.big_board_events.size
+              ? supabase
+                  .from('big_board_events')
+                  .select('id, title, description, start_date, end_date, start_time, end_time, slug, area_id, address')
+                  .in('id', Array.from(idsByType.big_board_events))
+              : Promise.resolve({ data: [] }),
+            idsByType.all_events && idsByType.all_events.size
+              ? supabase
+                  .from('all_events')
+                  .select('id, name, description, start_date, end_date, start_time, end_time, slug, image, area_id, venue_id(area_id, name)')
+                  .in('id', Array.from(idsByType.all_events))
+              : Promise.resolve({ data: [] }),
+            idsByType.events && idsByType.events.size
+              ? supabase
+                  .from('events')
+                  .select('id, "E Name", "E Description", "E Image", Dates, "End Date", start_time, slug, area_id')
+                  .in('id', Array.from(idsByType.events))
+              : Promise.resolve({ data: [] }),
+            idsByType.group_events && idsByType.group_events.size
+              ? supabase
+                  .from('group_events')
+                  .select('id, title, description, image_url, start_date, end_date, start_time, end_time, slug, area_id, groups(Name, imag, slug)')
+                  .in('id', Array.from(idsByType.group_events))
+              : Promise.resolve({ data: [] }),
+            idsByType.recurring_events && idsByType.recurring_events.size
+              ? supabase
+                  .from('recurring_events')
+                  .select('id, name, description, start_date, end_date, start_time, end_time, slug, rrule, image_url, address, area_id')
+                  .in('id', Array.from(idsByType.recurring_events))
+              : Promise.resolve({ data: [] }),
+          ]);
+
+          const similarList = [];
+
+          for (const row of bigBoardRes.data || []) {
+            const normalized = normalizeBigBoardEvent(
+              {
+                ...row,
+                imageUrl: await fetchImageForBigBoard(row.id),
+              },
+              areaLookup,
+            );
+            if (normalized) similarList.push(normalized);
+          }
+
+          for (const row of allEventsRes.data || []) {
+            const normalized = normalizeAllEvent(row, areaLookup);
+            if (normalized) similarList.push(normalized);
+          }
+
+          for (const row of traditionsRes.data || []) {
+            const normalized = normalizeTradition(row, areaLookup);
+            if (normalized) similarList.push(normalized);
+          }
+
+          for (const row of groupEventsRes.data || []) {
+            const normalized = normalizeGroupEvent(row, areaLookup);
+            if (normalized) similarList.push(normalized);
+          }
+
+          if (recurringRes.data?.length) {
+            const { RRule } = await import('rrule');
+            for (const series of recurringRes.data) {
+              try {
+                const options = RRule.parseString(series.rrule);
+                options.dtstart = new Date(`${series.start_date}T${series.start_time || '00:00'}`);
+                if (series.end_date) {
+                  options.until = new Date(`${series.end_date}T23:59:59`);
+                }
+                const rule = new RRule(options);
+                const occurrences = rule.all(() => true).slice(0, 3);
+                occurrences.forEach(date => {
+                  const iso = new Date(date).toISOString().slice(0, 10);
+                  const normalized = normalizeRecurringEvent(series, areaLookup, iso);
+                  if (normalized) similarList.push(normalized);
+                });
+              } catch (rruleError) {
+                console.error('Failed to expand recurring event', rruleError);
+              }
+            }
+          }
+
+          const merged = mergeRecommendations(similarList, event.area_id)
+            .filter(item => item.detailPath && item.favoriteId !== event.id)
+            .slice(0, 15);
+          setSimilarEvents(merged);
+          storeRecommendations(slug, 'similar', merged);
+        } catch (similarError) {
+          console.error('Failed to load similar events', similarError);
+          setSimilarEvents([]);
+        } finally {
+          setLoadingSimilar(false);
+        }
+      }
+
+      async function loadNearby() {
+        if (!event?.start_date) {
+          setNearbyEvents([]);
+          setLoadingNearby(false);
+          return;
+        }
+        try {
+          setLoadingNearby(true);
+          const start = parseISODate(event.start_date, PHILLY_TIME_ZONE);
+          if (!start) {
+            setNearbyEvents([]);
+            setLoadingNearby(false);
+            return;
+          }
+          const rangeStart = setStartOfDay(new Date(start));
+          const rangeEnd = setEndOfDay(new Date(start));
+
+          const [bigBoardRes, allEventsRes, groupEventsRes, recurringRes] = await Promise.all([
+            supabase
+              .from('big_board_events')
+              .select('id, title, description, start_date, end_date, start_time, end_time, slug, area_id, address')
+              .gte('start_date', event.start_date)
+              .lte('start_date', event.start_date)
+              .neq('id', event.id)
+              .order('start_date', { ascending: true }),
+            supabase
+              .from('all_events')
+              .select('id, name, description, start_date, end_date, start_time, end_time, slug, image, area_id, venue_id(area_id, name)')
+              .gte('start_date', event.start_date)
+              .lte('start_date', event.start_date)
+              .limit(200),
+            supabase
+              .from('group_events')
+              .select('id, title, description, image_url, start_date, end_date, start_time, end_time, slug, area_id, groups(Name, imag, slug)')
+              .gte('start_date', event.start_date)
+              .lte('start_date', event.start_date)
+              .limit(200),
+            supabase
+              .from('recurring_events')
+              .select('id, name, description, start_date, end_date, start_time, end_time, slug, rrule, image_url, address, area_id')
+              .eq('is_active', true),
+          ]);
+
+          const nearbyList = [];
+
+          for (const row of bigBoardRes.data || []) {
+            const normalized = normalizeBigBoardEvent(row, areaLookup);
+            if (normalized) nearbyList.push(normalized);
+          }
+
+          for (const row of allEventsRes.data || []) {
+            const normalized = normalizeAllEvent(row, areaLookup);
+            if (normalized) nearbyList.push(normalized);
+          }
+
+          for (const row of groupEventsRes.data || []) {
+            const normalized = normalizeGroupEvent(row, areaLookup);
+            if (normalized) nearbyList.push(normalized);
+          }
+
+          if (recurringRes.data?.length) {
+            const { RRule } = await import('rrule');
+            for (const series of recurringRes.data) {
+              try {
+                const options = RRule.parseString(series.rrule);
+                options.dtstart = new Date(`${series.start_date}T${series.start_time || '00:00'}`);
+                if (series.end_date) {
+                  options.until = new Date(`${series.end_date}T23:59:59`);
+                }
+                const rule = new RRule(options);
+                const occurrences = rule.between(rangeStart, rangeEnd, true);
+                occurrences.forEach(date => {
+                  const iso = new Date(date).toISOString().slice(0, 10);
+                  const normalized = normalizeRecurringEvent(series, areaLookup, iso);
+                  if (normalized) nearbyList.push(normalized);
+                });
+              } catch (rruleError) {
+                console.error('Failed to expand recurring event', rruleError);
+              }
+            }
+          }
+
+          const merged = mergeRecommendations(nearbyList, event.area_id)
+            .filter(item => item.detailPath && item.favoriteId !== event.id)
+            .slice(0, 15);
+          setNearbyEvents(merged);
+          storeRecommendations(slug, 'nearby', merged);
+        } catch (nearbyError) {
+          console.error('Failed to load nearby events', nearbyError);
+          setNearbyEvents([]);
+        } finally {
+          setLoadingNearby(false);
+        }
+      }
+
+      if (!cachedSimilar) loadSimilar();
+      if (!cachedNearby) loadNearby();
+    }
+
+    loadRecommendations();
+  }, [event, tags, slug]);
+
   useEffect(() => {
     if (!isEditing) return;
-    const addr = formData.address?.trim();
-    if (!addr) {
+    const value = formData.address?.trim();
+    if (!value) {
       setAddressSuggestions([]);
       return;
     }
     const timer = setTimeout(() => {
       fetch(
-        `https://api.mapbox.com/search/searchbox/v1/suggest` +
-        `?q=${encodeURIComponent(addr)}` +
-        `&access_token=${geocoderToken}` +
-        `&session_token=${sessionToken.current}` +
-        `&limit=5` +
-        `&proximity=-75.1652,39.9526` +
-        `&bbox=-75.2803,39.8670,-74.9558,40.1379`
+        `https://api.mapbox.com/search/searchbox/v1/suggest?q=${encodeURIComponent(value)}&access_token=${geocoderToken}&session_token=${sessionToken.current}&limit=5&proximity=-75.1652,39.9526&bbox=-75.2803,39.8670,-74.9558,40.1379`,
       )
-        .then(r => r.json())
+        .then(response => response.json())
         .then(json => setAddressSuggestions(json.suggestions || []))
-        .catch(console.error);
+        .catch(err => console.error('suggest error', err));
     }, 300);
     return () => clearTimeout(timer);
-  }, [formData.address, isEditing, geocoderToken]);
+  }, [formData.address, geocoderToken, isEditing]);
 
-  // Pick a suggestion (Mapbox Search Box /retrieve)
-  function pickSuggestion(feat) {
+  const formattedDateRange = useMemo(
+    () => formatDateRange(event),
+    [event?.start_date, event?.start_time, event?.end_time],
+  );
+  const fullDateRange = useMemo(
+    () => formatFullDateRange(event),
+    [event?.start_date, event?.end_date, event?.start_time, event?.end_time],
+  );
+
+  const canonicalUrl = `${SITE_BASE_URL}/big-board/${slug}`;
+  const seoDescription = event?.description
+    ? event.description.replace(/\s+/g, ' ').slice(0, 155)
+    : FALLBACK_DESCRIPTION;
+  const absoluteImage = ensureAbsoluteUrl(event?.imageUrl);
+  const ogImage = absoluteImage || DEFAULT_OG_IMAGE;
+  const seoTitle = event?.title
+    ? `${event.title} | Our Philly`
+    : FALLBACK_TITLE;
+
+  const jsonLd = useMemo(
+    () =>
+      buildEventJsonLd({
+        name: event?.title || FALLBACK_TITLE,
+        canonicalUrl,
+        startDate: event?.start_date || null,
+        endDate: event?.end_date || event?.start_date || null,
+        locationName: event?.address || 'Philadelphia',
+        description: seoDescription,
+        image: ogImage,
+      }),
+    [event, canonicalUrl, seoDescription, ogImage],
+  );
+
+  const { isFavorite, toggleFavorite, loading: favLoading } = useEventFavorite({
+    event_id: event?.id,
+    source_table: 'big_board_events',
+  });
+
+  const startEditing = () => setIsEditing(true);
+
+  const handleChange = evt => {
+    const { name, value } = evt.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const pickSuggestion = feature => {
     fetch(
-      `https://api.mapbox.com/search/searchbox/v1/retrieve/${feat.mapbox_id}` +
-      `?access_token=${geocoderToken}` +
-      `&session_token=${sessionToken.current}`
+      `https://api.mapbox.com/search/searchbox/v1/retrieve/${feature.mapbox_id}?access_token=${geocoderToken}&session_token=${sessionToken.current}`,
     )
-      .then(r => r.json())
+      .then(response => response.json())
       .then(json => {
-        const feature = json.features?.[0];
-        if (feature) {
-          const name    = feature.properties.name_preferred || feature.properties.name;
-          const context = feature.properties.place_formatted;
-          const [lng, lat] = feature.geometry.coordinates;
-          setFormData(fd => ({
-            ...fd,
-            address:   `${name}, ${context}`,
-            latitude:  lat,
-            longitude: lng,
-          }));
-        }
+        const retrieved = json.features?.[0];
+        if (!retrieved) return;
+        const namePreferred =
+          retrieved.properties?.name_preferred || retrieved.properties?.name || '';
+        const context = retrieved.properties?.place_formatted || '';
+        const [lng, lat] = retrieved.geometry?.coordinates || [];
+        setFormData(prev => ({
+          ...prev,
+          address: [namePreferred, context].filter(Boolean).join(', '),
+          latitude: Number.isFinite(lat) ? lat : prev.latitude,
+          longitude: Number.isFinite(lng) ? lng : prev.longitude,
+        }));
       })
-      .catch(console.error);
-
+      .catch(err => console.error('retrieve error', err));
     setAddressSuggestions([]);
     suggestRef.current?.blur();
-  }
+  };
 
-  // Save edits
-  const handleSave = async e => {
-    e.preventDefault();
+  const handleSave = async evt => {
+    evt.preventDefault();
+    if (!event) return;
     setSaving(true);
     try {
       const payload = {
-        title:       formData.title,
+        title: formData.title,
         description: formData.description || null,
-        link:        formData.link || null,
-        start_date:  formData.start_date,
-        end_date:    formData.end_date   || null,
-        start_time:  formData.start_time || null,
-        end_time:    formData.end_time   || null,
-        address:     formData.address    || null,
-        latitude:    formData.latitude,
-        longitude:   formData.longitude,
+        link: formData.link || null,
+        start_date: formData.start_date || null,
+        end_date: formData.end_date || null,
+        start_time: formData.start_time || null,
+        end_time: formData.end_time || null,
+        address: formData.address || null,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
       };
-      const { data: upd, error } = await supabase
+      const { data, error: updateError } = await supabase
         .from('big_board_events')
         .update(payload)
         .eq('id', event.id)
+        .select()
         .single();
-      if (error) throw error;
-      setEvent(ev => ({ ...ev, ...upd }));
-
-      // refresh taggings
-      await supabase
-        .from('taggings')
-        .delete()
-        .eq('taggable_type','big_board_events')
-        .eq('taggable_id', event.id);
-      if (selectedTags.length) {
-        const taggings = selectedTags.map(tag_id => ({
-          taggable_type: 'big_board_events',
-          taggable_id:   event.id,
-          tag_id,
-        }));
-        await supabase.from('taggings').insert(taggings);
-      }
-
+      if (updateError) throw updateError;
+      setEvent(prev => ({ ...prev, ...data }));
       setIsEditing(false);
-    } catch (err) {
-      console.error(err);
-      alert('Error saving: ' + err.message);
+    } catch (saveError) {
+      console.error('Failed to save event', saveError);
+      alert('Error saving event.');
     } finally {
       setSaving(false);
     }
   };
 
-  // Delete event
   const handleDelete = async () => {
-    if (!window.confirm('Delete this event?')) return;
+    if (!event) return;
+    const confirmed = window.confirm('Delete this event?');
+    if (!confirmed) return;
     try {
-      await supabase
-        .from('big_board_events')
-        .delete()
-        .eq('id', event.id);
+      await supabase.from('big_board_events').delete().eq('id', event.id);
       navigate('/');
-    } catch (err) {
-      alert('Error deleting: ' + err.message);
+    } catch (deleteError) {
+      console.error('Failed to delete event', deleteError);
+      alert('Could not delete event.');
     }
   };
 
-  const canonicalUrl = `${SITE_BASE_URL}/big-board/${slug}`;
-
-  if (loading || error || !event) {
-    const message = loading ? 'Loading…' : error || 'Event not found.';
-    const messageClass = error ? 'text-red-600' : 'text-gray-500';
+  if (loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="flex min-h-screen flex-col bg-white">
         <Seo
-          title={FALLBACK_BIG_BOARD_TITLE}
-          description={FALLBACK_BIG_BOARD_DESCRIPTION}
+          title={FALLBACK_TITLE}
+          description={FALLBACK_DESCRIPTION}
           canonicalUrl={canonicalUrl}
           ogImage={DEFAULT_OG_IMAGE}
           ogType="event"
         />
         <Navbar />
-        <main className="flex-grow flex items-center justify-center mt-32">
-          <div className={`text-2xl ${messageClass}`}>{message}</div>
+        <main className="flex flex-1 items-center justify-center">
+          <p className="text-gray-500">Loading…</p>
         </main>
         <Footer />
       </div>
     );
   }
 
-  // Compute whenText
-  const startDateObj = parseLocalYMD(event.start_date);
-  const daysDiff = Math.round((startDateObj - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
-  const whenText =
-    daysDiff === 0 ? 'Today' :
-    daysDiff === 1 ? 'Tomorrow' :
-    startDateObj.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
+  if (error || !event) {
+    return (
+      <div className="flex min-h-screen flex-col bg-white">
+        <Seo
+          title={FALLBACK_TITLE}
+          description={FALLBACK_DESCRIPTION}
+          canonicalUrl={canonicalUrl}
+          ogImage={DEFAULT_OG_IMAGE}
+          ogType="event"
+        />
+        <Navbar />
+        <main className="flex flex-1 items-center justify-center">
+          <p className="text-lg text-red-600">{error || 'Event not found.'}</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
-  const formattedDate = startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric', year:'numeric' });
-  const rawDesc = event.description || '';
-  const metaDesc = rawDesc.length > 155 ? `${rawDesc.slice(0, 152)}…` : rawDesc;
-  const seoDescription = metaDesc || FALLBACK_BIG_BOARD_DESCRIPTION;
-
-  const absoluteImage = ensureAbsoluteUrl(event.imageUrl);
-  const ogImage = absoluteImage || DEFAULT_OG_IMAGE;
-  const seoTitle = formattedDate
-    ? `${event.title} | Community Event on ${formattedDate} | Our Philly`
-    : `${event.title} – Our Philly`;
-
-  const jsonLd = buildEventJsonLd({
-    name: event.title,
-    canonicalUrl,
-    startDate: event.start_date,
-    endDate: event.end_date || event.start_date,
-    locationName: event.address || 'Philadelphia',
-    description: seoDescription,
-    image: ogImage,
-  });
-
-  // Prev/Next logic
-  const currentIndex = siblings.findIndex(e => e.slug === slug);
-  const prev = siblings.length
-    ? siblings[(currentIndex - 1 + siblings.length) % siblings.length]
-    : null;
-  const next = siblings.length
-    ? siblings[(currentIndex + 1) % siblings.length]
-    : null;
+  const neighborhoodLabel = event.areaName || null;
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex min-h-screen flex-col bg-white">
       <Seo
         title={seoTitle}
         description={seoDescription}
@@ -527,409 +1096,315 @@ export default function BigBoardEventPage() {
         jsonLd={jsonLd}
       />
       <Navbar />
-
-      <main className="flex-grow relative mt-32">
-          {/* Hero banner */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event.imageUrl})` }}
-          />
-
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-            </div>
-          )}
-
-          {/* Overlapping centered card */}
-          <div className={`relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 transform z-10 ${user ? '-mt-24' : ''}`}>
-            {prev && (
-              <button
-                onClick={() => navigate(`/big-board/${prev.slug}`)}
-                className="absolute top-1/2 left-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >←</button>
-            )}
-            {next && (
-              <button
-                onClick={() => navigate(`/big-board/${next.slug}`)}
-                className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >→</button>
-            )}
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold">{event.title}</h1>
-              <p className="text-lg font-medium">
-                {whenText}
-                {event.start_time && ` — ${formatTime(event.start_time)}`}
-                {event.address && (
-                  <> • <a
-                    href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {event.address}
-                  </a></>
-                )}
+      <TriviaTonightBanner />
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 pb-16">
+        <header className="sticky top-28 z-20 mb-10 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white/95 p-6 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0 flex-1 space-y-2">
+              <h1 className="truncate text-2xl font-semibold text-gray-900">{event.title}</h1>
+              <p className="text-sm font-medium uppercase tracking-wide text-indigo-600">
+                {fullDateRange}
               </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {tagsList
-                  .filter(t => selectedTags.includes(t.id))
-                  .map((tag, i) => (
+              <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                {formattedDateRange.dateLabel && (
+                  <span className="font-semibold text-gray-900">
+                    {formattedDateRange.dateLabel} • {formattedDateRange.timeLabel}
+                  </span>
+                )}
+                {neighborhoodLabel && (
+                  <span className="inline-flex items-center gap-1 font-semibold text-rose-600">
+                    <span aria-hidden="true">📍</span>
+                    {neighborhoodLabel}
+                  </span>
+                )}
+                {event.address && <span>{event.address}</span>}
+              </div>
+              {tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {tags.map((tag, index) => (
                     <Link
-                      key={tag.id}
-                      to={`/tags/${tag.name.toLowerCase()}`}
-                      className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-lg font-semibold`}
+                      key={tag.slug || tag.name}
+                      to={`/tags/${tag.slug || ''}`}
+                      className={`${pillStyles[index % pillStyles.length]} rounded-full px-3 py-1 text-xs font-semibold transition hover:opacity-80`}
                     >
                       #{tag.name}
                     </Link>
                   ))}
-              </div>
+                </div>
+              )}
+              {poster?.username && (
+                <div className="text-sm text-gray-500">
+                  Submitted by{' '}
+                  {poster.slug ? (
+                    <Link to={`/profiles/${poster.slug}`} className="font-semibold text-indigo-600">
+                      @{poster.username}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-indigo-600">@{poster.username}</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="hidden md:flex md:flex-col md:items-end md:gap-3">
+              <FavoriteButton eventId={event.id} sourceTable="big_board_events" />
+              {poster && poster.id !== user?.id && (
+                <button
+                  type="button"
+                  onClick={togglePosterFollow}
+                  className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                >
+                  {isPosterFollowing ? 'Following' : 'Follow organizer'}
+                </button>
+              )}
             </div>
           </div>
+        </header>
 
-          {poster && (
-            <div className="max-w-4xl mx-auto mt-6 px-4">
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg py-3 flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 text-center">
-                <span className="text-2xl sm:text-3xl font-[Barrio] whitespace-nowrap">Posted by</span>
-                <Link to={`/u/${poster.slug}`} className="flex items-center gap-2">
-                  {poster.image ? (
-                    <img src={poster.image} alt="avatar" className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-gray-300" />
-                  )}
-                  <span className="text-2xl sm:text-3xl font-[Barrio] break-words">{poster.username}</span>
-                </Link>
-                {poster.cultures?.map(c => (
-                  <span key={c.emoji} title={c.name} className="text-2xl sm:text-3xl">
-                    {c.emoji}
-                  </span>
-                ))}
-                {user && user.id !== poster.id && (
-                  <button
-                    onClick={togglePosterFollow}
-                    disabled={followLoading}
-                    className="border border-indigo-700 rounded px-2 py-0.5 text-sm hover:bg-indigo-700 hover:text-white transition"
-                  >
-                    {isPosterFollowing ? 'Unfollow' : 'Follow'}
-                  </button>
-                )}
-              </div>
+        <section className="mb-8 space-y-6">
+          {event.description && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">About this event</h2>
+              <p className="mt-3 text-base leading-relaxed text-gray-700">{event.description}</p>
             </div>
           )}
 
-          {/* Description, form / details, and image */}
-          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left: description / edit form / buttons */}
-            <div>
-              {isEditing ? (
-                <form onSubmit={handleSave} className="space-y-6">
-                  {/* Title */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Title</label>
-                    <input
-                      name="title"
-                      value={formData.title}
-                      onChange={handleChange}
-                      required
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  {/* Description */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea
-                      name="description"
-                      rows="3"
-                      value={formData.description}
-                      onChange={handleChange}
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  {/* Address with suggestions */}
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                    <input
-                      name="address"
-                      type="text"
-                      autoComplete="off"
-                      ref={suggestRef}
-                      value={formData.address}
-                      onChange={handleChange}
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Start typing an address…"
-                    />
-                    {addressSuggestions.length > 0 && (
-                      <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
-                        {addressSuggestions.map(feat => (
-                          <li
-                            key={feat.mapbox_id}
-                            onClick={() => pickSuggestion(feat)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                          >
-                            {feat.name} — {feat.full_address || feat.place_formatted}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {/* Times */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Start Time</label>
-                      <input
-                        name="start_time"
-                        type="time"
-                        value={formData.start_time}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">End Time</label>
-                      <input
-                        name="end_time"
-                        type="time"
-                        value={formData.end_time}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  {/* Dates */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                      <input
-                        name="start_date"
-                        type="date"
-                        value={formData.start_date}
-                        onChange={handleChange}
-                        required
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">End Date</label>
-                      <input
-                        name="end_date"
-                        type="date"
-                        value={formData.end_date}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  {/* Tags */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
-                    <div className="flex flex-wrap gap-3">
-                      {tagsList.map((tagOpt, i) => {
-                        const isSel = selectedTags.includes(tagOpt.id);
-                        return (
-                          <button
-                            key={tagOpt.id}
-                            type="button"
-                            onClick={() =>
-                              setSelectedTags(prev =>
-                                isSel
-                                  ? prev.filter(x => x !== tagOpt.id)
-                                  : [...prev, tagOpt.id]
-                              )
-                            }
-                            className={`${
-                              isSel
-                                ? pillStyles[i % pillStyles.length]
-                                : 'bg-gray-200 text-gray-700'
-                            } px-4 py-2 rounded-full text-sm font-semibold`}
-                          >
-                            {tagOpt.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {/* Save / Cancel */}
-                  <div className="flex space-x-4">
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
-                    >
-                      {saving ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(false)}
-                      className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  {event.description && (
-                    <div className="mb-6">
-                      <h2 className="text-2xl font-semibold text-gray-900 mb-2">Description</h2>
-                      <p className="text-gray-700">{event.description}</p>
-                    </div>
-                  )}
-                  <div className="space-y-4">
-                    <button
-                      onClick={handleFavorite}
-                      disabled={favLoading}
-                      className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                    >
-                      <CalendarCheck className="w-5 h-5" />
-                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                    </button>
+          <div className="flex flex-wrap items-center gap-4 border-t border-gray-200 pt-4 text-sm font-semibold text-indigo-600">
+            {event.link && (
+              <a
+                href={event.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2"
+              >
+                <ExternalLink className="h-4 w-4" aria-hidden="true" /> See original listing
+              </a>
+            )}
+            {event.owner_id === user?.id && (
+              <>
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-rose-600 hover:text-rose-700"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
+                </button>
+              </>
+            )}
+          </div>
+        </section>
 
-                    {event.link && (
-                      <a
-                        href={event.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
-                      >
-                        <ExternalLink className="w-5 h-5" />
-                        Visit Site
-                      </a>
-                    )}
+        <section className="mb-10">
+          <img
+            src={event.imageUrl}
+            alt={event.title}
+            className="h-auto w-full max-h-[520px] rounded-3xl object-cover shadow-md"
+          />
+        </section>
 
-                    <div className="flex items-center justify-center gap-6 pt-2">
+        {event.latitude != null && event.longitude != null && mapboxToken ? (
+          <section className="mb-12">
+            <div className="overflow-hidden rounded-3xl border border-gray-200 shadow-sm" style={{ height: 360 }}>
+              <MapGL
+                initialViewState={{
+                  latitude: event.latitude,
+                  longitude: event.longitude,
+                  zoom: 14,
+                }}
+                mapStyle={MAPBOX_STYLE}
+                mapboxAccessToken={mapboxToken}
+                style={{ width: '100%', height: '100%' }}
+                reuseMaps
+                attributionControl={false}
+              />
+            </div>
+          </section>
+        ) : event.latitude != null && event.longitude != null ? (
+          (() => {
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+              if (!window.sessionStorage.getItem(MAP_WARNING_KEY)) {
+                console.warn('Mapbox token missing or invalid. Suppressing map render.');
+                window.sessionStorage.setItem(MAP_WARNING_KEY, '1');
+              }
+            }
+            return null;
+          })()
+        ) : null}
+
+        {isEditing && (
+          <section className="mb-12 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <form onSubmit={handleSave} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Title</label>
+                <input
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
+                  required
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  rows={5}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                  <input
+                    type="date"
+                    name="start_date"
+                    value={formData.start_date}
+                    onChange={handleChange}
+                    required
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">End Date</label>
+                  <input
+                    type="date"
+                    name="end_date"
+                    value={formData.end_date}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Start Time</label>
+                  <input
+                    type="time"
+                    name="start_time"
+                    value={formData.start_time}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">End Time</label>
+                  <input
+                    type="time"
+                    name="end_time"
+                    value={formData.end_time}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Website</label>
+                <input
+                  name="link"
+                  value={formData.link}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Address</label>
+                <input
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  ref={suggestRef}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                {addressSuggestions.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-gray-200 bg-white shadow">
+                    {addressSuggestions.map(suggestion => (
                       <button
-                        onClick={handleShare}
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
+                        type="button"
+                        key={suggestion.mapbox_id}
+                        onClick={() => pickSuggestion(suggestion)}
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-indigo-50"
                       >
-                        <Share2 className="w-5 h-5" />
-                        Share
+                        {suggestion.place_formatted}
                       </button>
-                      <a
-                        href={gcalLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                        Google Calendar
-                      </a>
-                    </div>
-
-                    {event.owner_id === user?.id && (
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          onClick={startEditing}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                        >
-                          <Pencil className="w-4 h-4" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={handleDelete}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-red-100 text-red-700 hover:bg-red-200"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
-                      </div>
-                    )}
-
-                    <Link
-                      to="/"
-                      className="block text-center text-indigo-600 hover:underline font-medium"
-                    >
-                      ← Back to Events
-                    </Link>
+                    ))}
                   </div>
-                  </>
                 )}
               </div>
 
-            {/* Right: full image */}
-            <div>
-              <img
-                src={event.imageUrl}
-                alt={event.title}
-                className="w-full h-auto rounded-lg shadow-lg max-h-[60vh]"
-              />
-            </div>
-          </div>
-
-          <Suspense fallback={<div>Loading comments…</div>}>
-            <CommentsSection
-              source_table="big_board_events"
-              event_id={event.id}
-            />
-          </Suspense>
-
-          {/* More Upcoming Community Submissions */}
-          <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">
-            <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
-              More Upcoming Community Submissions
-            </h2>
-            {loadingMore ? (
-              <p className="text-center text-gray-500">Loading…</p>
-            ) : moreEvents.length === 0 ? (
-              <p className="text-center text-gray-600">No upcoming submissions.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {moreEvents.map(evItem => {
-                  const dt = parseLocalYMD(evItem.start_date);
-                  const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
-                  const prefix =
-                    diff === 0 ? 'Today' :
-                    diff === 1 ? 'Tomorrow' :
-                    dt.toLocaleDateString('en-US',{ weekday:'long' });
-                  const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
-                  return (
-                    <Link
-                      key={evItem.id}
-                      to={`/big-board/${evItem.slug}`}
-                      className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
-                    >
-                      <div className="relative h-40 bg-gray-100">
-                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
-                          COMMUNITY SUBMISSION
-                        </div>
-                        <img
-                          src={evItem.imageUrl}
-                          alt={evItem.title}
-                          className="w-full h-full object-cover object-center"
-                        />
-                      </div>
-                      <div className="p-4 flex-1 flex flex-col justify-between text-center">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                          {evItem.title}
-                        </h3>
-                        <span className="text-sm text-gray-600">{prefix}, {md}</span>
-                        {!!moreTagMap[evItem.id]?.length && (
-                          <div className="mt-2 flex flex-wrap justify-center space-x-1">
-                            {moreTagMap[evItem.id].map((tag, i) => (
-                              <Link
-                                key={tag.slug}
-                                to={`/tags/${tag.slug}`}
-                                className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
-                              >
-                                #{tag.name}
-                              </Link>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
+              <div className="flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-full bg-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? 'Saving…' : 'Save changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="text-sm font-semibold text-gray-500 hover:text-gray-700"
+                >
+                  Cancel
+                </button>
               </div>
-            )}
-          </div>
+            </form>
+          </section>
+        )}
 
-          <SubmitEventSection onNext={file => {
+        {!isEditing && (
+          <section className="mb-12 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                if (!user) {
+                  navigate('/login');
+                  return;
+                }
+                toggleFavorite();
+              }}
+              disabled={favLoading}
+              className={`flex w-full items-center justify-center gap-2 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition-colors ${
+                isFavorite
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+              }`}
+            >
+              <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+              {isFavorite ? 'In the Plans' : 'Add to Plans'}
+            </button>
+          </section>
+        )}
+
+        {loadingSimilar ? (
+          <RecommendationSkeleton title="More events like this" />
+        ) : (
+          <RecommendationList title="More events like this" events={similarEvents} />
+        )}
+
+        {loadingNearby ? (
+          <RecommendationSkeleton title="More happening nearby this day" />
+        ) : (
+          <RecommendationList title="More happening nearby this day" events={nearbyEvents} />
+        )}
+
+        <SubmitEventSection
+          onNext={file => {
             setInitialFlyer(file);
             setModalStartStep(2);
             setShowFlyerModal(true);
-          }} />
+          }}
+        />
       </main>
-
       <Footer />
       <FloatingAddButton
         onClick={() => {
