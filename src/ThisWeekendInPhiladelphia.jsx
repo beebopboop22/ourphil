@@ -815,13 +815,17 @@ export default function ThisWeekendInPhiladelphia() {
       .map((evt, index) => {
         const overlapDay = days.find(day => overlaps(evt.startDate, evt.endDate, day, setEndOfDay(new Date(day))));
         const label = formatWeekdayAbbrev(overlapDay || evt.startDate, PHILLY_TIME_ZONE);
-        const detailPath = getDetailPathForItem(evt) || '/';
+        const detailPath = getDetailPathForItem(evt);
         return (
           <React.Fragment key={evt.id}>
             {index > 0 && ', '}
-            <Link to={detailPath} className="text-indigo-600 hover:underline">
-              {evt.title} ({label})
-            </Link>
+            {detailPath ? (
+              <Link to={detailPath} className="text-indigo-600 hover:underline">
+                {evt.title} ({label})
+              </Link>
+            ) : (
+              <span className="text-gray-900">{evt.title} ({label})</span>
+            )}
           </React.Fragment>
         );
       });
@@ -860,13 +864,20 @@ export default function ThisWeekendInPhiladelphia() {
               {traditionEvents
                 .filter(evt => evt?.slug)
                 .slice(0, 12)
-                .map(e => (
-                  <li key={e.slug}>
-                    <Link to={getDetailPathForItem(e) || '/'} className="text-indigo-700 hover:underline">
-                      {e['E Name'] || e.name || e.title}
-                    </Link>
-                  </li>
-                ))}
+                .map(e => {
+                  const detailPath = getDetailPathForItem(e);
+                  return (
+                    <li key={e.slug}>
+                      {detailPath ? (
+                        <Link to={detailPath} className="text-indigo-700 hover:underline">
+                          {e['E Name'] || e.name || e.title}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-900">{e['E Name'] || e.name || e.title}</span>
+                      )}
+                    </li>
+                  );
+                })}
             </ul>
           </section>
 
@@ -985,14 +996,17 @@ export default function ThisWeekendInPhiladelphia() {
                       ? 'Tomorrow'
                       : formatMonthDay(startDate, PHILLY_TIME_ZONE);
                   const bubbleTime = evt.start_time ? ` ${formatTime(evt.start_time)}` : '';
-                  const Wrapper = Link;
-                  const detailPath =
-                    evt.href ||
-                    getDetailPathForItem({
-                      ...evt,
-                      venue_slug: evt.venues?.slug,
-                    }) || '/';
-                  const linkProps = { to: detailPath };
+                  const detailPath = getDetailPathForItem({
+                    ...evt,
+                    venue_slug: evt.venues?.slug,
+                  });
+                  const externalHref = !detailPath && typeof evt.href === 'string' ? evt.href : null;
+                  const Wrapper = detailPath ? Link : externalHref ? 'a' : 'div';
+                  const linkProps = detailPath
+                    ? { to: detailPath }
+                    : externalHref
+                      ? { href: externalHref, target: '_blank', rel: 'noopener noreferrer' }
+                      : {};
                   const venueAreaId = Array.isArray(evt.venues)
                     ? evt.venues[0]?.area_id
                     : evt.venues?.area_id;

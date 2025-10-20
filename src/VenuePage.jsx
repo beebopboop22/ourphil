@@ -220,16 +220,17 @@ export default function VenuePage() {
             <>
               <div className="grid grid-cols-1 gap-6">
                 {pagedEvents.map(evt => {
-                  const detailPath =
-                    getDetailPathForItem({
-                      ...evt,
-                      venue_slug: venue,
-                      venue,
-                    }) || '/';
+                  const detailPath = getDetailPathForItem({
+                    ...evt,
+                    venue_slug: venue,
+                    venue,
+                  });
+                  const Wrapper = detailPath ? Link : 'div';
+                  const wrapperProps = detailPath ? { to: detailPath } : {};
                   return (
-                    <Link
+                    <Wrapper
                       key={evt.id}
-                      to={detailPath}
+                      {...wrapperProps}
                       className="flex bg-white rounded-lg shadow hover:shadow-lg overflow-hidden"
                     >
                     {evt.image && (
@@ -251,7 +252,7 @@ export default function VenuePage() {
                         {evt.start_time && ` ⏰ ${evt.start_time.slice(0,5)}`}
                       </div>
                     </div>
-                    </Link>
+                    </Wrapper>
                   );
                 })}
               </div>

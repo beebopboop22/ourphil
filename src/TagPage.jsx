@@ -156,10 +156,13 @@ function EventRow({ evt, tags, profileMap }) {
   if (evt.isRecurring) badges.push({ label: 'Recurring', className: 'bg-blue-100 text-blue-800' })
   if (evt.isSports) badges.push({ label: 'Sports', className: 'bg-green-100 text-green-800' })
 
-  const detailPath = evt.href || getDetailPathForItem({
+  const computedDetailPath = getDetailPathForItem({
     ...evt,
     venue_slug: evt.venues?.slug,
-  }) || '/'
+  })
+  const providedDetailPath = getDetailPathForItem(evt.href)
+  const detailPath = computedDetailPath || providedDetailPath
+  const externalHref = !detailPath && typeof evt.href === 'string' ? evt.href : null
 
   const imageSrc = evt.imageUrl || evt.image || ''
   const submitter = evt.isBigBoard ? profileMap[evt.owner_id] : null
@@ -212,8 +215,15 @@ function EventRow({ evt, tags, profileMap }) {
 
   const containerClass = `block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${isFavorite && !evt.isSports ? 'ring-2 ring-indigo-600' : ''}`
 
+  const Wrapper = detailPath ? Link : externalHref ? 'a' : 'div'
+  const wrapperProps = detailPath
+    ? { to: detailPath }
+    : externalHref
+      ? { href: externalHref, target: '_blank', rel: 'noopener noreferrer' }
+      : {}
+
   return (
-    <Link to={detailPath} className={containerClass}>
+    <Wrapper {...wrapperProps} className={containerClass}>
       <div className="flex flex-col gap-4 p-4 sm:p-6 sm:flex-row sm:items-stretch">
         <div className="w-full sm:w-48 flex-shrink-0">
           <div className="overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
@@ -272,7 +282,7 @@ function EventRow({ evt, tags, profileMap }) {
         </div>
         {actions && <div className="flex flex-col items-stretch justify-center gap-2 sm:w-44">{actions}</div>}
       </div>
-    </Link>
+    </Wrapper>
   )
 }
 
@@ -377,11 +387,10 @@ export default function TagPage() {
       setTraditions((trRes.data || []).map(e => {
         const start = parseDate(e.Dates)
         const end   = parseDate(e['End Date']) || start
-        const href =
-          getDetailPathForItem({
-            ...e,
-            slug: e.slug,
-          }) || '/'
+        const href = getDetailPathForItem({
+          ...e,
+          slug: e.slug,
+        })
         return {
           id: e.id,
           title: e['E Name'],
@@ -412,11 +421,10 @@ export default function TagPage() {
           : ''
         const start = parseISODateLocal(ev.start_date)
         const end   = parseISODateLocal(ev.end_date || ev.start_date)
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            isBigBoard: true,
-          }) || '/'
+        const href = getDetailPathForItem({
+          ...ev,
+          isBigBoard: true,
+        })
         return {
           id: ev.id,
           title: ev.title,
@@ -450,12 +458,11 @@ export default function TagPage() {
                 .getPublicUrl(ev.image_url).data.publicUrl
         }
         const slug = groupSlugMap[ev.group_id]
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            group_slug: slug,
-            isGroupEvent: true,
-          }) || '/'
+        const href = getDetailPathForItem({
+          ...ev,
+          group_slug: slug,
+          isGroupEvent: true,
+        })
         return {
           id: ev.id,
           title: ev.title,
@@ -480,14 +487,13 @@ export default function TagPage() {
         const start = parseISODateLocal(ev.start_date)
         const end   = parseISODateLocal(ev.end_date || ev.start_date)
         const venueSlug = ev.venue_id?.slug || null
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            venue_slug: venueSlug,
-            venues: ev.venue_id
-              ? { name: ev.venue_id.name, slug: venueSlug }
-              : null,
-          }) || '/'
+        const href = getDetailPathForItem({
+          ...ev,
+          venue_slug: venueSlug,
+          venues: ev.venue_id
+            ? { name: ev.venue_id.name, slug: venueSlug }
+            : null,
+        })
         return {
           id: ev.id,
           title: ev.name,

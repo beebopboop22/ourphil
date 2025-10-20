@@ -113,12 +113,14 @@ const MonthlyEvents = () => {
         <div className="flex gap-4 pb-2">
           {events.map(evt => {
             const count = favCounts[evt.id] || 0;
-            const detailPath = getDetailPathForItem(evt) || '/';
+            const detailPath = getDetailPathForItem(evt);
+            const Wrapper = detailPath ? Link : 'div';
+            const wrapperProps = detailPath ? { to: detailPath } : {};
 
             return (
-              <Link
+              <Wrapper
                 key={evt.id}
-                to={detailPath}
+                {...wrapperProps}
                 className="relative min-w-[250px] max-w-[250px] bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-105 overflow-hidden flex flex-col h-[360px]"
               >
                 {evt.isActive && (
@@ -159,7 +161,7 @@ const MonthlyEvents = () => {
                     }
                   />
                 </div>
-              </Link>
+              </Wrapper>
             );
           })}
         </div>

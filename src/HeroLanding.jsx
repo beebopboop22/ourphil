@@ -149,10 +149,13 @@ export default function HeroLanding({ fullWidth = false }) {
                           }
                           await toggleFavorite();
                         };
+                        const detailPath = getDetailPathForItem(evt);
+                        const Wrapper = detailPath ? Link : 'div';
+                        const wrapperProps = detailPath ? { to: detailPath } : {};
                         return (
                           <div className="w-[260px] flex-shrink-0">
-                            <Link
-                              to={getDetailPathForItem(evt) || '/'}
+                            <Wrapper
+                              {...wrapperProps}
                               className={`relative block h-[380px] rounded-2xl overflow-hidden shadow-lg transition ${isFavorite ? 'ring-2 ring-indigo-600' : ''}`}
                             >
                               <img
@@ -183,7 +186,7 @@ export default function HeroLanding({ fullWidth = false }) {
                               >
                                 {text}
                               </span>
-                            </Link>
+                            </Wrapper>
                             {timeLabel && (
                               <p className="mt-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
                                 {timeLabel}
