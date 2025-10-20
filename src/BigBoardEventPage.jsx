@@ -1,25 +1,34 @@
 // src/BigBoardEventPage.jsx
-import React, { useEffect, useState, useContext, useRef, lazy, Suspense } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useContext,
+  useRef,
+  lazy,
+  Suspense,
+  useMemo,
+} from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Map, Marker } from 'react-map-gl';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
-import useFollow from './utils/useFollow';
 import PostFlyerModal from './PostFlyerModal';
 import FloatingAddButton from './FloatingAddButton';
-import TriviaTonightBanner from './TriviaTonightBanner';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import { isTagActive } from './utils/tagUtils';
 import Seo from './components/Seo.jsx';
 import { getMapboxToken } from './config/mapboxToken.js';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import {
   SITE_BASE_URL,
   DEFAULT_OG_IMAGE,
   ensureAbsoluteUrl,
   buildEventJsonLd,
 } from './utils/seoHelpers.js';
+import { primeAreaLookup, resolveAreaName } from './utils/areaLookup.js';
 
 const FALLBACK_BIG_BOARD_TITLE = 'Community Event – Our Philly';
 const FALLBACK_BIG_BOARD_DESCRIPTION =
@@ -27,12 +36,22 @@ const FALLBACK_BIG_BOARD_DESCRIPTION =
 const CommentsSection = lazy(() => import('./CommentsSection'));
 import {
   CalendarCheck,
-  CalendarPlus,
   ExternalLink,
   Pencil,
-  Share2,
   Trash2,
 } from 'lucide-react';
+
+const DATE_LABEL_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+
+const TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
 
 export default function BigBoardEventPage() {
   const { slug } = useParams();
@@ -43,9 +62,6 @@ export default function BigBoardEventPage() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Siblings for prev/next
-  const [siblings, setSiblings] = useState([]);
 
   // Mapbox Search Box setup
   const geocoderToken = getMapboxToken();
@@ -107,52 +123,125 @@ export default function BigBoardEventPage() {
 
   // Event poster info
   const [poster, setPoster] = useState(null);
-  const {
-    isFollowing: isPosterFollowing,
-    toggleFollow: togglePosterFollow,
-    loading: followLoading,
-  } = useFollow(event?.owner_id);
+  const [navStackHeight, setNavStackHeight] = useState(0);
+  const [shouldRenderMap, setShouldRenderMap] = useState(false);
+  const [mapErrored, setMapErrored] = useState(false);
+  const mapContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const observed = [];
+
+    const updateOffset = () => {
+      const navEl = document.querySelector('[data-nav-root]');
+      const tagEl = document.querySelector('[data-tag-rail]');
+      const navHeight = navEl?.getBoundingClientRect().height || 0;
+      const tagHeight = tagEl?.getBoundingClientRect().height || 0;
+      setNavStackHeight(navHeight + tagHeight);
+    };
+
+    const attachObservers = () => {
+      if (typeof ResizeObserver === 'undefined') return;
+      const navEl = document.querySelector('[data-nav-root]');
+      const tagEl = document.querySelector('[data-tag-rail]');
+
+      const ensureObserved = element => {
+        if (!element) return;
+        if (observed.some(entry => entry.element === element)) return;
+        const observer = new ResizeObserver(updateOffset);
+        observer.observe(element);
+        observed.push({ element, observer });
+      };
+
+      ensureObserved(navEl);
+      ensureObserved(tagEl);
+    };
+
+    updateOffset();
+    attachObservers();
+    window.addEventListener('resize', updateOffset);
+
+    const refreshTimers = [
+      window.setTimeout(() => {
+        updateOffset();
+        attachObservers();
+      }, 200),
+      window.setTimeout(() => {
+        updateOffset();
+        attachObservers();
+      }, 800),
+    ];
+
+    return () => {
+      window.removeEventListener('resize', updateOffset);
+      refreshTimers.forEach(timer => window.clearTimeout(timer));
+      observed.forEach(({ observer }) => observer.disconnect());
+    };
+  }, []);
+
+  const hasValidCoordinates = useMemo(
+    () => Number.isFinite(event?.latitude) && Number.isFinite(event?.longitude),
+    [event?.latitude, event?.longitude],
+  );
+
+  useEffect(() => {
+    setMapErrored(false);
+    setShouldRenderMap(false);
+  }, [event?.id]);
+
+  useEffect(() => {
+    if (!hasValidCoordinates) {
+      setShouldRenderMap(false);
+      return;
+    }
+    const element = mapContainerRef.current;
+    if (!element) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setShouldRenderMap(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          setShouldRenderMap(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasValidCoordinates]);
 
   // Helpers
   function parseLocalYMD(str) {
-    const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-  function formatTime(timeStr) {
-    if (!timeStr) return '';
-    let [h, m] = timeStr.split(':');
-    h = parseInt(h, 10);
-    m = (m || '00').padStart(2, '0');
-    const ampm = h >= 12 ? 'p.m.' : 'a.m.';
-    h = h % 12 || 12;
-    return `${h}:${m} ${ampm}`;
-  }
-
-  // Share fallback & handler
-  function copyLinkFallback(url) {
-    navigator.clipboard.writeText(url).catch(console.error);
-  }
-  function handleShare() {
-    const url = window.location.href;
-    const title = document.title;
-    if (navigator.share) {
-      navigator.share({ title, url }).catch(console.error);
-    } else {
-      copyLinkFallback(url);
+    if (!str || typeof str !== 'string') return null;
+    const [yStr, mStr, dStr] = str.split('-');
+    const year = Number.parseInt(yStr, 10);
+    const month = Number.parseInt(mStr, 10);
+    const day = Number.parseInt(dStr, 10);
+    if (![year, month, day].every(num => Number.isInteger(num))) {
+      return null;
     }
+    const date = new Date(year, month - 1, day);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  const gcalLink = event ? (() => {
-    const start = event.start_date?.replace(/-/g, '') || '';
-    const end = (event.end_date || event.start_date || '').replace(/-/g, '');
-    const url = window.location.href;
-    return (
-      'https://www.google.com/calendar/render?action=TEMPLATE' +
-      `&text=${encodeURIComponent(event.title)}` +
-      `&dates=${start}/${end}` +
-      `&details=${encodeURIComponent('Details: ' + url)}`
-    );
-  })() : '#';
+  function parseTimeOnDate(dateStr, timeStr) {
+    if (!dateStr || !timeStr || typeof timeStr !== 'string') return null;
+    const [hourStr, minuteStr = '00'] = timeStr.split(':');
+    const hour = Number.parseInt(hourStr, 10);
+    const minute = Number.parseInt(minuteStr, 10);
+    if (!Number.isInteger(hour)) return null;
+    const baseDate = parseLocalYMD(dateStr);
+    if (!baseDate) return null;
+    const result = new Date(baseDate);
+    result.setHours(hour, Number.isNaN(minute) ? 0 : minute, 0, 0);
+    return Number.isNaN(result.getTime()) ? null : result;
+  }
 
   // Fetch main event (including lat/lng)
   useEffect(() => {
@@ -160,17 +249,36 @@ export default function BigBoardEventPage() {
       setLoading(true);
       setError(null);
       try {
-        const { data: ev, error: evErr } = await supabase
-          .from('big_board_events')
-          .select(`
+        const baseSelect = `
             id, post_id, title, description, link,
             start_date, end_date, start_time, end_time,
-            address, latitude, longitude,
+            address, latitude, longitude, area_id,
             created_at, slug
-          `)
+          `;
+
+        const withJoinSelect = `${baseSelect},
+            areas:areas(name, short_name)
+          `;
+
+        let { data: ev, error: evErr, status } = await supabase
+          .from('big_board_events')
+          .select(withJoinSelect)
           .eq('slug', slug)
-          .single();
+          .maybeSingle();
+
+        if (evErr && status === 400) {
+          ({ data: ev, error: evErr } = await supabase
+            .from('big_board_events')
+            .select(baseSelect)
+            .eq('slug', slug)
+            .maybeSingle());
+        }
+
         if (evErr) throw evErr;
+        if (!ev) {
+          setError('Could not load event.');
+          return;
+        }
 
         // load image & owner
         const { data: post } = await supabase
@@ -194,7 +302,19 @@ export default function BigBoardEventPage() {
           .eq('taggable_id', ev.id);
         setSelectedTags(taggings.map(t => t.tag_id));
 
-        setEvent({ ...ev, imageUrl: publicUrl, owner_id: post.user_id });
+        const areaNameFromJoin = ev.areas?.short_name || ev.areas?.name || null;
+        if (ev.area_id != null && areaNameFromJoin) {
+          primeAreaLookup({ [ev.area_id]: areaNameFromJoin });
+        }
+
+        const derivedAreaName = areaNameFromJoin || resolveAreaName(ev.area_id) || null;
+        const { areas, ...eventWithoutAreas } = ev;
+        setEvent({
+          ...eventWithoutAreas,
+          imageUrl: publicUrl,
+          owner_id: post.user_id,
+          areaName: derivedAreaName,
+        });
       } catch (err) {
         console.error(err);
         setError('Could not load event.');
@@ -204,59 +324,39 @@ export default function BigBoardEventPage() {
     })();
   }, [slug]);
 
-  // Fetch siblings same-day
-  useEffect(() => {
-    if (!event) return;
-    (async () => {
-      const { data } = await supabase
-        .from('big_board_events')
-        .select('slug,title,start_time')
-        .eq('start_date', event.start_date)
-        .order('start_time',{ ascending: true });
-      setSiblings(data || []);
-    })();
-  }, [event]);
-
   // Fetch event poster profile
   useEffect(() => {
     if (!event?.owner_id) return;
+    let cancelled = false;
     (async () => {
       try {
-        const { data: prof } = await supabase
+        const { data: prof, error: profError } = await supabase
           .from('profiles')
-          .select('username,image_url,slug')
+          .select('username,slug')
           .eq('id', event.owner_id)
           .single();
-        let img = prof?.image_url || '';
-        if (img && !img.startsWith('http')) {
-          const { data: { publicUrl } } = supabase
-            .storage
-            .from('profile-images')
-            .getPublicUrl(img);
-          img = publicUrl;
+        if (profError) throw profError;
+        if (!cancelled) {
+          setPoster({
+            id: event.owner_id,
+            username: prof?.username || 'User',
+            slug: prof?.slug || null,
+          });
         }
-        const { data: tags } = await supabase
-          .from('profile_tags')
-          .select('culture_tags(name,emoji)')
-          .eq('profile_id', event.owner_id)
-          .eq('tag_type', 'culture');
-        const cultures = [];
-        tags?.forEach(t => {
-          if (t.culture_tags?.emoji) {
-            cultures.push({ emoji: t.culture_tags.emoji, name: t.culture_tags.name });
-          }
-        });
-        setPoster({
-          id: event.owner_id,
-          username: prof?.username || 'User',
-          image: img,
-          slug: prof?.slug || null,
-          cultures,
-        });
       } catch (e) {
         console.error(e);
+        if (!cancelled) {
+          setPoster({
+            id: event.owner_id,
+            username: 'User',
+            slug: null,
+          });
+        }
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [event]);
 
   // Fetch more community submissions
@@ -478,15 +578,83 @@ export default function BigBoardEventPage() {
     );
   }
 
-  // Compute whenText
+  // Compute when details
   const startDateObj = parseLocalYMD(event.start_date);
-  const daysDiff = Math.round((startDateObj - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
-  const whenText =
-    daysDiff === 0 ? 'Today' :
-    daysDiff === 1 ? 'Tomorrow' :
-    startDateObj.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+  const daysDiff =
+    startDateObj != null
+      ? Math.round((startDateObj - todayStart) / (1000 * 60 * 60 * 24))
+      : null;
+  const relativeLabel =
+    startDateObj == null
+      ? 'Date TBA'
+      : daysDiff === 0
+      ? 'Today'
+      : daysDiff === 1
+      ? 'Tomorrow'
+      : startDateObj.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+        });
 
-  const formattedDate = startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric', year:'numeric' });
+  const formattedDate = startDateObj
+    ? startDateObj.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '';
+
+  const { dateText, timeText } = useMemo(() => {
+    const dateLabel = startDateObj ? DATE_LABEL_FORMATTER.format(startDateObj) : 'Date TBA';
+    const startTimeDate = parseTimeOnDate(event.start_date, event.start_time);
+    const endTimeDate = parseTimeOnDate(event.start_date, event.end_time);
+
+    if (!startTimeDate) {
+      return { dateText: dateLabel, timeText: 'Time TBA' };
+    }
+
+    const startParts = TIME_FORMATTER.formatToParts(startTimeDate);
+    const endParts = endTimeDate ? TIME_FORMATTER.formatToParts(endTimeDate) : null;
+    const startPeriod = startParts.find(part => part.type === 'dayPeriod')?.value || '';
+    const endPeriod = endParts?.find(part => part.type === 'dayPeriod')?.value || '';
+
+    const buildTimeString = (parts, omitPeriod) =>
+      parts
+        .filter(part => !(omitPeriod && part.type === 'dayPeriod'))
+        .map(part => part.value)
+        .join('')
+        .replace(/\u202f/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (endParts) {
+      const startString = buildTimeString(startParts, startPeriod && endPeriod && startPeriod === endPeriod);
+      const endString = buildTimeString(endParts, false);
+      return { dateText: dateLabel, timeText: `${startString}–${endString}` };
+    }
+
+    return { dateText: dateLabel, timeText: buildTimeString(startParts, false) };
+  }, [event.start_date, event.start_time, event.end_time, startDateObj]);
+  const shortAddress = useMemo(() => {
+    if (!event.address || typeof event.address !== 'string') return '';
+    const parts = event.address
+      .split(',')
+      .map(part => part.trim())
+      .filter(Boolean);
+    if (!parts.length) return '';
+    return parts.slice(0, 2).join(', ');
+  }, [event.address]);
+  const neighborhoodName = resolveAreaName(event.area_id) || event.areaName || null;
+  const neighborhoodLabel = neighborhoodName || 'Neighborhood TBA';
+  const neighborhoodAriaLabel = `Neighborhood: ${neighborhoodLabel}`;
+  const whenDisplay = `${dateText} • ${timeText}`;
+  const stickyTop = navStackHeight + 10;
+  const stickyOffset = Math.max(stickyTop, 0);
+  const contentPaddingTop = navStackHeight + 24;
+  const mapboxToken = geocoderToken;
+  const showMap = hasValidCoordinates && mapboxToken && !mapErrored;
   const rawDesc = event.description || '';
   const metaDesc = rawDesc.length > 155 ? `${rawDesc.slice(0, 152)}…` : rawDesc;
   const seoDescription = metaDesc || FALLBACK_BIG_BOARD_DESCRIPTION;
@@ -507,15 +675,6 @@ export default function BigBoardEventPage() {
     image: ogImage,
   });
 
-  // Prev/Next logic
-  const currentIndex = siblings.findIndex(e => e.slug === slug);
-  const prev = siblings.length
-    ? siblings[(currentIndex - 1 + siblings.length) % siblings.length]
-    : null;
-  const next = siblings.length
-    ? siblings[(currentIndex + 1) % siblings.length]
-    : null;
-
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Seo
@@ -528,343 +687,389 @@ export default function BigBoardEventPage() {
       />
       <Navbar />
 
-      <main className="flex-grow relative mt-32">
-          {/* Hero banner */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event.imageUrl})` }}
-          />
-
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-            </div>
-          )}
-
-          {/* Overlapping centered card */}
-          <div className={`relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 transform z-10 ${user ? '-mt-24' : ''}`}>
-            {prev && (
-              <button
-                onClick={() => navigate(`/big-board/${prev.slug}`)}
-                className="absolute top-1/2 left-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >←</button>
-            )}
-            {next && (
-              <button
-                onClick={() => navigate(`/big-board/${next.slug}`)}
-                className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >→</button>
-            )}
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold">{event.title}</h1>
-              <p className="text-lg font-medium">
-                {whenText}
-                {event.start_time && ` — ${formatTime(event.start_time)}`}
-                {event.address && (
-                  <> • <a
-                    href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {event.address}
-                  </a></>
-                )}
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {tagsList
-                  .filter(t => selectedTags.includes(t.id))
-                  .map((tag, i) => (
-                    <Link
-                      key={tag.id}
-                      to={`/tags/${tag.name.toLowerCase()}`}
-                      className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-lg font-semibold`}
-                    >
-                      #{tag.name}
-                    </Link>
-                  ))}
+      <main className="flex-grow bg-white" style={{ paddingTop: contentPaddingTop }}>
+        <div
+          className="sticky z-40"
+          style={{ top: stickyOffset, paddingTop: 'max(env(safe-area-inset-top), 0px)' }}
+        >
+          <div className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8 md:flex-row md:items-center md:gap-6">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-2">
+                  <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl md:text-2xl">
+                    {event.title || 'Untitled Event'}
+                  </h1>
+                  {relativeLabel && relativeLabel !== 'Date TBA' && (
+                    <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                      {relativeLabel}
+                    </span>
+                  )}
+                  <div className="text-sm font-medium text-gray-700 sm:text-base">{whenDisplay}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 sm:text-base">
+                    <span className="inline-flex items-center gap-1" aria-label={neighborhoodAriaLabel}>
+                      <span aria-hidden="true">📍</span>
+                      <span className="font-semibold text-indigo-700">{neighborhoodLabel}</span>
+                    </span>
+                    {shortAddress && <span className="text-gray-500">• {shortAddress}</span>}
+                  </div>
+                  {!!selectedTags.length && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {tagsList
+                        .filter(tag => selectedTags.includes(tag.id))
+                        .map((tag, i) => (
+                          <Link
+                            key={tag.id}
+                            to={`/tags/${tag.name.toLowerCase()}`}
+                            className={`${pillStyles[i % pillStyles.length]} rounded-full px-4 py-2 text-lg font-semibold`}
+                          >
+                            #{tag.name}
+                          </Link>
+                        ))}
+                    </div>
+                  )}
+                  {poster?.username && (
+                    <div className="text-sm text-gray-500">
+                      Submitted by{' '}
+                      {poster.slug ? (
+                        <Link
+                          to={`/u/${poster.slug}`}
+                          className="font-medium text-indigo-600 hover:text-indigo-800"
+                        >
+                          @{poster.username}
+                        </Link>
+                      ) : (
+                        <span className="font-medium">@{poster.username}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="hidden shrink-0 md:flex">
+                <button
+                  type="button"
+                  onClick={handleFavorite}
+                  disabled={favLoading}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    isFavorite
+                      ? 'border-indigo-600 bg-indigo-600 text-white'
+                      : 'border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                  }`}
+                >
+                  <CalendarCheck className="h-4 w-4" />
+                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                </button>
               </div>
             </div>
           </div>
+        </div>
 
-          {poster && (
-            <div className="max-w-4xl mx-auto mt-6 px-4">
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg py-3 flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 text-center">
-                <span className="text-2xl sm:text-3xl font-[Barrio] whitespace-nowrap">Posted by</span>
-                <Link to={`/u/${poster.slug}`} className="flex items-center gap-2">
-                  {poster.image ? (
-                    <img src={poster.image} alt="avatar" className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-gray-300" />
+        <div className="mx-auto w-full max-w-5xl px-4 pb-12 sm:px-6 lg:px-8">
+          <div className="mt-4 md:hidden">
+            <button
+              type="button"
+              onClick={handleFavorite}
+              disabled={favLoading}
+              className={`flex w-full items-center justify-center gap-2 rounded-md py-3 font-semibold transition ${
+                isFavorite
+                  ? 'bg-indigo-600 text-white'
+                  : 'border border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white'
+              }`}
+            >
+              <CalendarCheck className="h-5 w-5" />
+              {isFavorite ? 'In the Plans' : 'Add to Plans'}
+            </button>
+          </div>
+
+          {isEditing ? (
+            <section className="mt-8 space-y-6">
+              <form onSubmit={handleSave} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Title</label>
+                  <input
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
+                    required
+                    className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <textarea
+                    name="description"
+                    rows="3"
+                    value={formData.description}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <input
+                    name="address"
+                    type="text"
+                    autoComplete="off"
+                    ref={suggestRef}
+                    value={formData.address}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Start typing an address…"
+                  />
+                  {addressSuggestions.length > 0 && (
+                    <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border bg-white">
+                      {addressSuggestions.map(feat => (
+                        <li
+                          key={feat.mapbox_id}
+                          onClick={() => pickSuggestion(feat)}
+                          className="cursor-pointer px-3 py-2 text-sm hover:bg-gray-100"
+                        >
+                          {feat.name} — {feat.full_address || feat.place_formatted}
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                  <span className="text-2xl sm:text-3xl font-[Barrio] break-words">{poster.username}</span>
-                </Link>
-                {poster.cultures?.map(c => (
-                  <span key={c.emoji} title={c.name} className="text-2xl sm:text-3xl">
-                    {c.emoji}
-                  </span>
-                ))}
-                {user && user.id !== poster.id && (
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Start Time</label>
+                    <input
+                      name="start_time"
+                      type="time"
+                      value={formData.start_time}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">End Time</label>
+                    <input
+                      name="end_time"
+                      type="time"
+                      value={formData.end_time}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                    <input
+                      name="start_date"
+                      type="date"
+                      value={formData.start_date}
+                      onChange={handleChange}
+                      required
+                      className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">End Date</label>
+                    <input
+                      name="end_date"
+                      type="date"
+                      value={formData.end_date}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                  <div className="flex flex-wrap gap-3">
+                    {tagsList.map((tagOpt, i) => {
+                      const isSel = selectedTags.includes(tagOpt.id);
+                      return (
+                        <button
+                          key={tagOpt.id}
+                          type="button"
+                          onClick={() =>
+                            setSelectedTags(prev =>
+                              isSel
+                                ? prev.filter(x => x !== tagOpt.id)
+                                : [...prev, tagOpt.id]
+                            )
+                          }
+                          className={`${
+                            isSel
+                              ? pillStyles[i % pillStyles.length]
+                              : 'bg-gray-200 text-gray-700'
+                          } rounded-full px-4 py-2 text-sm font-semibold`}
+                        >
+                          {tagOpt.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex space-x-4">
                   <button
-                    onClick={togglePosterFollow}
-                    disabled={followLoading}
-                    className="border border-indigo-700 rounded px-2 py-0.5 text-sm hover:bg-indigo-700 hover:text-white transition"
+                    type="submit"
+                    disabled={saving}
+                    className="flex-1 rounded bg-green-600 py-2 text-white disabled:opacity-50"
                   >
-                    {isPosterFollowing ? 'Unfollow' : 'Follow'}
+                    {saving ? 'Saving…' : 'Save'}
                   </button>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="flex-1 rounded bg-gray-300 py-2 text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </section>
+          ) : (
+            <>
+              {event.description && (
+                <section className="mt-8 space-y-4" aria-labelledby="about-event-heading">
+                  <h2 id="about-event-heading" className="text-2xl font-semibold text-gray-900">
+                    About this event
+                  </h2>
+                  <p className="whitespace-pre-line text-base leading-relaxed text-gray-700">
+                    {event.description}
+                  </p>
+                  {(event.link || event.owner_id === user?.id) && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold">
+                      {event.link && (
+                        <a
+                          href={event.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                        >
+                          See original listing
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      )}
+                      {event.owner_id === user?.id && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-gray-600">
+                          <button
+                            type="button"
+                            onClick={startEditing}
+                            className="inline-flex items-center gap-1 text-sm font-semibold hover:text-indigo-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDelete}
+                            className="inline-flex items-center gap-1 text-sm font-semibold hover:text-rose-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {!event.description && (event.link || event.owner_id === user?.id) && (
+                <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold">
+                  {event.link && (
+                    <a
+                      href={event.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                    >
+                      See original listing
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
+                  {event.owner_id === user?.id && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-gray-600">
+                      <button
+                        type="button"
+                        onClick={startEditing}
+                        className="inline-flex items-center gap-1 text-sm font-semibold hover:text-indigo-700"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        className="inline-flex items-center gap-1 text-sm font-semibold hover:text-rose-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {showMap && (
+            <div
+              ref={mapContainerRef}
+              className="mt-8 overflow-hidden rounded-2xl border border-gray-200 shadow-sm"
+              style={{ minHeight: 320 }}
+            >
+              {shouldRenderMap ? (
+                <Map
+                  reuseMaps
+                  mapboxAccessToken={mapboxToken}
+                  initialViewState={{
+                    longitude: Number(event.longitude),
+                    latitude: Number(event.latitude),
+                    zoom: 13,
+                  }}
+                  mapStyle="mapbox://styles/mapbox/light-v11"
+                  style={{ width: '100%', height: '100%' }}
+                  scrollZoom={false}
+                  doubleClickZoom={false}
+                  dragRotate={false}
+                  onError={evt => {
+                    if (!mapErrored) {
+                      console.error('Mapbox map failed to load', evt?.error || evt);
+                      setMapErrored(true);
+                    }
+                  }}
+                >
+                  <Marker
+                    longitude={Number(event.longitude)}
+                    latitude={Number(event.latitude)}
+                    anchor="bottom"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg">
+                      ●
+                    </span>
+                  </Marker>
+                </Map>
+              ) : (
+                <div className="h-80 w-full bg-gray-100" />
+              )}
             </div>
           )}
 
-          {/* Description, form / details, and image */}
-          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left: description / edit form / buttons */}
-            <div>
-              {isEditing ? (
-                <form onSubmit={handleSave} className="space-y-6">
-                  {/* Title */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Title</label>
-                    <input
-                      name="title"
-                      value={formData.title}
-                      onChange={handleChange}
-                      required
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  {/* Description */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea
-                      name="description"
-                      rows="3"
-                      value={formData.description}
-                      onChange={handleChange}
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  {/* Address with suggestions */}
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                    <input
-                      name="address"
-                      type="text"
-                      autoComplete="off"
-                      ref={suggestRef}
-                      value={formData.address}
-                      onChange={handleChange}
-                      className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Start typing an address…"
-                    />
-                    {addressSuggestions.length > 0 && (
-                      <ul className="absolute z-20 bg-white border w-full mt-1 rounded max-h-48 overflow-auto">
-                        {addressSuggestions.map(feat => (
-                          <li
-                            key={feat.mapbox_id}
-                            onClick={() => pickSuggestion(feat)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                          >
-                            {feat.name} — {feat.full_address || feat.place_formatted}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {/* Times */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Start Time</label>
-                      <input
-                        name="start_time"
-                        type="time"
-                        value={formData.start_time}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">End Time</label>
-                      <input
-                        name="end_time"
-                        type="time"
-                        value={formData.end_time}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  {/* Dates */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                      <input
-                        name="start_date"
-                        type="date"
-                        value={formData.start_date}
-                        onChange={handleChange}
-                        required
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">End Date</label>
-                      <input
-                        name="end_date"
-                        type="date"
-                        value={formData.end_date}
-                        onChange={handleChange}
-                        className="mt-1 w-full border rounded px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  {/* Tags */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
-                    <div className="flex flex-wrap gap-3">
-                      {tagsList.map((tagOpt, i) => {
-                        const isSel = selectedTags.includes(tagOpt.id);
-                        return (
-                          <button
-                            key={tagOpt.id}
-                            type="button"
-                            onClick={() =>
-                              setSelectedTags(prev =>
-                                isSel
-                                  ? prev.filter(x => x !== tagOpt.id)
-                                  : [...prev, tagOpt.id]
-                              )
-                            }
-                            className={`${
-                              isSel
-                                ? pillStyles[i % pillStyles.length]
-                                : 'bg-gray-200 text-gray-700'
-                            } px-4 py-2 rounded-full text-sm font-semibold`}
-                          >
-                            {tagOpt.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {/* Save / Cancel */}
-                  <div className="flex space-x-4">
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="flex-1 bg-green-600 text-white py-2 rounded disabled:opacity-50"
-                    >
-                      {saving ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(false)}
-                      className="flex-1 bg-gray-300 text-gray-800 py-2 rounded"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  {event.description && (
-                    <div className="mb-6">
-                      <h2 className="text-2xl font-semibold text-gray-900 mb-2">Description</h2>
-                      <p className="text-gray-700">{event.description}</p>
-                    </div>
-                  )}
-                  <div className="space-y-4">
-                    <button
-                      onClick={handleFavorite}
-                      disabled={favLoading}
-                      className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                    >
-                      <CalendarCheck className="w-5 h-5" />
-                      {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                    </button>
-
-                    {event.link && (
-                      <a
-                        href={event.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
-                      >
-                        <ExternalLink className="w-5 h-5" />
-                        Visit Site
-                      </a>
-                    )}
-
-                    <div className="flex items-center justify-center gap-6 pt-2">
-                      <button
-                        onClick={handleShare}
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <Share2 className="w-5 h-5" />
-                        Share
-                      </button>
-                      <a
-                        href={gcalLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                        Google Calendar
-                      </a>
-                    </div>
-
-                    {event.owner_id === user?.id && (
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          onClick={startEditing}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                        >
-                          <Pencil className="w-4 h-4" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={handleDelete}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-md py-2 bg-red-100 text-red-700 hover:bg-red-200"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
-                      </div>
-                    )}
-
-                    <Link
-                      to="/"
-                      className="block text-center text-indigo-600 hover:underline font-medium"
-                    >
-                      ← Back to Events
-                    </Link>
-                  </div>
-                  </>
-                )}
-              </div>
-
-            {/* Right: full image */}
-            <div>
+          {event.imageUrl && (
+            <div className="mt-8 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
               <img
                 src={event.imageUrl}
                 alt={event.title}
-                className="w-full h-auto rounded-lg shadow-lg max-h-[60vh]"
+                loading="lazy"
+                className="mx-auto block h-auto w-full max-h-[520px] object-contain"
               />
             </div>
-          </div>
+          )}
 
-          <Suspense fallback={<div>Loading comments…</div>}>
-            <CommentsSection
-              source_table="big_board_events"
-              event_id={event.id}
-            />
+          <Suspense fallback={<div className="mt-12 text-center text-sm text-gray-500">Loading comments…</div>}>
+            <div className="mt-12">
+              <CommentsSection source_table="big_board_events" event_id={event.id} />
+            </div>
           </Suspense>
+        </div>
 
-          {/* More Upcoming Community Submissions */}
-          <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">
-            <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
+        <div className="mx-auto max-w-5xl px-4 pb-12 sm:px-6 lg:px-8">
+          <div className="mt-12 border-t border-gray-200 pt-8">
+            <h2 className="mb-6 text-center text-2xl font-semibold text-gray-800">
               More Upcoming Community Submissions
             </h2>
             {loadingMore ? (
@@ -872,43 +1077,55 @@ export default function BigBoardEventPage() {
             ) : moreEvents.length === 0 ? (
               <p className="text-center text-gray-600">No upcoming submissions.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {moreEvents.map(evItem => {
                   const dt = parseLocalYMD(evItem.start_date);
-                  const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
+                  const diff = dt
+                    ? Math.round((dt - new Date(new Date().setHours(0, 0, 0, 0))) / (1000 * 60 * 60 * 24))
+                    : null;
                   const prefix =
-                    diff === 0 ? 'Today' :
-                    diff === 1 ? 'Tomorrow' :
-                    dt.toLocaleDateString('en-US',{ weekday:'long' });
-                  const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
+                    diff === 0
+                      ? 'Today'
+                      : diff === 1
+                      ? 'Tomorrow'
+                      : dt
+                      ? dt.toLocaleDateString('en-US', { weekday: 'long' })
+                      : 'Date TBA';
+                  const md = dt
+                    ? dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+                    : '';
                   return (
                     <Link
                       key={evItem.id}
                       to={`/big-board/${evItem.slug}`}
-                      className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
+                      className="flex flex-col overflow-hidden rounded-xl bg-white shadow transition hover:shadow-lg"
                     >
                       <div className="relative h-40 bg-gray-100">
-                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
+                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-xs font-semibold uppercase tracking-wide text-white">
                           COMMUNITY SUBMISSION
                         </div>
                         <img
                           src={evItem.imageUrl}
                           alt={evItem.title}
-                          className="w-full h-full object-cover object-center"
+                          loading="lazy"
+                          className="h-full w-full object-cover object-center"
                         />
                       </div>
-                      <div className="p-4 flex-1 flex flex-col justify-between text-center">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+                      <div className="flex flex-1 flex-col justify-between p-4 text-center">
+                        <h3 className="mb-2 text-lg font-semibold text-gray-800 line-clamp-2">
                           {evItem.title}
                         </h3>
-                        <span className="text-sm text-gray-600">{prefix}, {md}</span>
+                        <span className="text-sm text-gray-600">
+                          {prefix}
+                          {md ? `, ${md}` : ''}
+                        </span>
                         {!!moreTagMap[evItem.id]?.length && (
-                          <div className="mt-2 flex flex-wrap justify-center space-x-1">
+                          <div className="mt-2 flex flex-wrap justify-center gap-1">
                             {moreTagMap[evItem.id].map((tag, i) => (
                               <Link
-                                key={tag.slug}
+                                key={`${evItem.id}-${tag.slug}`}
                                 to={`/tags/${tag.slug}`}
-                                className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
+                                className={`${pillStyles[i % pillStyles.length]} rounded-full px-2 py-1 text-xs font-semibold hover:opacity-80`}
                               >
                                 #{tag.name}
                               </Link>
@@ -922,12 +1139,15 @@ export default function BigBoardEventPage() {
               </div>
             )}
           </div>
+        </div>
 
-          <SubmitEventSection onNext={file => {
+        <SubmitEventSection
+          onNext={file => {
             setInitialFlyer(file);
             setModalStartStep(2);
             setShowFlyerModal(true);
-          }} />
+          }}
+        />
       </main>
 
       <Footer />
