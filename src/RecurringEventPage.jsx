@@ -7,11 +7,10 @@ import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
 import { RRule } from 'rrule';
 import PostFlyerModal from './PostFlyerModal';
-import FloatingAddButton from './FloatingAddButton';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
 import CommentsSection from './CommentsSection';
-import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
+import { CalendarCheck, CalendarPlus, ExternalLink, Share2, MapPin } from 'lucide-react';
 import Seo from './components/Seo.jsx';
 import {
   SITE_BASE_URL,
@@ -66,6 +65,7 @@ export default function RecurringEventPage() {
     await toggleFavorite();
   };
   const [initialFlyer, setInitialFlyer] = useState(null);
+  const [navOffset, setNavOffset] = useState(0);
 
   const pillStyles = [
     'bg-red-100 text-red-800',
@@ -264,6 +264,33 @@ export default function RecurringEventPage() {
       });
   }, [communityEvents]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const measure = () => {
+      const navEl = document.querySelector('nav');
+      if (!navEl) return;
+      setNavOffset(navEl.getBoundingClientRect().height);
+    };
+
+    measure();
+
+    const handleResize = () => measure();
+    window.addEventListener('resize', handleResize);
+
+    let observer;
+    const navEl = document.querySelector('nav');
+    if (typeof ResizeObserver !== 'undefined' && navEl) {
+      observer = new ResizeObserver(measure);
+      observer.observe(navEl);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (observer) observer.disconnect();
+    };
+  }, []);
+
   const fallbackDate = date || '';
   const fallbackCanonicalPath = fallbackDate
     ? `/series/${slug}/${fallbackDate}`
@@ -304,8 +331,6 @@ export default function RecurringEventPage() {
     ? `${series.name} – Our Philly`
     : FALLBACK_SERIES_TITLE;
 
-  const startIso = buildIsoDateTime(activeDate, series.start_time);
-  const endIso = buildIsoDateTime(activeDate, series.end_time);
   const subEvents = occurrences.slice(0, 6).map(dt => {
     const dateStr = dt.toISOString().slice(0, 10);
     const start = buildIsoDateTime(dateStr, series.start_time);
@@ -343,22 +368,31 @@ export default function RecurringEventPage() {
     );
   })();
 
-  // Compute whenText
-  const whenText = date
-    ? parseLocalYMD(date).toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' })
-    : 'Recurring Series';
-
-  // Prev / Next logic
-  const isoDates = occurrences.map(dt => dt.toISOString().slice(0,10));
-  const idx = date ? isoDates.indexOf(date) : -1;
-  const prevDate = idx > 0 ? isoDates[idx-1] : null;
-  const nextDate = idx >= 0 && idx < isoDates.length-1 ? isoDates[idx+1] : null;
-
   const baseDate = date ? parseLocalYMD(date) : new Date();
   baseDate.setHours(0,0,0,0);
   const upcomingOccs = occurrences
     .filter(dt => dt > baseDate)
     .slice(0,3);
+
+  const dateFormatter = { weekday: 'long', month: 'long', day: 'numeric' };
+  const dateLabel = date
+    ? parseLocalYMD(date).toLocaleDateString('en-US', dateFormatter)
+    : 'Recurring Series';
+  const startTimeLabel = series.start_time ? formatTime(series.start_time) : '';
+  const endTimeLabel = series.end_time ? formatTime(series.end_time) : '';
+  let timeLabel = '';
+  if (startTimeLabel && endTimeLabel) timeLabel = `${startTimeLabel} – ${endTimeLabel}`;
+  else if (startTimeLabel) timeLabel = startTimeLabel;
+  else if (endTimeLabel) timeLabel = endTimeLabel;
+  const dateTimeDisplay = timeLabel ? `${dateLabel} · ${timeLabel}` : dateLabel;
+  const locationParts = typeof series.address === 'string'
+    ? series.address.split(',').map(part => part.trim()).filter(Boolean)
+    : [];
+  const neighborhoodName = locationParts[0] || 'Philadelphia';
+  const shortAddress = locationParts.slice(1).join(', ');
+  const headerTags = tagsList.filter(tag => selectedTags.includes(tag.id));
+  const stickyStyle = { top: `${navOffset}px` };
+  const mainStyle = { paddingTop: `${navOffset}px` };
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -373,139 +407,128 @@ export default function RecurringEventPage() {
 
       <Navbar />
 
-      <main className="flex-grow mt-32">
-          {/* Hero banner */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${series.image_url})` }}
-          />
-
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-            </div>
-          )}
-
-          {/* Overlapping center card with arrows */}
-          <div className={`relative max-w-4xl mx-auto px-4 ${user ? '-mt-24' : ''}`}>
-            {/* Prev arrow */}
-            {prevDate && (
-              <button
-                onClick={() => navigate(`/series/${slug}/${prevDate}`)}
-                className="absolute left-0 top-1/2 -translate-y-1/2 p-3 bg-gray-100 hover:bg-gray-200 rounded-full shadow z-20"
-              >
-                ←
-              </button>
-            )}
-
-            <div className="bg-white shadow-xl rounded-xl p-8 relative z-10 text-center">
-              <h1 className="text-4xl font-bold">{series.name}</h1>
-              <p className="mt-4 text-lg font-medium">
-                {whenText}
-                {series.start_time && ` — ${formatTime(series.start_time)}`}
-                {series.address && (
-                  <> • <a
-                    href={`https://maps.google.com?q=${encodeURIComponent(series.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {series.address}
-                  </a></>
-                )}
-              </p>
-              <div className="mt-4 flex flex-wrap justify-center gap-3">
-                {tagsList
-                  .filter(t => selectedTags.includes(t.id))
-                  .map((t,i) => (
-                    <Link
-                      key={t.id}
-                      to={`/tags/${t.slug}`}
-                      className="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-lg font-semibold"
-                    >
-                      #{t.name}
-                    </Link>
-                  ))}
-              </div>
-            </div>
-
-            {/* Next arrow */}
-            {nextDate && (
-              <button
-                onClick={() => navigate(`/series/${slug}/${nextDate}`)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 p-3 bg-gray-100 hover:bg-gray-200 rounded-full shadow z-20"
-              >
-                →
-              </button>
-            )}
-          </div>
-
-          {/* Main content grid */}
-          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left side: description, CTA buttons */}
-            <div>
-              {series.link && (
-                <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded">
-                  <p className="mb-2">This is a recurring event and may sometimes be cancelled. Check their website before going.</p>
-                  <a
-                    href={series.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 underline font-semibold"
-                  >
-                    Visit Site
-                  </a>
+      <main className="flex-grow relative pb-24 sm:pb-0" style={mainStyle}>
+        <header className="sticky z-40" style={stickyStyle}>
+          <div className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:py-5">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">
+                  {series.name}
+                </h1>
+                <div className="mt-2 flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                  <span className="font-medium text-gray-900">{dateTimeDisplay}</span>
+                  <span className="flex min-w-0 items-center gap-1 font-medium text-gray-700">
+                    <MapPin className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                    <span className="truncate text-gray-900">{neighborhoodName}</span>
+                    {shortAddress && <span className="truncate text-gray-500">· {shortAddress}</span>}
+                  </span>
                 </div>
-              )}
-
-              {series.description && (
-                <div className="mb-6">
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-2">Description</h2>
-                  <p className="text-gray-700">{series.description}</p>
-                </div>
-              )}
-                <div className="space-y-4">
-                  <button
-                    onClick={handleFavorite}
-                    disabled={favLoading}
-                    className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                  >
-                    <CalendarCheck className="w-5 h-5" />
-                    {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                  </button>
-
-                  {series.link && (
-                    <a
-                      href={series.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
-                    >
-                      <ExternalLink className="w-5 h-5" />
-                      Visit Site
-                    </a>
-                  )}
-
-                  <div className="flex items-center justify-center gap-6 pt-2">
-                    <button
-                      onClick={handleShare}
-                      className="flex items-center gap-2 text-indigo-600 hover:underline"
-                    >
-                      <Share2 className="w-5 h-5" />
-                      Share
-                    </button>
-                    <a
-                      href={gcalLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-indigo-600 hover:underline"
-                    >
-                      <CalendarPlus className="w-5 h-5" />
-                      Google Calendar
-                    </a>
+                {!!headerTags.length && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {headerTags.map((tag, i) => (
+                      <Link
+                        key={tag.slug}
+                        to={`/tags/${tag.slug}`}
+                        className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
+                      >
+                        #{tag.name}
+                      </Link>
+                    ))}
                   </div>
-                </div>
+                )}
               </div>
+              <div className="hidden sm:flex flex-shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={handleFavorite}
+                  disabled={favLoading}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition ${
+                    isFavorite
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                  } ${favLoading ? 'opacity-70' : ''}`}
+                >
+                  <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {!user && (
+          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
+            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
+          </div>
+        )}
+
+        {/* Main content grid */}
+        <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left side: description, CTA buttons */}
+          <div>
+            {series.link && (
+              <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded">
+                <p className="mb-2">This is a recurring event and may sometimes be cancelled. Check their website before going.</p>
+                <a
+                  href={series.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 underline font-semibold"
+                >
+                  Visit Site
+                </a>
+              </div>
+            )}
+
+            {series.description && (
+              <div className="mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">Description</h2>
+                <p className="text-gray-700">{series.description}</p>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <button
+                onClick={handleFavorite}
+                disabled={favLoading}
+                className={`w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
+              >
+                <CalendarCheck className="w-5 h-5" />
+                {isFavorite ? 'In the Plans' : 'Add to Plans'}
+              </button>
+
+              {series.link && (
+                <a
+                  href={series.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 rounded-md py-3 font-semibold border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                  Visit Site
+                </a>
+              )}
+
+              <div className="flex items-center justify-center gap-6 pt-2">
+                <button
+                  onClick={handleShare}
+                  className="flex items-center gap-2 text-indigo-600 hover:underline"
+                >
+                  <Share2 className="w-5 h-5" />
+                  Share
+                </button>
+                <a
+                  href={gcalLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-indigo-600 hover:underline"
+                >
+                  <CalendarPlus className="w-5 h-5" />
+                  Google Calendar
+                </a>
+              </div>
+            </div>
+          </div>
 
           {/* Right side: capped-height image */}
           <div>
@@ -654,28 +677,43 @@ export default function RecurringEventPage() {
             )}
           </div>
 
-          {tagsList.length > 0 && (
-            <div className="my-8 text-center">
-              <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
-              <div className="flex flex-wrap justify-center gap-3">
-                {tagsList.map((tag, i) => (
-                  <Link
-                    key={tag.slug}
-                    to={`/tags/${tag.slug}`}
-                    className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
-                  >
-                    #{tag.name}
-                  </Link>
-                ))}
-              </div>
+        {tagsList.length > 0 && (
+          <div className="my-8 text-center">
+            <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
+            <div className="flex flex-wrap justify-center gap-3">
+              {tagsList.map((tag, i) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
+                >
+                  #{tag.name}
+                </Link>
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
-          <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
+        <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <button
+            type="button"
+            onClick={handleFavorite}
+            disabled={favLoading}
+            className={`w-full inline-flex items-center justify-center gap-2 rounded-full border border-indigo-600 px-6 py-3 text-sm font-semibold transition ${
+              isFavorite
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+            } ${favLoading ? 'opacity-70' : ''}`}
+          >
+            <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+            {isFavorite ? 'In the Plans' : 'Add to Plans'}
+          </button>
+        </div>
+
+        <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
       </main>
 
       <Footer />
-      <FloatingAddButton onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}} />
       <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} startStep={modalStartStep} initialFile={initialFlyer} />
     </div>
   );
