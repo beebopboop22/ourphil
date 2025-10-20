@@ -5,12 +5,10 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
-import useFollow from './utils/useFollow';
 import PostFlyerModal from './PostFlyerModal';
-import FloatingAddButton from './FloatingAddButton';
-import TriviaTonightBanner from './TriviaTonightBanner';
 import SubmitEventSection from './SubmitEventSection';
 import useEventFavorite from './utils/useEventFavorite';
+import useAreaLookup from './utils/useAreaLookup.js';
 import { isTagActive } from './utils/tagUtils';
 import Seo from './components/Seo.jsx';
 import { getMapboxToken } from './config/mapboxToken.js';
@@ -25,14 +23,7 @@ const FALLBACK_BIG_BOARD_TITLE = 'Community Event – Our Philly';
 const FALLBACK_BIG_BOARD_DESCRIPTION =
   'Discover community-submitted events happening around Philadelphia with Our Philly.';
 const CommentsSection = lazy(() => import('./CommentsSection'));
-import {
-  CalendarCheck,
-  CalendarPlus,
-  ExternalLink,
-  Pencil,
-  Share2,
-  Trash2,
-} from 'lucide-react';
+import { CalendarCheck, ExternalLink, MapPin, Pencil, Trash2 } from 'lucide-react';
 
 export default function BigBoardEventPage() {
   const { slug } = useParams();
@@ -43,9 +34,6 @@ export default function BigBoardEventPage() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Siblings for prev/next
-  const [siblings, setSiblings] = useState([]);
 
   // Mapbox Search Box setup
   const geocoderToken = getMapboxToken();
@@ -100,6 +88,9 @@ export default function BigBoardEventPage() {
   const [loadingMore, setLoadingMore] = useState(true);
   const [moreTagMap, setMoreTagMap] = useState({});
 
+  const areaLookup = useAreaLookup();
+  const [navOffset, setNavOffset] = useState(0);
+
   // Post flyer modal
   const [showFlyerModal, setShowFlyerModal] = useState(false);
   const [modalStartStep, setModalStartStep] = useState(1);
@@ -107,12 +98,6 @@ export default function BigBoardEventPage() {
 
   // Event poster info
   const [poster, setPoster] = useState(null);
-  const {
-    isFollowing: isPosterFollowing,
-    toggleFollow: togglePosterFollow,
-    loading: followLoading,
-  } = useFollow(event?.owner_id);
-
   // Helpers
   function parseLocalYMD(str) {
     const [y, m, d] = str.split('-').map(Number);
@@ -128,32 +113,6 @@ export default function BigBoardEventPage() {
     return `${h}:${m} ${ampm}`;
   }
 
-  // Share fallback & handler
-  function copyLinkFallback(url) {
-    navigator.clipboard.writeText(url).catch(console.error);
-  }
-  function handleShare() {
-    const url = window.location.href;
-    const title = document.title;
-    if (navigator.share) {
-      navigator.share({ title, url }).catch(console.error);
-    } else {
-      copyLinkFallback(url);
-    }
-  }
-
-  const gcalLink = event ? (() => {
-    const start = event.start_date?.replace(/-/g, '') || '';
-    const end = (event.end_date || event.start_date || '').replace(/-/g, '');
-    const url = window.location.href;
-    return (
-      'https://www.google.com/calendar/render?action=TEMPLATE' +
-      `&text=${encodeURIComponent(event.title)}` +
-      `&dates=${start}/${end}` +
-      `&details=${encodeURIComponent('Details: ' + url)}`
-    );
-  })() : '#';
-
   // Fetch main event (including lat/lng)
   useEffect(() => {
     (async () => {
@@ -166,7 +125,7 @@ export default function BigBoardEventPage() {
             id, post_id, title, description, link,
             start_date, end_date, start_time, end_time,
             address, latitude, longitude,
-            created_at, slug
+            created_at, slug, area_id
           `)
           .eq('slug', slug)
           .single();
@@ -203,19 +162,6 @@ export default function BigBoardEventPage() {
       }
     })();
   }, [slug]);
-
-  // Fetch siblings same-day
-  useEffect(() => {
-    if (!event) return;
-    (async () => {
-      const { data } = await supabase
-        .from('big_board_events')
-        .select('slug,title,start_time')
-        .eq('start_date', event.start_date)
-        .order('start_time',{ ascending: true });
-      setSiblings(data || []);
-    })();
-  }, [event]);
 
   // Fetch event poster profile
   useEffect(() => {
@@ -441,6 +387,33 @@ export default function BigBoardEventPage() {
     }
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const measure = () => {
+      const navEl = document.querySelector('nav');
+      if (!navEl) return;
+      setNavOffset(navEl.getBoundingClientRect().height);
+    };
+
+    measure();
+
+    const handleResize = () => measure();
+    window.addEventListener('resize', handleResize);
+
+    let observer;
+    const navEl = document.querySelector('nav');
+    if (typeof ResizeObserver !== 'undefined' && navEl) {
+      observer = new ResizeObserver(measure);
+      observer.observe(navEl);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (observer) observer.disconnect();
+    };
+  }, []);
+
   // Delete event
   const handleDelete = async () => {
     if (!window.confirm('Delete this event?')) return;
@@ -478,15 +451,12 @@ export default function BigBoardEventPage() {
     );
   }
 
-  // Compute whenText
-  const startDateObj = parseLocalYMD(event.start_date);
-  const daysDiff = Math.round((startDateObj - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
-  const whenText =
-    daysDiff === 0 ? 'Today' :
-    daysDiff === 1 ? 'Tomorrow' :
-    startDateObj.toLocaleDateString('en-US',{ weekday:'long', month:'long', day:'numeric' });
-
-  const formattedDate = startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric', year:'numeric' });
+  // Date helpers
+  const startDateObj = event.start_date ? parseLocalYMD(event.start_date) : null;
+  const endDateObj = event.end_date ? parseLocalYMD(event.end_date) : startDateObj;
+  const formattedDate = startDateObj
+    ? startDateObj.toLocaleDateString('en-US',{ month:'long', day:'numeric', year:'numeric' })
+    : '';
   const rawDesc = event.description || '';
   const metaDesc = rawDesc.length > 155 ? `${rawDesc.slice(0, 152)}…` : rawDesc;
   const seoDescription = metaDesc || FALLBACK_BIG_BOARD_DESCRIPTION;
@@ -507,14 +477,30 @@ export default function BigBoardEventPage() {
     image: ogImage,
   });
 
-  // Prev/Next logic
-  const currentIndex = siblings.findIndex(e => e.slug === slug);
-  const prev = siblings.length
-    ? siblings[(currentIndex - 1 + siblings.length) % siblings.length]
+  const dateFormatter = { weekday: 'long', month: 'long', day: 'numeric' };
+  const startDateLabel = startDateObj
+    ? startDateObj.toLocaleDateString('en-US', dateFormatter)
+    : 'Date TBA';
+  const endDateLabel = endDateObj && startDateObj && endDateObj.getTime() !== startDateObj.getTime()
+    ? endDateObj.toLocaleDateString('en-US', dateFormatter)
     : null;
-  const next = siblings.length
-    ? siblings[(currentIndex + 1) % siblings.length]
-    : null;
+  const dateLabel = endDateLabel ? `${startDateLabel} – ${endDateLabel}` : startDateLabel;
+
+  const startTimeLabel = event.start_time ? formatTime(event.start_time) : null;
+  const endTimeLabel = event.end_time ? formatTime(event.end_time) : null;
+  let timeLabel = 'Time TBA';
+  if (startTimeLabel) {
+    timeLabel = endTimeLabel ? `${startTimeLabel} – ${endTimeLabel}` : startTimeLabel;
+  }
+  const dateTimeDisplay = `${dateLabel} · ${timeLabel}`;
+
+  const areaName = event.area_id ? areaLookup[event.area_id] || null : null;
+  const neighborhoodName = areaName?.trim() || 'Neighborhood TBA';
+  const shortAddress = event.address ? event.address.split(',')[0].trim() : null;
+  const headerTags = tagsList.filter(tag => selectedTags.includes(tag.id));
+
+  const stickyStyle = { top: `${navOffset}px` };
+  const mainStyle = { paddingTop: `${navOffset}px` };
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -528,97 +514,79 @@ export default function BigBoardEventPage() {
       />
       <Navbar />
 
-      <main className="flex-grow relative mt-32">
-          {/* Hero banner */}
-          <div
-            className="w-full h-[40vh] bg-cover bg-center"
-            style={{ backgroundImage: `url(${event.imageUrl})` }}
-          />
-
-          {!user && (
-            <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-              <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
-            </div>
-          )}
-
-          {/* Overlapping centered card */}
-          <div className={`relative max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-8 transform z-10 ${user ? '-mt-24' : ''}`}>
-            {prev && (
-              <button
-                onClick={() => navigate(`/big-board/${prev.slug}`)}
-                className="absolute top-1/2 left-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >←</button>
-            )}
-            {next && (
-              <button
-                onClick={() => navigate(`/big-board/${next.slug}`)}
-                className="absolute top-1/2 right-[-1.5rem] -translate-y-1/2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200"
-              >→</button>
-            )}
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold">{event.title}</h1>
-              <p className="text-lg font-medium">
-                {whenText}
-                {event.start_time && ` — ${formatTime(event.start_time)}`}
-                {event.address && (
-                  <> • <a
-                    href={`https://maps.google.com?q=${encodeURIComponent(event.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {event.address}
-                  </a></>
+      <main className="flex-grow relative pb-24 sm:pb-0" style={mainStyle}>
+        <header
+          className="sticky z-40 w-full border-b border-gray-200 bg-white"
+          style={stickyStyle}
+        >
+          <div className="w-full">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:py-5">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-bold leading-tight text-gray-900 sm:text-3xl line-clamp-2">
+                  {event.title}
+                </h1>
+                <div className="mt-2 flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                  <span className="font-medium text-gray-900">{dateTimeDisplay}</span>
+                  <span className="flex min-w-0 items-center gap-1 font-medium text-gray-700">
+                    <MapPin className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                    <span className="truncate text-gray-900">
+                      {neighborhoodName}
+                    </span>
+                    {shortAddress && (
+                      <span className="truncate text-gray-500">· {shortAddress}</span>
+                    )}
+                  </span>
+                </div>
+                {!!headerTags.length && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {headerTags.map((tag, i) => (
+                      <Link
+                        key={tag.id}
+                        to={`/tags/${tag.name.toLowerCase()}`}
+                        className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
+                      >
+                        #{tag.name}
+                      </Link>
+                    ))}
+                  </div>
                 )}
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {tagsList
-                  .filter(t => selectedTags.includes(t.id))
-                  .map((tag, i) => (
-                    <Link
-                      key={tag.id}
-                      to={`/tags/${tag.name.toLowerCase()}`}
-                      className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-lg font-semibold`}
-                    >
-                      #{tag.name}
-                    </Link>
-                  ))}
+                {poster?.username && (
+                  <p className="mt-3 text-sm text-gray-500">
+                    Submitted by{' '}
+                    {poster.slug ? (
+                      <Link
+                        to={`/u/${poster.slug}`}
+                        className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline"
+                      >
+                        @{poster.username}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-gray-700">@{poster.username}</span>
+                    )}
+                  </p>
+                )}
+              </div>
+              <div className="hidden sm:flex flex-shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={handleFavorite}
+                  disabled={favLoading}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition-colors ${
+                    isFavorite
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                  } ${favLoading ? 'opacity-70' : ''}`}
+                >
+                  <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                </button>
               </div>
             </div>
           </div>
+        </header>
 
-          {poster && (
-            <div className="max-w-4xl mx-auto mt-6 px-4">
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg py-3 flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 text-center">
-                <span className="text-2xl sm:text-3xl font-[Barrio] whitespace-nowrap">Posted by</span>
-                <Link to={`/u/${poster.slug}`} className="flex items-center gap-2">
-                  {poster.image ? (
-                    <img src={poster.image} alt="avatar" className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-gray-300" />
-                  )}
-                  <span className="text-2xl sm:text-3xl font-[Barrio] break-words">{poster.username}</span>
-                </Link>
-                {poster.cultures?.map(c => (
-                  <span key={c.emoji} title={c.name} className="text-2xl sm:text-3xl">
-                    {c.emoji}
-                  </span>
-                ))}
-                {user && user.id !== poster.id && (
-                  <button
-                    onClick={togglePosterFollow}
-                    disabled={followLoading}
-                    className="border border-indigo-700 rounded px-2 py-0.5 text-sm hover:bg-indigo-700 hover:text-white transition"
-                  >
-                    {isPosterFollowing ? 'Unfollow' : 'Follow'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Description, form / details, and image */}
-          <div className="max-w-4xl mx-auto mt-12 px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Description, form / details, and image */}
+        <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left: description / edit form / buttons */}
             <div>
               {isEditing ? (
@@ -796,25 +764,6 @@ export default function BigBoardEventPage() {
                       </a>
                     )}
 
-                    <div className="flex items-center justify-center gap-6 pt-2">
-                      <button
-                        onClick={handleShare}
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <Share2 className="w-5 h-5" />
-                        Share
-                      </button>
-                      <a
-                        href={gcalLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-indigo-600 hover:underline"
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                        Google Calendar
-                      </a>
-                    </div>
-
                     {event.owner_id === user?.id && (
                       <div className="flex gap-3 pt-2">
                         <button
@@ -834,26 +783,28 @@ export default function BigBoardEventPage() {
                       </div>
                     )}
 
-                    <Link
-                      to="/"
-                      className="block text-center text-indigo-600 hover:underline font-medium"
-                    >
-                      ← Back to Events
-                    </Link>
                   </div>
                   </>
                 )}
               </div>
 
-            {/* Right: full image */}
-            <div>
+          {/* Right: full image */}
+          <div className="space-y-6">
+            <div className="overflow-hidden rounded-2xl shadow-lg border border-gray-200">
               <img
                 src={event.imageUrl}
                 alt={event.title}
-                className="w-full h-auto rounded-lg shadow-lg max-h-[60vh]"
+                className="w-full h-auto max-h-[60vh] object-cover"
               />
             </div>
+            {!user && (
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-center text-sm text-indigo-800">
+                <Link to="/login" className="font-semibold underline">Log in</Link> or{' '}
+                <Link to="/signup" className="font-semibold underline">sign up</Link> free to add to your Plans
+              </div>
+            )}
           </div>
+        </div>
 
           <Suspense fallback={<div>Loading comments…</div>}>
             <CommentsSection
@@ -923,6 +874,22 @@ export default function BigBoardEventPage() {
             )}
           </div>
 
+          <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <button
+              type="button"
+              onClick={handleFavorite}
+              disabled={favLoading}
+              className={`w-full inline-flex items-center justify-center gap-2 rounded-full border border-indigo-600 px-6 py-3 text-sm font-semibold transition ${
+                isFavorite
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+              } ${favLoading ? 'opacity-70' : ''}`}
+            >
+              <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+              {isFavorite ? 'In the Plans' : 'Add to Plans'}
+            </button>
+          </div>
+
           <SubmitEventSection onNext={file => {
             setInitialFlyer(file);
             setModalStartStep(2);
@@ -931,13 +898,6 @@ export default function BigBoardEventPage() {
       </main>
 
       <Footer />
-      <FloatingAddButton
-        onClick={() => {
-          setModalStartStep(1);
-          setInitialFlyer(null);
-          setShowFlyerModal(true);
-        }}
-      />
       <PostFlyerModal
         isOpen={showFlyerModal}
         onClose={() => setShowFlyerModal(false)}
