@@ -1,5 +1,5 @@
 // src/NavTagMenu.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { isTagActive } from './utils/tagUtils';
@@ -18,6 +18,7 @@ const pillStyles = [
 export default function NavTagMenu() {
   const [tags, setTags] = useState([]);
   const [seasonalTags, setSeasonalTags] = useState([]);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -46,10 +47,47 @@ export default function NavTagMenu() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const node = containerRef.current;
+    if (!node) return undefined;
+
+    const update = () => {
+      if (!node) return;
+      const height = node.getBoundingClientRect().height;
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty(
+          '--app-tag-belt-height',
+          `${Math.round(height)}px`,
+        );
+      }
+    };
+
+    update();
+
+    let observer;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(update);
+      observer.observe(node);
+    }
+
+    window.addEventListener('resize', update);
+
+    return () => {
+      window.removeEventListener('resize', update);
+      if (observer) {
+        observer.disconnect();
+      }
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.removeProperty('--app-tag-belt-height');
+      }
+    };
+  }, [tags.length, seasonalTags.length]);
+
   if (!tags.length && !seasonalTags.length) return null;
 
   return (
-    <div className="border-t border-gray-200">
+    <div ref={containerRef} className="border-t border-gray-200">
       <div className="px-4 py-1 flex items-center">
         <span className="text-sm sm:text-base font-bold text-gray-700 mr-4 flex-shrink-0">
           SEARCH TAGS:
