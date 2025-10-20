@@ -49,7 +49,7 @@ export default function NavTagMenu() {
   if (!tags.length && !seasonalTags.length) return null;
 
   return (
-    <div className="border-t border-gray-200">
+    <div className="border-t border-gray-200" data-tag-rail>
       <div className="px-4 py-1 flex items-center">
         <span className="text-sm sm:text-base font-bold text-gray-700 mr-4 flex-shrink-0">
           SEARCH TAGS:
