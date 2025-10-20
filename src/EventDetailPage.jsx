@@ -5,7 +5,6 @@ import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AuthContext } from './AuthProvider';
-import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import HeroLanding from './HeroLanding';
 import SubmitEventSection from './SubmitEventSection';
@@ -13,13 +12,14 @@ import useEventFavorite from './utils/useEventFavorite';
 import ReviewPhotoGrid from './ReviewPhotoGrid';
 import Seo from './components/Seo.jsx';
 import { parseEventDateValue } from './utils/dateUtils';
+import { getAreaNameFromCache } from './utils/useAreaLookup.js';
 import {
   DEFAULT_OG_IMAGE,
   SITE_BASE_URL,
   ensureAbsoluteUrl,
   buildEventJsonLd,
 } from './utils/seoHelpers.js';
-import { CalendarCheck, CalendarPlus, ExternalLink, Share2 } from 'lucide-react';
+import { CalendarCheck, CalendarPlus, MapPin, Share2 } from 'lucide-react';
 
 const FALLBACK_EVENT_TITLE = 'Philadelphia Event Details – Our Philly';
 const FALLBACK_EVENT_DESCRIPTION =
@@ -37,6 +37,21 @@ function buildShortDescription(text, maxLength = 160) {
   if (normalized.length <= maxLength) return normalized;
   const sliced = normalized.slice(0, maxLength - 1).trimEnd();
   return `${sliced}…`;
+}
+
+function formatTimeLabel(timeStr) {
+  if (!timeStr) return null;
+  const value = String(timeStr).trim();
+  if (!value) return null;
+  const [hoursRaw, minutesRaw = '00'] = value.split(':');
+  const hoursNum = Number.parseInt(hoursRaw, 10);
+  if (Number.isNaN(hoursNum)) return null;
+  const minutesNum = Number.parseInt(minutesRaw, 10);
+  if (Number.isNaN(minutesNum)) return null;
+  const hours12 = hoursNum % 12 || 12;
+  const ampm = hoursNum >= 12 ? 'p.m.' : 'a.m.';
+  const minutes = minutesNum.toString().padStart(2, '0');
+  return `${hours12}:${minutes} ${ampm}`;
 }
 
 export default function EventDetailPage() {
@@ -74,6 +89,7 @@ export default function EventDetailPage() {
   const [eventTags, setEventTags] = useState([]);
   const [allTags, setAllTags] = useState([]);
   const [matchingGroups, setMatchingGroups] = useState([]);
+  const [navOffset, setNavOffset] = useState(0);
   const reviewPhotoUrls = useMemo(
     () => reviews.flatMap(r => r.photo_urls || []),
     [reviews],
@@ -285,6 +301,33 @@ export default function EventDetailPage() {
     })();
   }, [event, user]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const measure = () => {
+      const navEl = document.querySelector('nav');
+      if (!navEl) return;
+      setNavOffset(navEl.getBoundingClientRect().height);
+    };
+
+    measure();
+
+    const handleResize = () => measure();
+    window.addEventListener('resize', handleResize);
+
+    let observer;
+    const navEl = document.querySelector('nav');
+    if (typeof ResizeObserver !== 'undefined' && navEl) {
+      observer = new ResizeObserver(measure);
+      observer.observe(navEl);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (observer) observer.disconnect();
+    };
+  }, []);
+
   // ─── Load tags for community cards ────────────────────────────────────
   useEffect(() => {
     if (!moreEvents.length) return;
@@ -406,6 +449,17 @@ export default function EventDetailPage() {
     event?.endDate ||
     event?.end_date ||
     null;
+  const startTimeRaw =
+    event?.start_time ||
+    event?.time ||
+    event?.['Start Time'] ||
+    event?.['E Start Time'] ||
+    null;
+  const endTimeRaw =
+    event?.end_time ||
+    event?.['End Time'] ||
+    event?.['E End Time'] ||
+    null;
   const startDate = parseEventDateValue(startRaw);
   const endDateCandidate = parseEventDateValue(endRaw);
   const effectiveEndDate = endDateCandidate || startDate || null;
@@ -441,7 +495,88 @@ export default function EventDetailPage() {
       : 'Philadelphia';
   const absoluteImage = ensureAbsoluteUrl(event?.['E Image']);
   const ogImage = absoluteImage || DEFAULT_OG_IMAGE;
-  const heroImage = event?.['E Image'] || DEFAULT_OG_IMAGE;
+  const startTimeLabel = formatTimeLabel(startTimeRaw);
+  const endTimeLabel = formatTimeLabel(endTimeRaw);
+  const timeDisplay = startTimeLabel && endTimeLabel ? `${startTimeLabel} – ${endTimeLabel}` : 'Time TBA';
+  const dateFormatter = {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  };
+  const startDateLabel = startDate
+    ? startDate.toLocaleDateString('en-US', dateFormatter)
+    : 'Date TBA';
+  const endDateLabel =
+    effectiveEndDate &&
+    startDate &&
+    effectiveEndDate.getTime() !== startDate.getTime()
+      ? effectiveEndDate.toLocaleDateString('en-US', dateFormatter)
+      : null;
+  const dateLabel = endDateLabel ? `${startDateLabel} – ${endDateLabel}` : startDateLabel;
+  const dateTimeDisplay = `${dateLabel} · ${timeDisplay}`;
+
+  const areaIdCandidates = [
+    event?.area_id,
+    event?.['Area ID'],
+    event?.areaId,
+    event?.AreaId,
+    event?.AreaID,
+    event?.['area_id'],
+  ];
+  const areaId = areaIdCandidates.find(
+    value => value !== null && value !== undefined && String(value).trim() !== '',
+  );
+  const cachedAreaName = areaId != null ? getAreaNameFromCache(areaId) : null;
+  const fallbackNeighborhoodCandidates = [event?.Neighborhood, event?.neighborhood, event?.['Neighborhood']];
+  const fallbackNeighborhood = fallbackNeighborhoodCandidates.find(
+    value => typeof value === 'string' && value.trim(),
+  );
+  const neighborhoodName =
+    (typeof cachedAreaName === 'string' && cachedAreaName.trim()) ||
+    (typeof fallbackNeighborhood === 'string' && fallbackNeighborhood.trim()) ||
+    'Neighborhood TBA';
+
+  const rawAddressCandidates = [
+    event?.['Short Address'],
+    event?.['E Address'],
+    event?.address,
+    event?.Address,
+    event?.location,
+  ];
+  const rawAddress = rawAddressCandidates.find(
+    value => typeof value === 'string' && value.trim(),
+  );
+  const shortAddress = rawAddress ? rawAddress.split(',')[0].trim() : '';
+
+  const submittedByUsernameCandidates = [
+    event?.submitted_by_username,
+    event?.submitter_username,
+    event?.submitted_by,
+    event?.SubmittedBy,
+    event?.submittedBy,
+    event?.['Submitted By Username'],
+    event?.['Submitted By'],
+    event?.submitted_by_name,
+  ];
+  const submittedByUsernameRaw = submittedByUsernameCandidates.find(
+    value => typeof value === 'string' && value.trim(),
+  );
+  const submittedByUsername = submittedByUsernameRaw
+    ? submittedByUsernameRaw.replace(/^@+/, '').trim()
+    : '';
+  const submittedBySlugCandidates = [
+    event?.submitted_by_slug,
+    event?.submitter_slug,
+    event?.['Submitted By Slug'],
+    event?.submittedBySlug,
+    event?.submitted_by_profile_slug,
+  ];
+  const submittedBySlug = submittedBySlugCandidates.find(
+    value => typeof value === 'string' && value.trim(),
+  );
+  const stickyStyle = { top: `${navOffset}px` };
+  const mainStyle = { paddingTop: `${navOffset}px` };
 
   const seoTitle = eventName
     ? `${eventName}${displayDate ? ` – ${displayDate}` : ''} – Our Philly`
@@ -512,64 +647,82 @@ export default function EventDetailPage() {
 
       <Navbar />
 
-      <main className="flex-grow mt-32">
-        {/* Hero */}
-        <div
-          className="relative w-full h-screen bg-cover bg-center flex items-end"
-          style={{ backgroundImage: `url(${heroImage})` }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
-          <div className="relative z-10 w-full max-w-4xl mx-auto p-6 pb-12 text-white text-center">
-            <h1 className="text-6xl font-[Barrio] mb-4">{event['E Name']}</h1>
-            <p className="text-xl mb-6">
-              {displayDate}
-              {event.time && ` — ${event.time}`}
-            </p>
-            <div className="flex flex-col items-center gap-4 mb-6">
-              <div className="flex flex-wrap justify-center gap-4">
-                <button
-                  onClick={toggleFav}
-                  disabled={toggling}
-                  className={`flex items-center gap-2 px-4 py-2 rounded font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-                >
-                  <CalendarCheck className="w-5 h-5" />
-                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
-                </button>
-                {event['E Link'] && (
-                  <a
-                    href={event['E Link']}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded"
-                  >
-                    <ExternalLink className="w-5 h-5" />
-                    Visit Site
-                  </a>
+      <main className="flex-grow relative pb-24 sm:pb-0" style={mainStyle}>
+        <header className="sticky z-40" style={stickyStyle}>
+          <div className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:py-5">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">
+                  {eventName || 'Philadelphia Event'}
+                </h1>
+                <div className="mt-2 flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                  <span className="font-medium text-gray-900">{dateTimeDisplay}</span>
+                  <span className="flex min-w-0 items-center gap-1 font-medium text-gray-700">
+                    <MapPin className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                    <span className="truncate text-gray-900">{neighborhoodName}</span>
+                    {shortAddress && (
+                      <span className="truncate text-gray-500">· {shortAddress}</span>
+                    )}
+                  </span>
+                </div>
+                {!!eventTags.length && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {eventTags.map((tag, i) => (
+                      <Link
+                        key={tag.slug}
+                        to={`/tags/${tag.slug}`}
+                        className={`${pillStyles[i % pillStyles.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
+                      >
+                        #{tag.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {submittedByUsername && (
+                  <p className="mt-3 text-sm text-gray-500">
+                    Submitted by{' '}
+                    {submittedBySlug ? (
+                      <Link
+                        to={`/u/${submittedBySlug}`}
+                        className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline"
+                      >
+                        @{submittedByUsername}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-gray-700">@{submittedByUsername}</span>
+                    )}
+                  </p>
                 )}
               </div>
-            </div>
-            {eventTags.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-3 mt-4">
-                {eventTags.map((tag, i) => (
-                  <Link
-                    key={tag.slug}
-                    to={`/tags/${tag.slug}`}
-                    className={`${pillStyles[i % pillStyles.length]} px-4 py-2 rounded-full text-base font-semibold hover:opacity-80 transition`}
-                  >
-                    #{tag.name}
-                  </Link>
-                ))}
+              <div className="hidden sm:flex flex-shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={toggleFav}
+                  disabled={toggling}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition ${
+                    isFavorite
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                  } ${toggling ? 'opacity-70' : ''}`}
+                >
+                  <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+                  {isFavorite ? 'In the Plans' : 'Add to Plans'}
+                </button>
               </div>
-            )}
-        </div>
-        </div>
+            </div>
+          </div>
+        </header>
+
         {!user && (
-          <div className="w-full bg-indigo-600 text-white text-center py-4 text-xl sm:text-2xl">
-            <Link to="/login" className="underline font-semibold">Log in</Link> or <Link to="/signup" className="underline font-semibold">sign up</Link> free to add to your Plans
+          <div className="mt-6 w-full bg-indigo-600 py-4 text-center text-xl text-white sm:text-2xl">
+            <Link to="/login" className="font-semibold underline">Log in</Link> or{' '}
+            <Link to="/signup" className="font-semibold underline">sign up</Link> free to add to your Plans
           </div>
         )}
         {reviewPhotoUrls.length > 0 && (
-          <ReviewPhotoGrid photos={reviewPhotoUrls} />
+          <div className="mt-6">
+            <ReviewPhotoGrid photos={reviewPhotoUrls} />
+          </div>
         )}
 
         {/* Traditions FAQ notice */}
@@ -947,17 +1100,32 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        <SubmitEventSection onNext={file => { setInitialFlyer(file); setModalStartStep(2); setShowFlyerModal(true); }} />
+        <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <button
+            type="button"
+            onClick={toggleFav}
+            disabled={toggling}
+            className={`w-full inline-flex items-center justify-center gap-2 rounded-full border border-indigo-600 px-6 py-3 text-sm font-semibold transition ${
+              isFavorite
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+            } ${toggling ? 'opacity-70' : ''}`}
+          >
+            <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+            {isFavorite ? 'In the Plans' : 'Add to Plans'}
+          </button>
+        </div>
+
+        <SubmitEventSection
+          onNext={file => {
+            setInitialFlyer(file);
+            setModalStartStep(2);
+            setShowFlyerModal(true);
+          }}
+        />
       </main>
 
       <Footer />
-      <FloatingAddButton onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}} />
-      <button
-        onClick={() => {setModalStartStep(1);setInitialFlyer(null);setShowFlyerModal(true);}}
-        className="fixed bottom-0 left-0 w-full bg-indigo-600 text-white py-4 text-center font-bold sm:hidden z-50"
-      >
-        Post Event
-      </button>
       <PostFlyerModal
         isOpen={showFlyerModal}
         onClose={() => setShowFlyerModal(false)}
