@@ -1,5 +1,5 @@
 // src/BigBoardEventPage.jsx
-import React, { useEffect, useState, useContext, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useContext, useRef, useMemo, lazy, Suspense } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -38,6 +38,21 @@ export default function BigBoardEventPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const [navHeight, setNavHeight] = useState(0);
+  const headerRef = useRef(null);
+  const areaLookup = useMemo(() => {
+    if (typeof globalThis === 'undefined') {
+      return {};
+    }
+    const candidates = [
+      globalThis.__OURPHILLY_AREA_LOOKUP__,
+      globalThis.__OUR_PHILLY_AREA_LOOKUP__,
+      globalThis.__AREA_LOOKUP__,
+      globalThis.__AREAS_LOOKUP__,
+    ];
+    const found = candidates.find(candidate => candidate && typeof candidate === 'object');
+    return found || {};
+  }, []);
 
   // Main event state
   const [event, setEvent] = useState(null);
@@ -82,6 +97,32 @@ export default function BigBoardEventPage() {
     }
     await toggleFavorite();
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    const navEl = document.querySelector('nav');
+    if (!navEl) {
+      return undefined;
+    }
+    const updateHeight = () => {
+      setNavHeight(navEl.getBoundingClientRect().height);
+    };
+    updateHeight();
+    let observer;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(updateHeight);
+      observer.observe(navEl);
+    }
+    window.addEventListener('resize', updateHeight);
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+  }, []);
 
   // Tag state
   const pillStyles = [
@@ -166,7 +207,14 @@ export default function BigBoardEventPage() {
             id, post_id, title, description, link,
             start_date, end_date, start_time, end_time,
             address, latitude, longitude,
-            created_at, slug
+            created_at, slug,
+            area_id,
+            venue_id,
+            venues:venue_id(
+              area_id,
+              name,
+              areas(name)
+            )
           `)
           .eq('slug', slug)
           .single();
@@ -194,7 +242,25 @@ export default function BigBoardEventPage() {
           .eq('taggable_id', ev.id);
         setSelectedTags(taggings.map(t => t.tag_id));
 
-        setEvent({ ...ev, imageUrl: publicUrl, owner_id: post.user_id });
+        const venueRelation = Array.isArray(ev.venues) ? ev.venues[0] : ev.venues;
+        const venueAreaId = venueRelation?.area_id ?? null;
+        const venueAreaName =
+          venueRelation?.areas?.name ||
+          venueRelation?.areaName ||
+          venueRelation?.area_name ||
+          '';
+
+        const normalizedEvent = {
+          ...ev,
+          imageUrl: publicUrl,
+          owner_id: post.user_id,
+          venue_area_id: venueAreaId != null ? String(venueAreaId) : null,
+          venue_area_name: venueAreaName || '',
+        };
+
+        delete normalizedEvent.venues;
+
+        setEvent(normalizedEvent);
       } catch (err) {
         console.error(err);
         setError('Could not load event.');
@@ -470,7 +536,10 @@ export default function BigBoardEventPage() {
           ogType="event"
         />
         <Navbar />
-        <main className="flex-grow flex items-center justify-center mt-32">
+        <main
+          className="flex-grow flex items-center justify-center"
+          style={{ paddingTop: navHeight || 0 }}
+        >
           <div className={`text-2xl ${messageClass}`}>{message}</div>
         </main>
         <Footer />
@@ -515,6 +584,48 @@ export default function BigBoardEventPage() {
   const next = siblings.length
     ? siblings[(currentIndex + 1) % siblings.length]
     : null;
+  const headerTags = useMemo(() => {
+    if (!selectedTags.length || !tagsList.length) return [];
+    const lookup = tagsList.reduce((acc, tag) => {
+      if (!tag) return acc;
+      acc[String(tag.id)] = tag;
+      return acc;
+    }, {});
+    return selectedTags
+      .map(tagId => lookup[String(tagId)])
+      .filter(Boolean);
+  }, [selectedTags, tagsList]);
+  const shortAddress = useMemo(() => {
+    if (!event?.address) return '';
+    const parts = event.address.split(',').map(part => part.trim()).filter(Boolean);
+    if (!parts.length) return '';
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]}, ${parts[1]}`;
+  }, [event?.address]);
+  const formattedTimeRange = useMemo(() => {
+    const startTime = formatTime(event?.start_time);
+    const endTime = formatTime(event?.end_time);
+    if (startTime && endTime) {
+      return `${startTime} – ${endTime}`;
+    }
+    if (startTime) return startTime;
+    if (endTime) return endTime;
+    return '';
+  }, [event?.start_time, event?.end_time]);
+  const whenDisplay = useMemo(() => {
+    const timePart = formattedTimeRange || 'Time TBA';
+    return formattedDate ? `${formattedDate} • ${timePart}` : timePart;
+  }, [formattedDate, formattedTimeRange]);
+  const neighborhoodName = useMemo(() => {
+    if (!event) return 'Neighborhood TBA';
+    const areaId = event.area_id != null ? String(event.area_id) : null;
+    const venueAreaId = event.venue_area_id != null ? String(event.venue_area_id) : null;
+    const areaLookupName = areaId ? areaLookup[areaId] : undefined;
+    const venueLookupName = venueAreaId ? areaLookup[venueAreaId] : undefined;
+    const venueFallback = event.venue_area_name || '';
+    return areaLookupName || venueLookupName || venueFallback || 'Neighborhood TBA';
+  }, [event, areaLookup]);
+  const submittedByUsername = poster?.username || '';
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -528,7 +639,84 @@ export default function BigBoardEventPage() {
       />
       <Navbar />
 
-      <main className="flex-grow relative mt-32">
+      <main
+        className="flex-grow relative"
+        style={{ paddingTop: navHeight || 0 }}
+      >
+        <div
+          ref={headerRef}
+          className="sticky z-40"
+          style={{ top: navHeight || 0 }}
+        >
+          <div
+            className="border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85"
+            style={{ width: '100vw', marginLeft: 'calc(50% - 50vw)' }}
+          >
+            <div className="mx-auto flex max-w-screen-xl flex-col gap-2 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <h1
+                    className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900 sm:text-lg"
+                    title={event.title}
+                  >
+                    {event.title}
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <span>When</span>
+                    <span className="text-sm font-medium normal-case text-gray-900">
+                      {whenDisplay}
+                    </span>
+                  </div>
+                  <div
+                    className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500"
+                    aria-label={`Neighborhood: ${neighborhoodName}`}
+                  >
+                    <span>Where</span>
+                    <span className="flex items-center gap-2 text-sm font-normal normal-case text-gray-900">
+                      <span aria-hidden="true" className="text-base leading-none">📍</span>
+                      <span className="font-semibold text-indigo-700">{neighborhoodName}</span>
+                      {shortAddress && <span className="text-gray-600">• {shortAddress}</span>}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                  {headerTags.length > 0 && (
+                    <>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Tags
+                      </span>
+                      {headerTags.map((tag, index) => (
+                        <span
+                          key={tag.id}
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${pillStyles[index % pillStyles.length]}`}
+                        >
+                          #{(tag.name || '').toLowerCase()}
+                        </span>
+                      ))}
+                    </>
+                  )}
+                  {submittedByUsername && (
+                    <span className="text-sm text-gray-600">
+                      Submitted by <span className="font-semibold">@{submittedByUsername}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleFavorite}
+                disabled={favLoading}
+                className={`hidden md:inline-flex items-center justify-center rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition-colors ${
+                  isFavorite
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                }`}
+              >
+                {isFavorite ? 'In the Plans' : 'Add to Plans'}
+              </button>
+            </div>
+          </div>
+        </div>
           {/* Hero banner */}
           <div
             className="w-full h-[40vh] bg-cover bg-center"
