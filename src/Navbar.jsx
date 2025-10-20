@@ -80,6 +80,21 @@ export default function Navbar({ style, bottomBanner }) {
 
   const navOffset = navHeight || 128;
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const root = document.documentElement;
+    if (navHeight) {
+      root.style.setProperty('--app-nav-height', `${navHeight}px`);
+    } else {
+      root.style.removeProperty('--app-nav-height');
+    }
+    root.style.setProperty('--app-nav-offset', `${navOffset}px`);
+    return () => {
+      root.style.removeProperty('--app-nav-offset');
+      root.style.removeProperty('--app-nav-height');
+    };
+  }, [navHeight, navOffset]);
+
   const closeOverlays = () => {
     setDesktopMenuOpen(false);
   };

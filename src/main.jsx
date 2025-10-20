@@ -16,6 +16,7 @@ import ProfilePage from './ProfilePage.jsx';
 import PublicProfilePage from './PublicProfilePage.jsx';
 import OnboardingFlow from './OnboardingFlow.jsx';
 import { AuthProvider } from './AuthProvider.jsx'
+import { AreaCacheProvider } from './contexts/AreaCacheContext.jsx'
 import MomentsExplorer from './MomentsExplorer.jsx'
 import EventDetailPage from './EventDetailPage.jsx'
 import MonthlyEvents from './MonthlyEvents.jsx'
@@ -77,11 +78,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     {/* Wrap entire app with AuthProvider to supply session & user */}
     <AuthProvider>
-      <HeadProvider>
-        <BrowserRouter>
-          <ScrollToTop />
-          <SlashGuard />
-          <Routes>
+      <AreaCacheProvider>
+        <HeadProvider>
+          <BrowserRouter>
+            <ScrollToTop />
+            <SlashGuard />
+            <Routes>
             <Route path="/" element={<MainEvents />} />
             <Route
               path="/this-weekend-in-philadelphia/"
@@ -267,9 +269,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/about" element={<AboutPage />} />
             <Route path="/series/:slug" element={<RecurringPage />} />
             <Route path="/series/:slug/:date" element={<RecurringPage />} />
-          </Routes>
-        </BrowserRouter>
-      </HeadProvider>
+            </Routes>
+          </BrowserRouter>
+        </HeadProvider>
+      </AreaCacheProvider>
     </AuthProvider>
   </React.StrictMode>
 )
