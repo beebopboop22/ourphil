@@ -1,995 +1,1352 @@
-// src/TagPage.jsx
-import React, { useEffect, useState, useMemo, useContext } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { supabase } from './supabaseClient'
-import Navbar from './Navbar'
-import Footer from './Footer'
-import PostFlyerModal from './PostFlyerModal'
-import { Helmet } from 'react-helmet'
-import { RRule } from 'rrule'
-import { Clock } from 'lucide-react'
-import { FaStar } from 'react-icons/fa'
-import useEventFavorite from './utils/useEventFavorite'
-import { AuthContext } from './AuthProvider'
-import { getDetailPathForItem } from './utils/eventDetailPaths.js'
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Helmet } from 'react-helmet';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import Map, { Marker, Popup } from 'react-map-gl';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { RRule } from 'rrule';
+import {
+  Calendar,
+  Compass,
+  MapPin,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 
-// ── Helpers ───────────────────────────────────────────────────────
+import Navbar from './Navbar.jsx';
+import Footer from './Footer.jsx';
+import { supabase } from './supabaseClient.js';
+import { getMapboxToken } from './config/mapboxToken.js';
+import { AuthContext } from './AuthProvider.jsx';
+import useEventFavorite from './utils/useEventFavorite.js';
+import useAreaLookup from './utils/useAreaLookup.js';
+import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import {
+  PHILLY_TIME_ZONE,
+  formatMonthDay,
+  formatWeekdayAbbrev,
+  getWeekendWindow,
+  getZonedDate,
+  parseEventDateValue,
+  parseISODate,
+  setEndOfDay,
+  setStartOfDay,
+} from './utils/dateUtils.js';
+
+const MAPBOX_STYLE = 'mapbox://styles/mapbox/light-v11';
+const DEFAULT_VIEW_STATE = {
+  latitude: 39.9526,
+  longitude: -75.1652,
+  zoom: 12.2,
+};
+const HORIZON_DAYS = 45;
+const MAX_EVENTS = 1200;
+const DATE_FILTERS = ['today', 'weekend', 'custom'];
+
+const markerClass =
+  'flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-lg ring-2 ring-white';
+
+function mapboxIsSupported() {
+  if (typeof window === 'undefined') return false;
+  if (!mapboxgl || typeof mapboxgl.supported !== 'function') return false;
+  try {
+    return Boolean(mapboxgl.supported({ failIfMajorPerformanceCaveat: true }));
+  } catch (err) {
+    console.error('Mapbox support check failed', err);
+    return false;
+  }
+}
+
+function toPhillyISODate(date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: PHILLY_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function parseNumber(value) {
+  if (value == null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
 function parseISODateLocal(str) {
-  if (!str) return null
-  const [y, m, d] = str.split('-').map(Number)
-  const date = new Date(y, m - 1, d)
-  return isNaN(date) ? null : date
-}
-function parseDate(datesStr) {
-  if (!datesStr) return null
-  const [first] = datesStr.split(/through|–|-/)
-  const [m, d, y] = first.trim().split('/').map(Number)
-  const date = new Date(y, m - 1, d)
-  return isNaN(date) ? null : date
+  if (!str) return null;
+  const [y, m, d] = str.split('-').map(Number);
+  if ([y, m, d].some(part => Number.isNaN(part))) return null;
+  return new Date(y, m - 1, d);
 }
 
-function formatTime(t) {
-  if (!t) return ''
-  const [h, m] = t.split(':')
-  let hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? 'p.m.' : 'a.m.'
-  hour = hour % 12 || 12
-  return `${hour}:${m.padStart(2,'0')} ${ampm}`
+function parseMonthDayYear(str) {
+  if (!str) return null;
+  const [month, day, year] = str.split('/').map(Number);
+  if ([month, day, year].some(part => Number.isNaN(part))) return null;
+  return new Date(year, month - 1, day);
 }
 
-function startOfDay(date) {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  return d
+function formatTime(timeStr) {
+  if (!timeStr) return null;
+  const [hStr, mStr = '00'] = timeStr.split(':');
+  let hour = parseInt(hStr, 10);
+  if (Number.isNaN(hour)) return null;
+  const minutes = mStr.slice(0, 2).padStart(2, '0');
+  const suffix = hour >= 12 ? 'p.m.' : 'a.m.';
+  hour = hour % 12 || 12;
+  return `${hour}:${minutes} ${suffix}`;
 }
 
-function endOfDay(date) {
-  const d = new Date(date)
-  d.setHours(23, 59, 59, 999)
-  return d
+function buildTimingLabel(event, now) {
+  if (!event?.startDate) return 'Upcoming';
+  const start = setStartOfDay(event.startDate);
+  const today = setStartOfDay(now);
+  const diffDays = Math.round((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const timeLabel = event.start_time ? ` · ${formatTime(event.start_time)}` : '';
+  if (diffDays === 0) return `Today${timeLabel}`;
+  if (diffDays === 1) return `Tomorrow${timeLabel}`;
+  return `${formatWeekdayAbbrev(event.startDate, PHILLY_TIME_ZONE)}${timeLabel}`;
 }
 
-function formatWeekdayAbbrev(date) {
-  if (!date) return ''
-  return date.toLocaleDateString('en-US', { weekday: 'short' })
-}
-
-function formatMonthDay(date) {
-  if (!date) return ''
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function toISODateString(date) {
-  if (!(date instanceof Date)) return null
-  if (Number.isNaN(date.getTime())) return null
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function getUpcomingWeekendRange(baseDate = new Date()) {
-  const start = startOfDay(baseDate)
-  const day = start.getDay()
-  if (day >= 1 && day <= 4) {
-    start.setDate(start.getDate() + (5 - day))
-  } else if (day === 0) {
-    start.setDate(start.getDate() - 2)
-  } else if (day === 6) {
-    start.setDate(start.getDate() - 1)
+function eventDateBounds(event) {
+  const start = event?.startDate ? setStartOfDay(event.startDate) : null;
+  let end = event?.endDate ? setEndOfDay(event.endDate) : null;
+  if (!end && start) {
+    end = setEndOfDay(start);
   }
-  const endDate = new Date(start)
-  endDate.setDate(start.getDate() + 2)
-  return { start, end: endOfDay(endDate) }
+  return { start, end };
 }
 
-function buildTimingLabel(startDate, endDate, startTime) {
-  if (startDate && endDate && startOfDay(startDate).getTime() !== startOfDay(endDate).getTime()) {
-    return `Runs thru ${formatMonthDay(endDate)}`
+function eventMatchesDateFilter(event, filter, customRange, weekendRange, todayStart) {
+  const { start, end } = eventDateBounds(event);
+  if (!start || !end) return false;
+  switch (filter) {
+    case 'today': {
+      const todayEnd = setEndOfDay(todayStart);
+      return !(end < todayStart || start > todayEnd);
+    }
+    case 'weekend': {
+      return !(end < weekendRange.start || start > weekendRange.end);
+    }
+    case 'custom': {
+      const customStart = customRange?.start ? setStartOfDay(customRange.start) : null;
+      const customEnd = customRange?.end ? setEndOfDay(customRange.end) : null;
+      if (!customStart && !customEnd) return true;
+      if (customStart && !customEnd) return end >= customStart;
+      if (!customStart && customEnd) return start <= customEnd;
+      if (customStart && customEnd && customEnd < customStart) {
+        return !(end < customEnd || start > customStart);
+      }
+      return !(end < customStart || start > customEnd);
+    }
+    default:
+      return true;
   }
-  if (!startDate) return 'Upcoming'
-  const eventDay = startOfDay(startDate)
-  const today = startOfDay(new Date())
-  const diffDays = Math.round((eventDay - today) / (1000 * 60 * 60 * 24))
-  const timeLabel = startTime ? ` · ${formatTime(startTime)}` : ''
-  if (diffDays === 0) return `Today${timeLabel}`
-  if (diffDays === 1) return `Tomorrow${timeLabel}`
-  return `${formatWeekdayAbbrev(startDate)} ${formatMonthDay(startDate)}${timeLabel}`
+}
+function normalizeAllEvent(row) {
+  const start = parseEventDateValue(row.start_date, PHILLY_TIME_ZONE);
+  if (!start) return null;
+  const end = parseEventDateValue(row.end_date || row.start_date, PHILLY_TIME_ZONE) || start;
+  const venue = row.venues || null;
+  const latitude = parseNumber(row.latitude != null ? row.latitude : venue?.latitude);
+  const longitude = parseNumber(row.longitude != null ? row.longitude : venue?.longitude);
+  const areaId = row.area_id != null ? row.area_id : venue?.area_id ?? null;
+  const detailPath = getDetailPathForItem({
+    ...row,
+    venue_slug: venue?.slug,
+    venues: venue ? { ...venue } : null,
+  });
+  return {
+    id: `all-${row.id}`,
+    taggableId: row.id,
+    source_table: 'all_events',
+    favoriteId: row.id,
+    title: row.name,
+    description: row.description || '',
+    detailPath: detailPath || '/',
+    startDate: start,
+    endDate: end,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null,
+    imageUrl: row.image || '',
+    latitude,
+    longitude,
+    area_id: areaId,
+    venue_area_id: venue?.area_id ?? null,
+    venues: venue ? { name: venue.name, slug: venue.slug } : null,
+    tags: [],
+    badges: [],
+  };
 }
 
-const pillStyles = [
-  'bg-green-100 text-indigo-800',
-  'bg-teal-100 text-teal-800',
-  'bg-pink-100 text-pink-800',
-  'bg-blue-100 text-blue-800',
-  'bg-orange-100 text-orange-800',
-  'bg-yellow-100 text-yellow-800',
-  'bg-purple-100 text-purple-800',
-  'bg-red-100 text-red-800',
-]
+function normalizeTradition(row) {
+  const start = parseMonthDayYear(row.Dates);
+  if (!start) return null;
+  const end = parseMonthDayYear(row['End Date']) || start;
+  const latitude = parseNumber(row.latitude);
+  const longitude = parseNumber(row.longitude);
+  const detailPath = getDetailPathForItem({
+    ...row,
+    slug: row.slug,
+  });
+  return {
+    id: `trad-${row.id}`,
+    taggableId: row.id,
+    source_table: 'events',
+    favoriteId: row.id,
+    title: row['E Name'],
+    description: row['E Description'] || '',
+    detailPath: detailPath || '/',
+    startDate: start,
+    endDate: end,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null,
+    imageUrl: row['E Image'] || '',
+    latitude,
+    longitude,
+    area_id: row.area_id ?? null,
+    badges: ['Tradition'],
+    tags: [],
+  };
+}
 
-function EventRow({ evt, tags, profileMap }) {
-  const navigate = useNavigate()
-  const { user } = useContext(AuthContext)
+function normalizeGroupEvent(row) {
+  const start = parseISODate(row.start_date, PHILLY_TIME_ZONE);
+  if (!start) return null;
+  const end = parseISODate(row.end_date || row.start_date, PHILLY_TIME_ZONE) || start;
+  let imageUrl = row.image_url || '';
+  if (imageUrl && !imageUrl.startsWith('http')) {
+    const { data } = supabase.storage.from('big-board').getPublicUrl(imageUrl);
+    imageUrl = data?.publicUrl || imageUrl;
+  }
+  const latitude = parseNumber(row.latitude);
+  const longitude = parseNumber(row.longitude);
+  const groupSlug = row.groups?.slug || null;
+  const detailPath = getDetailPathForItem({
+    ...row,
+    group_slug: groupSlug,
+    isGroupEvent: true,
+  });
+  return {
+    id: `group-${row.id}`,
+    taggableId: row.id,
+    source_table: 'group_events',
+    favoriteId: row.id,
+    title: row.title,
+    description: row.description || '',
+    detailPath: detailPath || '/',
+    startDate: start,
+    endDate: end,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null,
+    imageUrl,
+    latitude,
+    longitude,
+    area_id: row.area_id ?? null,
+    badges: ['Group Event'],
+    tags: [],
+  };
+}
 
-  const favoriteEventId = evt.isSports
-    ? null
-    : evt.favoriteId ?? (evt.isRecurring ? String(evt.id).split('::')[0] : evt.id ?? null)
-  const favoriteSource = evt.isSports
-    ? null
-    : evt.source_table ?? (
-        evt.isBigBoard
-          ? 'big_board_events'
-          : evt.isTradition
-            ? 'events'
-            : evt.isGroupEvent
-              ? 'group_events'
-              : evt.isRecurring
-                ? 'recurring_events'
-                : 'all_events'
+function normalizeBigBoardEvent(row) {
+  const start = parseISODate(row.start_date, PHILLY_TIME_ZONE);
+  if (!start) return null;
+  const end = parseISODate(row.end_date || row.start_date, PHILLY_TIME_ZONE) || start;
+  let imageUrl = row.big_board_posts?.[0]?.image_url || '';
+  if (imageUrl && !imageUrl.startsWith('http')) {
+    const { data } = supabase.storage.from('big-board').getPublicUrl(imageUrl);
+    imageUrl = data?.publicUrl || imageUrl;
+  }
+  const latitude = parseNumber(row.latitude);
+  const longitude = parseNumber(row.longitude);
+  const detailPath = getDetailPathForItem({
+    ...row,
+    isBigBoard: true,
+  });
+  return {
+    id: `bb-${row.id}`,
+    taggableId: row.id,
+    source_table: 'big_board_events',
+    favoriteId: row.id,
+    title: row.title,
+    description: row.description || '',
+    detailPath: detailPath || '/',
+    startDate: start,
+    endDate: end,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null,
+    imageUrl,
+    latitude,
+    longitude,
+    area_id: row.area_id ?? null,
+    badges: ['Submission'],
+    tags: [],
+  };
+}
+function expandRecurringEvent(row, rangeStart, rangeEnd) {
+  if (!row?.rrule || !row.start_date) return [];
+  try {
+    const opts = RRule.parseString(row.rrule);
+    const startTime = row.start_time || '00:00:00';
+    opts.dtstart = new Date(`${row.start_date}T${startTime}`);
+    if (Number.isNaN(opts.dtstart?.getTime?.())) {
+      opts.dtstart = new Date(row.start_date);
+    }
+    if (row.end_date) {
+      opts.until = new Date(`${row.end_date}T23:59:59`);
+    }
+    const rule = new RRule(opts);
+    const occurrences = rule.between(rangeStart, rangeEnd, true);
+    return occurrences.map(occurrence => {
+      const date = getZonedDate(occurrence, PHILLY_TIME_ZONE);
+      const detailDate = toPhillyISODate(date);
+      const latitude = parseNumber(row.latitude);
+      const longitude = parseNumber(row.longitude);
+      return {
+        id: `rec-${row.id}-${detailDate}`,
+        taggableId: row.id,
+        source_table: 'recurring_events',
+        favoriteId: row.id,
+        title: row.name,
+        description: row.description || '',
+        detailPath: row.slug ? `/series/${row.slug}/${detailDate}` : '/',
+        startDate: setStartOfDay(date),
+        endDate: setStartOfDay(date),
+        start_time: row.start_time || null,
+        end_time: row.end_time || null,
+        imageUrl: row.image_url || '',
+        latitude,
+        longitude,
+        area_id: row.area_id ?? null,
+        badges: ['Recurring'],
+        tags: [],
+      };
+    });
+  } catch (err) {
+    console.error('Failed to expand recurring event', err);
+    return [];
+  }
+}
+
+async function fetchSportsEvents() {
+  const clientId = import.meta.env.VITE_SEATGEEK_CLIENT_ID;
+  if (!clientId) return [];
+  try {
+    const teamSlugs = [
+      'philadelphia-phillies',
+      'philadelphia-76ers',
+      'philadelphia-eagles',
+      'philadelphia-flyers',
+      'philadelphia-union',
+    ];
+    const events = [];
+    for (const slug of teamSlugs) {
+      const response = await fetch(
+        `https://api.seatgeek.com/2/events?performers.slug=${slug}&venue.city=Philadelphia&per_page=40&sort=datetime_local.asc&client_id=${clientId}`,
+      );
+      const json = await response.json();
+      events.push(...(json.events || []));
+    }
+    return events
+      .map(event => {
+        const dt = event.datetime_local ? new Date(event.datetime_local) : null;
+        if (!dt || Number.isNaN(dt.getTime())) return null;
+        const performers = event.performers || [];
+        const home = performers.find(p => p.home_team) || performers[0] || {};
+        const away = performers.find(p => p.id !== home.id) || {};
+        const title =
+          event.short_title ||
+          `${(home.name || '').replace(/^Philadelphia\s+/i, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/i, '')}`;
+        const location = event.venue || {};
+        return {
+          id: `sport-${event.id}`,
+          taggableId: null,
+          source_table: null,
+          favoriteId: null,
+          title,
+          description: event.description || '',
+          detailPath: event.url || null,
+          startDate: dt,
+          endDate: dt,
+          start_time: dt.toTimeString().slice(0, 5),
+          end_time: null,
+          imageUrl: home.image || away.image || '',
+          latitude: parseNumber(location.location?.lat),
+          longitude: parseNumber(location.location?.lon),
+          area_id: null,
+          badges: ['Sports'],
+          tags: [],
+          externalUrl: event.url || null,
+        };
+      })
+      .filter(Boolean);
+  } catch (err) {
+    console.error('Sports fetch failed', err);
+    return [];
+  }
+}
+
+async function fetchUpcomingEvents(rangeStart, rangeEnd) {
+  const startIso = toPhillyISODate(rangeStart);
+  const endIso = toPhillyISODate(rangeEnd);
+
+  let allEventsQuery = supabase
+    .from('all_events')
+    .select(
+      `id,name,description,link,image,start_date,start_time,end_time,end_date,slug,latitude,longitude,area_id,venue_id,venues:venue_id(name,slug,latitude,longitude,area_id)`
+    )
+    .order('start_date', { ascending: true })
+    .limit(MAX_EVENTS);
+
+  let groupEventsQuery = supabase
+    .from('group_events')
+    .select(
+      `id,title,description,image_url,start_date,start_time,end_time,end_date,slug,link,latitude,longitude,area_id,groups:group_id(Name,slug)`
+    )
+    .order('start_date', { ascending: true })
+    .limit(MAX_EVENTS);
+
+  let bigBoardQuery = supabase
+    .from('big_board_events')
+    .select(
+      `id,title,description,start_date,start_time,end_time,end_date,slug,latitude,longitude,area_id,big_board_posts:big_board_posts_event_id_fkey(image_url,user_id)`
+    )
+    .order('start_date', { ascending: true })
+    .limit(MAX_EVENTS);
+
+  let recurringQuery = supabase
+    .from('recurring_events')
+    .select(
+      `id,name,description,address,link,slug,start_date,end_date,start_time,end_time,rrule,image_url,latitude,longitude,area_id`
+    )
+    .eq('is_active', true)
+    .limit(MAX_EVENTS);
+
+  if (startIso && endIso) {
+    allEventsQuery = allEventsQuery
+      .lte('start_date', endIso)
+      .or(
+        `and(end_date.is.null,start_date.gte.${startIso},start_date.lte.${endIso}),` +
+          `end_date.gte.${startIso}`,
+      );
+
+    groupEventsQuery = groupEventsQuery
+      .lte('start_date', endIso)
+      .or(
+        `and(end_date.is.null,start_date.gte.${startIso},start_date.lte.${endIso}),` +
+          `end_date.gte.${startIso}`,
+      );
+
+    bigBoardQuery = bigBoardQuery
+      .lte('start_date', endIso)
+      .or(
+        `and(end_date.is.null,start_date.gte.${startIso},start_date.lte.${endIso}),` +
+          `end_date.gte.${startIso}`,
+      );
+  }
+
+  const [
+    traditionsRes,
+    allEventsRes,
+    groupEventsRes,
+    recurringRes,
+    bigBoardRes,
+    sports,
+  ] = await Promise.all([
+    supabase
+      .from('events')
+      .select(
+        `id,"E Name","E Description",Dates,"End Date","E Image","E Link",slug,start_time,end_time,latitude,longitude,area_id`
       )
+      .order('Dates', { ascending: true })
+      .limit(MAX_EVENTS),
+    allEventsQuery,
+    groupEventsQuery,
+    recurringQuery,
+    bigBoardQuery,
+    fetchSportsEvents(),
+  ]);
 
+  if (traditionsRes.error) throw traditionsRes.error;
+  if (allEventsRes.error) throw allEventsRes.error;
+  if (groupEventsRes.error) throw groupEventsRes.error;
+  if (recurringRes.error) throw recurringRes.error;
+  if (bigBoardRes.error) throw bigBoardRes.error;
+
+  const rangeStartDate = setStartOfDay(rangeStart);
+  const rangeEndDate = setEndOfDay(rangeEnd);
+
+  const normalized = [
+    ...(allEventsRes.data || []).map(normalizeAllEvent).filter(Boolean),
+    ...(traditionsRes.data || []).map(normalizeTradition).filter(Boolean),
+    ...(groupEventsRes.data || []).map(normalizeGroupEvent).filter(Boolean),
+    ...(bigBoardRes.data || []).map(normalizeBigBoardEvent).filter(Boolean),
+    ...(recurringRes.data || [])
+      .flatMap(row => expandRecurringEvent(row, rangeStartDate, rangeEndDate))
+      .filter(Boolean),
+    ...(sports || []),
+  ];
+
+  return normalized.filter(event => {
+    if (!event?.startDate || !event?.endDate) return false;
+    const { start, end } = eventDateBounds(event);
+    if (!start || !end) return false;
+    return !(end < rangeStartDate || start > rangeEndDate);
+  });
+}
+function getTagName(tagSlug, tag, allTags) {
+  if (tag && tag.slug === tagSlug) return tag.name;
+  const match = allTags.find(t => t.slug === tagSlug);
+  return match ? match.name : tagSlug;
+}
+
+function eventInBounds(event, bounds) {
+  if (!bounds) return true;
+  if (event.latitude == null || event.longitude == null) return false;
+  const { latitude, longitude } = event;
+  if (longitude < bounds.west || longitude > bounds.east) return false;
+  if (latitude < bounds.south || latitude > bounds.north) return false;
+  return true;
+}
+
+function FavoriteButton({ event }) {
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const hasFavorite = event.favoriteId && event.source_table;
   const { isFavorite, toggleFavorite, loading } = useEventFavorite({
-    event_id: favoriteEventId ?? null,
-    source_table: favoriteSource ?? null,
-  })
+    event_id: hasFavorite ? event.favoriteId : null,
+    source_table: hasFavorite ? event.source_table : null,
+  });
 
-  const startDate = evt.start instanceof Date
-    ? evt.start
-    : evt.start_date
-      ? parseISODateLocal(evt.start_date)
-      : null
-  const endDate = evt.end instanceof Date
-    ? evt.end
-    : evt.end_date
-      ? parseISODateLocal(evt.end_date)
-      : startDate
-  const timingLabel = buildTimingLabel(startDate, endDate, evt.start_time)
-  const dateRangeText = startDate && endDate && startOfDay(startDate).getTime() !== startOfDay(endDate).getTime()
-    ? `${formatMonthDay(startDate)} – ${formatMonthDay(endDate)}`
-    : ''
-
-  const badges = []
-  if (evt.isTradition) badges.push({ label: 'Tradition', className: 'bg-yellow-100 text-yellow-800', icon: <FaStar className="text-yellow-500" /> })
-  if (evt.isBigBoard) badges.push({ label: 'Submission', className: 'bg-purple-100 text-purple-800' })
-  if (evt.isGroupEvent) badges.push({ label: 'Group Event', className: 'bg-emerald-100 text-emerald-800' })
-  if (evt.isRecurring) badges.push({ label: 'Recurring', className: 'bg-blue-100 text-blue-800' })
-  if (evt.isSports) badges.push({ label: 'Sports', className: 'bg-green-100 text-green-800' })
-
-  const detailPath = evt.href || getDetailPathForItem({
-    ...evt,
-    venue_slug: evt.venues?.slug,
-  }) || '/'
-
-  const imageSrc = evt.imageUrl || evt.image || ''
-  const submitter = evt.isBigBoard ? profileMap[evt.owner_id] : null
-
-  const seenTags = new Set()
-  const uniqueTags = []
-  tags.forEach(tag => {
-    if (!tag?.slug || seenTags.has(tag.slug)) return
-    seenTags.add(tag.slug)
-    uniqueTags.push(tag)
-  })
-  const shownTags = uniqueTags.slice(0, 3)
-  const extraCount = Math.max(0, uniqueTags.length - shownTags.length)
-
-  const addressLabel = evt.venues?.name
-    ? `at ${evt.venues.name}`
-    : evt.address
-      ? evt.address
-      : ''
-
-  const actions = evt.isSports
-    ? (evt.url ? (
+  if (!hasFavorite) {
+    if (event.externalUrl) {
+      return (
         <a
-          href={evt.url}
+          href={event.externalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="w-full border border-indigo-600 rounded-full px-4 py-2 text-sm font-semibold text-indigo-600 bg-white hover:bg-indigo-600 hover:text-white transition-colors text-center"
+          className="inline-flex items-center justify-center rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-600 hover:text-white"
         >
           Get Tickets
         </a>
-      ) : null)
-    : (
-        <button
-          onClick={e => {
-            e.preventDefault()
-            e.stopPropagation()
-            if (!user) {
-              navigate('/login')
-              return
-            }
-            toggleFavorite()
-          }}
-          disabled={loading || !favoriteEventId || !favoriteSource}
-          className={`w-full border border-indigo-600 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'}`}
-        >
-          {isFavorite ? 'In the Plans' : 'Add to Plans'}
-        </button>
-      )
-
-  const containerClass = `block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${isFavorite && !evt.isSports ? 'ring-2 ring-indigo-600' : ''}`
+      );
+    }
+    return null;
+  }
 
   return (
-    <Link to={detailPath} className={containerClass}>
-      <div className="flex flex-col gap-4 p-4 sm:p-6 sm:flex-row sm:items-stretch">
-        <div className="w-full sm:w-48 flex-shrink-0">
-          <div className="overflow-hidden rounded-xl bg-gray-100 aspect-[4/3]">
-            {imageSrc ? (
-              <img src={imageSrc} alt={evt.title || evt.name} className="h-full w-full object-cover" />
-            ) : (
-              <div className="h-full w-full bg-gradient-to-br from-slate-100 to-slate-200" />
-            )}
-          </div>
-        </div>
-        <div className="flex-1 min-w-0 flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
-            <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{timingLabel}</span>
-            {badges.map(badge => (
-              <span key={badge.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${badge.className}`}>
-                {badge.icon}
-                {badge.label}
-              </span>
-            ))}
-            {isFavorite && !evt.isSports && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-600 text-white">
-                In the Plans
-              </span>
-            )}
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold text-[#28313e] break-words">{evt.title || evt.name}</h3>
-            {dateRangeText && (
-              <p className="mt-1 text-sm text-gray-500">{dateRangeText}</p>
-            )}
-            {evt.description && (
-              <p className="mt-2 text-sm text-gray-600 line-clamp-2">{evt.description}</p>
-            )}
-            {addressLabel && (
-              <p className="mt-1 text-sm text-gray-500">{addressLabel}</p>
-            )}
-          </div>
-          {shownTags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {shownTags.map((tag, index) => (
-                <Link
-                  key={tag.slug}
-                  to={`/tags/${tag.slug}`}
-                  onClick={e => e.stopPropagation()}
-                  className={`${pillStyles[index % pillStyles.length]} px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-80`}
-                >
-                  #{tag.name}
-                </Link>
-              ))}
-              {extraCount > 0 && <span className="text-xs text-gray-500">+{extraCount} more</span>}
-            </div>
-          )}
-          {submitter?.username && (
-            <p className="text-xs text-gray-500">Submitted by <span className="font-medium text-gray-600">{submitter.username}</span></p>
-          )}
-        </div>
-        {actions && <div className="flex flex-col items-stretch justify-center gap-2 sm:w-44">{actions}</div>}
-      </div>
-    </Link>
-  )
+    <button
+      type="button"
+      onClick={evt => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (!user) {
+          navigate('/login');
+          return;
+        }
+        toggleFavorite();
+      }}
+      disabled={loading}
+      className={`inline-flex items-center justify-center rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold transition ${
+        isFavorite
+          ? 'bg-indigo-600 text-white'
+          : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+      }`}
+    >
+      {isFavorite ? 'In the Plans' : 'Add to Plans'}
+    </button>
+  );
 }
 
-export default function TagPage() {
-  const params = useParams()
-  const slug = (params.slug || '').replace(/^#/, '')
-  const { user } = useContext(AuthContext)
-
-  // ── State hooks ────────────────────────────────────────────────
-  const [tag, setTag] = useState(null)
-  const [traditions, setTraditions] = useState([])
-  const [bigBoard, setBigBoard] = useState([])
-  const [groupEvents, setGroupEvents] = useState([])
-  const [allEvents, setAllEvents] = useState([])
-  const [recSeries, setRecSeries] = useState([])
-  const [profileMap, setProfileMap] = useState({})
-  const [tagMap, setTagMap] = useState({})
-  const [loading, setLoading] = useState(true)
-
-  // modal toggles
-  const [showFlyerModal, setShowFlyerModal] = useState(false)
-  const [modalStartStep, setModalStartStep] = useState(1)
-  const [initialFlyer, setInitialFlyer] = useState(null)
-  const [dateFilter, setDateFilter] = useState('all')
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-
-  // ── Load tag + all data ────────────────────────────────────────
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      // 1) fetch tag
-      const { data: t } = await supabase
-        .from('tags')
-        .select('*')
-        .eq('slug', slug)
-        .single()
-      if (!t) {
-        setLoading(false)
-        return
-      }
-      setTag(t)
-
-      // 2) fetch taggings
-      const { data: taggings } = await supabase
-        .from('taggings')
-        .select('taggable_type,taggable_id')
-        .eq('tag_id', t.id)
-      const byType = taggings.reduce((acc, { taggable_type, taggable_id }) => {
-        acc[taggable_type] = acc[taggable_type] || []
-        acc[taggable_type].push(taggable_id)
-        return acc
-      }, {})
-      const recurringIds = byType.recurring_events || []
-
-      // 3) parallel fetch all sources
-      const [trRes, bbRes, geRes, aeRes, recRes] = await Promise.all([
-        byType.events?.length
-          ? supabase
-              .from('events')
-              .select('id,"E Name","E Description","E Image",slug,Dates,"End Date",start_time,end_time')
-              .in('id', byType.events)
-          : { data: [] },
-        byType.big_board_events?.length
-          ? supabase
-              .from('big_board_events')
-              .select('id,title,description,slug,start_date,end_date,start_time,end_time,big_board_posts!big_board_posts_event_id_fkey(image_url,user_id)')
-              .in('id', byType.big_board_events)
-          : { data: [] },
-        byType.group_events?.length
-          ? supabase
-              .from('group_events')
-              .select('id,title,description,start_date,end_date,start_time,end_time,image_url,group_id')
-              .in('id', byType.group_events)
-          : { data: [] },
-        byType.all_events?.length
-          ? supabase
-              .from('all_events')
-              .select('id,name,description,slug,image,link,start_date,end_date,start_time,end_time,venue_id(name,slug)')
-              .in('id', byType.all_events)
-          : { data: [] },
-        recurringIds.length
-          ? supabase
-              .from('recurring_events')
-              .select('id,name,slug,description,address,link,image_url,start_date,end_date,start_time,end_time,rrule')
-              .in('id', recurringIds)
-          : { data: [] },
-      ])
-
-      // 4) build group_id → slug map for groupEvents
-      const evGroupIds = [...new Set((geRes.data || []).map(ev => ev.group_id))]
-      const { data: groupRows = [] } = evGroupIds.length
-        ? await supabase
-            .from('groups')
-            .select('id,slug')
-            .in('id', evGroupIds)
-        : { data: [] }
-      const groupSlugMap = {}
-      groupRows.forEach(g => { groupSlugMap[g.id] = g.slug })
-
-      // 5) shape and store data
-      setTraditions((trRes.data || []).map(e => {
-        const start = parseDate(e.Dates)
-        const end   = parseDate(e['End Date']) || start
-        const href =
-          getDetailPathForItem({
-            ...e,
-            slug: e.slug,
-          }) || '/'
-        return {
-          id: e.id,
-          title: e['E Name'],
-          description: e['E Description'] || '',
-          imageUrl: e['E Image'] || '',
-          start,
-          end,
-          start_date: start ? start.toISOString().slice(0,10) : null,
-          end_date: end ? end.toISOString().slice(0,10) : null,
-          slug: e.slug,
-          href,
-          isTradition: true,
-          start_time: e.start_time || null,
-          end_time: e.end_time || null,
-          favoriteId: e.id,
-          source_table: 'events',
-          taggableId: e.id,
-        }
-      }))
-
-      setBigBoard((bbRes.data || []).map(ev => {
-        const key = ev.big_board_posts?.[0]?.image_url
-        const owner = ev.big_board_posts?.[0]?.user_id
-        const url = key
-          ? supabase.storage
-              .from('big-board')
-              .getPublicUrl(key).data.publicUrl
-          : ''
-        const start = parseISODateLocal(ev.start_date)
-        const end   = parseISODateLocal(ev.end_date || ev.start_date)
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            isBigBoard: true,
-          }) || '/'
-        return {
-          id: ev.id,
-          title: ev.title,
-          description: ev.description || '',
-          imageUrl: url,
-          start,
-          end,
-          start_date: ev.start_date,
-          end_date: ev.end_date || ev.start_date,
-          slug: ev.slug,
-          owner_id: owner,
-          href,
-          isBigBoard: true,
-          start_time: ev.start_time || null,
-          end_time: ev.end_time || null,
-          favoriteId: ev.id,
-          source_table: 'big_board_events',
-          taggableId: ev.id,
-        }
-      }))
-
-      setGroupEvents((geRes.data || []).map(ev => {
-        const start = parseISODateLocal(ev.start_date)
-        const end   = parseISODateLocal(ev.end_date || ev.start_date)
-        let imgUrl = ''
-        if (ev.image_url) {
-          imgUrl = ev.image_url.startsWith('http')
-            ? ev.image_url
-            : supabase.storage
-                .from('big-board')
-                .getPublicUrl(ev.image_url).data.publicUrl
-        }
-        const slug = groupSlugMap[ev.group_id]
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            group_slug: slug,
-            isGroupEvent: true,
-          }) || '/'
-        return {
-          id: ev.id,
-          title: ev.title,
-          description: ev.description || '',
-          imageUrl: imgUrl,
-          start,
-          end,
-          start_date: ev.start_date,
-          end_date: ev.end_date || ev.start_date,
-          group_slug: slug,
-          href,
-          isGroupEvent: true,
-          start_time: ev.start_time || null,
-          end_time: ev.end_time || null,
-          favoriteId: ev.id,
-          source_table: 'group_events',
-          taggableId: ev.id,
-        }
-      }))
-
-      setAllEvents((aeRes.data || []).map(ev => {
-        const start = parseISODateLocal(ev.start_date)
-        const end   = parseISODateLocal(ev.end_date || ev.start_date)
-        const venueSlug = ev.venue_id?.slug || null
-        const href =
-          getDetailPathForItem({
-            ...ev,
-            venue_slug: venueSlug,
-            venues: ev.venue_id
-              ? { name: ev.venue_id.name, slug: venueSlug }
-              : null,
-          }) || '/'
-        return {
-          id: ev.id,
-          title: ev.name,
-          description: ev.description || '',
-          imageUrl: ev.image || '',
-          start,
-          end,
-          start_date: ev.start_date,
-          end_date: ev.end_date || ev.start_date,
-          slug: ev.slug,
-          venues: ev.venue_id
-            ? { name: ev.venue_id.name, slug: venueSlug }
-            : null,
-          href,
-          start_time: ev.start_time || null,
-          end_time: ev.end_time || null,
-          link: ev.link || null,
-          favoriteId: ev.id,
-          source_table: 'all_events',
-          taggableId: ev.id,
-        }
-      }))
-
-      if (slug === 'sports') {
-        try {
-          const teamSlugs = [
-            'philadelphia-phillies',
-            'philadelphia-76ers',
-            'philadelphia-eagles',
-            'philadelphia-flyers',
-            'philadelphia-union',
-          ]
-          let all = []
-          for (const ts of teamSlugs) {
-            const res = await fetch(
-              `https://api.seatgeek.com/2/events?performers.slug=${ts}&venue.city=Philadelphia&per_page=50&sort=datetime_local.asc&client_id=${import.meta.env.VITE_SEATGEEK_CLIENT_ID}`
-            )
-            const json = await res.json()
-            all.push(...(json.events || []))
-          }
-          const mappedSports = all.map(e => {
-            const dt = new Date(e.datetime_local)
-            const performers = e.performers || []
-            const home = performers.find(p => p.home_team) || performers[0] || {}
-            const away = performers.find(p => p.id !== home.id) || {}
-            const title =
-              e.short_title ||
-              `${(home.name || '').replace(/^Philadelphia\s+/, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/, '')}`
-            return {
-              id: `sg-${e.id}`,
-              title,
-              description: e.description || '',
-              imageUrl: home.image || away.image || '',
-              start: dt,
-              end: dt,
-              start_date: dt.toISOString().slice(0,10),
-              end_date: dt.toISOString().slice(0,10),
-              start_time: dt.toTimeString().slice(0,5),
-              end_time: dt.toTimeString().slice(0,5),
-              venues: e.venue ? { name: e.venue.name, slug: null } : null,
-              href: `/sports/${e.id}`,
-              url: e.url,
-              isSports: true,
-              favoriteId: null,
-              source_table: null,
-              taggableId: e.id,
-            }
-          })
-          setAllEvents(prev => [...prev, ...mappedSports])
-        } catch (err) {
-          console.error('Failed to load sports events', err)
-        }
-      }
-
-      setRecSeries(recRes.data || [])
-      setLoading(false)
+function TagEventRow({ event, tags, areaLookup, now }) {
+  const Wrapper = event.detailPath ? Link : 'div';
+  const wrapperProps = event.detailPath ? { to: event.detailPath } : {};
+  const areaLabel =
+    (event.area_id && areaLookup[event.area_id]) ||
+    (event.venue_area_id && areaLookup[event.venue_area_id]) ||
+    null;
+  const label = buildTimingLabel(event, now);
+  const startTime = formatTime(event.start_time);
+  const endTime = formatTime(event.end_time);
+  const timeRange = startTime
+    ? endTime
+      ? `${startTime} – ${endTime}`
+      : startTime
+    : null;
+  const dateRange = (() => {
+    const { start, end } = eventDateBounds(event);
+    if (!start || !end) return null;
+    if (start.getTime() === end.getTime()) {
+      return `${formatMonthDay(start, PHILLY_TIME_ZONE)}`;
     }
-    load()
-  }, [slug])
-
-  // Load profile info for big-board submitters
-  useEffect(() => {
-    const ids = Array.from(new Set(bigBoard.map(e => e.owner_id).filter(Boolean)))
-    if (!ids.length) { setProfileMap({}); return }
-    ;(async () => {
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id,username,image_url')
-        .in('id', ids)
-      const map = {}
-      for (const p of profs || []) {
-        let img = p.image_url || ''
-        if (img && !img.startsWith('http')) {
-          const { data: { publicUrl } } = supabase
-            .storage
-            .from('profile-images')
-            .getPublicUrl(img)
-          img = publicUrl
-        }
-        map[p.id] = { username: p.username, image: img, cultures: [] }
-      }
-      const { data: rows } = await supabase
-        .from('profile_tags')
-        .select('profile_id, culture_tags(id,name,emoji)')
-        .in('profile_id', ids)
-        .eq('tag_type', 'culture')
-      rows?.forEach(r => {
-        if (!map[r.profile_id]) map[r.profile_id] = { username: '', image: '', cultures: [] }
-        if (r.culture_tags?.emoji) {
-          map[r.profile_id].cultures.push({ emoji: r.culture_tags.emoji, name: r.culture_tags.name })
-        }
-      })
-      setProfileMap(map)
-    })()
-  }, [bigBoard])
-
-  // ── derive recurring instances ─────────────────────────────────
-  const recEventsList = useMemo(() => {
-    return recSeries.flatMap(series => {
-      if (!series.start_date) return []
-      const opts = RRule.parseString(series.rrule)
-      const startTime = series.start_time || '00:00:00'
-      const dtstart = new Date(`${series.start_date}T${startTime}`)
-      if (isNaN(dtstart)) return []
-      opts.dtstart = dtstart
-      if (series.end_date) opts.until = new Date(`${series.end_date}T23:59:59`)
-      const rule = new RRule(opts)
-      const upcoming = []
-      let next = rule.after(new Date(), true)
-      for (let i = 0; next && i < 3; i++) {
-        upcoming.push(next)
-        next = rule.after(next, false)
-      }
-      return upcoming.map(d => ({
-        id: `${series.id}::${d.toISOString().slice(0,10)}`,
-        title: series.name,
-        description: series.description || '',
-        imageUrl: series.image_url,
-        start: d,
-        end: d,
-        start_date: d.toISOString().slice(0,10),
-        end_date: d.toISOString().slice(0,10),
-        start_time: series.start_time,
-        end_time: series.end_time,
-        slug: series.slug,
-        address: series.address,
-        link: series.link,
-        href: `/series/${series.slug}/${d.toISOString().slice(0,10)}`,
-        isRecurring: true,
-        favoriteId: series.id,
-        source_table: 'recurring_events',
-        taggableId: series.id,
-      }))
-    })
-  }, [recSeries])
-  const allList = useMemo(() => [
-    ...traditions,
-    ...bigBoard,
-    ...groupEvents,
-    ...allEvents,
-    ...recEventsList,
-  ], [traditions, bigBoard, groupEvents, allEvents, recEventsList])
-
-  const upcoming = useMemo(() => {
-    const today0 = new Date()
-    today0.setHours(0,0,0,0)
-
-    const isUpcoming = evt => {
-      const start = evt.start || null
-      const end = evt.end || start
-      if (!start && !end) return false
-      if (start && start >= today0) return true
-      if (end && end >= today0) return true
-      return false
-    }
-
-    const getSortDate = evt => {
-      const start = evt.start || null
-      const end = evt.end || start
-      if (start && start >= today0) return start
-      if (end && end >= today0) return end
-      return start || end || today0
-    }
-
-    return allList
-      .filter(isUpcoming)
-      .sort((a,b) => getSortDate(a) - getSortDate(b))
-  }, [allList])
-
-  const weekendRange = useMemo(() => getUpcomingWeekendRange(), [])
-
-  const filteredEvents = useMemo(() => {
-    if (!upcoming.length) return []
-    const events = upcoming
-
-    const filterByRange = (rangeStart, rangeEnd) => {
-      return events.filter(evt => {
-        const rawStart = evt.start instanceof Date ? evt.start : evt.start_date ? parseISODateLocal(evt.start_date) : null
-        const rawEnd = evt.end instanceof Date ? evt.end : evt.end_date ? parseISODateLocal(evt.end_date) : rawStart
-        const evtStart = rawStart ? startOfDay(rawStart) : null
-        const evtEnd = rawEnd ? endOfDay(rawEnd) : evtStart
-        if (rangeStart && evtEnd && evtEnd < rangeStart) return false
-        if (rangeEnd && evtStart && evtStart > rangeEnd) return false
-        return true
-      })
-    }
-
-    switch (dateFilter) {
-      case 'today': {
-        const todayStart = startOfDay(new Date())
-        const todayEnd = endOfDay(new Date())
-        return filterByRange(todayStart, todayEnd)
-      }
-      case 'weekend': {
-        return filterByRange(weekendRange.start, weekendRange.end)
-      }
-      case 'range': {
-        const startInput = customStart ? parseISODateLocal(customStart) : null
-        const endInput = customEnd ? parseISODateLocal(customEnd) : null
-        const rangeStart = startInput ? startOfDay(startInput) : null
-        const rangeEnd = endInput ? endOfDay(endInput) : null
-        if (!rangeStart && !rangeEnd) return events
-        if (rangeStart && rangeEnd && rangeEnd < rangeStart) {
-          return filterByRange(rangeEnd, endOfDay(rangeStart))
-        }
-        return filterByRange(rangeStart, rangeEnd)
-      }
-      default:
-        return events
-    }
-  }, [upcoming, dateFilter, customStart, customEnd, weekendRange])
-
-  const mapDateRange = useMemo(() => {
-    switch (dateFilter) {
-      case 'today': {
-        const today = startOfDay(new Date())
-        return { start: today, end: today }
-      }
-      case 'weekend':
-        return { start: weekendRange.start, end: weekendRange.end }
-      case 'range': {
-        const startInput = customStart ? parseISODateLocal(customStart) : null
-        const endInput = customEnd ? parseISODateLocal(customEnd) : null
-        const start = startInput ? startOfDay(startInput) : null
-        const end = endInput ? startOfDay(endInput) : null
-        if (!start && !end) return null
-        if (start && end && end < start) {
-          return { start: end, end: start }
-        }
-        return { start: start || end, end: end || start }
-      }
-      default:
-        return null
-    }
-  }, [dateFilter, customStart, customEnd, weekendRange])
-
-  const mapHref = useMemo(() => {
-    const params = new URLSearchParams()
-    if (tag?.slug) {
-      params.set('tag', tag.slug)
-    } else if (tag?.name) {
-      params.set('tag', tag.name)
-    }
-    if (mapDateRange?.start) {
-      const startIso = toISODateString(mapDateRange.start)
-      if (startIso) params.set('start', startIso)
-    }
-    if (mapDateRange?.end) {
-      const endIso = toISODateString(mapDateRange.end)
-      if (endIso) params.set('end', endIso)
-    }
-    const qs = params.toString()
-    return qs ? `/map?${qs}` : '/map'
-  }, [tag, mapDateRange])
-
-  useEffect(() => {
-    if (!upcoming.length) {
-      setTagMap({})
-      return
-    }
-    const idsByType = upcoming.reduce((acc, evt) => {
-      if (!evt.source_table || !evt.taggableId) return acc
-      const key = evt.source_table
-      if (!acc[key]) acc[key] = new Set()
-      acc[key].add(evt.taggableId)
-      return acc
-    }, {})
-    const entries = Object.entries(idsByType).filter(([, ids]) => ids.size)
-    if (!entries.length) {
-      setTagMap({})
-      return
-    }
-    Promise.all(
-      entries.map(([type, ids]) =>
-        supabase
-          .from('taggings')
-          .select('tags(name,slug),taggable_id')
-          .eq('taggable_type', type)
-          .in('taggable_id', Array.from(ids))
-      )
-    )
-      .then(results => {
-        const map = {}
-        results.forEach(({ data, error }, index) => {
-          if (error) {
-            console.error('Failed to load additional tags', error)
-            return
-          }
-          const type = entries[index][0]
-          data?.forEach(row => {
-            if (!row?.taggable_id || !row.tags) return
-            const key = `${type}:${row.taggable_id}`
-            map[key] = map[key] || []
-            map[key].push(row.tags)
-          })
-        })
-        setTagMap(map)
-      })
-      .catch(err => {
-        console.error('Tag map fetch error', err)
-      })
-  }, [upcoming])
-
-  if (loading) return <p className="text-center py-20">Loading…</p>
-  if (!tag)    return <p className="text-center py-20 text-red-600">Tag not found</p>
-
-  const eventCount = filteredEvents.length
-  const filterOptions = [
-    { value: 'all', label: 'All dates' },
-    { value: 'today', label: 'Today' },
-    { value: 'weekend', label: 'This weekend' },
-    { value: 'range', label: 'Custom range' },
-  ]
-  const showCustomRange = dateFilter === 'range'
-  const heroDescription = tag.description || `Discover upcoming #${tag.name} things to do in Philadelphia, curated by Our Philly.`
+    return `${formatMonthDay(start, PHILLY_TIME_ZONE)} – ${formatMonthDay(end, PHILLY_TIME_ZONE)}`;
+  })();
 
   return (
-    <>
-      <Helmet>
-        <title>#{tag.name} events in Philadelphia | Our Philly</title>
-        <meta
-          name="description"
-          content={`Explore ${eventCount || 'upcoming'} ${tag.name} events in Philadelphia with Our Philly.`}
-        />
-      </Helmet>
-
-      <div className="min-h-screen bg-[#fdf7f2] text-[#29313f]">
-        <Navbar />
-        <main className="pt-28 pb-16">
-          <section className="relative border-b border-[#f4c9bc]/70">
-            <div
-              className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent"
-              aria-hidden="true"
-            />
-            <div className="mx-auto max-w-7xl px-6 pb-12 pt-10">
-              <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/80 px-0 backdrop-blur shadow-xl shadow-[#bf3d35]/10">
-                <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-                  <div className="px-8 py-10 sm:px-12 sm:py-12">
-                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Philly tag spotlight</p>
-                    <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
-                      {eventCount > 0
-                        ? `${eventCount} upcoming #${tag.name} events in Philly`
-                        : `Upcoming #${tag.name} events in Philly`}
-                    </h1>
-                    {tag.is_seasonal && (
-                      <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#d9e9ea] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#004C55]">
-                        <Clock className="h-4 w-4" />
-                        Seasonal tag
-                      </span>
-                    )}
-                    <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#4a5568] sm:text-lg">{heroDescription}</p>
-                    <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <button
-                        onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }}
-                        className="inline-flex items-center justify-center rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
-                      >
-                        Submit an event
-                      </button>
-                      <Link
-                        to={mapHref}
-                        className="inline-flex items-center justify-center rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold uppercase tracking-wider text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
-                      >
-                        View these on the map
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="relative flex items-center justify-center overflow-hidden px-8 py-12 sm:px-10">
-                    <div
-                      className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl"
-                      aria-hidden="true"
-                    />
-                    <div className="relative flex flex-col items-center gap-6 text-center">
-                      <img
-                        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
-                        alt="Our Philly city heart"
-                        className="h-48 w-48 object-contain drop-shadow-xl"
-                      />
-                      <div className="w-full max-w-xs rounded-2xl border border-[#29313f]/10 bg-white/85 px-6 py-5 shadow-lg shadow-[#29313f]/10">
-                        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Need the map?</p>
-                        <p className="mt-2 text-base font-semibold text-[#29313f]">Jump to the citywide view</p>
-                        <p className="mt-2 text-sm text-[#4a5568]">
-                          The map shows every submission. Once you’re there, pick the #{tag.name} filter to zero in on plans for your crew.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="border-b border-[#f4c9bc]/70 bg-white/70">
-            <div className="mx-auto max-w-7xl px-6 py-6 flex flex-col gap-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold">Dial in the dates</h2>
-                  <p className="text-sm text-[#4a5568]">Everything is sorted with the next upcoming events first.</p>
-                </div>
-                <div className="flex flex-col gap-3 sm:items-end">
-                  <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-                    {filterOptions.map(option => (
-                      <button
-                        key={option.value}
-                        onClick={() => setDateFilter(option.value)}
-                        className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
-                          dateFilter === option.value
-                            ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
-                            : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  {showCustomRange && (
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
-                      <label className="flex items-center gap-2">
-                        <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">Start</span>
-                        <input
-                          type="date"
-                          value={customStart}
-                          onChange={e => setCustomStart(e.target.value)}
-                          className="rounded-lg border border-[#f4c9bc] bg-white/80 px-3 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                        />
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">End</span>
-                        <input
-                          type="date"
-                          value={customEnd}
-                          onChange={e => setCustomEnd(e.target.value)}
-                          className="rounded-lg border border-[#f4c9bc] bg-white/80 px-3 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="mx-auto max-w-7xl px-6 py-10">
-            {eventCount === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#f4c9bc] bg-white/80 px-6 py-12 text-center text-[#4a5568] shadow-sm">
-                <p className="text-lg font-semibold text-[#29313f]">No #{tag.name} events match these dates yet.</p>
-                <p className="mt-3">Be the first to add one and help the city discover it.</p>
-                <button
-                  onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }}
-                  className="mt-6 inline-flex items-center justify-center rounded-full bg-[#bf3d35] px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
-                >
-                  Submit an event
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col divide-y divide-gray-200">
-                {filteredEvents.map(evt => {
-                  const baseId = evt.taggableId ?? evt.id
-                  const mapKey = evt.source_table ? `${evt.source_table}:${baseId}` : `evt:${baseId}`
-                  const extraTags = mapKey && tagMap[mapKey] ? tagMap[mapKey] : []
-                  const tagsForRow = Array.isArray(extraTags) ? [...extraTags] : []
-                  if (!tagsForRow.some(t => t?.slug === tag.slug)) {
-                    tagsForRow.push({ slug: tag.slug, name: tag.name })
-                  }
-                  const rowKey = `${mapKey}-${evt.start_date || ''}-${evt.start_time || ''}`
-                  return <EventRow key={rowKey} evt={evt} tags={tagsForRow} profileMap={profileMap} />
-                })}
-              </div>
+    <Wrapper
+      {...wrapperProps}
+      className="block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+    >
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-6">
+        <div className="flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-800">{label}</span>
+            {areaLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#f2cfc3] px-2 py-0.5 text-[#29313f]">
+                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                {areaLabel}
+              </span>
             )}
-          </section>
-        </main>
-
-        {showFlyerModal && (
-          <PostFlyerModal
-            isOpen
-            onClose={() => setShowFlyerModal(false)}
-            startStep={modalStartStep}
-            initialFile={initialFlyer}
-          />
-        )}
-
-        <Footer />
+            {(event.badges || []).map(badge => (
+              <span
+                key={badge}
+                className={`rounded-full px-2 py-0.5 ${
+                  badge === 'Tradition'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : badge === 'Submission'
+                    ? 'bg-purple-100 text-purple-800'
+                    : badge === 'Recurring'
+                    ? 'bg-blue-100 text-blue-800'
+                    : badge === 'Group Event'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : badge === 'Sports'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                {badge}
+              </span>
+            ))}
+          </div>
+          <h3 className="text-lg font-semibold text-[#28313e]">{event.title}</h3>
+          <div className="text-sm text-gray-600">
+            {dateRange && <span>{dateRange}</span>}
+            {timeRange && (
+              <span>{dateRange ? ` · ${timeRange}` : timeRange}</span>
+            )}
+          </div>
+          {event.description && (
+            <p className="line-clamp-2 text-sm text-gray-600">{event.description}</p>
+          )}
+          {tags?.length ? (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {tags.slice(0, 4).map(tag => (
+                <Link
+                  key={tag.slug || tag.name}
+                  to={tag.slug ? `/tags/${tag.slug}` : '#'}
+                  onClick={e => {
+                    if (!tag.slug) {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 transition hover:border-[#bf3d35] hover:text-[#bf3d35]"
+                >
+                  #{tag.name || tag.slug}
+                </Link>
+              ))}
+              {tags.length > 4 && (
+                <span className="text-xs font-semibold text-gray-500">+{tags.length - 4} more</span>
+              )}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-col items-stretch gap-3 sm:w-48">
+          <FavoriteButton event={event} />
+        </div>
       </div>
-    </>
-  )
+    </Wrapper>
+  );
+}
+
+function FilterChip({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
+        active
+          ? 'bg-[#28313e] text-white shadow'
+          : 'bg-white text-[#28313e] hover:bg-gray-100 border border-gray-200'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+export default function TagPage() {
+  const { slug: rawSlug } = useParams();
+  const slug = (rawSlug || '').replace(/^#/, '');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const areaLookup = useAreaLookup();
+  const { user } = useContext(AuthContext);
+
+  const [tag, setTag] = useState(null);
+  const [allTags, setAllTags] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [tagMap, setTagMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [viewState, setViewState] = useState(() => ({ ...DEFAULT_VIEW_STATE }));
+  const [mapBounds, setMapBounds] = useState(null);
+  const [limitToMap, setLimitToMap] = useState(searchParams.get('limit') === '1');
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [geoError, setGeoError] = useState('');
+  const [manualQuery, setManualQuery] = useState('');
+  const [isGeocoding, setIsGeocoding] = useState(false);
+
+  const initialTags = useMemo(() => {
+    const param = searchParams.get('tags');
+    if (param) {
+      return param
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+    return slug ? [slug] : [];
+  }, [searchParams, slug]);
+
+  const [selectedTags, setSelectedTags] = useState(initialTags);
+
+  useEffect(() => {
+    if (!selectedTags.length && slug) {
+      setSelectedTags([slug]);
+    }
+  }, [slug]);
+
+  const initialDate = searchParams.get('date');
+  const [dateFilter, setDateFilter] = useState(
+    DATE_FILTERS.includes(initialDate) ? initialDate : 'today',
+  );
+
+  const [customRange, setCustomRange] = useState(() => {
+    const startParam = searchParams.get('start');
+    const endParam = searchParams.get('end');
+    return {
+      start: startParam ? parseISODateLocal(startParam) : null,
+      end: endParam ? parseISODateLocal(endParam) : null,
+    };
+  });
+
+  const [selectedArea, setSelectedArea] = useState(searchParams.get('area') || '');
+
+  const mapRef = useRef(null);
+  const mapboxToken = getMapboxToken();
+
+  const [isMapReady, setIsMapReady] = useState(() => {
+    if (!mapboxToken) return false;
+    return mapboxIsSupported();
+  });
+  const [mapStatusMessage, setMapStatusMessage] = useState(() =>
+    mapboxToken ? '' : 'Map view unavailable — missing Mapbox token.',
+  );
+  const todayInPhilly = useMemo(
+    () => setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE)),
+    [],
+  );
+  const weekendRange = useMemo(() => getWeekendWindow(new Date(), PHILLY_TIME_ZONE), []);
+  const horizonEnd = useMemo(() => {
+    const end = new Date(todayInPhilly);
+    end.setDate(end.getDate() + HORIZON_DAYS);
+    return setEndOfDay(end);
+  }, [todayInPhilly]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    (async () => {
+      try {
+        const [tagRes, eventsRes, tagsRes] = await Promise.all([
+          slug
+            ? supabase.from('tags').select('*').eq('slug', slug).maybeSingle()
+            : { data: null },
+          fetchUpcomingEvents(todayInPhilly, horizonEnd),
+          supabase.from('tags').select('name,slug').order('name', { ascending: true }),
+        ]);
+        if (cancelled) return;
+        if (tagRes.error) {
+          console.error('Tag fetch failed', tagRes.error);
+        }
+        setTag(tagRes.data || null);
+        if (tagsRes.error) {
+          console.error('Tags list error', tagsRes.error);
+          setAllTags([]);
+        } else {
+          setAllTags(tagsRes.data || []);
+        }
+        setEvents(eventsRes || []);
+      } catch (err) {
+        console.error('Failed to load tag page', err);
+        if (!cancelled) {
+          setError('Something went wrong while loading events.');
+          setEvents([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, todayInPhilly, horizonEnd]);
+
+  useEffect(() => {
+    const idsByType = events.reduce((acc, event) => {
+      if (!event?.source_table || !event.taggableId) return acc;
+      const table = event.source_table;
+      if (!acc[table]) acc[table] = new Set();
+      acc[table].add(event.taggableId);
+      return acc;
+    }, {});
+    const entries = Object.entries(idsByType);
+    if (!entries.length) {
+      setTagMap({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const responses = await Promise.all(
+          entries.map(([table, ids]) =>
+            supabase
+              .from('taggings')
+              .select('taggable_id, tags:tags(name, slug)')
+              .eq('taggable_type', table)
+              .in('taggable_id', Array.from(ids)),
+          ),
+        );
+        if (cancelled) return;
+        const next = {};
+        responses.forEach((res, index) => {
+          const table = entries[index][0];
+          if (res.error) {
+            console.error('Failed to load taggings for', table, res.error);
+            return;
+          }
+          res.data?.forEach(row => {
+            if (!row?.tags) return;
+            const key = `${table}:${row.taggable_id}`;
+            if (!next[key]) next[key] = [];
+            next[key].push(row.tags);
+          });
+        });
+        setTagMap(next);
+      } catch (err) {
+        console.error('Error loading tag map', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [events]);
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (dateFilter !== 'today') {
+      next.set('date', dateFilter);
+    }
+    if (dateFilter === 'custom') {
+      if (customRange.start) {
+        next.set('start', toPhillyISODate(customRange.start));
+      }
+      if (customRange.end) {
+        next.set('end', toPhillyISODate(customRange.end));
+      }
+    }
+    if (selectedArea) {
+      next.set('area', selectedArea);
+    }
+    if (selectedTags.length) {
+      next.set('tags', selectedTags.join(','));
+    }
+    if (limitToMap) {
+      next.set('limit', '1');
+    }
+    setSearchParams(next, { replace: true });
+  }, [dateFilter, customRange, selectedArea, selectedTags, limitToMap, setSearchParams]);
+
+  const eventsWithTags = useMemo(() => {
+    return events.map(event => {
+      const key = `${event.source_table}:${event.taggableId}`;
+      const tags = event.source_table ? tagMap[key] || [] : event.tags || [];
+      return { ...event, tags };
+    });
+  }, [events, tagMap]);
+
+  const filtered = useMemo(() => {
+    return eventsWithTags
+      .filter(event => eventMatchesDateFilter(event, dateFilter, customRange, weekendRange, todayInPhilly))
+      .filter(event => {
+        if (!selectedTags.length) return true;
+        const tagSlugs = (event.tags || []).map(tag => tag.slug).filter(Boolean);
+        return selectedTags.every(tagSlug => tagSlugs.includes(tagSlug));
+      })
+      .filter(event => {
+        if (!selectedArea) return true;
+        const areaId = event.area_id != null ? String(event.area_id) : null;
+        const venueAreaId = event.venue_area_id != null ? String(event.venue_area_id) : null;
+        return areaId === selectedArea || venueAreaId === selectedArea;
+      })
+      .sort((a, b) => {
+        const aStart = a.startDate ? a.startDate.getTime() : Infinity;
+        const bStart = b.startDate ? b.startDate.getTime() : Infinity;
+        if (aStart !== bStart) return aStart - bStart;
+        return (a.title || '').localeCompare(b.title || '');
+      });
+  }, [eventsWithTags, dateFilter, customRange, weekendRange, todayInPhilly, selectedTags, selectedArea]);
+
+  const visibleEvents = useMemo(() => {
+    if (!limitToMap || !mapBounds) return filtered;
+    return filtered.filter(event => eventInBounds(event, mapBounds));
+  }, [filtered, limitToMap, mapBounds]);
+
+  const areaOptions = useMemo(() => {
+    const entries = Object.entries(areaLookup || {}).map(([id, name]) => ({ id, name }));
+    return entries.sort((a, b) => a.name.localeCompare(b.name));
+  }, [areaLookup]);
+
+  const handleMapMoveEnd = useCallback(() => {
+    const map = mapRef.current?.getMap?.();
+    if (!map) return;
+    try {
+      const bounds = map.getBounds();
+      setMapBounds({
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest(),
+      });
+    } catch (err) {
+      console.error('Failed to read map bounds', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!mapboxToken) {
+      setIsMapReady(false);
+      setMapStatusMessage('Map view unavailable — missing Mapbox token.');
+      return;
+    }
+    const supported = mapboxIsSupported();
+    setIsMapReady(supported);
+    if (!supported) {
+      setMapStatusMessage('Interactive map is not supported in this browser.');
+    } else {
+      setMapStatusMessage('');
+    }
+  }, [mapboxToken]);
+
+  const handleMapLoad = useCallback(() => {
+    setIsMapReady(true);
+    setMapStatusMessage('');
+    handleMapMoveEnd();
+  }, [handleMapMoveEnd]);
+
+  const handleMapError = useCallback(error => {
+    console.error('Tag map failed to load', error?.error || error);
+    setIsMapReady(false);
+    setMapStatusMessage(
+      'Map view unavailable right now. Use the filters below to browse upcoming events.',
+    );
+  }, []);
+
+  const fitMapToEvents = useCallback(
+    eventsToFit => {
+      if (!mapRef.current?.getMap || !eventsToFit?.length) return;
+      const map = mapRef.current.getMap();
+      const coords = eventsToFit.filter(evt => evt.latitude != null && evt.longitude != null);
+      if (!coords.length) return;
+      const bounds = new mapboxgl.LngLatBounds();
+      coords.forEach(evt => {
+        bounds.extend([evt.longitude, evt.latitude]);
+      });
+      try {
+        map.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 800 });
+      } catch (err) {
+        console.error('fitBounds failed', err);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!limitToMap) {
+      fitMapToEvents(filtered.slice(0, 40));
+    }
+  }, [filtered, limitToMap, fitMapToEvents]);
+
+  const handleLocateMe = useCallback(() => {
+    if (isLocating) return;
+    if (!navigator?.geolocation) {
+      setGeoError('Geolocation is not available on this device.');
+      return;
+    }
+    setIsLocating(true);
+    setGeoError('');
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const { latitude, longitude } = position.coords;
+        setViewState(current => ({
+          ...current,
+          latitude,
+          longitude,
+          zoom: Math.max(current.zoom ?? DEFAULT_VIEW_STATE.zoom, 13),
+        }));
+        const map = mapRef.current?.getMap?.();
+        map?.flyTo({ center: [longitude, latitude], zoom: 13.5, essential: true });
+        setIsLocating(false);
+        setGeoError('');
+      },
+      err => {
+        setGeoError(err.message || 'Unable to determine your location.');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }, [isLocating]);
+
+  const handleManualSearch = useCallback(
+    async evt => {
+      evt.preventDefault();
+      if (!manualQuery.trim() || !mapboxToken) return;
+      setIsGeocoding(true);
+      setGeoError('');
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(manualQuery)}.json?proximity=-75.1652,39.9526&limit=1&access_token=${mapboxToken}`,
+        );
+        if (!response.ok) throw new Error('Search failed');
+        const data = await response.json();
+        const [feature] = data.features || [];
+        if (!feature?.center) {
+          setGeoError('We could not find that location.');
+        } else {
+          const [longitude, latitude] = feature.center;
+          setViewState(current => ({ ...current, latitude, longitude, zoom: 13 }));
+          const map = mapRef.current?.getMap?.();
+          map?.flyTo({ center: [longitude, latitude], zoom: 13, essential: true });
+        }
+      } catch (err) {
+        console.error('Manual geocode failed', err);
+        setGeoError('We could not look up that spot. Try a different ZIP or neighborhood.');
+      } finally {
+        setIsGeocoding(false);
+      }
+    },
+    [manualQuery, mapboxToken],
+  );
+
+  const showEmptyState = !loading && !visibleEvents.length;
+  const now = todayInPhilly;
+
+  return (
+    <div className="min-h-screen bg-[#f6f7fb]">
+      <Helmet>
+        <title>{tag?.name ? `${tag.name} in Philly` : 'Events around Philly'}</title>
+      </Helmet>
+      <Navbar />
+      <main className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-0 sm:px-6 lg:px-8">
+        <section className="relative mt-0 overflow-hidden rounded-none border-b border-gray-200 bg-white shadow-sm sm:rounded-3xl sm:border">
+          {isMapReady && mapboxToken ? (
+            <div className="relative h-[360px] w-full sm:h-[420px]">
+              <div className="pointer-events-none absolute right-4 top-4 z-10 flex w-full max-w-[260px] flex-col gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={handleLocateMe}
+                  disabled={isLocating || !isMapReady}
+                  className="pointer-events-auto inline-flex items-center justify-center gap-2 rounded-full border border-indigo-500/70 bg-white px-3 py-1.5 font-semibold text-indigo-600 shadow-sm transition hover:border-indigo-600 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Compass className="h-4 w-4" aria-hidden="true" />
+                  {isLocating ? 'Locating…' : 'Near Me'}
+                </button>
+                {(geoError || !navigator?.geolocation) && (
+                  <form
+                    onSubmit={handleManualSearch}
+                    className="pointer-events-auto rounded-full border border-gray-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur"
+                  >
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600">
+                      <MapPin className="h-4 w-4" />
+                      <span>ZIP or neighborhood</span>
+                    </label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={manualQuery}
+                        onChange={e => setManualQuery(e.target.value)}
+                        className="w-full rounded-full border border-gray-200 px-3 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none"
+                        placeholder="19107 or Fishtown"
+                      />
+                      <button
+                        type="submit"
+                        className="inline-flex items-center justify-center rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-indigo-700 disabled:opacity-60"
+                        disabled={isGeocoding}
+                      >
+                        {isGeocoding ? '…' : 'Go'}
+                      </button>
+                    </div>
+                    {geoError && (
+                      <p className="mt-1 text-[11px] font-medium text-rose-600">{geoError}</p>
+                    )}
+                  </form>
+                )}
+              </div>
+              <Map
+                ref={mapRef}
+                mapboxAccessToken={mapboxToken}
+                mapStyle={MAPBOX_STYLE}
+                {...viewState}
+                onMove={evt => setViewState(evt.viewState)}
+                onMoveEnd={handleMapMoveEnd}
+                onLoad={handleMapLoad}
+                onError={handleMapError}
+                style={{ width: '100%', height: '100%' }}
+              >
+                {visibleEvents
+                  .filter(evt => evt.latitude != null && evt.longitude != null)
+                  .map(evt => (
+                    <Marker
+                      key={evt.id}
+                      latitude={evt.latitude}
+                      longitude={evt.longitude}
+                      anchor="bottom"
+                      onClick={event => {
+                        event.originalEvent.stopPropagation();
+                        setSelectedEvent(evt);
+                      }}
+                    >
+                      <div className={markerClass} aria-label={evt.title}>
+                        ●
+                      </div>
+                    </Marker>
+                  ))}
+                {selectedEvent && selectedEvent.latitude != null && selectedEvent.longitude != null && (
+                  <Popup
+                    latitude={selectedEvent.latitude}
+                    longitude={selectedEvent.longitude}
+                    anchor="top"
+                    closeOnClick={false}
+                    onClose={() => setSelectedEvent(null)}
+                    className="max-w-xs"
+                  >
+                    <div className="space-y-1 text-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">{formatWeekdayAbbrev(selectedEvent.startDate, PHILLY_TIME_ZONE)}</p>
+                      <h4 className="text-base font-semibold text-[#28313e] leading-snug">{selectedEvent.title}</h4>
+                      <p className="text-xs text-gray-600">
+                        {formatMonthDay(selectedEvent.startDate, PHILLY_TIME_ZONE)}
+                        {selectedEvent.start_time && ` · ${formatTime(selectedEvent.start_time)}`}
+                      </p>
+                      {selectedEvent.detailPath && (
+                        <Link
+                          to={selectedEvent.detailPath}
+                          className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+                        >
+                          View details
+                        </Link>
+                      )}
+                    </div>
+                  </Popup>
+                )}
+              </Map>
+            </div>
+          ) : (
+            <div className="flex h-[320px] items-center justify-center bg-gray-100 px-6 text-center text-sm text-gray-600">
+              {mapStatusMessage || 'Interactive map unavailable — please use the filters below.'}
+            </div>
+          )}
+        </section>
+
+        <section className="-mt-2 space-y-6 rounded-3xl bg-transparent pb-2 pt-6">
+          <div className="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterChip active={dateFilter === 'today'} onClick={() => setDateFilter('today')}>
+                Today
+              </FilterChip>
+              <FilterChip active={dateFilter === 'weekend'} onClick={() => setDateFilter('weekend')}>
+                Weekend
+              </FilterChip>
+              <FilterChip active={dateFilter === 'custom'} onClick={() => setDateFilter('custom')}>
+                Custom
+              </FilterChip>
+              {dateFilter === 'custom' && (
+                <div className="flex flex-wrap items-center gap-2 rounded-full bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <label className="flex items-center gap-2">
+                    Start
+                    <input
+                      type="date"
+                      value={customRange.start ? toPhillyISODate(customRange.start) : ''}
+                      onChange={e =>
+                        setCustomRange(range => ({
+                          ...range,
+                          start: e.target.value ? parseISODateLocal(e.target.value) : null,
+                        }))
+                      }
+                      className="rounded-full border border-gray-200 px-3 py-1 text-sm"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2">
+                    End
+                    <input
+                      type="date"
+                      value={customRange.end ? toPhillyISODate(customRange.end) : ''}
+                      onChange={e =>
+                        setCustomRange(range => ({
+                          ...range,
+                          end: e.target.value ? parseISODateLocal(e.target.value) : null,
+                        }))
+                      }
+                      className="rounded-full border border-gray-200 px-3 py-1 text-sm"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#28313e]">
+                <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+                Neighborhood
+                <select
+                  value={selectedArea}
+                  onChange={e => setSelectedArea(e.target.value)}
+                  className="rounded-full border border-gray-200 px-3 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">All</option>
+                  {areaOptions.map(area => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedTags.map(tagSlug => (
+                  <button
+                    key={tagSlug}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTags(tags => tags.filter(value => value !== tagSlug))
+                    }
+                    className="inline-flex items-center gap-1 rounded-full bg-[#29313f] px-3 py-1 text-sm font-semibold text-white"
+                  >
+                    #{getTagName(tagSlug, tag, allTags)}
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ))}
+                <select
+                  value=""
+                  onChange={e => {
+                    const next = e.target.value;
+                    if (!next) return;
+                    setSelectedTags(tags => (tags.includes(next) ? tags : [...tags, next]));
+                  }}
+                  className="rounded-full border border-gray-200 px-3 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">Add tag…</option>
+                  {allTags
+                    .filter(option => !selectedTags.includes(option.slug))
+                    .map(option => (
+                      <option key={option.slug} value={option.slug}>
+                        {option.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <label className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-[#28313e]">
+                <input
+                  type="checkbox"
+                  checked={limitToMap}
+                  onChange={e => {
+                    setLimitToMap(e.target.checked);
+                    if (e.target.checked) {
+                      handleMapMoveEnd();
+                    } else {
+                      fitMapToEvents(filtered.slice(0, 40));
+                    }
+                  }}
+                  disabled={!isMapReady}
+                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                Limit to map view
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 space-y-4">
+          {loading && (
+            <div className="rounded-3xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
+              Loading events…
+            </div>
+          )}
+          {error && (
+            <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center text-sm text-rose-600">
+              {error}
+            </div>
+          )}
+          {showEmptyState && (
+            <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center">
+              <h2 className="text-xl font-semibold text-[#28313e]">No events match these filters yet.</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Try widening the dates or clearing your neighborhood filter.
+              </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-3">
+                {selectedArea && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedArea('')}
+                    className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-[#28313e] hover:bg-gray-100"
+                  >
+                    Clear neighborhood
+                  </button>
+                )}
+                {dateFilter === 'custom' && (
+                  <button
+                    type="button"
+                    onClick={() => setDateFilter('weekend')}
+                    className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-[#28313e] hover:bg-gray-100"
+                  >
+                    Show this weekend
+                  </button>
+                )}
+                {limitToMap && (
+                  <button
+                    type="button"
+                    onClick={() => setLimitToMap(false)}
+                    className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-[#28313e] hover:bg-gray-100"
+                  >
+                    Expand to all Philly
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {!loading && !showEmptyState && (
+            <div className="space-y-4">
+              {visibleEvents.map(event => (
+                <TagEventRow
+                  key={event.id}
+                  event={event}
+                  tags={event.tags || []}
+                  areaLookup={areaLookup}
+                  now={now}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+      <Footer />
+    </div>
+  );
 }
