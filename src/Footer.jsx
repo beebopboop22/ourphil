@@ -39,7 +39,7 @@ const Footer = () => {
   ];
 
   return (
-    <footer className="relative bg-gray-900 text-gray-300 pt-64 pb-12 px-6 overflow-visible">
+    <footer className="relative bg-gray-900 text-gray-300 pt-32 sm:pt-36 lg:pt-40 pb-12 px-6 overflow-visible">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none">
         <img
           src={heartUrl}
