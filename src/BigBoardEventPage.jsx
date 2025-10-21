@@ -1,5 +1,5 @@
 // src/BigBoardEventPage.jsx
-import React, { useEffect, useState, useContext, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import Navbar from './Navbar';
@@ -22,7 +22,6 @@ import {
 const FALLBACK_BIG_BOARD_TITLE = 'Community Event – Our Philly';
 const FALLBACK_BIG_BOARD_DESCRIPTION =
   'Discover community-submitted events happening around Philadelphia with Our Philly.';
-const CommentsSection = lazy(() => import('./CommentsSection'));
 import { CalendarCheck, ExternalLink, MapPin, Pencil, Trash2 } from 'lucide-react';
 
 export default function BigBoardEventPage() {
@@ -806,13 +805,6 @@ export default function BigBoardEventPage() {
           </div>
         </div>
 
-          <Suspense fallback={<div>Loading comments…</div>}>
-            <CommentsSection
-              source_table="big_board_events"
-              event_id={event.id}
-            />
-          </Suspense>
-
           {/* More Upcoming Community Submissions */}
           <div className="max-w-5xl mx-auto mt-12 border-t border-gray-200 pt-8 px-4 pb-12">
             <h2 className="text-2xl text-center font-semibold text-gray-800 mb-6">
@@ -824,52 +816,14 @@ export default function BigBoardEventPage() {
               <p className="text-center text-gray-600">No upcoming submissions.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {moreEvents.map(evItem => {
-                  const dt = parseLocalYMD(evItem.start_date);
-                  const diff = Math.round((dt - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24));
-                  const prefix =
-                    diff === 0 ? 'Today' :
-                    diff === 1 ? 'Tomorrow' :
-                    dt.toLocaleDateString('en-US',{ weekday:'long' });
-                  const md = dt.toLocaleDateString('en-US',{ month:'long', day:'numeric' });
-                  return (
-                    <Link
-                      key={evItem.id}
-                      to={`/big-board/${evItem.slug}`}
-                      className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition"
-                    >
-                      <div className="relative h-40 bg-gray-100">
-                        <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
-                          COMMUNITY SUBMISSION
-                        </div>
-                        <img
-                          src={evItem.imageUrl}
-                          alt={evItem.title}
-                          className="w-full h-full object-cover object-center"
-                        />
-                      </div>
-                      <div className="p-4 flex-1 flex flex-col justify-between text-center">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                          {evItem.title}
-                        </h3>
-                        <span className="text-sm text-gray-600">{prefix}, {md}</span>
-                        {!!moreTagMap[evItem.id]?.length && (
-                          <div className="mt-2 flex flex-wrap justify-center space-x-1">
-                            {moreTagMap[evItem.id].map((tag, i) => (
-                              <Link
-                                key={tag.slug}
-                                to={`/tags/${tag.slug}`}
-                                className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
-                              >
-                                #{tag.name}
-                              </Link>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
+                {moreEvents.map(evItem => (
+                  <MoreCommunitySubmissionCard
+                    key={evItem.id}
+                    event={evItem}
+                    tags={moreTagMap[evItem.id] || []}
+                    pillStyles={pillStyles}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -904,6 +858,97 @@ export default function BigBoardEventPage() {
         startStep={modalStartStep}
         initialFile={initialFlyer}
       />
+    </div>
+  );
+}
+
+function MoreCommunitySubmissionCard({ event, tags, pillStyles }) {
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const { isFavorite, toggleFavorite, loading } = useEventFavorite({
+    event_id: event.id,
+    source_table: 'big_board_events',
+  });
+
+  const parseLocalYMD = str => {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  const dt = parseLocalYMD(event.start_date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((dt - today) / (1000 * 60 * 60 * 24));
+  const prefix =
+    diff === 0
+      ? 'Today'
+      : diff === 1
+        ? 'Tomorrow'
+        : dt.toLocaleDateString('en-US', { weekday: 'long' });
+  const md = dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+
+  const handleFavoriteClick = async e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    await toggleFavorite();
+  };
+
+  const safeTags = (tags || []).filter(tag => tag && tag.slug);
+  const hasTags = safeTags.length > 0;
+
+  return (
+    <div className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition">
+      <Link
+        to={`/big-board/${event.slug}`}
+        className="flex-1 flex flex-col"
+      >
+        <div className="relative h-40 bg-gray-100">
+          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
+            COMMUNITY SUBMISSION
+          </div>
+          <img
+            src={event.imageUrl}
+            alt={event.title}
+            className="w-full h-full object-cover object-center"
+          />
+        </div>
+        <div className="p-4 flex-1 flex flex-col justify-between text-center">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+            {event.title}
+          </h3>
+          <span className="text-sm text-gray-600">{prefix}, {md}</span>
+          {hasTags && (
+            <div className="mt-2 flex flex-wrap justify-center gap-2">
+              {safeTags.map((tag, i) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`${pillStyles[i % pillStyles.length]} text-xs font-semibold px-2 py-1 rounded-full hover:opacity-80 transition`}
+                >
+                  #{tag.name}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </Link>
+      <button
+        type="button"
+        onClick={handleFavoriteClick}
+        disabled={loading}
+        className={`flex items-center justify-center gap-2 border-t border-indigo-100 px-4 py-3 text-sm font-semibold transition ${
+          isFavorite
+            ? 'bg-indigo-600 text-white'
+            : 'bg-white text-indigo-600 hover:bg-indigo-50'
+        } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+      >
+        <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+        {isFavorite ? 'In the Plans' : 'Add to Plans'}
+      </button>
     </div>
   );
 }
