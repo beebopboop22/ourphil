@@ -7,11 +7,12 @@ import Footer from './Footer'
 import PostFlyerModal from './PostFlyerModal'
 import { Helmet } from 'react-helmet'
 import { RRule } from 'rrule'
-import { Clock } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import { FaStar } from 'react-icons/fa'
 import useEventFavorite from './utils/useEventFavorite'
 import { AuthContext } from './AuthProvider'
 import { getDetailPathForItem } from './utils/eventDetailPaths.js'
+import MonthlyEventsMap from './MonthlyEventsMap.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -59,13 +60,10 @@ function formatMonthDay(date) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-function toISODateString(date) {
-  if (!(date instanceof Date)) return null
-  if (Number.isNaN(date.getTime())) return null
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+function toNumberOrNull(value) {
+  if (value === null || value === undefined) return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
 }
 
 function getUpcomingWeekendRange(baseDate = new Date()) {
@@ -108,7 +106,7 @@ const pillStyles = [
   'bg-red-100 text-red-800',
 ]
 
-function EventRow({ evt, tags, profileMap }) {
+function EventRow({ evt, tags, profileMap, areaLookup }) {
   const navigate = useNavigate()
   const { user } = useContext(AuthContext)
 
@@ -163,6 +161,33 @@ function EventRow({ evt, tags, profileMap }) {
 
   const imageSrc = evt.imageUrl || evt.image || ''
   const submitter = evt.isBigBoard ? profileMap[evt.owner_id] : null
+
+  const lookup = areaLookup || {}
+  let areaName = evt.areaName || null
+  if (!areaName) {
+    const venueEntries = Array.isArray(evt.venues)
+      ? evt.venues
+      : evt.venues
+        ? [evt.venues]
+        : []
+    const areaCandidates = []
+    if (evt.area_id !== undefined && evt.area_id !== null) areaCandidates.push(evt.area_id)
+    if (evt.venue_area_id !== undefined && evt.venue_area_id !== null) areaCandidates.push(evt.venue_area_id)
+    venueEntries.forEach(entry => {
+      if (entry?.area_id !== undefined && entry?.area_id !== null) {
+        areaCandidates.push(entry.area_id)
+      }
+    })
+    for (const candidate of areaCandidates) {
+      if (candidate === undefined || candidate === null) continue
+      const key = typeof candidate === 'string' ? candidate : String(candidate)
+      const match = lookup[candidate] || lookup[key] || null
+      if (match) {
+        areaName = match
+        break
+      }
+    }
+  }
 
   const seenTags = new Set()
   const uniqueTags = []
@@ -225,16 +250,25 @@ function EventRow({ evt, tags, profileMap }) {
           </div>
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-600">
-            <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{timingLabel}</span>
+          <div className="flex flex-wrap items-center gap-2 text-[0.7rem] font-semibold">
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-800 uppercase tracking-wide">{timingLabel}</span>
+            {areaName && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">
+                <MapPin className="h-3 w-3 text-slate-500" />
+                {areaName}
+              </span>
+            )}
             {badges.map(badge => (
-              <span key={badge.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${badge.className}`}>
+              <span
+                key={badge.label}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 uppercase tracking-wide ${badge.className}`}
+              >
                 {badge.icon}
                 {badge.label}
               </span>
             ))}
             {isFavorite && !evt.isSports && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-600 text-white">
+              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2 py-0.5 uppercase tracking-wide text-white">
                 In the Plans
               </span>
             )}
@@ -290,6 +324,7 @@ export default function TagPage() {
   const [recSeries, setRecSeries] = useState([])
   const [profileMap, setProfileMap] = useState({})
   const [tagMap, setTagMap] = useState({})
+  const [areaLookup, setAreaLookup] = useState({})
   const [loading, setLoading] = useState(true)
 
   // modal toggles
@@ -316,6 +351,19 @@ export default function TagPage() {
       }
       setTag(t)
 
+      const { data: areaRows, error: areaError } = await supabase
+        .from('areas')
+        .select('id,name')
+      if (areaError) {
+        console.error('Failed to load areas', areaError)
+      }
+      const nextAreaLookup = {}
+      ;(areaRows || []).forEach(area => {
+        if (area?.id === undefined || area?.id === null) return
+        nextAreaLookup[area.id] = area.name || ''
+      })
+      setAreaLookup(nextAreaLookup)
+
       // 2) fetch taggings
       const { data: taggings } = await supabase
         .from('taggings')
@@ -333,31 +381,31 @@ export default function TagPage() {
         byType.events?.length
           ? supabase
               .from('events')
-              .select('id,"E Name","E Description","E Image",slug,Dates,"End Date",start_time,end_time')
+              .select('id,"E Name","E Description","E Image",slug,Dates,"End Date",start_time,end_time,latitude,longitude,area_id')
               .in('id', byType.events)
           : { data: [] },
         byType.big_board_events?.length
           ? supabase
               .from('big_board_events')
-              .select('id,title,description,slug,start_date,end_date,start_time,end_time,big_board_posts!big_board_posts_event_id_fkey(image_url,user_id)')
+              .select('id,title,description,slug,start_date,end_date,start_time,end_time,latitude,longitude,area_id,big_board_posts!big_board_posts_event_id_fkey(image_url,user_id)')
               .in('id', byType.big_board_events)
           : { data: [] },
         byType.group_events?.length
           ? supabase
               .from('group_events')
-              .select('id,title,description,start_date,end_date,start_time,end_time,image_url,group_id')
+              .select('id,title,description,start_date,end_date,start_time,end_time,image_url,group_id,address,latitude,longitude,area_id')
               .in('id', byType.group_events)
           : { data: [] },
         byType.all_events?.length
           ? supabase
               .from('all_events')
-              .select('id,name,description,slug,image,link,start_date,end_date,start_time,end_time,venue_id(name,slug)')
+              .select('id,name,description,slug,image,link,start_date,end_date,start_time,end_time,latitude,longitude,area_id,venue_id(name,slug,latitude,longitude,area_id)')
               .in('id', byType.all_events)
           : { data: [] },
         recurringIds.length
           ? supabase
               .from('recurring_events')
-              .select('id,name,slug,description,address,link,image_url,start_date,end_date,start_time,end_time,rrule')
+              .select('id,name,slug,description,address,link,image_url,start_date,end_date,start_time,end_time,rrule,latitude,longitude,area_id')
               .in('id', recurringIds)
           : { data: [] },
       ])
@@ -382,6 +430,9 @@ export default function TagPage() {
             ...e,
             slug: e.slug,
           }) || '/'
+        const latitude = toNumberOrNull(e.latitude)
+        const longitude = toNumberOrNull(e.longitude)
+        const areaId = e.area_id ?? null
         return {
           id: e.id,
           title: e['E Name'],
@@ -399,6 +450,9 @@ export default function TagPage() {
           favoriteId: e.id,
           source_table: 'events',
           taggableId: e.id,
+          latitude,
+          longitude,
+          area_id: areaId,
         }
       }))
 
@@ -417,6 +471,9 @@ export default function TagPage() {
             ...ev,
             isBigBoard: true,
           }) || '/'
+        const latitude = toNumberOrNull(ev.latitude)
+        const longitude = toNumberOrNull(ev.longitude)
+        const areaId = ev.area_id ?? null
         return {
           id: ev.id,
           title: ev.title,
@@ -435,6 +492,9 @@ export default function TagPage() {
           favoriteId: ev.id,
           source_table: 'big_board_events',
           taggableId: ev.id,
+          latitude,
+          longitude,
+          area_id: areaId,
         }
       }))
 
@@ -456,6 +516,9 @@ export default function TagPage() {
             group_slug: slug,
             isGroupEvent: true,
           }) || '/'
+        const latitude = toNumberOrNull(ev.latitude)
+        const longitude = toNumberOrNull(ev.longitude)
+        const areaId = ev.area_id ?? null
         return {
           id: ev.id,
           title: ev.title,
@@ -473,20 +536,35 @@ export default function TagPage() {
           favoriteId: ev.id,
           source_table: 'group_events',
           taggableId: ev.id,
+          latitude,
+          longitude,
+          area_id: areaId,
+          address: ev.address || '',
         }
       }))
 
       setAllEvents((aeRes.data || []).map(ev => {
         const start = parseISODateLocal(ev.start_date)
         const end   = parseISODateLocal(ev.end_date || ev.start_date)
-        const venueSlug = ev.venue_id?.slug || null
+        const venueRecord = Array.isArray(ev.venue_id) ? ev.venue_id[0] : ev.venue_id
+        const venueSlug = venueRecord?.slug || null
+        const venueName = venueRecord?.name || null
+        const venueLat = toNumberOrNull(venueRecord?.latitude)
+        const venueLng = toNumberOrNull(venueRecord?.longitude)
+        const venueAreaId = venueRecord?.area_id ?? null
+        const rawLat = toNumberOrNull(ev.latitude)
+        const rawLng = toNumberOrNull(ev.longitude)
+        const latitude = rawLat ?? venueLat
+        const longitude = rawLng ?? venueLng
+        const areaId = ev.area_id ?? venueAreaId ?? null
+        const venueForDetail = venueRecord
+          ? { name: venueName, slug: venueSlug }
+          : null
         const href =
           getDetailPathForItem({
             ...ev,
             venue_slug: venueSlug,
-            venues: ev.venue_id
-              ? { name: ev.venue_id.name, slug: venueSlug }
-              : null,
+            venues: venueForDetail,
           }) || '/'
         return {
           id: ev.id,
@@ -498,8 +576,8 @@ export default function TagPage() {
           start_date: ev.start_date,
           end_date: ev.end_date || ev.start_date,
           slug: ev.slug,
-          venues: ev.venue_id
-            ? { name: ev.venue_id.name, slug: venueSlug }
+          venues: venueRecord
+            ? { name: venueName, slug: venueSlug, latitude: venueLat, longitude: venueLng, area_id: venueAreaId }
             : null,
           href,
           start_time: ev.start_time || null,
@@ -508,6 +586,10 @@ export default function TagPage() {
           favoriteId: ev.id,
           source_table: 'all_events',
           taggableId: ev.id,
+          latitude,
+          longitude,
+          area_id: areaId,
+          venue_area_id: venueAreaId,
         }
       }))
 
@@ -536,6 +618,8 @@ export default function TagPage() {
             const title =
               e.short_title ||
               `${(home.name || '').replace(/^Philadelphia\s+/, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/, '')}`
+            const venueLat = toNumberOrNull(e.venue?.location?.lat)
+            const venueLng = toNumberOrNull(e.venue?.location?.lon ?? e.venue?.location?.lng)
             return {
               id: `sg-${e.id}`,
               title,
@@ -547,13 +631,25 @@ export default function TagPage() {
               end_date: dt.toISOString().slice(0,10),
               start_time: dt.toTimeString().slice(0,5),
               end_time: dt.toTimeString().slice(0,5),
-              venues: e.venue ? { name: e.venue.name, slug: null } : null,
+              venues: e.venue
+                ? {
+                    name: e.venue.name,
+                    slug: null,
+                    latitude: venueLat,
+                    longitude: venueLng,
+                    area_id: null,
+                  }
+                : null,
               href: `/sports/${e.id}`,
               url: e.url,
               isSports: true,
               favoriteId: null,
               source_table: null,
               taggableId: e.id,
+              latitude: venueLat,
+              longitude: venueLng,
+              area_id: null,
+              venue_area_id: null,
             }
           })
           setAllEvents(prev => [...prev, ...mappedSports])
@@ -562,7 +658,12 @@ export default function TagPage() {
         }
       }
 
-      setRecSeries(recRes.data || [])
+      setRecSeries((recRes.data || []).map(series => ({
+        ...series,
+        latitude: toNumberOrNull(series.latitude),
+        longitude: toNumberOrNull(series.longitude),
+        area_id: series.area_id ?? null,
+      })))
       setLoading(false)
     }
     load()
@@ -640,6 +741,9 @@ export default function TagPage() {
         favoriteId: series.id,
         source_table: 'recurring_events',
         taggableId: series.id,
+        latitude: series.latitude ?? null,
+        longitude: series.longitude ?? null,
+        area_id: series.area_id ?? null,
       }))
     })
   }, [recSeries])
@@ -720,48 +824,29 @@ export default function TagPage() {
     }
   }, [upcoming, dateFilter, customStart, customEnd, weekendRange])
 
-  const mapDateRange = useMemo(() => {
-    switch (dateFilter) {
-      case 'today': {
-        const today = startOfDay(new Date())
-        return { start: today, end: today }
-      }
-      case 'weekend':
-        return { start: weekendRange.start, end: weekendRange.end }
-      case 'range': {
-        const startInput = customStart ? parseISODateLocal(customStart) : null
-        const endInput = customEnd ? parseISODateLocal(customEnd) : null
-        const start = startInput ? startOfDay(startInput) : null
-        const end = endInput ? startOfDay(endInput) : null
-        if (!start && !end) return null
-        if (start && end && end < start) {
-          return { start: end, end: start }
-        }
-        return { start: start || end, end: end || start }
-      }
-      default:
-        return null
-    }
-  }, [dateFilter, customStart, customEnd, weekendRange])
-
-  const mapHref = useMemo(() => {
-    const params = new URLSearchParams()
-    if (tag?.slug) {
-      params.set('tag', tag.slug)
-    } else if (tag?.name) {
-      params.set('tag', tag.name)
-    }
-    if (mapDateRange?.start) {
-      const startIso = toISODateString(mapDateRange.start)
-      if (startIso) params.set('start', startIso)
-    }
-    if (mapDateRange?.end) {
-      const endIso = toISODateString(mapDateRange.end)
-      if (endIso) params.set('end', endIso)
-    }
-    const qs = params.toString()
-    return qs ? `/map?${qs}` : '/map'
-  }, [tag, mapDateRange])
+  const mapEvents = useMemo(() => {
+    return filteredEvents
+      .map(evt => {
+        const venueEntries = Array.isArray(evt.venues)
+          ? evt.venues
+          : evt.venues
+            ? [evt.venues]
+            : []
+        const candidateLat =
+          evt.latitude ??
+          venueEntries.find(v => v?.latitude !== undefined && v?.latitude !== null)?.latitude ??
+          null
+        const candidateLng =
+          evt.longitude ??
+          venueEntries.find(v => v?.longitude !== undefined && v?.longitude !== null)?.longitude ??
+          null
+        const latitude = toNumberOrNull(candidateLat)
+        const longitude = toNumberOrNull(candidateLng)
+        if (latitude === null || longitude === null) return null
+        return { ...evt, latitude, longitude }
+      })
+      .filter(Boolean)
+  }, [filteredEvents])
 
   useEffect(() => {
     if (!upcoming.length) {
@@ -822,8 +907,6 @@ export default function TagPage() {
     { value: 'range', label: 'Custom range' },
   ]
   const showCustomRange = dateFilter === 'range'
-  const heroDescription = tag.description || `Discover upcoming #${tag.name} things to do in Philadelphia, curated by Our Philly.`
-
   return (
     <>
       <Helmet>
@@ -836,120 +919,70 @@ export default function TagPage() {
 
       <div className="min-h-screen bg-[#fdf7f2] text-[#29313f]">
         <Navbar />
-        <main className="pt-28 pb-16">
-          <section className="relative border-b border-[#f4c9bc]/70">
-            <div
-              className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent"
-              aria-hidden="true"
-            />
-            <div className="mx-auto max-w-7xl px-6 pb-12 pt-10">
-              <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/80 px-0 backdrop-blur shadow-xl shadow-[#bf3d35]/10">
-                <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-                  <div className="px-8 py-10 sm:px-12 sm:py-12">
-                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Philly tag spotlight</p>
-                    <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
-                      {eventCount > 0
-                        ? `${eventCount} upcoming #${tag.name} events in Philly`
-                        : `Upcoming #${tag.name} events in Philly`}
-                    </h1>
-                    {tag.is_seasonal && (
-                      <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#d9e9ea] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#004C55]">
-                        <Clock className="h-4 w-4" />
-                        Seasonal tag
-                      </span>
-                    )}
-                    <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#4a5568] sm:text-lg">{heroDescription}</p>
-                    <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <button
-                        onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }}
-                        className="inline-flex items-center justify-center rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
-                      >
-                        Submit an event
-                      </button>
-                      <Link
-                        to={mapHref}
-                        className="inline-flex items-center justify-center rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold uppercase tracking-wider text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
-                      >
-                        View these on the map
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="relative flex items-center justify-center overflow-hidden px-8 py-12 sm:px-10">
-                    <div
-                      className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl"
-                      aria-hidden="true"
-                    />
-                    <div className="relative flex flex-col items-center gap-6 text-center">
-                      <img
-                        src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
-                        alt="Our Philly city heart"
-                        className="h-48 w-48 object-contain drop-shadow-xl"
-                      />
-                      <div className="w-full max-w-xs rounded-2xl border border-[#29313f]/10 bg-white/85 px-6 py-5 shadow-lg shadow-[#29313f]/10">
-                        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Need the map?</p>
-                        <p className="mt-2 text-base font-semibold text-[#29313f]">Jump to the citywide view</p>
-                        <p className="mt-2 text-sm text-[#4a5568]">
-                          The map shows every submission. Once you’re there, pick the #{tag.name} filter to zero in on plans for your crew.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="border-b border-[#f4c9bc]/70 bg-white/70">
-            <div className="mx-auto max-w-7xl px-6 py-6 flex flex-col gap-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold">Dial in the dates</h2>
-                  <p className="text-sm text-[#4a5568]">Everything is sorted with the next upcoming events first.</p>
-                </div>
-                <div className="flex flex-col gap-3 sm:items-end">
-                  <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-                    {filterOptions.map(option => (
-                      <button
-                        key={option.value}
-                        onClick={() => setDateFilter(option.value)}
-                        className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
-                          dateFilter === option.value
-                            ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
-                            : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
+        <main className="pt-24 pb-16">
+          <section className="border-b border-[#f4c9bc]/70 bg-white/80">
+            <div className="mx-auto max-w-7xl px-6 pt-14 pb-10 flex flex-col gap-8">
+              <div className="flex flex-col gap-5">
+                <h1 className="text-4xl font-black leading-tight text-[#29313f] sm:text-5xl">
+                  {eventCount > 0
+                    ? `${eventCount} upcoming #${tag.name} events in the city`
+                    : `Upcoming #${tag.name} events in the city`}
+                </h1>
+                <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-wide text-[#bf3d35]">
+                  <label className="flex items-center gap-2 text-[#bf3d35]">
+                    <span>Date filter</span>
+                    <select
+                      value={dateFilter}
+                      onChange={e => setDateFilter(e.target.value)}
+                      className="rounded-full border border-[#f4c9bc] bg-white/90 px-4 py-2 text-sm font-semibold capitalize text-[#29313f] shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                    >
+                      {filterOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   {showCustomRange && (
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
-                      <label className="flex items-center gap-2">
-                        <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">Start</span>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 text-[#bf3d35]">
+                        <span>Start</span>
                         <input
                           type="date"
                           value={customStart}
                           onChange={e => setCustomStart(e.target.value)}
-                          className="rounded-lg border border-[#f4c9bc] bg-white/80 px-3 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                          className="rounded-lg border border-[#f4c9bc] bg-white/90 px-3 py-2 text-sm text-[#29313f] shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
                         />
                       </label>
-                      <label className="flex items-center gap-2">
-                        <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">End</span>
+                      <label className="flex items-center gap-2 text-[#bf3d35]">
+                        <span>End</span>
                         <input
                           type="date"
                           value={customEnd}
                           onChange={e => setCustomEnd(e.target.value)}
-                          className="rounded-lg border border-[#f4c9bc] bg-white/80 px-3 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                          className="rounded-lg border border-[#f4c9bc] bg-white/90 px-3 py-2 text-sm text-[#29313f] shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
                         />
                       </label>
                     </div>
                   )}
+                  <button
+                    onClick={() => { setModalStartStep(1); setInitialFlyer(null); setShowFlyerModal(true); }}
+                    className="inline-flex items-center justify-center rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold tracking-wider text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
+                  >
+                    Submit an event
+                  </button>
                 </div>
               </div>
             </div>
           </section>
 
-          <section className="mx-auto max-w-7xl px-6 py-10">
+          {mapEvents.length > 0 && (
+            <section className="mx-auto max-w-7xl px-6 pt-8">
+              <MonthlyEventsMap events={mapEvents} height={420} />
+            </section>
+          )}
+
+          <section className="mx-auto max-w-7xl px-6 pt-10">
             {eventCount === 0 ? (
               <div className="rounded-2xl border border-dashed border-[#f4c9bc] bg-white/80 px-6 py-12 text-center text-[#4a5568] shadow-sm">
                 <p className="text-lg font-semibold text-[#29313f]">No #{tag.name} events match these dates yet.</p>
@@ -972,7 +1005,7 @@ export default function TagPage() {
                     tagsForRow.push({ slug: tag.slug, name: tag.name })
                   }
                   const rowKey = `${mapKey}-${evt.start_date || ''}-${evt.start_time || ''}`
-                  return <EventRow key={rowKey} evt={evt} tags={tagsForRow} profileMap={profileMap} />
+                  return <EventRow key={rowKey} evt={evt} tags={tagsForRow} profileMap={profileMap} areaLookup={areaLookup} />
                 })}
               </div>
             )}
