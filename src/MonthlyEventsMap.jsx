@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 import Map, { Marker, Popup } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { getMapboxToken } from './config/mapboxToken.js';
@@ -163,13 +164,39 @@ export default function MonthlyEventsMap({ events = [], height = 360 }) {
               <h4 className="text-base font-semibold text-[#28313e] leading-snug">
                 {selectedEvent.title}
               </h4>
-              <p className="text-xs text-gray-600">
-                {formatEventDateRange(
-                  selectedEvent.startDate,
-                  selectedEvent.endDate,
-                  PHILLY_TIME_ZONE,
+              <div className="space-y-1">
+                <p className="text-xs text-gray-600">
+                  {formatEventDateRange(
+                    selectedEvent.startDate,
+                    selectedEvent.endDate,
+                    PHILLY_TIME_ZONE,
+                  )}
+                </p>
+                {selectedEvent.timeLabel && (
+                  <p className="text-xs font-medium text-gray-700">
+                    {selectedEvent.timeLabel}
+                  </p>
                 )}
-              </p>
+                {selectedEvent.areaName && (
+                  <p className="flex items-center gap-1 text-xs font-medium text-gray-700">
+                    <MapPin className="h-3 w-3 text-gray-500" aria-hidden="true" />
+                    {selectedEvent.areaName}
+                  </p>
+                )}
+                {Array.isArray(selectedEvent.mapTags) && selectedEvent.mapTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {selectedEvent.mapTags.slice(0, 4).map(tag => (
+                      <Link
+                        key={tag.slug}
+                        to={`/tags/${tag.slug}`}
+                        className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700 hover:bg-indigo-100"
+                      >
+                        #{tag.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
               {selectedEvent.detailPath && (
                 <Link
                   to={selectedEvent.detailPath}
