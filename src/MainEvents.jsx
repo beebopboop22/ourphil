@@ -20,8 +20,6 @@ import {
 import Navbar from './Navbar';
 import Footer from './Footer';
 import RecentActivity from './RecentActivity';
-import RecurringEventsScroller from './RecurringEventsScroller';
-import SavedEventsScroller from './SavedEventsScroller';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import TopQuickLinks from './TopQuickLinks';
@@ -29,7 +27,6 @@ import { supabase } from './supabaseClient';
 import { getDetailPathForItem } from './utils/eventDetailPaths';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
-import { COMMUNITY_REGIONS } from './communityIndexData.js';
 import {
   PHILLY_TIME_ZONE,
   getWeekendWindow,
@@ -392,6 +389,43 @@ function mapGroupEventToCard(evt, areaLookup = {}) {
   };
 }
 
+function mapSavedEventToCard(event, areaLookup = {}) {
+  if (!event) return null;
+  const baseAreaName = event.areaName || (event.area_id ? areaLookup[event.area_id] || null : null);
+  let imageUrl = event.imageUrl || event.image || '';
+  if (!imageUrl && event.group?.image) {
+    imageUrl = event.group.image;
+  }
+
+  const badges = [];
+  let detailItem = event;
+  if (event.source_table === 'big_board_events') {
+    badges.push('Submission');
+  } else if (event.source_table === 'events') {
+    badges.push('Tradition');
+  } else if (event.source_table === 'group_events') {
+    badges.push('Group Event');
+    detailItem = {
+      ...event,
+      group_slug: event.group?.slug,
+      isGroupEvent: true,
+    };
+  } else if (event.source_table === 'recurring_events') {
+    badges.push('Recurring');
+  }
+
+  const detailPath = getDetailPathForItem(detailItem);
+
+  return {
+    ...event,
+    imageUrl,
+    detailPath,
+    badges,
+    areaName: baseAreaName,
+    favoriteId: event.id,
+  };
+}
+
 function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   const rangeStartMs = rangeStart.getTime();
   const rangeEndMs = rangeEnd.getTime();
@@ -565,8 +599,8 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   );
   const combined = [
     ...bigBoard,
-    ...traditionsOrdered,
     ...singleDayEvents,
+    ...traditionsOrdered,
     ...recurring,
     ...groupEvents,
     ...sports,
@@ -885,6 +919,8 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
     : formatSummary(config, data.total, data.traditions, rangeStart, rangeEnd);
 
   const CtaComponent = config.external ? 'a' : Link;
+  const showEmptyState =
+    !loading && typeof config.renderEmpty === 'function' && (!data?.items || data.items.length === 0);
 
   return (
     <section className="mt-16">
@@ -912,7 +948,9 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
       </div>
       <div className="mt-8">
         <div
-          className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4"
+          className={`flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4 ${
+            showEmptyState ? 'justify-center sm:block' : ''
+          }`}
         >
           {loading
             ? Array.from({ length: 4 }).map((_, idx) => (
@@ -923,6 +961,12 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
                   <div className="h-[18rem] w-full rounded-2xl bg-gray-100 animate-pulse" />
                 </div>
               ))
+            : showEmptyState
+            ? (
+                <div className="w-full sm:col-span-2 lg:col-span-4">
+                  {config.renderEmpty()}
+                </div>
+              )
             : data.items.map(event => {
                 const tagKey =
                   event.favoriteId && event.source_table
@@ -1053,40 +1097,96 @@ export default function MainEvents() {
     ],
     [currentMonthName, currentMonthYearLabel, monthlyGuidePaths, traditionsHref]
   );
-  const communityGuideCards = useMemo(() => {
-    const iconStyles = ['bg-white/20 text-white'];
-    return COMMUNITY_REGIONS.map((region, index) => ({
-      key: region.key,
-      title: region.name,
-      href: `/${region.slug}/`,
-      icon: MapPin,
-      iconLabel: `${region.name} community index`,
-      iconBg: iconStyles[index % iconStyles.length],
-    }));
-  }, []);
   const [areaLookup, setAreaLookup] = useState({});
   const [savedEvents, setSavedEvents] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [showFlyerModal, setShowFlyerModal] = useState(false);
-  const savedPlansDescription = useMemo(() => {
+  const savedPlansSummary = useMemo(() => {
     if (loadingSaved) {
       return 'Loading your saved plans…';
     }
     if (!user) {
-      return (
-        <>
-          <Link to="/login" className="text-indigo-600 underline">
-            Log in
-          </Link>{' '}
-          to add events to your plans.
-        </>
-      );
+      return 'Sign up or log in to keep track of the events you love.';
     }
     if (!savedEvents.length) {
-      return "You don't have any plans yet! Add some to get started.";
+      return 'Add events to your plans to see them collected here.';
     }
-    return 'A quick look at the events you have coming up next.';
+    return savedEvents.length === 1
+      ? 'Here is the next event on your calendar.'
+      : 'Here are the next events you have coming up.';
   }, [loadingSaved, user, savedEvents.length]);
+  const savedPlansCta = useMemo(() => {
+    if (!user) {
+      return { label: 'Sign up to save plans', href: '/signup' };
+    }
+    if (!savedEvents.length) {
+      return { label: 'Find events to add', href: '/events' };
+    }
+    return { label: 'See all plans', href: '/profile' };
+  }, [user, savedEvents.length]);
+  const savedPlansEmptyState = useMemo(() => {
+    if (!user) {
+      return (
+        <div className="rounded-3xl border-2 border-dashed border-indigo-200 bg-indigo-50/70 px-6 py-10 text-center text-indigo-900">
+          <h3 className="text-lg font-semibold text-indigo-900">Save your Philly plans</h3>
+          <p className="mt-2 text-sm text-indigo-800">
+            Log in or create an account to build a personalized agenda.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link
+              to="/login"
+              className="rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-600 hover:text-white"
+            >
+              Log in
+            </Link>
+            <Link
+              to="/signup"
+              className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-indigo-700"
+            >
+              Sign up free
+            </Link>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-3xl border-2 border-dashed border-indigo-200 bg-indigo-50/70 px-6 py-10 text-center text-indigo-900">
+        <h3 className="text-lg font-semibold text-indigo-900">No plans saved yet</h3>
+        <p className="mt-2 text-sm text-indigo-800">
+          Tap "Add to Plans" on events to keep them handy for later.
+        </p>
+        <div className="mt-4 flex justify-center">
+          <Link
+            to="/events"
+            className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-indigo-700"
+          >
+            Browse events
+          </Link>
+        </div>
+      </div>
+    );
+  }, [user]);
+  const savedPlansData = useMemo(() => {
+    const mapped = savedEvents.map(evt => mapSavedEventToCard(evt, areaLookup)).filter(Boolean);
+    const traditionsCount = mapped.filter(event => event.badges?.includes('Tradition')).length;
+    return {
+      items: mapped.slice(0, 4),
+      total: mapped.length,
+      traditions: traditionsCount,
+    };
+  }, [savedEvents, areaLookup]);
+  const savedPlansConfig = useMemo(
+    () => ({
+      key: 'saved-plans',
+      eyebrow: 'Saved agenda',
+      headline: 'Your Upcoming Plans',
+      cta: savedPlansCta.label,
+      href: savedPlansCta.href,
+      getSummary: () => savedPlansSummary,
+      renderEmpty: () => savedPlansEmptyState,
+    }),
+    [savedPlansCta, savedPlansSummary, savedPlansEmptyState]
+  );
   const { start: weekendStart, end: weekendEnd } = useMemo(
     () => getWeekendWindow(new Date(), PHILLY_TIME_ZONE),
     []
@@ -1431,6 +1531,9 @@ export default function MainEvents() {
       ...sections.weekend.items,
       ...sections.traditions.items,
     ];
+    if (savedPlansData.items?.length) {
+      base.push(...savedPlansData.items);
+    }
     featuredCommunities.forEach(section => {
       if (section?.items?.length) {
         base.push(...section.items);
@@ -1442,6 +1545,7 @@ export default function MainEvents() {
     sections.tomorrow.items,
     sections.weekend.items,
     sections.traditions.items,
+    savedPlansData.items,
     featuredCommunities,
   ]);
 
@@ -1545,17 +1649,33 @@ export default function MainEvents() {
             )}
           </div>
 
-          {SECTION_CONFIGS.map(config => (
-            <EventsSection
-              key={config.key}
-              config={config}
-              data={sections[config.key]}
-              loading={loading}
-              rangeStart={rangeMeta[config.key].start}
-              rangeEnd={rangeMeta[config.key].end}
-              tagMap={tagMap}
-            />
-          ))}
+          {SECTION_CONFIGS.reduce((acc, config) => {
+            acc.push(
+              <EventsSection
+                key={config.key}
+                config={config}
+                data={sections[config.key]}
+                loading={loading}
+                rangeStart={rangeMeta[config.key].start}
+                rangeEnd={rangeMeta[config.key].end}
+                tagMap={tagMap}
+              />
+            );
+            if (config.key === 'today') {
+              acc.push(
+                <EventsSection
+                  key={savedPlansConfig.key}
+                  config={savedPlansConfig}
+                  data={savedPlansData}
+                  loading={loadingSaved}
+                  rangeStart={rangeMeta.today.start}
+                  rangeEnd={rangeMeta.weekend.end}
+                  tagMap={tagMap}
+                />
+              );
+            }
+            return acc;
+          }, [])}
           {featuredCommunities.map((section, index) => {
             if (!section?.items?.length) {
               return null;
@@ -1671,94 +1791,6 @@ export default function MainEvents() {
         </section>
         </div>
 
-        <section
-          aria-labelledby="community-indexes-heading"
-          className="overflow-hidden bg-[#bf3d35] text-white"
-          style={{ marginInline: 'calc(50% - 50vw)', width: '100vw' }}
-        >
-          <div className="px-6 pb-10 pt-8 sm:px-10">
-            <div className="mx-auto flex max-w-screen-xl flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-3 text-left">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/70">In Your Area</p>
-                <h2 id="community-indexes-heading" className="text-2xl font-semibold sm:text-3xl">
-                  Community Indexes
-                </h2>
-                <p className="max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
-                  Explore our community indexes to discover groups and upcoming traditions in your area.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="relative">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#bf3d35] via-[#bf3d35]/80 to-transparent"
-            />
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#bf3d35] via-[#bf3d35]/80 to-transparent"
-            />
-            <div className="overflow-x-auto pb-10">
-              <div className="flex gap-4 px-6 sm:px-10 snap-x snap-mandatory">
-                {communityGuideCards.map(card => {
-                  const Icon = card.icon;
-                  return (
-                    <Link
-                      key={card.key}
-                      to={card.href}
-                      className="group relative flex min-h-[160px] min-w-[210px] flex-shrink-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/10 p-5 text-left shadow-lg transition-transform duration-200 hover:-translate-y-1 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white snap-start"
-                    >
-                      <div className="flex items-start gap-4">
-                        <span className={`inline-flex items-center justify-center rounded-xl p-3 ${card.iconBg}`}>
-                          <Icon className="h-6 w-6" aria-hidden="true" />
-                          <span className="sr-only">{card.iconLabel}</span>
-                        </span>
-                        <h3 className="text-lg font-semibold text-white">{card.title}</h3>
-                      </div>
-                      <span className="mt-6 inline-flex items-center text-sm font-semibold text-white/80 transition group-hover:text-white">
-                        Explore groups & traditions
-                        <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
-          <div className="space-y-3 text-left mb-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Saved agenda</p>
-            <h2 className="text-black text-4xl font-[Barrio] text-left">Your Upcoming Plans</h2>
-            <p className="text-sm text-gray-600 sm:text-base">{savedPlansDescription}</p>
-          </div>
-          {!loadingSaved && user && savedEvents.length > 0 && (
-            <>
-              <SavedEventsScroller events={savedEvents} />
-              <p className="text-gray-600 mt-2">
-                <Link to="/profile" className="text-indigo-600 underline">
-                  See more plans on your profile
-                </Link>
-              </p>
-            </>
-          )}
-        </section>
-
-        <RecurringEventsScroller
-          windowStart={startOfWeek}
-          windowEnd={endOfWeek}
-          eventType="open_mic"
-          header={(
-            <div className="max-w-screen-xl mx-auto px-4 space-y-3 text-left mb-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Weekly regulars</p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">Karaoke, Bingo, Open Mics & Other Weeklies</h2>
-              <p className="text-sm text-gray-600 sm:text-base">
-                Drop into rotating open mics, karaoke nights, and game sessions that come back every week.
-              </p>
-            </div>
-          )}
-        />
       </main>
       <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
       <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
