@@ -14,14 +14,11 @@ import {
   HeartPulse,
   Users,
   ArrowUpRight,
-  MapPin,
 } from 'lucide-react';
 
 import Navbar from './Navbar';
 import Footer from './Footer';
 import RecentActivity from './RecentActivity';
-import RecurringEventsScroller from './RecurringEventsScroller';
-import SavedEventsScroller from './SavedEventsScroller';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import TopQuickLinks from './TopQuickLinks';
@@ -29,7 +26,6 @@ import { supabase } from './supabaseClient';
 import { getDetailPathForItem } from './utils/eventDetailPaths';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
-import { COMMUNITY_REGIONS } from './communityIndexData.js';
 import {
   PHILLY_TIME_ZONE,
   getWeekendWindow,
@@ -87,18 +83,6 @@ const TAG_PILL_STYLES = [
   'bg-purple-100 text-purple-800',
   'bg-red-100 text-red-800',
 ];
-
-const startOfWeek = (() => {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return start;
-})();
-
-const endOfWeek = (() => {
-  const end = new Date(startOfWeek);
-  end.setDate(end.getDate() + 6);
-  return end;
-})();
 
 function parseDate(datesStr) {
   if (!datesStr) return null;
@@ -392,6 +376,97 @@ function mapGroupEventToCard(evt, areaLookup = {}) {
   };
 }
 
+function mapSavedEventToCard(evt, areaLookup = {}) {
+  if (!evt) return null;
+  const sourceTable = evt.source_table || evt.sourceTable || null;
+  let startDate = null;
+  let endDate = null;
+  let imageUrl = evt.imageUrl || evt.image || '';
+  const badges = Array.isArray(evt.badges) ? [...evt.badges] : [];
+  const startTime = evt.start_time || evt.startTime || null;
+  let group = evt.group || evt.groups || null;
+  if (Array.isArray(group)) {
+    group = group[0] || null;
+  }
+  let venues = evt.venues || evt.venue || evt.venue_id || null;
+  if (Array.isArray(venues)) {
+    venues = venues[0] || null;
+  }
+
+  switch (sourceTable) {
+    case 'events': {
+      startDate = parseDate(evt.start_date || evt.Dates);
+      endDate = parseDate(evt.end_date || evt['End Date']) || startDate;
+      if (!badges.includes('Tradition')) {
+        badges.push('Tradition');
+      }
+      break;
+    }
+    case 'big_board_events': {
+      startDate = parseISODateInPhilly((evt.start_date || '').slice(0, 10));
+      endDate = parseISODateInPhilly((evt.end_date || '').slice(0, 10)) || startDate;
+      if (!badges.includes('Submission')) {
+        badges.push('Submission');
+      }
+      break;
+    }
+    case 'group_events': {
+      startDate = parseISODateInPhilly((evt.start_date || '').slice(0, 10));
+      endDate = startDate;
+      if (!badges.includes('Group Event')) {
+        badges.push('Group Event');
+      }
+      break;
+    }
+    case 'all_events':
+    default: {
+      startDate = parseISODateInPhilly((evt.start_date || '').slice(0, 10));
+      endDate = parseISODateInPhilly((evt.end_date || '').slice(0, 10)) || startDate;
+      break;
+    }
+  }
+
+  if (!startDate) return null;
+
+  const favoriteIdRaw = evt.favoriteId ?? evt.id ?? evt.sourceId ?? null;
+  const favoriteId =
+    typeof favoriteIdRaw === 'number' || typeof favoriteIdRaw === 'string' ? favoriteIdRaw : null;
+  const slug = evt.slug || (typeof venues === 'object' && venues?.slug ? venues.slug : null);
+  const areaName =
+    evt.areaName || (evt.area_id && areaLookup[evt.area_id]) || (group?.area_id && areaLookup[group.area_id]) || null;
+
+  const detailPath = getDetailPathForItem({
+    ...evt,
+    group,
+    venues,
+    source_table: sourceTable,
+    startDate,
+    start_date:
+      evt.start_date ||
+      (startDate instanceof Date ? startDate.toISOString().slice(0, 10) : null),
+  });
+
+  const safeSource = sourceTable || 'event';
+  const cardId = favoriteId ? `${safeSource}-${favoriteId}` : `${safeSource}-${slug || evt.title || 'saved'}`;
+
+  return {
+    id: `saved-${cardId}`,
+    title: evt.title || evt.name || '',
+    description: evt.description || '',
+    imageUrl,
+    startDate,
+    endDate,
+    start_time: startTime,
+    detailPath,
+    badges,
+    source_table: sourceTable,
+    favoriteId,
+    areaName,
+    group,
+    venues,
+  };
+}
+
 function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   const rangeStartMs = rangeStart.getTime();
   const rangeEndMs = rangeEnd.getTime();
@@ -486,6 +561,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
     })
     .filter(Boolean)
     .filter(ev => eventOverlapsRange(ev.startDate, ev.endDate, rangeStart, rangeEnd))
+    .filter(ev => ev.startDate.getTime() === ev.endDate.getTime())
     .map(ev => ({
       ...ev,
       detailPath: getDetailPathForItem(ev),
@@ -565,8 +641,8 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
   );
   const combined = [
     ...bigBoard,
-    ...traditionsOrdered,
     ...singleDayEvents,
+    ...traditionsOrdered,
     ...recurring,
     ...groupEvents,
     ...sports,
@@ -1053,17 +1129,6 @@ export default function MainEvents() {
     ],
     [currentMonthName, currentMonthYearLabel, monthlyGuidePaths, traditionsHref]
   );
-  const communityGuideCards = useMemo(() => {
-    const iconStyles = ['bg-white/20 text-white'];
-    return COMMUNITY_REGIONS.map((region, index) => ({
-      key: region.key,
-      title: region.name,
-      href: `/${region.slug}/`,
-      icon: MapPin,
-      iconLabel: `${region.name} community index`,
-      iconBg: iconStyles[index % iconStyles.length],
-    }));
-  }, []);
   const [areaLookup, setAreaLookup] = useState({});
   const [savedEvents, setSavedEvents] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
@@ -1073,20 +1138,30 @@ export default function MainEvents() {
       return 'Loading your saved plans…';
     }
     if (!user) {
-      return (
-        <>
-          <Link to="/login" className="text-indigo-600 underline">
-            Log in
-          </Link>{' '}
-          to add events to your plans.
-        </>
-      );
+      return 'Sign in or create a free account to save Philly plans and see them here.';
     }
     if (!savedEvents.length) {
-      return "You don't have any plans yet! Add some to get started.";
+      return 'You haven’t saved any plans yet — tap “Add to Plans” on events to build your agenda.';
     }
-    return 'A quick look at the events you have coming up next.';
+    return 'Here are the next events you have lined up in Philly.';
   }, [loadingSaved, user, savedEvents.length]);
+  const upcomingPlansItems = useMemo(() => {
+    if (loadingSaved || !user || !savedEvents.length) {
+      return [];
+    }
+    return savedEvents
+      .map(evt => mapSavedEventToCard(evt, areaLookup))
+      .filter(Boolean)
+      .slice(0, 4);
+  }, [loadingSaved, user, savedEvents, areaLookup]);
+  const upcomingPlansData = useMemo(
+    () => ({
+      items: upcomingPlansItems,
+      total: savedEvents.length,
+      traditions: savedEvents.filter(evt => evt.source_table === 'events').length,
+    }),
+    [upcomingPlansItems, savedEvents]
+  );
   const { start: weekendStart, end: weekendEnd } = useMemo(
     () => getWeekendWindow(new Date(), PHILLY_TIME_ZONE),
     []
@@ -1436,6 +1511,9 @@ export default function MainEvents() {
         base.push(...section.items);
       }
     });
+    if (upcomingPlansItems.length) {
+      base.push(...upcomingPlansItems);
+    }
     return base;
   }, [
     sections.today.items,
@@ -1443,6 +1521,7 @@ export default function MainEvents() {
     sections.weekend.items,
     sections.traditions.items,
     featuredCommunities,
+    upcomingPlansItems,
   ]);
 
   useEffect(() => {
@@ -1500,6 +1579,17 @@ export default function MainEvents() {
   }, [displayedEvents]);
 
   const quickLinksLoading = loading || weekendGuideLoading;
+  const upcomingPlansConfig = useMemo(
+    () => ({
+      key: 'upcoming-plans',
+      eyebrow: 'Saved agenda',
+      headline: 'Your Upcoming Plans',
+      cta: user ? 'View your plans' : 'Sign up to save plans',
+      href: user ? '/profile' : '/signup',
+      getSummary: () => savedPlansDescription,
+    }),
+    [user, savedPlansDescription]
+  );
   const quickLinksCount =
     typeof weekendGuideCount === 'number' ? weekendGuideCount : sections.weekend.total;
 
@@ -1546,15 +1636,26 @@ export default function MainEvents() {
           </div>
 
           {SECTION_CONFIGS.map(config => (
-            <EventsSection
-              key={config.key}
-              config={config}
-              data={sections[config.key]}
-              loading={loading}
-              rangeStart={rangeMeta[config.key].start}
-              rangeEnd={rangeMeta[config.key].end}
-              tagMap={tagMap}
-            />
+            <React.Fragment key={config.key}>
+              <EventsSection
+                config={config}
+                data={sections[config.key]}
+                loading={loading}
+                rangeStart={rangeMeta[config.key].start}
+                rangeEnd={rangeMeta[config.key].end}
+                tagMap={tagMap}
+              />
+              {config.key === 'today' && (
+                <EventsSection
+                  config={upcomingPlansConfig}
+                  data={upcomingPlansData}
+                  loading={loadingSaved}
+                  rangeStart={rangeMeta.today.start}
+                  rangeEnd={rangeMeta.weekend.end}
+                  tagMap={tagMap}
+                />
+              )}
+            </React.Fragment>
           ))}
           {featuredCommunities.map((section, index) => {
             if (!section?.items?.length) {
@@ -1671,94 +1772,7 @@ export default function MainEvents() {
         </section>
         </div>
 
-        <section
-          aria-labelledby="community-indexes-heading"
-          className="overflow-hidden bg-[#bf3d35] text-white"
-          style={{ marginInline: 'calc(50% - 50vw)', width: '100vw' }}
-        >
-          <div className="px-6 pb-10 pt-8 sm:px-10">
-            <div className="mx-auto flex max-w-screen-xl flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-3 text-left">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/70">In Your Area</p>
-                <h2 id="community-indexes-heading" className="text-2xl font-semibold sm:text-3xl">
-                  Community Indexes
-                </h2>
-                <p className="max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
-                  Explore our community indexes to discover groups and upcoming traditions in your area.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="relative">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#bf3d35] via-[#bf3d35]/80 to-transparent"
-            />
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#bf3d35] via-[#bf3d35]/80 to-transparent"
-            />
-            <div className="overflow-x-auto pb-10">
-              <div className="flex gap-4 px-6 sm:px-10 snap-x snap-mandatory">
-                {communityGuideCards.map(card => {
-                  const Icon = card.icon;
-                  return (
-                    <Link
-                      key={card.key}
-                      to={card.href}
-                      className="group relative flex min-h-[160px] min-w-[210px] flex-shrink-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/10 p-5 text-left shadow-lg transition-transform duration-200 hover:-translate-y-1 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white snap-start"
-                    >
-                      <div className="flex items-start gap-4">
-                        <span className={`inline-flex items-center justify-center rounded-xl p-3 ${card.iconBg}`}>
-                          <Icon className="h-6 w-6" aria-hidden="true" />
-                          <span className="sr-only">{card.iconLabel}</span>
-                        </span>
-                        <h3 className="text-lg font-semibold text-white">{card.title}</h3>
-                      </div>
-                      <span className="mt-6 inline-flex items-center text-sm font-semibold text-white/80 transition group-hover:text-white">
-                        Explore groups & traditions
-                        <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
-          <div className="space-y-3 text-left mb-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Saved agenda</p>
-            <h2 className="text-black text-4xl font-[Barrio] text-left">Your Upcoming Plans</h2>
-            <p className="text-sm text-gray-600 sm:text-base">{savedPlansDescription}</p>
-          </div>
-          {!loadingSaved && user && savedEvents.length > 0 && (
-            <>
-              <SavedEventsScroller events={savedEvents} />
-              <p className="text-gray-600 mt-2">
-                <Link to="/profile" className="text-indigo-600 underline">
-                  See more plans on your profile
-                </Link>
-              </p>
-            </>
-          )}
-        </section>
-
-        <RecurringEventsScroller
-          windowStart={startOfWeek}
-          windowEnd={endOfWeek}
-          eventType="open_mic"
-          header={(
-            <div className="max-w-screen-xl mx-auto px-4 space-y-3 text-left mb-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Weekly regulars</p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">Karaoke, Bingo, Open Mics & Other Weeklies</h2>
-              <p className="text-sm text-gray-600 sm:text-base">
-                Drop into rotating open mics, karaoke nights, and game sessions that come back every week.
-              </p>
-            </div>
-          )}
-        />
+        
       </main>
       <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
       <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
