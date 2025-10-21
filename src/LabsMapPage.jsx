@@ -13,7 +13,7 @@ import { Helmet } from 'react-helmet';
 import { RRule } from 'rrule';
 import { supabase } from './supabaseClient.js';
 import { applyMapboxToken } from './config/mapboxToken.js';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from './AuthProvider.jsx';
 import Navbar from './Navbar.jsx';
 import Footer from './Footer.jsx';
@@ -29,6 +29,7 @@ import {
   setStartOfDay,
 } from './utils/dateUtils.js';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
+import { MapPin } from 'lucide-react';
 
 const MAPBOX_TOKEN = applyMapboxToken(mapboxgl);
 
@@ -236,6 +237,34 @@ function TagPills({ tags, limit = 2, variant = 'link', className = '' }) {
   );
 }
 
+function TogglePill({ label, active, onClick, loading = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#29313f] ${
+        active ? 'border-[#29313f] bg-[#29313f] text-white shadow-sm shadow-[#29313f]/20' : 'border-[#d5dce6] bg-white text-[#29313f] hover:border-[#29313f]/40'
+      }`}
+    >
+      <span
+        className={`relative inline-flex h-4 w-7 items-center rounded-full transition ${
+          active ? 'bg-white/30' : 'bg-[#d5dce6]'
+        }`}
+        aria-hidden="true"
+      >
+        <span
+          className={`inline-flex h-3 w-3 transform rounded-full bg-white shadow transition ${
+            active ? 'translate-x-3.5' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+      <span className="whitespace-nowrap text-sm font-semibold">
+        {loading ? 'Locating…' : label}
+      </span>
+    </button>
+  );
+}
+
 function MapEventRow({ event, onHighlight }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -251,6 +280,9 @@ function MapEventRow({ event, onHighlight }) {
   }, [event, onHighlight]);
 
   const badgeLabel = getEventBadgeLabel(event);
+  const areaLabel = [event?.areaName, event?.area?.name, event?.area_name]
+    .map(candidate => (typeof candidate === 'string' ? candidate.trim() : ''))
+    .find(Boolean) || null;
   const Wrapper = event?.detailPath
     ? Link
     : event?.link
@@ -290,9 +322,8 @@ function MapEventRow({ event, onHighlight }) {
     [event?.favoriteId, event?.source_table, navigate, toggleFavorite, user],
   );
 
-  const titleClassName = `mt-2 font-semibold text-[#29313f] transition-colors group-hover:text-[#bf3d35] ${
-    event?.source_table === 'recurring_events' ? 'text-base' : 'text-lg'
-  }`;
+  const timeLabel = formatDateRange(event);
+  const titleClassName = `text-lg font-semibold text-[#1f2937] transition-colors group-hover:text-[#bf3d35]`;
 
   return (
     <li>
@@ -301,37 +332,35 @@ function MapEventRow({ event, onHighlight }) {
         onMouseEnter={handleHighlight}
         onFocus={handleHighlight}
         onClick={handleHighlight}
-        className="group block rounded-2xl border border-[#f3c7b8] bg-white/90 shadow-sm shadow-[#bf3d35]/5 transition hover:-translate-y-0.5 hover:border-[#bf3d35] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#29313f]"
+        className="group block rounded-2xl border border-[#e0e5ef] bg-white/95 shadow-sm shadow-[#29313f]/5 transition hover:-translate-y-0.5 hover:border-[#bf3d35] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#29313f]"
       >
         <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="flex w-full items-start gap-4">
-            <div className="hidden h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-[#f4e5df] sm:block">
-              {event?.image && (
-                <img src={event.image} alt={event?.title || ''} className="h-full w-full object-cover" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-700">
+              {timeLabel && (
+                <span className="rounded-full bg-indigo-100 px-3 py-0.5 text-indigo-700">{timeLabel}{event?.start_time ? ` · ${formatTimeLabel(event.start_time)}` : ''}</span>
               )}
-            </div>
-            <div className="min-w-0 flex-1">
+              {areaLabel && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#f2cfc3] px-3 py-0.5 text-xs font-semibold text-[#29313f] normal-case">
+                  <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                  {areaLabel}
+                </span>
+              )}
               {badgeLabel ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#d9e9ea] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#004C55]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#d9e9ea] px-3 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#004C55]">
                   {badgeLabel}
                 </span>
               ) : null}
-              <h3 className={titleClassName}>
-                {event?.title}
-              </h3>
-              <p className="mt-1 text-sm text-gray-600">
-                {formatDateRange(event)}
-                {event?.start_time && (
-                  <>
-                    {' '}
-                    · {formatTimeLabel(event.start_time)}
-                  </>
-                )}
-              </p>
-              <TagPills tags={event?.tags} className="mt-3" />
             </div>
+            <h3 className={`mt-2 ${titleClassName}`}>
+              {event?.title}
+            </h3>
+            {event?.description && (
+              <p className="mt-2 line-clamp-2 text-sm text-gray-600">{event.description}</p>
+            )}
+            <TagPills tags={event?.tags} className="mt-3" variant="plain" />
           </div>
-          <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          <div className="flex flex-shrink-0 flex-col items-stretch gap-2 sm:items-end">
             {event?.favoriteId && event?.source_table ? (
               <button
                 type="button"
@@ -676,6 +705,31 @@ const DATE_PRESETS = [
   { id: 'weekend', label: 'This Weekend' },
   { id: 'custom', label: 'Custom' },
 ];
+
+function parseBooleanParam(params, key) {
+  const value = params.get(key);
+  if (value == null) return false;
+  return value === '1' || value.toLowerCase() === 'true';
+}
+
+function parseTagsParam(params, key) {
+  const value = params.get(key);
+  if (!value) return [];
+  return value
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean);
+}
+
+function arraysEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
 function toISODate(date) {
   const copy = new Date(date);
@@ -1049,18 +1103,39 @@ function withinBounds(event, bounds) {
 
 function LabsMapPage({ clusterEvents = true } = {}) {
   const { user } = useContext(AuthContext);
-  const [viewState, setViewState] = useState(DEFAULT_VIEW);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [viewState, setViewState] = useState(() => {
+    const lat = parseNumber(searchParams.get('lat'));
+    const lng = parseNumber(searchParams.get('lng'));
+    const zoom = parseNumber(searchParams.get('zoom'));
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return {
+        ...DEFAULT_VIEW,
+        latitude: lat,
+        longitude: lng,
+        zoom: Number.isFinite(zoom) ? zoom : DEFAULT_VIEW.zoom,
+      };
+    }
+    return DEFAULT_VIEW;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [events, setEvents] = useState([]);
-  const [datePreset, setDatePreset] = useState('today');
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [selectedArea, setSelectedArea] = useState('');
-  const [recurringOnly, setRecurringOnly] = useState(false);
-  const [limitToMap, setLimitToMap] = useState(false);
+  const [datePreset, setDatePreset] = useState(() => {
+    const preset = searchParams.get('date');
+    if (preset === 'weekend' || preset === 'custom') {
+      return preset;
+    }
+    return 'today';
+  });
+  const [customStart, setCustomStart] = useState(() => searchParams.get('start') || '');
+  const [customEnd, setCustomEnd] = useState(() => searchParams.get('end') || '');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || '');
+  const [selectedTags, setSelectedTags] = useState(() => parseTagsParam(searchParams, 'tags'));
+  const [selectedArea, setSelectedArea] = useState(() => searchParams.get('area') || '');
+  const [recurringOnly, setRecurringOnly] = useState(() => parseBooleanParam(searchParams, 'recurring'));
+  const [limitToMap, setLimitToMap] = useState(() => parseBooleanParam(searchParams, 'limit'));
+  const [nearMe, setNearMe] = useState(() => parseBooleanParam(searchParams, 'near'));
   const [isLocating, setIsLocating] = useState(false);
   const [userPosition, setUserPosition] = useState(null);
   const [bounds, setBounds] = useState(null);
@@ -1071,8 +1146,12 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   const [showFlyerModal, setShowFlyerModal] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [areaLookup, setAreaLookup] = useState({});
+  const [mapFailed, setMapFailed] = useState(() => !MAPBOX_TOKEN);
+  const [visibleCount, setVisibleCount] = useState(20);
+  const [listLoadingMore, setListLoadingMore] = useState(false);
 
   const mapRef = useRef(null);
+  const loadMoreRef = useRef(null);
   const clusteringEnabled = clusterEvents !== false;
 
   useEffect(() => {
@@ -1358,11 +1437,138 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   }, [areaLookup]);
 
   useEffect(() => {
+    const presetParam = searchParams.get('date');
+    const normalizedPreset = presetParam === 'weekend' || presetParam === 'custom' ? presetParam : 'today';
+    if (normalizedPreset !== datePreset) {
+      setDatePreset(normalizedPreset);
+    }
+
+    const startParam = searchParams.get('start') || '';
+    if (startParam !== customStart) {
+      setCustomStart(startParam);
+    }
+
+    const endParam = searchParams.get('end') || '';
+    if (endParam !== customEnd) {
+      setCustomEnd(endParam);
+    }
+
+    const queryParam = searchParams.get('q') || '';
+    if (queryParam !== searchTerm) {
+      setSearchTerm(queryParam);
+    }
+
+    const tagsParam = parseTagsParam(searchParams, 'tags');
+    if (!arraysEqual(tagsParam, selectedTags)) {
+      setSelectedTags(tagsParam);
+    }
+
+    const areaParam = searchParams.get('area') || '';
+    if (areaParam !== selectedArea) {
+      setSelectedArea(areaParam);
+    }
+
+    const recurringParam = parseBooleanParam(searchParams, 'recurring');
+    if (recurringParam !== recurringOnly) {
+      setRecurringOnly(recurringParam);
+    }
+
+    const limitParam = parseBooleanParam(searchParams, 'limit');
+    if (limitParam !== limitToMap) {
+      setLimitToMap(limitParam);
+    }
+
+    const nearParam = parseBooleanParam(searchParams, 'near');
+    if (nearParam !== nearMe) {
+      setNearMe(nearParam);
+    }
+
+    const latParam = parseNumber(searchParams.get('lat'));
+    const lngParam = parseNumber(searchParams.get('lng'));
+    const zoomParam = parseNumber(searchParams.get('zoom'));
+    if (Number.isFinite(latParam) && Number.isFinite(lngParam)) {
+      setViewState(current => {
+        const currentLat = current?.latitude ?? DEFAULT_VIEW.latitude;
+        const currentLng = current?.longitude ?? DEFAULT_VIEW.longitude;
+        const currentZoom = current?.zoom ?? DEFAULT_VIEW.zoom;
+        const nextZoom = Number.isFinite(zoomParam) ? zoomParam : currentZoom;
+        const sameLat = Math.abs(currentLat - latParam) < 0.0001;
+        const sameLng = Math.abs(currentLng - lngParam) < 0.0001;
+        const sameZoom = Math.abs(currentZoom - nextZoom) < 0.001;
+        if (sameLat && sameLng && sameZoom) {
+          return current;
+        }
+        return {
+          ...current,
+          latitude: latParam,
+          longitude: lngParam,
+          zoom: nextZoom,
+        };
+      });
+    }
+  }, [searchParams, customStart, customEnd, datePreset, limitToMap, nearMe, recurringOnly, searchTerm, selectedArea, selectedTags]);
+
+  useEffect(() => {
     if (!selectedArea) return;
     if (!areaLookup[selectedArea]) {
       setSelectedArea('');
     }
   }, [areaLookup, selectedArea]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    let changed = false;
+
+    const assign = (key, value) => {
+      const currentValue = params.get(key);
+      if (value == null || value === '') {
+        if (currentValue !== null) {
+          params.delete(key);
+          changed = true;
+        }
+        return;
+      }
+      if (currentValue !== value) {
+        params.set(key, value);
+        changed = true;
+      }
+    };
+
+    assign('date', datePreset !== 'today' ? datePreset : null);
+    assign('start', datePreset === 'custom' && customStart ? customStart : null);
+    assign('end', datePreset === 'custom' && customEnd ? customEnd : null);
+    assign('q', searchTerm ? searchTerm : null);
+    assign('tags', selectedTags.length ? selectedTags.join(',') : null);
+    assign('area', selectedArea || null);
+    assign('recurring', recurringOnly ? '1' : null);
+    assign('limit', limitToMap ? '1' : null);
+    assign('near', nearMe ? '1' : null);
+
+    if (Number.isFinite(viewState?.latitude) && Number.isFinite(viewState?.longitude)) {
+      assign('lat', viewState.latitude.toFixed(5));
+      assign('lng', viewState.longitude.toFixed(5));
+      assign('zoom', Number.isFinite(viewState?.zoom) ? viewState.zoom.toFixed(2) : null);
+    }
+
+    if (changed) {
+      setSearchParams(params, { replace: true });
+    }
+  }, [
+    customEnd,
+    customStart,
+    datePreset,
+    limitToMap,
+    nearMe,
+    recurringOnly,
+    searchParams,
+    searchTerm,
+    selectedArea,
+    selectedTags,
+    setSearchParams,
+    viewState?.latitude,
+    viewState?.longitude,
+    viewState?.zoom,
+  ]);
 
   const filteredEvents = useMemo(() => {
     return events.filter(event => {
@@ -1412,9 +1618,6 @@ function LabsMapPage({ clusterEvents = true } = {}) {
 
   const eventsWithLocation = filteredEvents.filter(
     event => event.latitude != null && event.longitude != null,
-  );
-  const eventsWithoutLocation = filteredEvents.filter(
-    event => event.latitude == null || event.longitude == null,
   );
 
   const eventsByLocation = useMemo(() => {
@@ -1563,28 +1766,48 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     return Array.from(counts.values()).sort((a, b) => b.count - a.count);
   }, [filteredEvents]);
 
-  const groupedNoLocation = useMemo(() => {
-    const groups = new Map();
-    eventsWithoutLocation.forEach(event => {
-      const label = getNoLocationLabel(event);
-      if (!groups.has(label)) groups.set(label, []);
-      groups.get(label).push(event);
-    });
-    groups.forEach(list => {
-      list.sort((a, b) => {
-        if (!a.startDate || !b.startDate) return 0;
-        return a.startDate - b.startDate;
-      });
-    });
-    return Array.from(groups.entries());
-  }, [eventsWithoutLocation]);
+  const sortedFilteredEvents = useMemo(() => sortEventsByStart(filteredEvents), [filteredEvents]);
 
-  const sortedMapEvents = useMemo(() => {
-    return [...eventsWithLocation].sort((a, b) => {
-      if (!a.startDate || !b.startDate) return 0;
-      return a.startDate - b.startDate;
-    });
-  }, [eventsWithLocation]);
+  useEffect(() => {
+    const base = 20;
+    setVisibleCount(sortedFilteredEvents.length ? Math.min(base, sortedFilteredEvents.length) : 0);
+    setListLoadingMore(false);
+  }, [sortedFilteredEvents]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    if (!loadMoreRef.current) return undefined;
+    if (visibleCount >= sortedFilteredEvents.length) return undefined;
+
+    const target = loadMoreRef.current;
+    let timeoutId;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        observer.disconnect();
+        setListLoadingMore(true);
+        timeoutId = window.setTimeout(() => {
+          setVisibleCount(current => Math.min(current + 12, sortedFilteredEvents.length));
+          setListLoadingMore(false);
+        }, 180);
+      }
+    }, { rootMargin: '200px' });
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [sortedFilteredEvents.length, visibleCount]);
+
+  const visibleEvents = useMemo(() => {
+    if (!sortedFilteredEvents.length) return [];
+    return sortedFilteredEvents.slice(0, Math.min(visibleCount, sortedFilteredEvents.length));
+  }, [sortedFilteredEvents, visibleCount]);
+
+  const showSkeletons = loading && !sortedFilteredEvents.length;
 
   const focusEventOnMap = useCallback(
     event => {
@@ -1621,7 +1844,11 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     setSelectedArea('');
     setRecurringOnly(false);
     setLimitToMap(false);
+    setNearMe(false);
     setBounds(null);
+    setUserPosition(null);
+    setGeoError('');
+    setViewState(DEFAULT_VIEW);
   }, []);
 
   const handleOpenEventModal = useCallback(() => {
@@ -1650,8 +1877,14 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   }, [updateBounds]);
 
   const handleMapLoad = useCallback(event => {
+    setMapFailed(false);
     updateBounds(event.target);
-  }, [updateBounds]);
+  }, [setMapFailed, updateBounds]);
+
+  const handleMapError = useCallback(error => {
+    console.error('Mapbox map error', error);
+    setMapFailed(true);
+  }, [setMapFailed]);
 
   const handleMapClick = useCallback(
     event => {
@@ -1700,6 +1933,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     if (!navigator?.geolocation) {
       setUserPosition(null);
       setGeoError('Geolocation is not available in this browser.');
+      setNearMe(false);
       return;
     }
     setIsLocating(true);
@@ -1708,6 +1942,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
       position => {
         const { latitude, longitude } = position.coords;
         setUserPosition({ latitude, longitude });
+        setNearMe(true);
         setLimitToMap(true);
         setViewState(current => ({
           ...current,
@@ -1732,10 +1967,11 @@ function LabsMapPage({ clusterEvents = true } = {}) {
         setUserPosition(null);
         setGeoError(err.message || 'Unable to determine your location.');
         setIsLocating(false);
+        setNearMe(false);
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
-  }, [isLocating, updateBounds]);
+  }, [isLocating, setNearMe, updateBounds]);
 
   const activeRangeLabel = useMemo(() => {
     if (!rangeStart || !rangeEnd) return '';
@@ -1743,6 +1979,24 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     const end = dayFormatter.format(rangeEnd);
     return start === end ? start : `${start} – ${end}`;
   }, [rangeStart, rangeEnd]);
+
+  const handleToggleNearMe = useCallback(() => {
+    if (nearMe) {
+      setNearMe(false);
+      setUserPosition(null);
+      setGeoError('');
+      return;
+    }
+    setNearMe(true);
+    handleLocateMe();
+  }, [handleLocateMe, nearMe]);
+
+  const totalMatches = sortedFilteredEvents.length;
+  const showMap = Boolean(MAPBOX_TOKEN) && !mapFailed;
+  const mapUnavailableMessage = MAPBOX_TOKEN
+    ? 'We couldn’t load the map right now. Filters still work below.'
+    : 'Map view unavailable — missing Mapbox access token.';
+  const skeletonPlaceholders = useMemo(() => Array.from({ length: 6 }), []);
 
   return (
     <div className="min-h-screen bg-[#fdf7f2] text-[#29313f]">
@@ -1755,226 +2009,127 @@ function LabsMapPage({ clusterEvents = true } = {}) {
         <link rel="canonical" href="https://www.ourphilly.org/map" />
       </Helmet>
       <Navbar />
-      <main className="pt-28 pb-16 lg:pt-32">
-        <section className="relative">
-          <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent" aria-hidden="true" />
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/70 p-10 shadow-xl shadow-[#bf3d35]/10 backdrop-blur-md lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-10">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Community Event Map</p>
-                <h1 className="mt-4 text-4xl font-black leading-tight text-[#29313f] sm:text-5xl lg:text-6xl">
-                  See what&apos;s happening across Philly
-                </h1>
-                <p className="mt-4 text-base leading-relaxed text-[#4a5568] sm:text-lg">
-                  Browse festivals, block parties, and neighborhood meetups shared by organizers across the city. Add yours to help more neighbors discover it.
-                </p>
-                <div className="mt-6 flex flex-wrap items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleOpenEventModal}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold uppercase tracking-widest text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
-                  >
-                    Add your event to the map
-                  </button>
-                  <a
-                    href="#map"
-                    className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold text-[#29313f] transition hover:border-[#29313f] hover:bg-[#29313f]/10"
-                  >
-                    Jump to map <span aria-hidden="true">↓</span>
-                  </a>
-                </div>
-                <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhillyCircle(web)%20(1).png"
-                    alt="Our Philly skyline logo"
-                    className="h-12 w-12 rounded-full border border-[#29313f]/10 bg-white object-cover"
-                  />
-                  <span>Built by neighbors. Updated daily with community submissions.</span>
-                </div>
-              </div>
-              <div className="relative mt-10 flex items-center justify-center lg:mt-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl" aria-hidden="true" />
-                <div className="relative flex flex-col items-center gap-6">
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
-                    alt="Illustration of the Our Philly heart"
-                    className="h-52 w-52 object-contain drop-shadow-xl"
-                  />
-                  <div className="rounded-2xl border border-[#29313f]/10 bg-[#2b333f] px-6 py-4 text-center shadow-lg">
-                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#f0e5d0]">Our Philly</p>
-                    <p className="mt-2 text-lg font-semibold text-white">Neighborhood spotlights</p>
-                    <p className="mt-1 text-sm text-[#f0e5d0]/80">Events on the map are featured in our guides, newsletters, and Instagram.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
 
-        <section className="mx-auto mt-10 max-w-7xl px-6">
-          <div className="flex items-start gap-3 rounded-2xl border border-[#f3c7b8] bg-white/80 p-5 text-sm text-[#4a5568] shadow">
-            <span className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#bf3d35]/10 text-lg text-[#bf3d35]">ℹ️</span>
-            <p>
-              Not every submission includes an address yet. Events without map pins appear in the “Still gathering addresses” list below—organizers can add a venue to get featured on the map instantly.
-            </p>
-          </div>
-        </section>
 
-        <section className="mx-auto mt-10 max-w-7xl px-6" id="map">
-          <div className="rounded-3xl border border-[#f3c7b8] bg-white/80 p-6 shadow-xl shadow-[#29313f]/5 backdrop-blur">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {DATE_PRESETS.map(option => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
-                      datePreset === option.id
-                        ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
-                        : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
-                    }`}
-                    onClick={() => setDatePreset(option.id)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              {datePreset === 'custom' && (
-                <div className="flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
-                  <label className="flex items-center gap-2">
-                    <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">Start</span>
-                    <input
-                      type="date"
-                      value={customStart}
-                      onChange={event => setCustomStart(event.target.value)}
-                      className="rounded-xl border border-[#f3c7b8] bg-white px-3 py-2 text-sm text-[#29313f] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                    />
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">End</span>
-                    <input
-                      type="date"
-                      value={customEnd}
-                      onChange={event => setCustomEnd(event.target.value)}
-                      className="rounded-xl border border-[#f3c7b8] bg-white px-3 py-2 text-sm text-[#29313f] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                    />
-                  </label>
-                </div>
-              )}
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#bf3d35]/80">
-                Active range · {activeRangeLabel}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <input
-                  type="search"
-                  value={searchTerm}
-                  onChange={event => setSearchTerm(event.target.value)}
-                  placeholder="Search events or venues"
-                  className="w-72 rounded-full border border-[#f3c7b8] bg-white px-5 py-3 text-sm text-[#29313f] placeholder:text-[#9ba3b2] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#29313f]/20"
-                />
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[#9ba3b2]">⌕</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleClearFilters}
-                className="rounded-full border border-[#29313f]/10 bg-[#2b333f] px-5 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#242a33]"
-              >
-                Clear filters
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-[#4a5568]">
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={recurringOnly}
-                onChange={event => setRecurringOnly(event.target.checked)}
-                className="h-4 w-4 rounded border-[#f3c7b8] text-[#bf3d35] focus:ring-[#bf3d35]"
-              />
-              Recurring events only
-            </label>
-            <label className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-[0.3em] text-[#9ba3b2]">Neighborhood</span>
-              <select
-                value={selectedArea}
-                onChange={event => setSelectedArea(event.target.value)}
-                className="rounded-full border border-[#f3c7b8] bg-white px-4 py-2 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-              >
-                <option value="">All neighborhoods</option>
-                {areaOptions.map(option => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {tagOptions.length > 0 && (
-            <div className="mt-6">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#29313f]/60">Tag filters</p>
-              <div className="flex flex-wrap gap-2">
-                {tagOptions.slice(0, 24).map((tag, index) => {
-                  const baseStyle = TAG_PILL_STYLES[index % TAG_PILL_STYLES.length];
-                  const isSelected = selectedTags.includes(tag.slug);
-                  return (
+      <main className="pt-24 pb-16">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <section id="map" className="space-y-6">
+            <div className="rounded-2xl border border-[#f3c7b8] bg-white/80 p-4 shadow-sm backdrop-blur-sm sm:p-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  {DATE_PRESETS.map(option => (
                     <button
-                      key={tag.slug}
+                      key={option.id}
                       type="button"
-                      onClick={() => handleToggleTag(tag.slug)}
-                      className={`${baseStyle} flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold transition hover:opacity-85 ${
-                        isSelected ? 'ring-2 ring-offset-2 ring-[#29313f]' : 'ring-1 ring-transparent'
+                      onClick={() => setDatePreset(option.id)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] transition ${
+                        datePreset === option.id
+                          ? 'bg-[#bf3d35] text-white shadow-md shadow-[#bf3d35]/30'
+                          : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
                       }`}
-                      aria-pressed={isSelected}
-                      title={`${tag.count} events tagged #${tag.name?.toLowerCase() || tag.slug}`}
                     >
-                      #{(tag.name || tag.slug).toLowerCase()}
+                      {option.label}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+                {datePreset === 'custom' && (
+                  <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#9ba3b2]">
+                    <label className="flex items-center gap-2">
+                      <span>Start</span>
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={event => setCustomStart(event.target.value)}
+                        className="rounded-lg border border-[#f3c7b8] bg-white px-3 py-1.5 text-sm font-semibold text-[#29313f] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                      />
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <span>End</span>
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={event => setCustomEnd(event.target.value)}
+                        className="rounded-lg border border-[#f3c7b8] bg-white px-3 py-1.5 text-sm font-semibold text-[#29313f] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                      />
+                    </label>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 min-w-[200px] max-w-md">
+                    <input
+                      type="search"
+                      value={searchTerm}
+                      onChange={event => setSearchTerm(event.target.value)}
+                      placeholder="Search events or venues"
+                      className="w-full rounded-full border border-[#f3c7b8] bg-white px-4 py-2 text-sm text-[#29313f] placeholder:text-[#9ba3b2] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#9ba3b2]">⌕</span>
+                  </div>
+                  <label className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9ba3b2]">Neighborhood</span>
+                    <select
+                      value={selectedArea}
+                      onChange={event => setSelectedArea(event.target.value)}
+                      className="rounded-full border border-[#f3c7b8] bg-white px-3 py-1.5 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/20"
+                    >
+                      <option value="">All</option>
+                      {areaOptions.map(option => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="ml-auto inline-flex items-center rounded-full border border-[#29313f]/10 bg-[#29313f]/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-[#29313f] transition hover:border-[#29313f]/40 hover:bg-[#29313f]/10"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <TogglePill
+                    label="Near me"
+                    active={nearMe}
+                    loading={isLocating}
+                    onClick={handleToggleNearMe}
+                  />
+                  <TogglePill
+                    label="Limit to map view"
+                    active={limitToMap}
+                    onClick={() => setLimitToMap(current => !current)}
+                  />
+                  <span className="ml-auto text-[10px] font-semibold uppercase tracking-[0.35em] text-[#9ba3b2]">
+                    Range · {activeRangeLabel}
+                  </span>
+                </div>
+                {geoError && <p className="text-xs font-semibold text-rose-600">{geoError}</p>}
+                {tagOptions.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] md:flex-wrap md:overflow-visible">
+                    {tagOptions.slice(0, 36).map((tag, index) => {
+                      const baseStyle = TAG_PILL_STYLES[index % TAG_PILL_STYLES.length];
+                      const isSelected = selectedTags.includes(tag.slug);
+                      return (
+                        <button
+                          key={tag.slug}
+                          type="button"
+                          onClick={() => handleToggleTag(tag.slug)}
+                          className={`${baseStyle} flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition hover:opacity-85 ${
+                            isSelected ? 'ring-2 ring-offset-2 ring-[#29313f]' : 'ring-1 ring-transparent'
+                          }`}
+                        >
+                          #{(tag.name || tag.slug).toLowerCase()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
-          )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-[#4a5568]">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={limitToMap}
-                onChange={event => setLimitToMap(event.target.checked)}
-                className="h-4 w-4 rounded border-[#f3c7b8] text-[#bf3d35] focus:ring-[#bf3d35]"
-              />
-              Limit to current map view
-            </label>
-            <button
-              type="button"
-              onClick={handleLocateMe}
-              disabled={isLocating}
-              className="inline-flex items-center gap-2 rounded-full border border-[#bf3d35]/40 bg-white px-4 py-2 text-sm font-semibold text-[#bf3d35] transition hover:border-[#bf3d35] hover:bg-[#bf3d35]/10 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isLocating ? 'Locating…' : 'Near me'}
-            </button>
-            {geoError && (
-              <span className="text-xs font-medium text-rose-500">{geoError}</span>
-            )}
-            {!limitToMap && (
-              <span className="basis-full text-xs text-[#9ba3b2]">
-                Keep this toggled off to let the map surface surprises beyond the current frame.
-              </span>
-            )}
-          </div>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-10 grid max-w-7xl gap-6 px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <div className="space-y-6">
-            <div className="relative h-[520px] overflow-hidden rounded-3xl border border-[#1d2432] bg-[#101722] shadow-2xl shadow-[#101722]/40">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#bf3d35]/15 via-transparent to-[#0b1120]" aria-hidden="true" />
-              {MAPBOX_TOKEN ? (
+            <div className="relative h-[68vh] min-h-[420px] overflow-hidden rounded-3xl border border-[#0f172a]/15 bg-[#0f172a] shadow-xl shadow-[#0f172a]/25">
+              {showMap ? (
                 <>
                   <MapGL
                     {...viewState}
@@ -1983,6 +2138,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
                     mapStyle={MAPBOX_STYLE}
                     mapboxAccessToken={MAPBOX_TOKEN}
                     onLoad={handleMapLoad}
+                    onError={handleMapError}
                     interactiveLayerIds={
                       clusteringEnabled
                         ? [
@@ -2035,9 +2191,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
                           <span
                             aria-hidden="true"
                             className="absolute inset-0 -z-10 rounded-full opacity-60 blur-md transition group-hover:opacity-80"
-                            style={{
-                              backgroundColor: event.themeColor || LOGO_MARKER_FALLBACK_COLOR,
-                            }}
+                            style={{ backgroundColor: event.themeColor || LOGO_MARKER_FALLBACK_COLOR }}
                           />
                           <img
                             src={event.venueImage}
@@ -2048,202 +2202,182 @@ function LabsMapPage({ clusterEvents = true } = {}) {
                         </button>
                       </Marker>
                     ))}
-                  {selectedEvent && selectedEvent.latitude != null && selectedEvent.longitude != null && (
-                    <Popup
-                      longitude={selectedEvent.longitude}
-                      latitude={selectedEvent.latitude}
-                      anchor="top"
-                      closeOnClick={false}
-                      onClose={() => selectEvent(null)}
-                      maxWidth="320px"
-                      className="labs-map-popup"
-                    >
-                      <div className="space-y-3 text-gray-900">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-2">
-                            {getEventBadgeLabel(selectedEvent) ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#d9e9ea] px-2 py-0.5 text-xs font-semibold uppercase tracking-widest text-[#004C55]">
-                                {getEventBadgeLabel(selectedEvent)}
-                              </span>
-                            ) : null}
-                            <h3 className="text-lg font-semibold leading-snug text-[#29313f]">
-                              {selectedEventUrl ? (
-                                selectedEvent?.detailPath ? (
-                                  <Link
-                                    to={selectedEventUrl}
-                                    className="transition hover:text-[#bf3d35]"
-                                  >
-                                    {selectedEvent.title}
-                                  </Link>
+                    {selectedEvent && selectedEvent.latitude != null && selectedEvent.longitude != null && (
+                      <Popup
+                        longitude={selectedEvent.longitude}
+                        latitude={selectedEvent.latitude}
+                        anchor="top"
+                        closeOnClick={false}
+                        onClose={() => selectEvent(null)}
+                        maxWidth="320px"
+                        className="labs-map-popup"
+                      >
+                        <div className="space-y-3 text-gray-900">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-2">
+                              {getEventBadgeLabel(selectedEvent) ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#d9e9ea] px-2 py-0.5 text-xs font-semibold uppercase tracking-widest text-[#004C55]">
+                                  {getEventBadgeLabel(selectedEvent)}
+                                </span>
+                              ) : null}
+                              <h3 className="text-lg font-semibold leading-snug text-[#29313f]">
+                                {selectedEventUrl ? (
+                                  selectedEvent?.detailPath ? (
+                                    <Link to={selectedEventUrl} className="transition hover:text-[#bf3d35]">
+                                      {selectedEvent.title}
+                                    </Link>
+                                  ) : (
+                                    <a
+                                      href={selectedEventUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="transition hover:text-[#bf3d35]"
+                                    >
+                                      {selectedEvent.title}
+                                    </a>
+                                  )
                                 ) : (
-                                  <a
-                                    href={selectedEventUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="transition hover:text-[#bf3d35]"
-                                  >
-                                    {selectedEvent.title}
-                                  </a>
-                                )
-                              ) : (
-                                selectedEvent.title
+                                  selectedEvent.title
+                                )}
+                              </h3>
+                              {selectedEvent.themeEmoji && selectedEvent.themeLabel && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2 py-0.5 text-xs font-semibold text-[#29313f]">
+                                  <span>{selectedEvent.themeEmoji}</span>
+                                  <span>{selectedEvent.themeLabel}</span>
+                                </span>
                               )}
-                            </h3>
-                            {selectedEvent.themeEmoji && selectedEvent.themeLabel && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2 py-0.5 text-xs font-semibold text-[#29313f]">
-                                <span>{selectedEvent.themeEmoji}</span>
-                                <span>{selectedEvent.themeLabel}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => selectEvent(null)}
+                              className="-mr-1 -mt-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-2xl font-light text-gray-500 shadow-sm ring-1 ring-inset ring-white/70 transition hover:bg-white hover:text-[#29313f]"
+                              aria-label="Close event details"
+                            >
+                              <span aria-hidden="true">×</span>
+                            </button>
+                          </div>
+                          {selectedLocationEvents.length > 1 && (
+                            <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5f9] px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
+                              <button
+                                type="button"
+                                onClick={() => handleCycleSelectedEvent('prev')}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
+                                aria-label="Show previous event at this venue"
+                              >
+                                ‹
+                              </button>
+                              <span className="flex-1 text-center">
+                                {selectedLocationIndex + 1} of {selectedLocationEvents.length} events here
                               </span>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => selectEvent(null)}
-                            className="-mr-1 -mt-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-2xl font-light text-gray-500 shadow-sm ring-1 ring-inset ring-white/70 transition hover:bg-white hover:text-[#29313f]"
-                            aria-label="Close event details"
-                          >
-                            <span aria-hidden="true">×</span>
-                          </button>
-                        </div>
-                        {selectedLocationEvents.length > 1 && (
-                          <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5f9] px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
-                            <button
-                              type="button"
-                              onClick={() => handleCycleSelectedEvent('prev')}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
-                              aria-label="Show previous event at this venue"
-                            >
-                              ‹
-                            </button>
-                            <span className="flex-1 text-center text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
-                              {selectedLocationIndex + 1} of {selectedLocationEvents.length} events here
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCycleSelectedEvent('next')}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
-                              aria-label="Show next event at this venue"
-                            >
-                              ›
-                            </button>
-                          </div>
-                        )}
-                        <p className="text-sm text-gray-600">
-                          {formatDateRange(selectedEvent)}
-                          {selectedEvent.start_time && (
-                            <>
-                              {' '}
-                              · {formatTimeLabel(selectedEvent.start_time)}
-                            </>
+                              <button
+                                type="button"
+                                onClick={() => handleCycleSelectedEvent('next')}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
+                                aria-label="Show next event at this venue"
+                              >
+                                ›
+                              </button>
+                            </div>
                           )}
-                        </p>
-                        {selectedEvent.venueName && (
-                          <p className="text-sm text-gray-600">@ {selectedEvent.venueName}</p>
-                        )}
-                        <TagPills tags={selectedEvent.tags} variant="plain" />
-                        {selectedEventUrl && (
-                          selectedEvent?.detailPath ? (
-                            <Link
-                              to={selectedEventUrl}
-                              className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
-                            >
-                              View details →
-                            </Link>
-                          ) : (
-                            <a
-                              href={selectedEventUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
-                            >
-                              View details →
-                            </a>
-                          )
-                        )}
-                      </div>
-                    </Popup>
-                  )}
+                          <p className="text-sm text-gray-600">
+                            {formatDateRange(selectedEvent)}
+                            {selectedEvent.start_time && (
+                              <>
+                                {' '}· {formatTimeLabel(selectedEvent.start_time)}
+                              </>
+                            )}
+                          </p>
+                          {selectedEvent.venueName && (
+                            <p className="text-sm text-gray-600">@ {selectedEvent.venueName}</p>
+                          )}
+                          <TagPills tags={selectedEvent.tags} variant="plain" />
+                          {selectedEventUrl && (
+                            selectedEvent?.detailPath ? (
+                              <Link to={selectedEventUrl} className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]">
+                                View details →
+                              </Link>
+                            ) : (
+                              <a
+                                href={selectedEventUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
+                              >
+                                View details →
+                              </a>
+                            )
+                          )}
+                        </div>
+                      </Popup>
+                    )}
                   </MapGL>
+                  {loading && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[#0f172a]/60 text-sm font-semibold text-white">
+                      Loading events…
+                    </div>
+                  )}
                 </>
               ) : (
-                <div className="flex h-full items-center justify-center bg-[#0f172a] text-center text-sm font-medium text-white/80">
-                  Map view unavailable — missing Mapbox access token.
-                </div>
-              )}
-              {loading && MAPBOX_TOKEN && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0f172a]/70 backdrop-blur-sm">
-                  <span className="text-sm font-semibold text-white">Loading events…</span>
+                <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#0f172a] px-6 text-center text-sm font-medium text-white/80">
+                  <span>{mapUnavailableMessage}</span>
+                  <span className="text-xs text-white/60">Filters still work below.</span>
                 </div>
               )}
             </div>
-            <div className="rounded-3xl border border-[#f3c7b8] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-semibold text-[#29313f]">
-                  Events lighting up the map <span className="text-sm text-[#7c889d]">({sortedMapEvents.length})</span>
-                </h2>
-                {!limitToMap && bounds && (
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[#9ba3b2]">Showing the full Philly radius</span>
-                )}
-              </div>
-              <ul className="mt-4 space-y-4">
-                {sortedMapEvents.map(event => (
-                  <MapEventRow key={event.id} event={event} onHighlight={focusEventOnMap} />
-                ))}
-                {!sortedMapEvents.length && !loading && (
-                  <li className="rounded-xl border border-dashed border-[#f3c7b8] bg-[#fdf4ef] p-6 text-center text-sm text-[#9ba3b2]">
-                    No events match these filters yet—try widening the dates or removing a tag.
+          </section>
+
+          <section className="mt-10 space-y-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-2xl font-semibold text-[#29313f]">Matching events</h2>
+              <span className="text-sm font-medium text-[#64748b]">{totalMatches} result{totalMatches === 1 ? '' : 's'}</span>
+            </div>
+            {showSkeletons ? (
+              <ul className="space-y-4">
+                {skeletonPlaceholders.map((_, index) => (
+                  <li key={index} className="animate-pulse rounded-2xl border border-[#e0e5ef] bg-white/80 p-6">
+                    <div className="h-4 w-1/3 rounded-full bg-[#e8ecf5]" />
+                    <div className="mt-4 h-5 w-2/3 rounded-full bg-[#edf1f9]" />
+                    <div className="mt-6 flex gap-2">
+                      <div className="h-3 w-20 rounded-full bg-[#f1f5ff]" />
+                      <div className="h-3 w-16 rounded-full bg-[#f1f5ff]" />
+                    </div>
                   </li>
-                )}
-              </ul>
-            </div>
-          </div>
-
-          <aside className="space-y-4">
-            <div className="rounded-3xl border border-[#d9e0ec] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
-              <h2 className="text-xl font-semibold text-[#29313f]">
-                Still gathering addresses <span className="text-sm text-[#7c889d]">({eventsWithoutLocation.length})</span>
-              </h2>
-              <p className="mt-1 text-sm text-[#4a5568]">
-                These events were submitted without an exact venue. Add a location and they&apos;ll move onto the map within minutes.
-              </p>
-              <div className="mt-4 space-y-6">
-                {groupedNoLocation.map(([label, items]) => (
-                  <div key={label} className="space-y-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-widest text-[#9ba3b2]">{label}</h3>
-                    <ul className="space-y-3">
-                      {items.map(item => (
-                        <li key={item.id} className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-3">
-                          <p className="text-sm font-semibold text-[#29313f]">{item.title}</p>
-                          <p className="text-xs text-[#4a5568]">{formatDateRange(item)}</p>
-                          {(item.detailPath || item.link) && (
-                            <a
-                              href={item.detailPath || item.link}
-                              className="mt-1 inline-flex text-xs font-semibold text-[#bf3d35] hover:text-[#a2322c]"
-                            >
-                              View details →
-                            </a>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
                 ))}
-                {!groupedNoLocation.length && !loading && (
-                  <p className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-4 text-sm text-[#4a5568]">
-                    Everything in this range has a map location. 🎉
-                  </p>
+              </ul>
+            ) : (
+              <>
+                <ul className="space-y-4">
+                  {visibleEvents.map(event => (
+                    <MapEventRow key={event.id} event={event} onHighlight={focusEventOnMap} />
+                  ))}
+                </ul>
+                {!visibleEvents.length && !loading && (
+                  <div className="rounded-2xl border border-dashed border-[#e0e5ef] bg-white/70 p-6 text-center text-sm text-[#64748b]">
+                    No events match these filters yet — try adjusting the dates or tags.
+                  </div>
                 )}
-              </div>
-            </div>
-
-            {error && (
-              <div className="rounded-3xl border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-700 shadow">
-                <p className="font-semibold">We hit a snag loading events.</p>
-                <p className="mt-1 opacity-80">{error.message || 'Unknown error'}</p>
-              </div>
+                {visibleCount < totalMatches && <div ref={loadMoreRef} className="h-8 w-full" aria-hidden="true" />}
+                {listLoadingMore && (
+                  <ul className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <li key={`loading-${index}`} className="animate-pulse rounded-2xl border border-[#e0e5ef] bg-white/80 p-6">
+                        <div className="h-4 w-1/3 rounded-full bg-[#e8ecf5]" />
+                        <div className="mt-4 h-5 w-2/3 rounded-full bg-[#edf1f9]" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
-          </aside>
-        </section>
+          </section>
+
+          {error && (
+            <div className="mt-8 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-700 shadow-sm">
+              <p className="font-semibold">We hit a snag loading events.</p>
+              <p className="mt-1 opacity-80">{error.message || 'Unknown error'}</p>
+            </div>
+          )}
+        </div>
       </main>
       <FloatingAddButton onClick={handleOpenEventModal} />
       <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
