@@ -18,18 +18,12 @@ import {
 } from 'lucide-react';
 
 import Navbar from './Navbar';
-import Footer from './Footer';
 import RecentActivity from './RecentActivity';
-import RecurringEventsScroller from './RecurringEventsScroller';
-import SavedEventsScroller from './SavedEventsScroller';
-import FloatingAddButton from './FloatingAddButton';
-import PostFlyerModal from './PostFlyerModal';
 import TopQuickLinks from './TopQuickLinks';
 import { supabase } from './supabaseClient';
 import { getDetailPathForItem } from './utils/eventDetailPaths';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
-import { COMMUNITY_REGIONS } from './communityIndexData.js';
 import {
   PHILLY_TIME_ZONE,
   getWeekendWindow,
@@ -87,18 +81,6 @@ const TAG_PILL_STYLES = [
   'bg-purple-100 text-purple-800',
   'bg-red-100 text-red-800',
 ];
-
-const startOfWeek = (() => {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return start;
-})();
-
-const endOfWeek = (() => {
-  const end = new Date(startOfWeek);
-  end.setDate(end.getDate() + 6);
-  return end;
-})();
 
 function parseDate(datesStr) {
   if (!datesStr) return null;
@@ -692,6 +674,95 @@ function formatSummary(config, total, traditions, start, end) {
   return `${base}!`;
 }
 
+function parseSavedDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return setStartOfDay(getZonedDate(value, PHILLY_TIME_ZONE));
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    let candidate = trimmed;
+    if (/through/i.test(candidate) || /–/.test(candidate) || /—/.test(candidate)) {
+      candidate = candidate.split(/through|–|—/i)[0];
+    }
+    if (candidate.includes(' - ')) {
+      candidate = candidate.split(' - ')[0];
+    }
+    const isoMatch = candidate.match(/\d{4}-\d{2}-\d{2}/);
+    if (isoMatch) {
+      return parseISODate(isoMatch[0], PHILLY_TIME_ZONE);
+    }
+    return parseEventDateValue(candidate, PHILLY_TIME_ZONE);
+  }
+  return null;
+}
+
+function mapSavedRecordToCard(record) {
+  const nextDate = record.__nextDate || null;
+  const startDate = nextDate || record.__startDate || record.__endDate || null;
+  const endDate = record.__endDate || record.__startDate || null;
+  const startIso = startDate ? startDate.toISOString().slice(0, 10) : record.start_date;
+  const endIso = endDate ? endDate.toISOString().slice(0, 10) : record.end_date;
+  const baseId = record.id;
+  const key = `${record.source_table}-${baseId}`;
+  const badges = Array.isArray(record.badges) ? [...record.badges] : [];
+
+  if (record.source_table === 'group_events' && !badges.includes('Group Event')) {
+    badges.push('Group Event');
+  }
+  if (record.source_table === 'big_board_events' && !badges.includes('Submission')) {
+    badges.push('Submission');
+  }
+  if (record.source_table === 'recurring_events' && !badges.includes('Recurring')) {
+    badges.push('Recurring');
+  }
+
+  const detailCandidate = {
+    ...record,
+    id:
+      record.source_table === 'recurring_events' && startIso
+        ? `${record.id}::${startIso}`
+        : record.id,
+    start_date: startIso || record.start_date,
+    end_date: endIso || record.end_date,
+    startDate,
+    endDate,
+    group: record.group,
+    venues: record.venues,
+    isRecurring: record.source_table === 'recurring_events',
+    isGroupEvent: record.source_table === 'group_events',
+    isBigBoard: record.source_table === 'big_board_events',
+  };
+
+  const detailPath = getDetailPathForItem(detailCandidate);
+
+  return {
+    id: key,
+    sourceId: record.id,
+    title: record.title,
+    description: record.description,
+    imageUrl: record.imageUrl || record.image || '',
+    startDate,
+    endDate,
+    start_date: startIso || record.start_date,
+    end_date: endIso || record.end_date,
+    start_time: record.start_time || null,
+    slug: record.slug,
+    detailPath,
+    source_table: record.source_table,
+    favoriteId: record.id,
+    areaName: record.areaName || null,
+    area_id: record.area_id,
+    group: record.group,
+    venues: record.venues,
+    badges,
+    isActive: Boolean(record.__isActive),
+    link: record.link,
+    externalUrl: record.externalUrl || record.link || null,
+  };
+}
+
 function EventCard({ event, tags = [], showDatePill = false }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -948,6 +1019,112 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
   );
 }
 
+function SavedPlansSection({ loading, events, user }) {
+  const total = events.length;
+  const visibleEvents = events.slice(0, 4);
+  const visibleCount = visibleEvents.length;
+  const hasEvents = visibleCount > 0;
+
+  let summaryText;
+  if (loading) {
+    summaryText = 'Loading your saved plans…';
+  } else if (!user) {
+    summaryText = 'Sign up or log in to start saving your favorite events.';
+  } else if (!hasEvents) {
+    summaryText = "You don't have any plans yet — explore events to get started.";
+  } else if (total > visibleCount) {
+    summaryText = `Showing ${visibleCount} of ${total} saved plan${total === 1 ? '' : 's'}.`;
+  } else {
+    summaryText = `Showing ${total} saved plan${total === 1 ? '' : 's'}.`;
+  }
+
+  const renderCallout = () => {
+    if (!user) {
+      return (
+        <div className="rounded-3xl border border-dashed border-indigo-200 bg-indigo-50/60 px-6 py-10 text-center shadow-sm">
+          <h3 className="text-xl font-semibold text-indigo-900">Keep track of the plans you love</h3>
+          <p className="mt-3 text-sm text-indigo-800">
+            Save events to build your personal Philly agenda.
+          </p>
+          <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <Link
+              to="/signup"
+              className="inline-flex w-full items-center justify-center rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 sm:w-auto"
+            >
+              Sign up
+            </Link>
+            <Link
+              to="/login"
+              className="inline-flex w-full items-center justify-center rounded-full border border-indigo-600 px-5 py-2.5 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-600 hover:text-white sm:w-auto"
+            >
+              Log in
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-3xl border border-dashed border-indigo-200 bg-white px-6 py-10 text-center shadow-sm">
+        <h3 className="text-xl font-semibold text-[#28313e]">Add your first Philly plan</h3>
+        <p className="mt-3 text-sm text-gray-600">
+          Browse the latest events and tap “Add to Plans” to see them here.
+        </p>
+        <div className="mt-6 flex justify-center">
+          <Link
+            to="/today"
+            className="inline-flex items-center justify-center rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+          >
+            Explore events
+          </Link>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <section className="mt-16">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Saved agenda</p>
+          <h2 className="mt-2 text-2xl font-bold text-[#28313e] sm:text-3xl">Your Upcoming Plans</h2>
+          <p className="mt-2 text-sm text-gray-600 sm:text-base">{summaryText}</p>
+        </div>
+        {!loading && user && hasEvents && (
+          <Link
+            to="/profile"
+            className="inline-flex items-center gap-2 self-start rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-indigo-700 md:self-auto"
+          >
+            See all saved plans
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        )}
+      </div>
+      <div className="mt-8">
+        {loading ? (
+          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink">
+                <div className="h-[18rem] w-full rounded-2xl bg-gray-100 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : hasEvents ? (
+          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+            {visibleEvents.map(event => (
+              <div key={event.id} className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink">
+                <EventCard event={event} tags={[]} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          renderCallout()
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function MainEvents() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -1053,40 +1230,9 @@ export default function MainEvents() {
     ],
     [currentMonthName, currentMonthYearLabel, monthlyGuidePaths, traditionsHref]
   );
-  const communityGuideCards = useMemo(() => {
-    const iconStyles = ['bg-white/20 text-white'];
-    return COMMUNITY_REGIONS.map((region, index) => ({
-      key: region.key,
-      title: region.name,
-      href: `/${region.slug}/`,
-      icon: MapPin,
-      iconLabel: `${region.name} community index`,
-      iconBg: iconStyles[index % iconStyles.length],
-    }));
-  }, []);
   const [areaLookup, setAreaLookup] = useState({});
   const [savedEvents, setSavedEvents] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
-  const [showFlyerModal, setShowFlyerModal] = useState(false);
-  const savedPlansDescription = useMemo(() => {
-    if (loadingSaved) {
-      return 'Loading your saved plans…';
-    }
-    if (!user) {
-      return (
-        <>
-          <Link to="/login" className="text-indigo-600 underline">
-            Log in
-          </Link>{' '}
-          to add events to your plans.
-        </>
-      );
-    }
-    if (!savedEvents.length) {
-      return "You don't have any plans yet! Add some to get started.";
-    }
-    return 'A quick look at the events you have coming up next.';
-  }, [loadingSaved, user, savedEvents.length]);
   const { start: weekendStart, end: weekendEnd } = useMemo(
     () => getWeekendWindow(new Date(), PHILLY_TIME_ZONE),
     []
@@ -1326,30 +1472,6 @@ export default function MainEvents() {
           });
         }
 
-        const parseSavedDate = value => {
-          if (!value) return null;
-          if (value instanceof Date) {
-            return setStartOfDay(getZonedDate(value, PHILLY_TIME_ZONE));
-          }
-          if (typeof value === 'string') {
-            const trimmed = value.trim();
-            if (!trimmed) return null;
-            let candidate = trimmed;
-            if (/through/i.test(candidate) || /–/.test(candidate) || /—/.test(candidate)) {
-              candidate = candidate.split(/through|–|—/i)[0];
-            }
-            if (candidate.includes(' - ')) {
-              candidate = candidate.split(' - ')[0];
-            }
-            const isoMatch = candidate.match(/\d{4}-\d{2}-\d{2}/);
-            if (isoMatch) {
-              return parseISODate(isoMatch[0], PHILLY_TIME_ZONE);
-            }
-            return parseEventDateValue(candidate, PHILLY_TIME_ZONE);
-          }
-          return null;
-        };
-
         const upcoming = aggregated
           .map(item => {
             const record = { ...item };
@@ -1377,6 +1499,15 @@ export default function MainEvents() {
               }
             }
 
+            const startBoundary = start ? setStartOfDay(cloneDate(start)) : null;
+            const endBoundary = end ? setEndOfDay(cloneDate(end)) : startBoundary;
+            if (startBoundary && endBoundary) {
+              const todayMs = todayInPhilly.getTime();
+              record.__isActive =
+                startBoundary.getTime() <= todayMs && todayMs <= endBoundary.getTime();
+            } else {
+              record.__isActive = false;
+            }
             record.__startDate = start;
             record.__endDate = end;
             record.__nextDate = nextDate;
@@ -1396,7 +1527,7 @@ export default function MainEvents() {
             const bDate = b.__nextDate || b.__startDate || b.__endDate || new Date(8640000000000000);
             return aDate - bDate;
           })
-          .map(({ __startDate, __endDate, __nextDate, ...rest }) => rest);
+          .map(mapSavedRecordToCard);
 
         if (!cancelled) {
           setSavedEvents(upcoming);
@@ -1436,6 +1567,9 @@ export default function MainEvents() {
         base.push(...section.items);
       }
     });
+    if (savedEvents.length) {
+      base.push(...savedEvents);
+    }
     return base;
   }, [
     sections.today.items,
@@ -1443,6 +1577,7 @@ export default function MainEvents() {
     sections.weekend.items,
     sections.traditions.items,
     featuredCommunities,
+    savedEvents,
   ]);
 
   useEffect(() => {
@@ -1546,15 +1681,19 @@ export default function MainEvents() {
           </div>
 
           {SECTION_CONFIGS.map(config => (
-            <EventsSection
-              key={config.key}
-              config={config}
-              data={sections[config.key]}
-              loading={loading}
-              rangeStart={rangeMeta[config.key].start}
-              rangeEnd={rangeMeta[config.key].end}
-              tagMap={tagMap}
-            />
+            <React.Fragment key={config.key}>
+              <EventsSection
+                config={config}
+                data={sections[config.key]}
+                loading={loading}
+                rangeStart={rangeMeta[config.key].start}
+                rangeEnd={rangeMeta[config.key].end}
+                tagMap={tagMap}
+              />
+              {config.key === 'today' && (
+                <SavedPlansSection loading={loadingSaved} events={savedEvents} user={user} />
+              )}
+            </React.Fragment>
           ))}
           {featuredCommunities.map((section, index) => {
             if (!section?.items?.length) {
@@ -1671,98 +1810,7 @@ export default function MainEvents() {
         </section>
         </div>
 
-        <section
-          aria-labelledby="community-indexes-heading"
-          className="overflow-hidden bg-[#bf3d35] text-white"
-          style={{ marginInline: 'calc(50% - 50vw)', width: '100vw' }}
-        >
-          <div className="px-6 pb-10 pt-8 sm:px-10">
-            <div className="mx-auto flex max-w-screen-xl flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-3 text-left">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/70">In Your Area</p>
-                <h2 id="community-indexes-heading" className="text-2xl font-semibold sm:text-3xl">
-                  Community Indexes
-                </h2>
-                <p className="max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
-                  Explore our community indexes to discover groups and upcoming traditions in your area.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="relative">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#bf3d35] via-[#bf3d35]/80 to-transparent"
-            />
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#bf3d35] via-[#bf3d35]/80 to-transparent"
-            />
-            <div className="overflow-x-auto pb-10">
-              <div className="flex gap-4 px-6 sm:px-10 snap-x snap-mandatory">
-                {communityGuideCards.map(card => {
-                  const Icon = card.icon;
-                  return (
-                    <Link
-                      key={card.key}
-                      to={card.href}
-                      className="group relative flex min-h-[160px] min-w-[210px] flex-shrink-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/10 p-5 text-left shadow-lg transition-transform duration-200 hover:-translate-y-1 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white snap-start"
-                    >
-                      <div className="flex items-start gap-4">
-                        <span className={`inline-flex items-center justify-center rounded-xl p-3 ${card.iconBg}`}>
-                          <Icon className="h-6 w-6" aria-hidden="true" />
-                          <span className="sr-only">{card.iconLabel}</span>
-                        </span>
-                        <h3 className="text-lg font-semibold text-white">{card.title}</h3>
-                      </div>
-                      <span className="mt-6 inline-flex items-center text-sm font-semibold text-white/80 transition group-hover:text-white">
-                        Explore groups & traditions
-                        <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
-          <div className="space-y-3 text-left mb-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Saved agenda</p>
-            <h2 className="text-black text-4xl font-[Barrio] text-left">Your Upcoming Plans</h2>
-            <p className="text-sm text-gray-600 sm:text-base">{savedPlansDescription}</p>
-          </div>
-          {!loadingSaved && user && savedEvents.length > 0 && (
-            <>
-              <SavedEventsScroller events={savedEvents} />
-              <p className="text-gray-600 mt-2">
-                <Link to="/profile" className="text-indigo-600 underline">
-                  See more plans on your profile
-                </Link>
-              </p>
-            </>
-          )}
-        </section>
-
-        <RecurringEventsScroller
-          windowStart={startOfWeek}
-          windowEnd={endOfWeek}
-          eventType="open_mic"
-          header={(
-            <div className="max-w-screen-xl mx-auto px-4 space-y-3 text-left mb-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Weekly regulars</p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">Karaoke, Bingo, Open Mics & Other Weeklies</h2>
-              <p className="text-sm text-gray-600 sm:text-base">
-                Drop into rotating open mics, karaoke nights, and game sessions that come back every week.
-              </p>
-            </div>
-          )}
-        />
       </main>
-      <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
-      <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
-      <Footer />
     </div>
   );
 }
