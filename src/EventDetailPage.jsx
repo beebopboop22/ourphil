@@ -87,7 +87,6 @@ export default function EventDetailPage() {
   const [loadingMore, setLoadingMore] = useState(true);
   const [tagMap, setTagMap] = useState({});
   const [eventTags, setEventTags] = useState([]);
-  const [allTags, setAllTags] = useState([]);
   const [matchingGroups, setMatchingGroups] = useState([]);
   const [navOffset, setNavOffset] = useState(0);
   const areaLookup = useAreaLookup();
@@ -218,18 +217,6 @@ export default function EventDetailPage() {
         }
       });
   }, [event]);
-
-  // load all tags for "Explore" section
-  useEffect(() => {
-    supabase
-      .from('tags')
-      .select('name,slug')
-      .order('name', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) console.error('tags load error', error);
-        else setAllTags(data || []);
-      });
-  }, []);
 
   useEffect(() => {
     if (!isFeaturedTradition) {
@@ -1027,7 +1014,7 @@ export default function EventDetailPage() {
         <hr className="my-8 border-gray-200" />
 
         {/* More Upcoming Community Submissions */}
-        <div className="border-t border-gray-200 mt-8 pt-6 px-4 pb-10 max-w-screen-xl mx-auto">
+        <div className="border-t border-gray-200 mt-8 pt-6 px-4 pb-10 max-w-5xl mx-auto">
           <h2 className="text-3xl sm:text-4xl text-center font-[Barrio] text-gray-800 mb-8">
             More Upcoming Community Submissions
           </h2>
@@ -1037,74 +1024,18 @@ export default function EventDetailPage() {
             <p className="text-center text-gray-600">No upcoming submissions.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {moreEvents.map(ev => {
-                const label = getFriendlyDate(ev.start_date);
-                return (
-                  <Link
-                    key={ev.id}
-                    to={`/big-board/${ev.slug}`}
-                    className="bg-white rounded-xl shadow-md hover:shadow-lg transition-transform hover:scale-[1.02] overflow-hidden flex flex-col"
-                  >
-                    <div className="relative h-40 bg-gray-100">
-                      <div className="absolute inset-x-0 bottom-0 h-6 bg-indigo-600 flex items-center justify-center z-20">
-                        <span className="text-xs font-bold text-white uppercase">
-                          COMMUNITY SUBMISSION
-                        </span>
-                      </div>
-                      {ev.imageUrl ? (
-                        <img
-                          src={ev.imageUrl}
-                          alt={ev.title}
-                          className="w-full h-full object-cover object-center"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400">
-                          No Image
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col justify-center text-center">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-                        {ev.title}
-                      </h3>
-                      <p className="text-sm text-gray-600">{label}</p>
-                      {!!tagMap[ev.id]?.length && (
-                        <div className="mt-2 flex flex-wrap justify-center space-x-1">
-                          {tagMap[ev.id].map((tag, i) => (
-                            <Link
-                              key={tag.slug}
-                              to={`/tags/${tag.slug}`}
-                              className={`${pillStyles[i % pillStyles.length]} text-base font-semibold px-3 py-1 rounded-full hover:opacity-80 transition`}
-                            >
-                              #{tag.name}
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
+              {moreEvents.map(eventItem => (
+                <CommunitySubmissionCard
+                  key={eventItem.id}
+                  event={eventItem}
+                  tags={tagMap[eventItem.id] || []}
+                  pillStyles={pillStyles}
+                  dateLabel={getFriendlyDate(eventItem.start_date)}
+                />
+              ))}
             </div>
           )}
         </div>
-
-        {allTags.length > 0 && (
-          <div className="my-8 text-center">
-            <h3 className="text-3xl sm:text-4xl font-[Barrio] text-gray-800 mb-6">Explore these tags</h3>
-            <div className="flex flex-wrap justify-center gap-3">
-              {allTags.map((tag, i) => (
-                <Link
-                  key={tag.slug}
-                  to={`/tags/${tag.slug}`}
-                  className={`${pillStyles[i % pillStyles.length]} px-5 py-3 rounded-full text-lg font-semibold hover:opacity-80 transition`}
-                >
-                  #{tag.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
           <button
@@ -1138,6 +1069,84 @@ export default function EventDetailPage() {
         startStep={modalStartStep}
         initialFile={initialFlyer}
       />
+    </div>
+  );
+}
+
+function CommunitySubmissionCard({ event, tags, pillStyles, dateLabel }) {
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const { isFavorite, toggleFavorite, loading } = useEventFavorite({
+    event_id: event.id,
+    source_table: 'big_board_events',
+  });
+
+  const handleFavoriteClick = async e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    await toggleFavorite();
+  };
+
+  const safeTags = Array.isArray(tags)
+    ? tags.filter(tag => tag && tag.slug)
+    : [];
+
+  return (
+    <div className="flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition">
+      <Link to={`/big-board/${event.slug}`} className="flex-1 flex flex-col">
+        <div className="relative h-40 bg-gray-100">
+          <div className="absolute inset-x-0 bottom-0 bg-indigo-600 text-white uppercase text-xs text-center py-1">
+            COMMUNITY SUBMISSION
+          </div>
+          {event.imageUrl ? (
+            <img
+              src={event.imageUrl}
+              alt={event.title}
+              className="w-full h-full object-cover object-center"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-gray-400">
+              No Image
+            </div>
+          )}
+        </div>
+        <div className="p-4 flex-1 flex flex-col justify-between text-center">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
+            {event.title}
+          </h3>
+          <span className="text-sm text-gray-600">{dateLabel}</span>
+          {safeTags.length > 0 && (
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {safeTags.map((tag, index) => (
+                <Link
+                  key={tag.slug}
+                  to={`/tags/${tag.slug}`}
+                  className={`${pillStyles[index % pillStyles.length]} text-xs font-semibold px-3 py-1 rounded-full hover:opacity-80 transition`}
+                >
+                  #{tag.name}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </Link>
+      <button
+        type="button"
+        onClick={handleFavoriteClick}
+        disabled={loading}
+        className={`flex items-center justify-center gap-2 border-t border-indigo-100 px-4 py-3 text-sm font-semibold transition ${
+          isFavorite
+            ? 'bg-indigo-600 text-white'
+            : 'bg-white text-indigo-600 hover:bg-indigo-50'
+        } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+      >
+        <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+        {isFavorite ? 'In the Plans' : 'Add to Plans'}
+      </button>
     </div>
   );
 }
