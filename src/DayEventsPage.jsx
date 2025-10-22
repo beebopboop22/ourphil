@@ -13,6 +13,7 @@ import { supabase } from './supabaseClient';
 import { getDetailPathForItem } from './utils/eventDetailPaths';
 import useEventFavorite from './utils/useEventFavorite';
 import { AuthContext } from './AuthProvider';
+import MonthlyEventsMap from './MonthlyEventsMap.jsx';
 import {
   PHILLY_TIME_ZONE,
   getWeekendWindow,
@@ -104,6 +105,15 @@ function getVenueAreaId(venue) {
   return venue.area_id || null;
 }
 
+function pickCoordinate(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(num)) return num;
+  }
+  return null;
+}
+
 function TagFilterModal({ open, tags, selectedTags, onToggle, onClose }) {
   if (!open) return null;
   return (
@@ -172,6 +182,9 @@ async function fetchSportsEvents() {
       const performers = event.performers || [];
       const home = performers.find(p => p.home_team) || performers[0] || {};
       const away = performers.find(p => p.id !== home.id) || {};
+      const venue = event.venue || {};
+      const latitude = pickCoordinate(venue.location?.lat, venue.lat, venue.latitude);
+      const longitude = pickCoordinate(venue.location?.lon, venue.lon, venue.longitude, venue.location?.lng);
       const title =
         event.short_title ||
         `${(home.name || '').replace(/^Philadelphia\s+/, '')} vs ${(away.name || '').replace(/^Philadelphia\s+/, '')}`;
@@ -184,6 +197,8 @@ async function fetchSportsEvents() {
         imageUrl: home.image || away.image || '',
         url: event.url,
         isSports: true,
+        latitude,
+        longitude,
       };
     });
   } catch (err) {
@@ -205,6 +220,8 @@ async function fetchBigBoardEvents() {
       end_date,
       slug,
       area_id,
+      latitude,
+      longitude,
       big_board_posts!big_board_posts_event_id_fkey (image_url)
     `)
     .order('start_date', { ascending: true });
@@ -244,7 +261,9 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
         end_date,
         slug,
         area_id,
-        venues:venue_id(area_id, name, slug)
+        latitude,
+        longitude,
+        venues:venue_id(area_id, name, slug, latitude, longitude)
       `);
 
   if (startFilter && endFilter) {
@@ -297,7 +316,9 @@ async function fetchBaseData(rangeStartDay, rangeEndDay) {
         end_time,
         rrule,
         image_url,
-        area_id
+        area_id,
+        latitude,
+        longitude
       `)
       .eq('is_active', true),
     fetchBigBoardEvents(),
@@ -370,6 +391,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         favoriteId: ev.id,
         area_id: ev.area_id,
         areaName: ev.area_id ? areaLookup[ev.area_id] || null : null,
+        latitude: pickCoordinate(ev.latitude),
+        longitude: pickCoordinate(ev.longitude),
       };
     });
 
@@ -415,6 +438,13 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       const venueAreaId = getVenueAreaId(evt.venues);
       const areaId = evt.area_id ?? venueAreaId ?? null;
       const areaName = areaId ? areaLookup[areaId] || null : null;
+      const venueEntries = Array.isArray(evt.venues)
+        ? evt.venues
+        : evt.venues
+        ? [evt.venues]
+        : [];
+      const latitude = pickCoordinate(evt.latitude, ...venueEntries.map(entry => entry?.latitude));
+      const longitude = pickCoordinate(evt.longitude, ...venueEntries.map(entry => entry?.longitude));
       return {
         id: `event-${evt.id}`,
         sourceId: evt.id,
@@ -431,6 +461,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         venues: evt.venues,
         area_id: areaId,
         areaName,
+        latitude,
+        longitude,
       };
     })
     .filter(Boolean)
@@ -468,6 +500,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
       return occurrences.map(occurrence => {
         const startDate = new Date(occurrence);
         const isoDate = startDate.toISOString().slice(0, 10);
+        const latitude = pickCoordinate(series.latitude);
+        const longitude = pickCoordinate(series.longitude);
         return {
           id: `${series.id}::${isoDate}`,
           title: series.name,
@@ -490,6 +524,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
           favoriteId: series.id,
           area_id: series.area_id,
           areaName: series.area_id ? areaLookup[series.area_id] || null : null,
+          latitude,
+          longitude,
         };
       });
     } catch (err) {
@@ -545,6 +581,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         groupStatus: groupRecord?.status || '',
         area_id: evt.area_id,
         areaName: evt.area_id ? areaLookup[evt.area_id] || null : null,
+        latitude: pickCoordinate(evt.latitude),
+        longitude: pickCoordinate(evt.longitude),
       };
     })
     .filter(Boolean)
@@ -565,6 +603,8 @@ function collectEventsForRange(rangeStart, rangeEnd, baseData) {
         badges: ['Sports'],
         externalUrl: evt.url,
         source: 'sports',
+        latitude: pickCoordinate(evt.latitude),
+        longitude: pickCoordinate(evt.longitude),
       };
     })
     .filter(Boolean)
@@ -822,8 +862,6 @@ export default function DayEventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
-  const [selectedNeighborhood, setSelectedNeighborhood] = useState('');
-  const [recurringOnly, setRecurringOnly] = useState(false);
   const [tagMap, setTagMap] = useState({});
   const [allTags, setAllTags] = useState([]);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -937,46 +975,19 @@ export default function DayEventsPage() {
     };
   }, [detailed.events]);
 
-  const areaLookup = useMemo(() => baseData?.areaLookup || {}, [baseData]);
-
-  const areaOptions = useMemo(() => {
-    return Object.entries(areaLookup)
-      .map(([id, name]) => ({ id: String(id), name }))
-      .filter(option => option.name)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [areaLookup]);
-
-  useEffect(() => {
-    if (!selectedNeighborhood) return;
-    if (!areaOptions.some(option => option.id === selectedNeighborhood)) {
-      setSelectedNeighborhood('');
-    }
-  }, [areaOptions, selectedNeighborhood]);
-
   const filteredEvents = useMemo(() => {
+    if (!selectedTags.length) {
+      return detailed.events;
+    }
+
     return detailed.events.filter(event => {
-      if (recurringOnly && event.source_table !== 'recurring_events') {
-        return false;
-      }
-
-      if (selectedNeighborhood) {
-        const eventAreaId = event.area_id != null ? String(event.area_id) : '';
-        if (eventAreaId !== selectedNeighborhood) {
-          return false;
-        }
-      }
-
-      if (!selectedTags.length) {
-        return true;
-      }
-
       if (!event.source_table || !event.favoriteId) return false;
       const key = `${event.source_table}:${event.favoriteId}`;
       const tagsForEvent = tagMap[key] || [];
       if (!tagsForEvent.length) return false;
       return tagsForEvent.some(tag => selectedTags.includes(tag.slug));
     });
-  }, [detailed.events, recurringOnly, selectedNeighborhood, selectedTags, tagMap]);
+  }, [detailed.events, selectedTags, tagMap]);
 
   const featuredEvents = useMemo(() => {
     const seenGroups = new Set();
@@ -1007,6 +1018,47 @@ export default function DayEventsPage() {
     return tagMap[key] || [];
   };
 
+  const mapEvents = useMemo(() => {
+    const eventsForMap = [...featuredEvents, ...regularEvents];
+    return eventsForMap
+      .map(event => {
+        const venueEntries = Array.isArray(event.venues)
+          ? event.venues
+          : event.venues
+          ? [event.venues]
+          : [];
+        const latitude = pickCoordinate(
+          event.latitude,
+          event.location?.latitude,
+          ...venueEntries.map(entry => entry?.latitude)
+        );
+        const longitude = pickCoordinate(
+          event.longitude,
+          event.location?.longitude,
+          ...venueEntries.map(entry => entry?.longitude)
+        );
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return null;
+        }
+        const tagsForEvent = getEventTags(event);
+        return {
+          id: event.id,
+          title: event.title,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          start_time: event.start_time,
+          end_time: event.end_time,
+          detailPath: event.detailPath,
+          areaName: event.areaName || event.area?.name || null,
+          latitude,
+          longitude,
+          mapTags: tagsForEvent,
+          source_table: event.source_table,
+        };
+      })
+      .filter(Boolean);
+  }, [featuredEvents, regularEvents, tagMap]);
+
   const summary = useMemo(
     () => formatSummary(range.key, detailed.total, detailed.traditions, range.start, range.end),
     [range.key, detailed.total, detailed.traditions, range.start, range.end]
@@ -1036,35 +1088,6 @@ export default function DayEventsPage() {
     if (range.key === 'custom') return `Philly plans for ${rangeLabel}`;
     return 'Philly plans for today';
   }, [range.key, rangeLabel, timeframeLabel, totalVisibleEvents]);
-
-  const mapHref = useMemo(() => {
-    const params = new URLSearchParams();
-    if (range.start) {
-      const startIso = toPhillyISODate(range.start);
-      if (startIso) params.set('start', startIso);
-    }
-    if (range.end) {
-      const endIso = toPhillyISODate(range.end);
-      if (endIso) params.set('end', endIso);
-    }
-    if (selectedTags.length) {
-      params.set('tag', selectedTags[0]);
-    }
-    if (recurringOnly) {
-      params.set('recurring', '1');
-    }
-    if (selectedNeighborhood) {
-      params.set('area', selectedNeighborhood);
-    }
-    const qs = params.toString();
-    return qs ? `/map?${qs}` : '/map';
-  }, [range.start, range.end, selectedTags, recurringOnly, selectedNeighborhood]);
-
-  const mapCalloutMessage = useMemo(
-    () =>
-      `The map shows every submission. Once you’re there, set the dates to ${rangeLabel} to zero in on plans for your crew.`,
-    [rangeLabel]
-  );
 
   const pageTitle = useMemo(() => {
     switch (range.key) {
@@ -1110,11 +1133,9 @@ export default function DayEventsPage() {
 
   const handleClearFilters = () => {
     setSelectedTags([]);
-    setSelectedNeighborhood('');
-    setRecurringOnly(false);
   };
 
-  const filterCount = selectedTags.length + (recurringOnly ? 1 : 0) + (selectedNeighborhood ? 1 : 0);
+  const filterCount = selectedTags.length;
   const hasActiveFilters = filterCount > 0;
 
   const quickLinks = [
@@ -1131,87 +1152,74 @@ export default function DayEventsPage() {
       </Helmet>
       <Navbar />
       <main className="flex-1 pt-28 pb-16">
-        <section className="relative border-b border-[#f4c9bc]/70">
-          <div
-            className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent"
-            aria-hidden="true"
-          />
-          <div className="mx-auto max-w-7xl px-6 pb-12 pt-10">
-            <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/80 px-0 backdrop-blur shadow-xl shadow-[#bf3d35]/10">
-              <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-                <div className="px-8 py-10 sm:px-12 sm:py-12">
-                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Make your Philly plans</p>
-                  <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">{heroTitle}</h1>
-                  <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#4a5568] sm:text-lg">{summary}</p>
-                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#9a6f62]">{rangeLabel}</p>
-                  <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <Link
-                      to={mapHref}
-                      className="inline-flex items-center justify-center rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold uppercase tracking-wider text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
-                    >
-                      View these on the map
-                    </Link>
-                  </div>
-                </div>
-                <div className="relative flex items-center justify-center overflow-hidden px-8 py-12 sm:px-10">
-                  <div
-                    className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl"
-                    aria-hidden="true"
-                  />
-                  <div className="relative flex flex-col items-center gap-6 text-center">
-                    <img
-                      src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
-                      alt="Our Philly city heart"
-                      className="h-48 w-48 object-contain drop-shadow-xl"
-                    />
-                    <div className="w-full max-w-xs rounded-2xl border border-[#29313f]/10 bg-white/85 px-6 py-5 shadow-lg shadow-[#29313f]/10">
-                      <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Need the map?</p>
-                      <p className="mt-2 text-base font-semibold text-[#29313f]">Jump to the citywide view</p>
-                      <p className="mt-2 text-sm text-[#4a5568]">{mapCalloutMessage}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <section className="border-b border-[#f4c9bc]/70 bg-white/80">
+          <div className="mx-auto max-w-7xl px-6 pb-10 pt-14 flex flex-col gap-6">
+            <div className="space-y-3">
+              <h1 className="text-4xl font-black leading-tight text-[#29313f] sm:text-5xl">{heroTitle}</h1>
+              <p className="max-w-3xl text-base leading-relaxed text-[#4a5568] sm:text-lg">{summary}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9a6f62]">{rangeLabel}</p>
             </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex flex-wrap items-center gap-2">
+                {quickLinks.map(link => (
+                  <Link
+                    key={link.key}
+                    to={link.href}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
+                      range.key === link.key
+                        ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
+                        : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+              <DatePicker
+                selected={selectedDate}
+                onChange={handleDatePick}
+                dateFormat="MMMM d, yyyy"
+                className="w-full max-w-xs rounded-full border border-[#f4c9bc] bg-white/90 px-4 py-2 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30 sm:w-auto"
+                calendarClassName="rounded-xl shadow-lg"
+                popperClassName="z-50"
+              />
+            </div>
+            {error && <p className="text-sm text-[#bf3d35]">{error}</p>}
           </div>
         </section>
 
+        {mapEvents.length > 0 && (
+          <section className="mx-auto max-w-7xl px-6 pt-8">
+            <MonthlyEventsMap events={mapEvents} height={420} />
+          </section>
+        )}
+
         <section className="border-b border-[#f4c9bc]/70 bg-white/70">
-          <div className="mx-auto max-w-7xl px-6 py-8 space-y-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold">Choose your day</h2>
-                <p className="text-sm text-[#4a5568]">Switch between quick views or pick your own date.</p>
-              </div>
-              <div className="flex flex-col gap-3 sm:items-end">
-                <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-                  {quickLinks.map(link => (
-                    <Link
-                      key={link.key}
-                      to={link.href}
-                      className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
-                        range.key === link.key
-                          ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
-                          : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
-                      }`}
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-                <DatePicker
-                  selected={selectedDate}
-                  onChange={handleDatePick}
-                  dateFormat="MMMM d, yyyy"
-                  className="rounded-full border border-[#f4c9bc] bg-white/90 px-4 py-2 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                  calendarClassName="rounded-xl shadow-lg"
-                  popperClassName="z-50"
-                />
+          <div className="mx-auto max-w-7xl px-6 py-8 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-[#29313f]">Popular tags</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsFiltersOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-4 py-2 text-sm font-semibold text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
+                >
+                  <Filter className="h-4 w-4" />
+                  {`Filters${filterCount ? ` (${filterCount})` : ''}`}
+                </button>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="inline-flex items-center gap-1 text-sm text-[#6b7280] hover:text-[#4a5568]"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Clear
+                  </button>
+                )}
               </div>
             </div>
-            {error && <p className="text-sm text-[#bf3d35]">{error}</p>}
-            <div className="flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-              <span className="text-sm font-semibold text-[#29313f]">Popular tags:</span>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
               {popularTags.map((tag, index) => {
                 const isActive = selectedTags.includes(tag.slug);
                 return (
@@ -1219,7 +1227,7 @@ export default function DayEventsPage() {
                     key={tag.slug}
                     type="button"
                     onClick={() => handleTagToggle(tag.slug, !isActive)}
-                    className={`${pillStyles[index % pillStyles.length]} px-3 py-1 rounded-full text-sm font-semibold shadow transition ${
+                    className={`${pillStyles[index % pillStyles.length]} whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold shadow transition ${
                       isActive ? 'ring-2 ring-offset-2 ring-[#bf3d35]/60' : ''
                     }`}
                   >
@@ -1227,50 +1235,6 @@ export default function DayEventsPage() {
                   </button>
                 );
               })}
-              <button
-                type="button"
-                onClick={() => setIsFiltersOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-4 py-2 text-sm font-semibold text-[#29313f] shadow-sm transition hover:border-[#29313f] hover:bg-[#29313f]/10"
-              >
-                <Filter className="h-4 w-4" />
-                {`Filters${filterCount ? ` (${filterCount})` : ''}`}
-              </button>
-              {hasActiveFilters && (
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  className="inline-flex items-center gap-1 text-sm text-[#6b7280] hover:text-[#4a5568]"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Clear
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-[#29313f]">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={recurringOnly}
-                  onChange={event => setRecurringOnly(event.target.checked)}
-                  className="h-4 w-4 rounded border-[#f4c9bc] text-[#bf3d35] focus:ring-[#bf3d35]"
-                />
-                Recurring events only
-              </label>
-              <label className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-[0.2em] text-[#9ba3b2]">Neighborhood</span>
-                <select
-                  value={selectedNeighborhood}
-                  onChange={event => setSelectedNeighborhood(event.target.value)}
-                  className="rounded-full border border-[#f4c9bc] bg-white/90 px-4 py-2 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                >
-                  <option value="">All neighborhoods</option>
-                  {areaOptions.map(option => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
           </div>
         </section>
