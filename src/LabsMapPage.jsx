@@ -290,9 +290,10 @@ function MapEventRow({ event, onHighlight }) {
     [event?.favoriteId, event?.source_table, navigate, toggleFavorite, user],
   );
 
-  const titleClassName = `mt-2 font-semibold text-[#29313f] transition-colors group-hover:text-[#bf3d35] ${
+  const titleClassName = `mt-2 font-semibold text-slate-900 transition-colors group-hover:text-[#bf3d35] ${
     event?.source_table === 'recurring_events' ? 'text-base' : 'text-lg'
   }`;
+  const areaLabel = event?.areaName;
 
   return (
     <li>
@@ -301,33 +302,45 @@ function MapEventRow({ event, onHighlight }) {
         onMouseEnter={handleHighlight}
         onFocus={handleHighlight}
         onClick={handleHighlight}
-        className="group block rounded-2xl border border-[#f3c7b8] bg-white/90 shadow-sm shadow-[#bf3d35]/5 transition hover:-translate-y-0.5 hover:border-[#bf3d35] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#29313f]"
+        className="group block rounded-2xl border border-slate-200 bg-white/95 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
       >
         <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex w-full items-start gap-4">
-            <div className="hidden h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-[#f4e5df] sm:block">
+            <div className="hidden h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:block">
               {event?.image && (
                 <img src={event.image} alt={event?.title || ''} className="h-full w-full object-cover" />
               )}
             </div>
             <div className="min-w-0 flex-1">
               {badgeLabel ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#d9e9ea] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#004C55]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-700">
                   {badgeLabel}
                 </span>
               ) : null}
               <h3 className={titleClassName}>
                 {event?.title}
               </h3>
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-slate-600">
                 {formatDateRange(event)}
                 {event?.start_time && (
                   <>
                     {' '}
                     · {formatTimeLabel(event.start_time)}
+                    {event?.end_time && (
+                      <>
+                        {' '}
+                        – {formatTimeLabel(event.end_time)}
+                      </>
+                    )}
                   </>
                 )}
               </p>
+              {areaLabel && (
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">{areaLabel}</p>
+              )}
+              {event?.venueName && (
+                <p className="mt-1 text-sm text-slate-500">@ {event.venueName}</p>
+              )}
               <TagPills tags={event?.tags} className="mt-3" />
             </div>
           </div>
@@ -1059,12 +1072,14 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectedArea, setSelectedArea] = useState('');
-  const [recurringOnly, setRecurringOnly] = useState(false);
   const [limitToMap, setLimitToMap] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [userPosition, setUserPosition] = useState(null);
   const [bounds, setBounds] = useState(null);
   const [geoError, setGeoError] = useState('');
+  const [showManualLocation, setShowManualLocation] = useState(false);
+  const [nearMeQuery, setNearMeQuery] = useState('');
+  const [isManualLocating, setIsManualLocating] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedLocationKey, setSelectedLocationKey] = useState(null);
   const [selectedLocationIndex, setSelectedLocationIndex] = useState(0);
@@ -1375,9 +1390,6 @@ function LabsMapPage({ clusterEvents = true } = {}) {
           return false;
         }
       }
-      if (recurringOnly && event.source_table !== 'recurring_events') {
-        return false;
-      }
       if (selectedArea) {
         const areaCandidates = [event.area_id, event.venue_area_id]
           .map(value => (value == null ? null : String(value)))
@@ -1408,7 +1420,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
       }
       return true;
     });
-  }, [events, rangeStart, rangeEnd, searchValue, selectedTags, limitToMap, bounds, recurringOnly, selectedArea]);
+  }, [events, rangeStart, rangeEnd, searchValue, selectedTags, limitToMap, bounds, selectedArea]);
 
   const eventsWithLocation = filteredEvents.filter(
     event => event.latitude != null && event.longitude != null,
@@ -1619,9 +1631,12 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     setCustomStart('');
     setCustomEnd('');
     setSelectedArea('');
-    setRecurringOnly(false);
     setLimitToMap(false);
     setBounds(null);
+    setShowManualLocation(false);
+    setNearMeQuery('');
+    setGeoError('');
+    setUserPosition(null);
   }, []);
 
   const handleOpenEventModal = useCallback(() => {
@@ -1700,6 +1715,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     if (!navigator?.geolocation) {
       setUserPosition(null);
       setGeoError('Geolocation is not available in this browser.');
+      setShowManualLocation(true);
       return;
     }
     setIsLocating(true);
@@ -1727,15 +1743,76 @@ function LabsMapPage({ clusterEvents = true } = {}) {
         updateBounds(map);
         setIsLocating(false);
         setGeoError('');
+        setShowManualLocation(false);
+        setNearMeQuery('');
       },
       err => {
         setUserPosition(null);
         setGeoError(err.message || 'Unable to determine your location.');
         setIsLocating(false);
+        setShowManualLocation(true);
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   }, [isLocating, updateBounds]);
+
+  const handleManualLocateSubmit = useCallback(
+    async event => {
+      event.preventDefault();
+      const query = nearMeQuery.trim();
+      if (!query) {
+        setGeoError('Enter a nearby address or landmark to search.');
+        return;
+      }
+      if (!MAPBOX_TOKEN) {
+        setGeoError('Map search is unavailable right now.');
+        return;
+      }
+      setIsManualLocating(true);
+      setGeoError('');
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=1&proximity=${DEFAULT_VIEW.longitude},${DEFAULT_VIEW.latitude}`,
+        );
+        if (!response.ok) {
+          throw new Error('Unable to search for that location right now.');
+        }
+        const data = await response.json();
+        const feature = data?.features?.[0];
+        const center = feature?.center;
+        if (!center || center.length < 2) {
+          setGeoError('Could not find that spot. Try another nearby place.');
+          return;
+        }
+        const [longitude, latitude] = center;
+        setUserPosition({ latitude, longitude });
+        setLimitToMap(true);
+        setViewState(current => ({
+          ...current,
+          latitude,
+          longitude,
+          zoom: Math.max(current.zoom ?? DEFAULT_VIEW.zoom, 13),
+          transitionDuration: 600,
+        }));
+        const map = mapRef.current?.getMap?.() || mapRef.current;
+        if (map?.flyTo) {
+          map.flyTo({
+            center: [longitude, latitude],
+            zoom: Math.max(map.getZoom?.() ?? DEFAULT_VIEW.zoom, 13),
+            essential: true,
+          });
+        }
+        updateBounds(map);
+        setShowManualLocation(false);
+        setNearMeQuery('');
+      } catch (err) {
+        setGeoError(err.message || 'Unable to locate that spot.');
+      } finally {
+        setIsManualLocating(false);
+      }
+    },
+    [nearMeQuery, updateBounds],
+  );
 
   const activeRangeLabel = useMemo(() => {
     if (!rangeStart || !rangeEnd) return '';
@@ -1744,8 +1821,13 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     return start === end ? start : `${start} – ${end}`;
   }, [rangeStart, rangeEnd]);
 
+  const visibleEventCount = sortedMapEvents.length;
+  const totalFilteredCount = filteredEvents.length;
+  const limitLabel = limitToMap ? 'in this map view' : 'across the city';
+
+
   return (
-    <div className="min-h-screen bg-[#fdf7f2] text-[#29313f]">
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <Helmet>
         <title>Philadelphia Event Map | Our Philly</title>
         <meta
@@ -1755,225 +1837,186 @@ function LabsMapPage({ clusterEvents = true } = {}) {
         <link rel="canonical" href="https://www.ourphilly.org/map" />
       </Helmet>
       <Navbar />
-      <main className="pt-28 pb-16 lg:pt-32">
-        <section className="relative">
-          <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-[#f5d4cb]/60 via-transparent to-transparent" aria-hidden="true" />
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="relative overflow-hidden rounded-3xl border border-[#f4c9bc] bg-white/70 p-10 shadow-xl shadow-[#bf3d35]/10 backdrop-blur-md lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-10">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#bf3d35]">Community Event Map</p>
-                <h1 className="mt-4 text-4xl font-black leading-tight text-[#29313f] sm:text-5xl lg:text-6xl">
-                  See what&apos;s happening across Philly
-                </h1>
-                <p className="mt-4 text-base leading-relaxed text-[#4a5568] sm:text-lg">
-                  Browse festivals, block parties, and neighborhood meetups shared by organizers across the city. Add yours to help more neighbors discover it.
+      <main className="flex-1 pb-16">
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Philadelphia Event Map</p>
+                <h1 className="text-xl font-semibold sm:text-2xl">Discover what's happening right now</h1>
+                <p className="text-sm text-slate-500">
+                  Showing {visibleEventCount} of {totalFilteredCount} events {limitLabel}.
+                  {activeRangeLabel && (
+                    <>
+                      {' '}
+                      <span aria-hidden="true">·</span> {activeRangeLabel}
+                    </>
+                  )}
                 </p>
-                <div className="mt-6 flex flex-wrap items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleOpenEventModal}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#bf3d35] px-6 py-3 text-sm font-semibold uppercase tracking-widest text-white shadow-lg shadow-[#bf3d35]/30 transition hover:-translate-y-0.5 hover:bg-[#a2322c]"
-                  >
-                    Add your event to the map
-                  </button>
-                  <a
-                    href="#map"
-                    className="inline-flex items-center gap-2 rounded-full border border-[#29313f]/20 bg-white/80 px-6 py-3 text-sm font-semibold text-[#29313f] transition hover:border-[#29313f] hover:bg-[#29313f]/10"
-                  >
-                    Jump to map <span aria-hidden="true">↓</span>
-                  </a>
-                </div>
-                <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhillyCircle(web)%20(1).png"
-                    alt="Our Philly skyline logo"
-                    className="h-12 w-12 rounded-full border border-[#29313f]/10 bg-white object-cover"
-                  />
-                  <span>Built by neighbors. Updated daily with community submissions.</span>
-                </div>
-              </div>
-              <div className="relative mt-10 flex items-center justify-center lg:mt-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#fbe0d6] via-transparent to-[#d7e4f7] blur-3xl" aria-hidden="true" />
-                <div className="relative flex flex-col items-center gap-6">
-                  <img
-                    src="https://qdartpzrxmftmaftfdbd.supabase.co/storage/v1/object/public/group-images/OurPhilly-CityHeart-1.png"
-                    alt="Illustration of the Our Philly heart"
-                    className="h-52 w-52 object-contain drop-shadow-xl"
-                  />
-                  <div className="rounded-2xl border border-[#29313f]/10 bg-[#2b333f] px-6 py-4 text-center shadow-lg">
-                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#f0e5d0]">Our Philly</p>
-                    <p className="mt-2 text-lg font-semibold text-white">Neighborhood spotlights</p>
-                    <p className="mt-1 text-sm text-[#f0e5d0]/80">Events on the map are featured in our guides, newsletters, and Instagram.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-10 max-w-7xl px-6">
-          <div className="flex items-start gap-3 rounded-2xl border border-[#f3c7b8] bg-white/80 p-5 text-sm text-[#4a5568] shadow">
-            <span className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#bf3d35]/10 text-lg text-[#bf3d35]">ℹ️</span>
-            <p>
-              Not every submission includes an address yet. Events without map pins appear in the “Still gathering addresses” list below—organizers can add a venue to get featured on the map instantly.
-            </p>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-10 max-w-7xl px-6" id="map">
-          <div className="rounded-3xl border border-[#f3c7b8] bg-white/80 p-6 shadow-xl shadow-[#29313f]/5 backdrop-blur">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {DATE_PRESETS.map(option => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wide transition ${
-                      datePreset === option.id
-                        ? 'bg-[#bf3d35] text-white shadow-lg shadow-[#bf3d35]/30'
-                        : 'bg-[#f7e5de] text-[#29313f] hover:bg-[#f2cfc3]'
-                    }`}
-                    onClick={() => setDatePreset(option.id)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              {datePreset === 'custom' && (
-                <div className="flex flex-wrap items-center gap-3 text-sm text-[#4a5568]">
-                  <label className="flex items-center gap-2">
-                    <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">Start</span>
-                    <input
-                      type="date"
-                      value={customStart}
-                      onChange={event => setCustomStart(event.target.value)}
-                      className="rounded-xl border border-[#f3c7b8] bg-white px-3 py-2 text-sm text-[#29313f] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                    />
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <span className="font-semibold uppercase tracking-wide text-xs text-[#bf3d35]">End</span>
-                    <input
-                      type="date"
-                      value={customEnd}
-                      onChange={event => setCustomEnd(event.target.value)}
-                      className="rounded-xl border border-[#f3c7b8] bg-white px-3 py-2 text-sm text-[#29313f] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-                    />
-                  </label>
-                </div>
-              )}
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#bf3d35]/80">
-                Active range · {activeRangeLabel}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <input
-                  type="search"
-                  value={searchTerm}
-                  onChange={event => setSearchTerm(event.target.value)}
-                  placeholder="Search events or venues"
-                  className="w-72 rounded-full border border-[#f3c7b8] bg-white px-5 py-3 text-sm text-[#29313f] placeholder:text-[#9ba3b2] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#29313f]/20"
-                />
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[#9ba3b2]">⌕</span>
               </div>
               <button
                 type="button"
                 onClick={handleClearFilters}
-                className="rounded-full border border-[#29313f]/10 bg-[#2b333f] px-5 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#242a33]"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-[#bf3d35] hover:text-[#bf3d35]"
               >
                 Clear filters
               </button>
             </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-[#4a5568]">
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={recurringOnly}
-                onChange={event => setRecurringOnly(event.target.checked)}
-                className="h-4 w-4 rounded border-[#f3c7b8] text-[#bf3d35] focus:ring-[#bf3d35]"
-              />
-              Recurring events only
-            </label>
-            <label className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-[0.3em] text-[#9ba3b2]">Neighborhood</span>
-              <select
-                value={selectedArea}
-                onChange={event => setSelectedArea(event.target.value)}
-                className="rounded-full border border-[#f3c7b8] bg-white px-4 py-2 text-sm font-semibold text-[#29313f] shadow focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
-              >
-                <option value="">All neighborhoods</option>
-                {areaOptions.map(option => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {tagOptions.length > 0 && (
-            <div className="mt-6">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#29313f]/60">Tag filters</p>
-              <div className="flex flex-wrap gap-2">
-                {tagOptions.slice(0, 24).map((tag, index) => {
-                  const baseStyle = TAG_PILL_STYLES[index % TAG_PILL_STYLES.length];
-                  const isSelected = selectedTags.includes(tag.slug);
-                  return (
-                    <button
-                      key={tag.slug}
-                      type="button"
-                      onClick={() => handleToggleTag(tag.slug)}
-                      className={`${baseStyle} flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold transition hover:opacity-85 ${
-                        isSelected ? 'ring-2 ring-offset-2 ring-[#29313f]' : 'ring-1 ring-transparent'
-                      }`}
-                      aria-pressed={isSelected}
-                      title={`${tag.count} events tagged #${tag.name?.toLowerCase() || tag.slug}`}
-                    >
-                      #{(tag.name || tag.slug).toLowerCase()}
-                    </button>
-                  );
-                })}
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Search</span>
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={event => setSearchTerm(event.target.value)}
+                  placeholder="Search for an event or venue"
+                  className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm transition focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/40"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Dates</span>
+                <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 p-1 text-sm font-semibold text-slate-600">
+                  {DATE_PRESETS.map(option => {
+                    const isActive = datePreset === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setDatePreset(option.id)}
+                        className={`flex-1 rounded-full px-3 py-1 transition ${
+                          isActive ? 'bg-white text-slate-900 shadow' : 'hover:bg-white/60'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Neighborhood</span>
+                <select
+                  value={selectedArea}
+                  onChange={event => setSelectedArea(event.target.value)}
+                  className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/40"
+                >
+                  <option value="">All neighborhoods</option>
+                  {areaOptions.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-          )}
-
-          <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-[#4a5568]">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={limitToMap}
-                onChange={event => setLimitToMap(event.target.checked)}
-                className="h-4 w-4 rounded border-[#f3c7b8] text-[#bf3d35] focus:ring-[#bf3d35]"
-              />
-              Limit to current map view
-            </label>
-            <button
-              type="button"
-              onClick={handleLocateMe}
-              disabled={isLocating}
-              className="inline-flex items-center gap-2 rounded-full border border-[#bf3d35]/40 bg-white px-4 py-2 text-sm font-semibold text-[#bf3d35] transition hover:border-[#bf3d35] hover:bg-[#bf3d35]/10 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isLocating ? 'Locating…' : 'Near me'}
-            </button>
-            {geoError && (
-              <span className="text-xs font-medium text-rose-500">{geoError}</span>
+            {datePreset === 'custom' && (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <label className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Start</span>
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={event => setCustomStart(event.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/40"
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">End</span>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={event => setCustomEnd(event.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/40"
+                  />
+                </label>
+              </div>
             )}
-            {!limitToMap && (
-              <span className="basis-full text-xs text-[#9ba3b2]">
-                Keep this toggled off to let the map surface surprises beyond the current frame.
-              </span>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={limitToMap}
+                  onChange={event => setLimitToMap(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-[#bf3d35] focus:ring-[#bf3d35]"
+                />
+                Limit to map view
+              </label>
+              <button
+                type="button"
+                onClick={handleLocateMe}
+                disabled={isLocating}
+                className={`inline-flex items-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold transition ${
+                  userPosition
+                    ? 'bg-slate-900 text-white shadow-sm hover:bg-slate-800'
+                    : 'bg-white text-slate-700 shadow-sm hover:border-[#bf3d35] hover:text-[#bf3d35]'
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                {isLocating ? 'Locating…' : userPosition ? 'Re-center near me' : 'Near me'}
+              </button>
+              {geoError && <span className="text-xs font-medium text-rose-500">{geoError}</span>}
+            </div>
+            {showManualLocation && (
+              <form
+                onSubmit={handleManualLocateSubmit}
+                className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-100/80 px-4 py-3 text-sm shadow-inner"
+              >
+                <div className="flex min-w-[200px] flex-1 items-center">
+                  <input
+                    type="text"
+                    value={nearMeQuery}
+                    onChange={event => setNearMeQuery(event.target.value)}
+                    placeholder="Enter an address, landmark, or intersection"
+                    className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm focus:border-[#bf3d35] focus:outline-none focus:ring-2 focus:ring-[#bf3d35]/30"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isManualLocating}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#bf3d35] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a2322c] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isManualLocating ? 'Searching…' : 'Use this spot'}
+                </button>
+              </form>
+            )}
+            {tagOptions.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Filter by tag</span>
+                <div className="-mx-1 flex gap-2 overflow-x-auto pb-1">
+                  {tagOptions.slice(0, 24).map((tag, index) => {
+                    const baseStyle = TAG_PILL_STYLES[index % TAG_PILL_STYLES.length];
+                    const isSelected = selectedTags.includes(tag.slug);
+                    return (
+                      <button
+                        key={tag.slug}
+                        type="button"
+                        onClick={() => handleToggleTag(tag.slug)}
+                        className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition ${baseStyle} ${
+                          isSelected ? 'ring-2 ring-offset-2 ring-[#29313f]' : 'ring-1 ring-transparent hover:opacity-85'
+                        }`}
+                        aria-pressed={isSelected}
+                        title={`${tag.count} events tagged #${tag.name?.toLowerCase() || tag.slug}`}
+                      >
+                        #{(tag.name || tag.slug).toLowerCase()}
+                      </button>
+                    );
+                  })}
+                  {selectedTags.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTags([])}
+                      className="whitespace-nowrap rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-[#bf3d35] hover:text-[#bf3d35]"
+                    >
+                      Clear tags
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-10 grid max-w-7xl gap-6 px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <div className="space-y-6">
-            <div className="relative h-[520px] overflow-hidden rounded-3xl border border-[#1d2432] bg-[#101722] shadow-2xl shadow-[#101722]/40">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#bf3d35]/15 via-transparent to-[#0b1120]" aria-hidden="true" />
+        </header>
+        <section id="map" className="border-b border-slate-200 bg-slate-900">
+          <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+            <div className="relative h-[70vh] min-h-[420px] overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl shadow-slate-950/40">
               {MAPBOX_TOKEN ? (
                 <>
                   <MapGL
@@ -2035,9 +2078,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
                           <span
                             aria-hidden="true"
                             className="absolute inset-0 -z-10 rounded-full opacity-60 blur-md transition group-hover:opacity-80"
-                            style={{
-                              backgroundColor: event.themeColor || LOGO_MARKER_FALLBACK_COLOR,
-                            }}
+                            style={{ backgroundColor: event.themeColor || LOGO_MARKER_FALLBACK_COLOR }}
                           />
                           <img
                             src={event.venueImage}
@@ -2048,121 +2089,130 @@ function LabsMapPage({ clusterEvents = true } = {}) {
                         </button>
                       </Marker>
                     ))}
-                  {selectedEvent && selectedEvent.latitude != null && selectedEvent.longitude != null && (
-                    <Popup
-                      longitude={selectedEvent.longitude}
-                      latitude={selectedEvent.latitude}
-                      anchor="top"
-                      closeOnClick={false}
-                      onClose={() => selectEvent(null)}
-                      maxWidth="320px"
-                      className="labs-map-popup"
-                    >
-                      <div className="space-y-3 text-gray-900">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-2">
-                            {getEventBadgeLabel(selectedEvent) ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#d9e9ea] px-2 py-0.5 text-xs font-semibold uppercase tracking-widest text-[#004C55]">
-                                {getEventBadgeLabel(selectedEvent)}
-                              </span>
-                            ) : null}
-                            <h3 className="text-lg font-semibold leading-snug text-[#29313f]">
-                              {selectedEventUrl ? (
-                                selectedEvent?.detailPath ? (
-                                  <Link
-                                    to={selectedEventUrl}
-                                    className="transition hover:text-[#bf3d35]"
-                                  >
-                                    {selectedEvent.title}
-                                  </Link>
+                    {userPosition &&
+                      Number.isFinite(userPosition.latitude) &&
+                      Number.isFinite(userPosition.longitude) && (
+                        <Marker longitude={userPosition.longitude} latitude={userPosition.latitude} anchor="center">
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg ring-2 ring-white/80">
+                            You
+                          </span>
+                        </Marker>
+                      )}
+                    {selectedEvent && selectedEvent.latitude != null && selectedEvent.longitude != null && (
+                      <Popup
+                        longitude={selectedEvent.longitude}
+                        latitude={selectedEvent.latitude}
+                        anchor="top"
+                        closeOnClick={false}
+                        onClose={() => selectEvent(null)}
+                        maxWidth="320px"
+                        className="labs-map-popup"
+                      >
+                        <div className="space-y-3 text-gray-900">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-2">
+                              {getEventBadgeLabel(selectedEvent) ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#d9e9ea] px-2 py-0.5 text-xs font-semibold uppercase tracking-widest text-[#004C55]">
+                                  {getEventBadgeLabel(selectedEvent)}
+                                </span>
+                              ) : null}
+                              <h3 className="text-lg font-semibold leading-snug text-[#29313f]">
+                                {selectedEventUrl ? (
+                                  selectedEvent?.detailPath ? (
+                                    <Link
+                                      to={selectedEventUrl}
+                                      className="transition hover:text-[#bf3d35]"
+                                    >
+                                      {selectedEvent.title}
+                                    </Link>
+                                  ) : (
+                                    <a
+                                      href={selectedEventUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="transition hover:text-[#bf3d35]"
+                                    >
+                                      {selectedEvent.title}
+                                    </a>
+                                  )
                                 ) : (
-                                  <a
-                                    href={selectedEventUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="transition hover:text-[#bf3d35]"
-                                  >
-                                    {selectedEvent.title}
-                                  </a>
-                                )
-                              ) : (
-                                selectedEvent.title
+                                  selectedEvent.title
+                                )}
+                              </h3>
+                              {selectedEvent.themeEmoji && selectedEvent.themeLabel && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2 py-0.5 text-xs font-semibold text-[#29313f]">
+                                  <span>{selectedEvent.themeEmoji}</span>
+                                  <span>{selectedEvent.themeLabel}</span>
+                                </span>
                               )}
-                            </h3>
-                            {selectedEvent.themeEmoji && selectedEvent.themeLabel && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2 py-0.5 text-xs font-semibold text-[#29313f]">
-                                <span>{selectedEvent.themeEmoji}</span>
-                                <span>{selectedEvent.themeLabel}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => selectEvent(null)}
+                              className="-mr-1 -mt-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-2xl font-light text-gray-500 shadow-sm ring-1 ring-inset ring-white/70 transition hover:bg-white hover:text-[#29313f]"
+                              aria-label="Close event details"
+                            >
+                              <span aria-hidden="true">×</span>
+                            </button>
+                          </div>
+                          {selectedLocationEvents.length > 1 && (
+                            <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5f9] px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
+                              <button
+                                type="button"
+                                onClick={() => handleCycleSelectedEvent('prev')}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
+                                aria-label="Show previous event at this venue"
+                              >
+                                ‹
+                              </button>
+                              <span>
+                                {selectedLocationIndex + 1} of {selectedLocationEvents.length}
                               </span>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => selectEvent(null)}
-                            className="-mr-1 -mt-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-2xl font-light text-gray-500 shadow-sm ring-1 ring-inset ring-white/70 transition hover:bg-white hover:text-[#29313f]"
-                            aria-label="Close event details"
-                          >
-                            <span aria-hidden="true">×</span>
-                          </button>
-                        </div>
-                        {selectedLocationEvents.length > 1 && (
-                          <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5f9] px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
-                            <button
-                              type="button"
-                              onClick={() => handleCycleSelectedEvent('prev')}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
-                              aria-label="Show previous event at this venue"
-                            >
-                              ‹
-                            </button>
-                            <span className="flex-1 text-center text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
-                              {selectedLocationIndex + 1} of {selectedLocationEvents.length} events here
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCycleSelectedEvent('next')}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
-                              aria-label="Show next event at this venue"
-                            >
-                              ›
-                            </button>
-                          </div>
-                        )}
-                        <p className="text-sm text-gray-600">
-                          {formatDateRange(selectedEvent)}
-                          {selectedEvent.start_time && (
-                            <>
-                              {' '}
-                              · {formatTimeLabel(selectedEvent.start_time)}
-                            </>
+                              <button
+                                type="button"
+                                onClick={() => handleCycleSelectedEvent('next')}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
+                                aria-label="Show next event at this venue"
+                              >
+                                ›
+                              </button>
+                            </div>
                           )}
-                        </p>
-                        {selectedEvent.venueName && (
-                          <p className="text-sm text-gray-600">@ {selectedEvent.venueName}</p>
-                        )}
-                        <TagPills tags={selectedEvent.tags} variant="plain" />
-                        {selectedEventUrl && (
-                          selectedEvent?.detailPath ? (
-                            <Link
-                              to={selectedEventUrl}
-                              className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
-                            >
-                              View details →
-                            </Link>
-                          ) : (
-                            <a
-                              href={selectedEventUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
-                            >
-                              View details →
-                            </a>
-                          )
-                        )}
-                      </div>
-                    </Popup>
-                  )}
+                          <p className="text-sm text-gray-600">
+                            {formatDateRange(selectedEvent)}
+                            {selectedEvent?.start_time && (
+                              <>
+                                {' '}
+                                · {formatTimeLabel(selectedEvent.start_time)}
+                              </>
+                            )}
+                          </p>
+                          {selectedEvent.venueName && (
+                            <p className="text-sm text-gray-600">@ {selectedEvent.venueName}</p>
+                          )}
+                          <TagPills tags={selectedEvent.tags} variant="plain" />
+                          {selectedEventUrl && (
+                            selectedEvent?.detailPath ? (
+                              <Link
+                                to={selectedEventUrl}
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
+                              >
+                                View details →
+                              </Link>
+                            ) : (
+                              <a
+                                href={selectedEventUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
+                              >
+                                View details →
+                              </a>
+                            )
+                          )}
+                        </div>
+                      </Popup>
+                    )}
                   </MapGL>
                 </>
               ) : (
@@ -2176,73 +2226,101 @@ function LabsMapPage({ clusterEvents = true } = {}) {
                 </div>
               )}
             </div>
-            <div className="rounded-3xl border border-[#f3c7b8] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-semibold text-[#29313f]">
-                  Events lighting up the map <span className="text-sm text-[#7c889d]">({sortedMapEvents.length})</span>
-                </h2>
-                {!limitToMap && bounds && (
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[#9ba3b2]">Showing the full Philly radius</span>
-                )}
-              </div>
-              <ul className="mt-4 space-y-4">
-                {sortedMapEvents.map(event => (
-                  <MapEventRow key={event.id} event={event} onHighlight={focusEventOnMap} />
-                ))}
-                {!sortedMapEvents.length && !loading && (
-                  <li className="rounded-xl border border-dashed border-[#f3c7b8] bg-[#fdf4ef] p-6 text-center text-sm text-[#9ba3b2]">
-                    No events match these filters yet—try widening the dates or removing a tag.
-                  </li>
-                )}
-              </ul>
-            </div>
           </div>
-
-          <aside className="space-y-4">
-            <div className="rounded-3xl border border-[#d9e0ec] bg-white/90 p-6 shadow-lg shadow-[#29313f]/10">
-              <h2 className="text-xl font-semibold text-[#29313f]">
-                Still gathering addresses <span className="text-sm text-[#7c889d]">({eventsWithoutLocation.length})</span>
+        </section>
+        <section className="bg-slate-50">
+          <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-slate-900">
+                {limitToMap ? 'Events in this map view' : 'Events across the city'}{' '}
+                <span className="text-sm font-medium text-slate-500">({sortedMapEvents.length})</span>
               </h2>
-              <p className="mt-1 text-sm text-[#4a5568]">
-                These events were submitted without an exact venue. Add a location and they&apos;ll move onto the map within minutes.
-              </p>
-              <div className="mt-4 space-y-6">
-                {groupedNoLocation.map(([label, items]) => (
-                  <div key={label} className="space-y-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-widest text-[#9ba3b2]">{label}</h3>
-                    <ul className="space-y-3">
-                      {items.map(item => (
-                        <li key={item.id} className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-3">
-                          <p className="text-sm font-semibold text-[#29313f]">{item.title}</p>
-                          <p className="text-xs text-[#4a5568]">{formatDateRange(item)}</p>
-                          {(item.detailPath || item.link) && (
-                            <a
-                              href={item.detailPath || item.link}
-                              className="mt-1 inline-flex text-xs font-semibold text-[#bf3d35] hover:text-[#a2322c]"
-                            >
-                              View details →
-                            </a>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-                {!groupedNoLocation.length && !loading && (
-                  <p className="rounded-xl border border-dashed border-[#d9e0ec] bg-[#f5f7fb] p-4 text-sm text-[#4a5568]">
-                    Everything in this range has a map location. 🎉
-                  </p>
-                )}
-              </div>
+              {activeRangeLabel && (
+                <p className="text-sm text-slate-500">Range: {activeRangeLabel}</p>
+              )}
             </div>
-
             {error && (
-              <div className="rounded-3xl border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-700 shadow">
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-sm text-rose-700 shadow">
                 <p className="font-semibold">We hit a snag loading events.</p>
                 <p className="mt-1 opacity-80">{error.message || 'Unknown error'}</p>
               </div>
             )}
-          </aside>
+            <ul className="mt-6 space-y-4">
+              {sortedMapEvents.map(event => (
+                <MapEventRow key={event.id} event={event} onHighlight={focusEventOnMap} />
+              ))}
+              {!sortedMapEvents.length && !loading && (
+                <li className="rounded-2xl border border-dashed border-slate-300 bg-white/90 p-6 text-center text-sm text-slate-500 shadow-sm">
+                  No events match these filters yet—try widening the dates or removing a tag.
+                </li>
+              )}
+            </ul>
+          </div>
+        </section>
+        <section className="bg-transparent">
+          <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+            <details className="group rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+              <summary className="flex cursor-pointer items-center justify-between gap-3 text-base font-semibold text-slate-900">
+                Stay in the know
+                <span className="text-sm font-medium text-slate-500 transition group-open:rotate-180">⌄</span>
+              </summary>
+              <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                <div className="space-y-4 text-sm text-slate-600">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">About the map</h3>
+                  <p>
+                    The map updates instantly as you pan or zoom. Tweak the filters above to zero in on events by neighborhood,
+                    tag, or timeframe, then add plans straight to your list.
+                  </p>
+                  <p>
+                    Organizers can submit new happenings anytime—approved events appear here and in our Today, Weekend, and tag
+                    pages automatically.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenEventModal}
+                    className="inline-flex items-center justify-center rounded-full bg-[#bf3d35] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a2322c]"
+                  >
+                    Submit an event
+                  </button>
+                </div>
+                <div className="space-y-4 text-sm text-slate-600">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Need a venue?</h3>
+                  <p>
+                    These submissions are waiting on a precise address. Add a location and they will move onto the live map within
+                    minutes.
+                  </p>
+                  <div className="space-y-5">
+                    {groupedNoLocation.map(([label, items]) => (
+                      <div key={label} className="space-y-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">{label}</h4>
+                        <ul className="space-y-3">
+                          {items.map(item => (
+                            <li key={item.id} className="rounded-xl border border-dashed border-slate-300 bg-slate-100/80 p-3">
+                              <p className="text-sm font-semibold text-slate-800">{item.title}</p>
+                              <p className="text-xs text-slate-600">{formatDateRange(item)}</p>
+                              {(item.detailPath || item.link) && (
+                                <a
+                                  href={item.detailPath || item.link}
+                                  className="mt-1 inline-flex text-xs font-semibold text-[#bf3d35] hover:text-[#a2322c]"
+                                >
+                                  View details →
+                                </a>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                    {!groupedNoLocation.length && !loading && (
+                      <p className="rounded-xl border border-dashed border-slate-300 bg-slate-100/80 p-4 text-sm text-slate-600">
+                        Everything showing right now has a mapped location. 🎉
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
         </section>
       </main>
       <FloatingAddButton onClick={handleOpenEventModal} />
