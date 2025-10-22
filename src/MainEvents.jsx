@@ -28,6 +28,9 @@ import { getDetailPathForItem } from './utils/eventDetailPaths';
 import { AuthContext } from './AuthProvider';
 import useEventFavorite from './utils/useEventFavorite';
 import { COMMUNITY_REGIONS } from './communityIndexData.js';
+import useProfile from './utils/useProfile.js';
+import EventListRow from './components/EventListRow.jsx';
+import { fetchNearbyEvents, buildAreaMetaMap } from './utils/fetchNearbyEvents.js';
 import {
   PHILLY_TIME_ZONE,
   getWeekendWindow,
@@ -261,7 +264,7 @@ async function fetchBigBoardEvents() {
 
 async function fetchBaseData() {
   const [areasRes, allEventsRes, traditionsRes, groupEventsRes, recurringRes, bigBoardEvents, sportsEvents] = await Promise.all([
-    supabase.from('areas').select('id,name'),
+    supabase.from('areas').select('id,name,slug,latitude,longitude,centroid_lat,centroid_lng'),
     supabase
       .from('all_events')
       .select(`
@@ -330,6 +333,7 @@ async function fetchBaseData() {
 
   return {
     areaLookup: Object.fromEntries((areasRes.data || []).map(area => [area.id, area.name])),
+    areas: areasRes.data || [],
     allEvents: allEventsRes.data || [],
     traditions: traditionsRes.data || [],
     groupEvents: groupEventsRes.data || [],
@@ -387,6 +391,7 @@ function mapGroupEventToCard(evt, areaLookup = {}) {
     favoriteId: evt.id,
     group,
     areaName: evt.area_id ? areaLookup[evt.area_id] || null : null,
+    area_id: evt.area_id ?? null,
   };
 }
 
@@ -424,6 +429,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         source_table: 'big_board_events',
         favoriteId: ev.id,
         areaName: ev.area_id ? areaLookup[ev.area_id] || null : null,
+        area_id: ev.area_id ?? null,
       };
     })
     .sort((a, b) => a.startDate - b.startDate || (a.start_time || '').localeCompare(b.start_time || ''));
@@ -445,6 +451,7 @@ function buildEventsForRange(rangeStart, rangeEnd, baseData, limit = 4) {
         isTradition: true,
         start_time: row.start_time ?? row.time ?? row['Start Time'] ?? null,
         areaName: row.area_id ? areaLookup[row.area_id] || null : null,
+        area_id: row.area_id ?? null,
       };
     })
     .filter(Boolean)
@@ -1029,9 +1036,105 @@ function PlansSection({ loading, events, summary, user }) {
   );
 }
 
+function NearbySection({
+  loading,
+  events,
+  tagMap,
+  areaName,
+  areaSlug,
+  radius,
+  showPrompt,
+  promptHref = '/profile#home-neighborhood-control',
+  todayDate,
+  todayIso,
+  error,
+}) {
+  if (!showPrompt && !loading && (!events || events.length === 0)) {
+    return null;
+  }
+
+  const radiusValue = Number.isFinite(Number(radius)) ? Number(radius) : 1609;
+  const radiusMiles = Math.max(radiusValue / 1609.344, 0.1);
+  const radiusLabel = radiusMiles < 1 ? `${Math.round(radiusMiles * 10) / 10} mile` : `${
+    Math.round(radiusMiles * 10) / 10
+  } miles`;
+  const summary = areaName
+    ? `Happening within ${radiusLabel} of ${areaName}.`
+    : 'Set your neighborhood to see nearby events.';
+  const headerLink = areaSlug
+    ? `/near/${areaSlug}?radius=${Math.round(radiusValue)}${todayIso ? `&start=${todayIso}` : ''}`
+    : null;
+
+  return (
+    <section className="mt-16">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Nearby picks</p>
+          <h2 className="mt-2 text-2xl font-bold text-[#28313e] sm:text-3xl">
+            Near You{areaName ? ` – ${areaName}` : ''}
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 sm:text-base">{summary}</p>
+        </div>
+        {headerLink ? (
+          <Link
+            to={headerLink}
+            className="inline-flex items-center gap-2 self-start rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-indigo-700"
+          >
+            See 20 nearby
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        ) : null}
+      </div>
+      <div className="mt-8 space-y-4">
+        {showPrompt ? (
+          <div className="rounded-3xl border border-indigo-100 bg-indigo-50/60 p-6 text-sm text-indigo-900 sm:text-base">
+            <p className="font-medium">Pick your neighborhood to see what’s nearby.</p>
+            <Link
+              to={promptHref}
+              className="mt-3 inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-700"
+            >
+              Open Settings
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        ) : null}
+        {error && !loading ? (
+          <div className="rounded-3xl border border-rose-100 bg-rose-50/80 p-5 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
+        {loading ? (
+          <>
+            {Array.from({ length: 2 }).map((_, idx) => (
+              <div key={idx} className="h-36 w-full animate-pulse rounded-2xl bg-slate-100" />
+            ))}
+          </>
+        ) : null}
+        {!loading && events
+          ? events.map((event, idx) => {
+              const key = event.source_table && event.favoriteId ? `${event.source_table}:${event.favoriteId}` : null;
+              const tags = key && tagMap ? tagMap[key] || [] : [];
+              const eventKey = event.id || key || event.slug || `${event.title || 'event'}-${idx}`;
+              return (
+                <EventListRow
+                  key={eventKey}
+                  event={event}
+                  tags={tags}
+                  now={todayDate}
+                  distanceMeters={event.distance_meters}
+                />
+              );
+            })
+          : null}
+      </div>
+    </section>
+  );
+}
+
 export default function MainEvents() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const { profile } = useProfile();
   const todayInPhilly = useMemo(() => setStartOfDay(getZonedDate(new Date(), PHILLY_TIME_ZONE)), []);
   const tomorrowInPhilly = useMemo(() => {
     const t = cloneDate(todayInPhilly);
@@ -1146,9 +1249,16 @@ export default function MainEvents() {
     }));
   }, []);
   const [areaLookup, setAreaLookup] = useState({});
+  const [areaMeta, setAreaMeta] = useState({});
+  const [baseData, setBaseData] = useState(null);
   const [savedEvents, setSavedEvents] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [showFlyerModal, setShowFlyerModal] = useState(false);
+  const [nearbyEvents, setNearbyEvents] = useState([]);
+  const [loadingNearby, setLoadingNearby] = useState(false);
+  const [nearbyError, setNearbyError] = useState(null);
+  const preferredAreaId = profile?.preferred_area_id ?? null;
+  const preferredRadiusM = profile?.preferred_radius_m ?? 1609;
   const savedPlansDescription = useMemo(() => {
     if (loadingSaved) {
       return 'Loading your saved plans…';
@@ -1223,6 +1333,15 @@ export default function MainEvents() {
   const [featuredCommunities, setFeaturedCommunities] = useState([]);
   const [weekendGuideCount, setWeekendGuideCount] = useState(null);
   const [weekendGuideLoading, setWeekendGuideLoading] = useState(true);
+  const preferredAreaName =
+    preferredAreaId != null
+      ? areaLookup[preferredAreaId] || areaLookup[String(preferredAreaId)] || null
+      : null;
+  const preferredAreaSlug =
+    preferredAreaId != null ? areaMeta[preferredAreaId]?.slug || null : null;
+  const nearbyRadiusMeters = preferredRadiusM && preferredRadiusM > 0 ? preferredRadiusM : 1609;
+  const showNearbyPrompt = Boolean(user && profile && !preferredAreaId);
+  const todayIso = useMemo(() => todayInPhilly.toISOString().slice(0, 10), [todayInPhilly]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1231,7 +1350,9 @@ export default function MainEvents() {
         setLoading(true);
         const baseData = await fetchBaseData();
         if (cancelled) return;
+        setBaseData(baseData);
         setAreaLookup(baseData.areaLookup || {});
+        setAreaMeta(buildAreaMetaMap(baseData.areas || []));
         setSections({
           today: buildEventsForRange(rangeMeta.today.start, rangeMeta.today.end, baseData),
           tomorrow: buildEventsForRange(rangeMeta.tomorrow.start, rangeMeta.tomorrow.end, baseData),
@@ -1527,6 +1648,70 @@ export default function MainEvents() {
     };
   }, [user, todayInPhilly, areaLookup]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+
+    if (!user || !preferredAreaId) {
+      setNearbyEvents([]);
+      setNearbyError(null);
+      setLoadingNearby(false);
+      return () => {
+        cancelled = true;
+        if (controller) controller.abort();
+      };
+    }
+
+    if (!baseData) {
+      return () => {
+        cancelled = true;
+        if (controller) controller.abort();
+      };
+    }
+
+    setLoadingNearby(true);
+    setNearbyError(null);
+
+    fetchNearbyEvents({
+      areaId: preferredAreaId,
+      start: todayInPhilly,
+      radius: preferredRadiusM,
+      limit: 4,
+      areaLookup,
+      areaMeta,
+      signal: controller?.signal,
+    })
+      .then(events => {
+        if (cancelled) return;
+        setNearbyEvents(events || []);
+        setNearbyError(null);
+      })
+      .catch(err => {
+        console.error('Error loading nearby events', err);
+        if (cancelled) return;
+        setNearbyEvents([]);
+        setNearbyError('We had trouble loading nearby picks.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingNearby(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (controller) controller.abort();
+    };
+  }, [
+    user?.id,
+    preferredAreaId,
+    preferredRadiusM,
+    todayInPhilly,
+    areaLookup,
+    areaMeta,
+    baseData,
+  ]);
+
   const handleDatePick = date => {
     if (!date) return;
     setSelectedDate(date);
@@ -1546,6 +1731,9 @@ export default function MainEvents() {
         base.push(...section.items);
       }
     });
+    if (nearbyEvents.length) {
+      base.push(...nearbyEvents);
+    }
     return base;
   }, [
     sections.today.items,
@@ -1553,6 +1741,7 @@ export default function MainEvents() {
     sections.weekend.items,
     sections.traditions.items,
     featuredCommunities,
+    nearbyEvents,
   ]);
 
   useEffect(() => {
@@ -1671,6 +1860,20 @@ export default function MainEvents() {
                   events={savedEvents}
                   summary={savedPlansDescription}
                   user={user}
+                />
+              )}
+              {config.key === 'today' && (
+                <NearbySection
+                  loading={loadingNearby}
+                  events={nearbyEvents}
+                  tagMap={tagMap}
+                  areaName={preferredAreaName}
+                  areaSlug={preferredAreaSlug}
+                  radius={nearbyRadiusMeters}
+                  showPrompt={showNearbyPrompt}
+                  todayDate={todayInPhilly}
+                  todayIso={todayIso}
+                  error={nearbyError}
                 />
               )}
             </React.Fragment>

@@ -71,6 +71,7 @@ import SlashGuard from './components/SlashGuard.jsx'
 import CommunityIndexPage from './CommunityIndexPage.jsx'
 import LabsMapPage from './LabsMapPage.jsx'
 import { COMMUNITY_REGIONS } from './communityIndexData.js'
+import NearbyEventsPage from './NearbyEventsPage.jsx';
 
 import './index.css'
 
@@ -123,6 +124,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               />
             ))}
             <Route path="/map" element={<LabsMapPage clusterEvents={false} />} />
+            <Route path="/near/:areaSlug" element={<NearbyEventsPage />} />
             <Route path="/:view" element={<ViewRouter />} />
             <Route path="/old" element={<App />} />
             <Route path="/sports" element={<SportsPage />} />
