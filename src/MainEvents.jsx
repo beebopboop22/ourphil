@@ -20,8 +20,6 @@ import {
 import Navbar from './Navbar';
 import Footer from './Footer';
 import RecentActivity from './RecentActivity';
-import RecurringEventsScroller from './RecurringEventsScroller';
-import SavedEventsScroller from './SavedEventsScroller';
 import FloatingAddButton from './FloatingAddButton';
 import PostFlyerModal from './PostFlyerModal';
 import TopQuickLinks from './TopQuickLinks';
@@ -692,7 +690,7 @@ function formatSummary(config, total, traditions, start, end) {
   return `${base}!`;
 }
 
-function EventCard({ event, tags = [], showDatePill = false }) {
+function EventCard({ event, tags = [], showDatePill = false, showDayAndDate = false }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const { isFavorite, toggleFavorite, loading } = useEventFavorite({
@@ -727,6 +725,13 @@ function EventCard({ event, tags = [], showDatePill = false }) {
   const datePillLabel = showDatePill
     ? formatFeaturedCommunityDateLabel(startDate, { endDate, isActive })
     : '';
+  const dayDateLabel =
+    showDayAndDate && startDate
+      ? `${formatLongWeekday(startDate, PHILLY_TIME_ZONE)}, ${formatMonthDay(
+          startDate,
+          PHILLY_TIME_ZONE
+        )}`
+      : '';
 
   const areaLabel =
     [event.areaName, event.area?.name]
@@ -800,6 +805,11 @@ function EventCard({ event, tags = [], showDatePill = false }) {
       </div>
       <div className="flex flex-1 flex-col items-center px-5 pb-5 pt-4 text-center">
         <div className="flex w-full flex-1 flex-col items-center">
+          {dayDateLabel && (
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+              {dayDateLabel}
+            </p>
+          )}
           <h3 className="text-base font-semibold text-gray-900 line-clamp-2">{event.title}</h3>
           {event.venues?.name ? (
             <p className="mt-1 text-sm text-gray-600">at {event.venues.name}</p>
@@ -948,6 +958,77 @@ function EventsSection({ config, data, loading, rangeStart, rangeEnd, tagMap }) 
   );
 }
 
+function PlansSection({ loading, events, summary, user }) {
+  const previewEvents = useMemo(() => events.slice(0, 4), [events]);
+  const hasEvents = previewEvents.length > 0;
+  const profileLinkTarget = user ? '/profile' : '/login';
+  const profileLinkLabel = user ? 'See more plans on your profile' : 'Log in to see your plans';
+
+  return (
+    <section className="mt-16">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Saved agenda</p>
+          <h2 className="mt-2 text-2xl font-bold text-[#28313e] sm:text-3xl">Your Upcoming Plans</h2>
+          <p className="mt-2 text-sm text-gray-600 sm:text-base">{summary}</p>
+        </div>
+        <Link
+          to={profileLinkTarget}
+          className="inline-flex items-center gap-2 self-start rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-indigo-700"
+        >
+          {profileLinkLabel}
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+      <div className="mt-8">
+        {loading ? (
+          <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink">
+                <div className="h-[18rem] w-full animate-pulse rounded-2xl bg-gray-100" />
+              </div>
+            ))}
+          </div>
+        ) : hasEvents ? (
+          <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+            {previewEvents.map(event => {
+              const key = `${event.source_table || 'event'}:${event.id || event.slug}`;
+              return (
+                <div key={key} className="w-[16rem] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink">
+                  <EventCard event={event} showDayAndDate />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-3xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 p-8 text-center text-sm text-indigo-900 sm:text-base">
+            {user ? (
+              <>
+                You haven't added any plans yet.{' '}
+                <Link to="/today" className="font-semibold text-indigo-700 underline">
+                  Browse today's events
+                </Link>{' '}
+                to add your first plan.
+              </>
+            ) : (
+              <>
+                <Link to="/signup" className="font-semibold text-indigo-700 underline">
+                  Sign up
+                </Link>{' '}
+                or{' '}
+                <Link to="/login" className="font-semibold text-indigo-700 underline">
+                  log in
+                </Link>{' '}
+                to start saving events to your plans.
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function MainEvents() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -1075,17 +1156,32 @@ export default function MainEvents() {
     if (!user) {
       return (
         <>
-          <Link to="/login" className="text-indigo-600 underline">
-            Log in
+          <Link to="/signup" className="text-indigo-600 underline">
+            Sign up
           </Link>{' '}
-          to add events to your plans.
+          or{' '}
+          <Link to="/login" className="text-indigo-600 underline">
+            log in
+          </Link>{' '}
+          to start saving events to your plans.
         </>
       );
     }
     if (!savedEvents.length) {
-      return "You don't have any plans yet! Add some to get started.";
+      return (
+        <>
+          You haven't added any plans yet.{' '}
+          <Link to="/today" className="text-indigo-600 underline">
+            Browse today's events
+          </Link>{' '}
+          to start planning.
+        </>
+      );
     }
-    return 'A quick look at the events you have coming up next.';
+    if (savedEvents.length === 1) {
+      return "Here's the next event on your calendar.";
+    }
+    return `A quick look at the next ${Math.min(savedEvents.length, 4)} events you've saved.`;
   }, [loadingSaved, user, savedEvents.length]);
   const { start: weekendStart, end: weekendEnd } = useMemo(
     () => getWeekendWindow(new Date(), PHILLY_TIME_ZONE),
@@ -1229,8 +1325,10 @@ export default function MainEvents() {
               slug: row.slug,
               title: row.name,
               image: row.image,
+              imageUrl: row.image,
               start_date: row.start_date,
               source_table: 'all_events',
+              favoriteId: row.id,
               venues: row.venues,
               area_id: row.area_id,
               areaName: row.area_id ? areaLookup[row.area_id] || null : null,
@@ -1248,10 +1346,12 @@ export default function MainEvents() {
               slug: row.slug,
               title: row['E Name'],
               image: row['E Image'],
+              imageUrl: row['E Image'],
               start_date: row.Dates,
               end_date: row['End Date'],
               start_time: row.start_time ?? row['Start Time'] ?? null,
               source_table: 'events',
+              favoriteId: row.id,
               area_id: row.area_id,
               areaName: row.area_id ? areaLookup[row.area_id] || null : null,
             });
@@ -1279,6 +1379,7 @@ export default function MainEvents() {
               start_time: event.start_time,
               imageUrl,
               source_table: 'big_board_events',
+              favoriteId: event.id,
               area_id: event.area_id,
               areaName: event.area_id ? areaLookup[event.area_id] || null : null,
             });
@@ -1297,8 +1398,10 @@ export default function MainEvents() {
               start_date: event.start_date,
               start_time: event.start_time,
               image: event.groups?.imag || '',
+              imageUrl: event.groups?.imag || '',
               group: event.groups,
               source_table: 'group_events',
+              favoriteId: event.id,
               area_id: event.area_id,
               areaName: event.area_id ? areaLookup[event.area_id] || null : null,
             });
@@ -1320,6 +1423,7 @@ export default function MainEvents() {
               imageUrl: series.image_url,
               rrule: series.rrule,
               source_table: 'recurring_events',
+              favoriteId: series.id,
               area_id: series.area_id,
               areaName: series.area_id ? areaLookup[series.area_id] || null : null,
             });
@@ -1396,7 +1500,13 @@ export default function MainEvents() {
             const bDate = b.__nextDate || b.__startDate || b.__endDate || new Date(8640000000000000);
             return aDate - bDate;
           })
-          .map(({ __startDate, __endDate, __nextDate, ...rest }) => rest);
+          .map(({ __startDate, __endDate, __nextDate, ...rest }) => rest)
+          .map(event => ({
+            ...event,
+            imageUrl: event.imageUrl || event.image || '',
+            favoriteId: event.favoriteId || event.id || null,
+            detailPath: getDetailPathForItem(event),
+          }));
 
         if (!cancelled) {
           setSavedEvents(upcoming);
@@ -1546,15 +1656,24 @@ export default function MainEvents() {
           </div>
 
           {SECTION_CONFIGS.map(config => (
-            <EventsSection
-              key={config.key}
-              config={config}
-              data={sections[config.key]}
-              loading={loading}
-              rangeStart={rangeMeta[config.key].start}
-              rangeEnd={rangeMeta[config.key].end}
-              tagMap={tagMap}
-            />
+            <React.Fragment key={config.key}>
+              <EventsSection
+                config={config}
+                data={sections[config.key]}
+                loading={loading}
+                rangeStart={rangeMeta[config.key].start}
+                rangeEnd={rangeMeta[config.key].end}
+                tagMap={tagMap}
+              />
+              {config.key === 'today' && (
+                <PlansSection
+                  loading={loadingSaved}
+                  events={savedEvents}
+                  summary={savedPlansDescription}
+                  user={user}
+                />
+              )}
+            </React.Fragment>
           ))}
           {featuredCommunities.map((section, index) => {
             if (!section?.items?.length) {
@@ -1727,38 +1846,6 @@ export default function MainEvents() {
           </div>
         </section>
 
-        <section className="w-full max-w-screen-xl mx-auto mt-12 mb-12 px-4">
-          <div className="space-y-3 text-left mb-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Saved agenda</p>
-            <h2 className="text-black text-4xl font-[Barrio] text-left">Your Upcoming Plans</h2>
-            <p className="text-sm text-gray-600 sm:text-base">{savedPlansDescription}</p>
-          </div>
-          {!loadingSaved && user && savedEvents.length > 0 && (
-            <>
-              <SavedEventsScroller events={savedEvents} />
-              <p className="text-gray-600 mt-2">
-                <Link to="/profile" className="text-indigo-600 underline">
-                  See more plans on your profile
-                </Link>
-              </p>
-            </>
-          )}
-        </section>
-
-        <RecurringEventsScroller
-          windowStart={startOfWeek}
-          windowEnd={endOfWeek}
-          eventType="open_mic"
-          header={(
-            <div className="max-w-screen-xl mx-auto px-4 space-y-3 text-left mb-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-600">Weekly regulars</p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-[#28313e]">Karaoke, Bingo, Open Mics & Other Weeklies</h2>
-              <p className="text-sm text-gray-600 sm:text-base">
-                Drop into rotating open mics, karaoke nights, and game sessions that come back every week.
-              </p>
-            </div>
-          )}
-        />
       </main>
       <FloatingAddButton onClick={() => setShowFlyerModal(true)} />
       <PostFlyerModal isOpen={showFlyerModal} onClose={() => setShowFlyerModal(false)} />
