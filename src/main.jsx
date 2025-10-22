@@ -38,6 +38,7 @@ import AdminComments from './AdminComments.jsx';
 import SocialVideoCarousel from './SocialVideoCarousel.jsx';
 import PlansVideoCarousel from './PlansVideoCarousel.jsx';
 import PlansVideoIndex from './PlansVideoIndex.jsx';
+import ScreenshotsPage from './ScreenshotsPage.jsx';
 import TraditionsVideo from './TraditionsVideo.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
@@ -250,6 +251,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 />
               }
             />
+            <Route path="/screenshots" element={<ScreenshotsPage />} />
             <Route path="/plans-video" element={<PlansVideoIndex />} />
             <Route path="/big-board/:slug" element={<BigBoardEventPage />} />
             <Route path="/board-carousel" element={<BigBoardCarousel />} />
