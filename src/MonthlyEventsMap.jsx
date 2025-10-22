@@ -13,6 +13,7 @@ const DEFAULT_VIEW_STATE = {
 };
 
 const MARKER_SIZE = 18;
+const PANEL_VARIANT = 'panel';
 
 function calculateCenter(events) {
   if (!events.length) {
@@ -33,7 +34,13 @@ function calculateCenter(events) {
   };
 }
 
-export default function MonthlyEventsMap({ events = [], height = 360 }) {
+export default function MonthlyEventsMap({
+  events = [],
+  height = 360,
+  variant = 'popup',
+  onSelectEvent,
+  selectedEventId = null,
+}) {
   const mapboxToken = getMapboxToken();
 
   const validEvents = useMemo(
@@ -50,11 +57,31 @@ export default function MonthlyEventsMap({ events = [], height = 360 }) {
   const [geoError, setGeoError] = useState('');
   const mapRef = useRef(null);
 
+  const usingPanel = variant === PANEL_VARIANT;
+
   useEffect(() => {
     if (validEvents.length) {
       setViewState(view => ({ ...view, ...calculateCenter(validEvents) }));
     }
   }, [validEvents]);
+
+  useEffect(() => {
+    if (usingPanel) {
+      setSelectedEvent(null);
+    }
+  }, [usingPanel]);
+
+  useEffect(() => {
+    if (!usingPanel || !selectedEventId) return;
+    const match = validEvents.find(evt => evt.id === selectedEventId);
+    if (match) {
+      setViewState(view => ({
+        ...view,
+        latitude: match.latitude,
+        longitude: match.longitude,
+      }));
+    }
+  }, [selectedEventId, usingPanel, validEvents]);
 
   const handleLocateMe = useCallback(() => {
     if (isLocating) return;
@@ -92,6 +119,27 @@ export default function MonthlyEventsMap({ events = [], height = 360 }) {
     );
   }, [isLocating]);
 
+  const handleSelectEvent = useCallback(
+    evt => {
+      if (usingPanel) {
+        onSelectEvent?.(evt);
+      } else {
+        setSelectedEvent(evt);
+        onSelectEvent?.(evt);
+      }
+    },
+    [onSelectEvent, usingPanel],
+  );
+
+  const handleMapClick = useCallback(() => {
+    if (usingPanel) {
+      onSelectEvent?.(null);
+    } else {
+      setSelectedEvent(null);
+      onSelectEvent?.(null);
+    }
+  }, [onSelectEvent, usingPanel]);
+
   if (!mapboxToken) {
     return (
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
@@ -125,6 +173,7 @@ export default function MonthlyEventsMap({ events = [], height = 360 }) {
         {...viewState}
         ref={mapRef}
         onMove={evt => setViewState(evt.viewState)}
+        onClick={handleMapClick}
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/light-v11"
         style={{ width: '100%', height: '100%' }}
@@ -137,11 +186,15 @@ export default function MonthlyEventsMap({ events = [], height = 360 }) {
             anchor="bottom"
             onClick={event => {
               event.originalEvent.stopPropagation();
-              setSelectedEvent(evt);
+              handleSelectEvent(evt);
             }}
           >
             <span
-              className="flex items-center justify-center rounded-full bg-indigo-600 text-[10px] font-semibold text-white shadow"
+              className={`flex items-center justify-center rounded-full text-[10px] font-semibold text-white shadow transition ${
+                (usingPanel ? selectedEventId === evt.id : selectedEvent?.id === evt.id)
+                  ? 'bg-indigo-700 ring-4 ring-indigo-300'
+                  : 'bg-indigo-600'
+              }`}
               style={{ width: MARKER_SIZE, height: MARKER_SIZE }}
               aria-label={evt.title}
             >
@@ -150,7 +203,7 @@ export default function MonthlyEventsMap({ events = [], height = 360 }) {
           </Marker>
         ))}
 
-        {selectedEvent && (
+        {!usingPanel && selectedEvent && (
           <Popup
             latitude={selectedEvent.latitude}
             longitude={selectedEvent.longitude}
