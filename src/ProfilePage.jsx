@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import imageCompression from 'browser-image-compression';
 import { supabase } from './supabaseClient';
 import { AuthContext } from './AuthProvider';
@@ -7,6 +7,7 @@ import Footer from './Footer';
 import { Helmet } from 'react-helmet';
 import SavedEventCard from './SavedEventCard.jsx';
 import useProfile from './utils/useProfile';
+import useAreaLookup from './utils/useAreaLookup';
 import useProfileTags from './utils/useProfileTags';
 import { RRule } from 'rrule';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -18,10 +19,40 @@ import exportCardImage from './utils/exportCardImage.js';
 import CultureModal from './CultureModal.jsx';
 import OnboardingFlow from './OnboardingFlow.jsx';
 
+const METERS_PER_MILE = 1609.34;
+const RADIUS_PRESETS = [
+  { label: '0.5 mi', miles: 0.5 },
+  { label: '1 mi', miles: 1 },
+  { label: '1.5 mi', miles: 1.5 },
+];
+
+function milesToMeters(miles) {
+  const numeric = typeof miles === 'number' ? miles : parseFloat(miles);
+  if (!numeric || Number.isNaN(numeric)) return 0;
+  return Math.round(numeric * METERS_PER_MILE);
+}
+
+function metersToMilesInput(meters) {
+  if (!meters) return '1';
+  const miles = meters / METERS_PER_MILE;
+  const rounded = Math.round(miles * 10) / 10;
+  if (Number.isNaN(rounded) || rounded <= 0) return '1';
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function metersToMilesLabel(meters) {
+  if (!meters) return '0 mi';
+  const miles = meters / METERS_PER_MILE;
+  const rounded = Math.round(miles * 10) / 10;
+  const formatted = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `${formatted} mi`;
+}
+
 export default function ProfilePage() {
   const { user } = useContext(AuthContext);
   const { profile, updateProfile } = useProfile();
   const { tags: cultureTags, saveTags } = useProfileTags('culture');
+  const areaLookup = useAreaLookup();
 
   const [searchParams] = useSearchParams();
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -51,13 +82,21 @@ export default function ProfilePage() {
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [myEvents, setMyEvents] = useState([]);
   const [loadingMyEvents, setLoadingMyEvents] = useState(false);
-  const [followingEvents, setFollowingEvents] = useState([]);
-  const [loadingFollowing, setLoadingFollowing] = useState(false);
   const [toast, setToast] = useState('');
   const [facebookUrl, setFacebookUrl] = useState(profile?.facebook_url || '');
   const [instagramUrl, setInstagramUrl] = useState(profile?.instagram_url || '');
   const [tiktokUrl, setTiktokUrl] = useState(profile?.tiktok_url || '');
   const [websiteUrl, setWebsiteUrl] = useState(profile?.website_url || '');
+  const [preferredAreaId, setPreferredAreaId] = useState(profile?.preferred_area_id ?? null);
+  const [preferredRadiusM, setPreferredRadiusM] = useState(profile?.preferred_radius_m ?? 1609);
+  const [areaInputValue, setAreaInputValue] = useState('');
+  const [showNeighborhoodPrompt, setShowNeighborhoodPrompt] = useState(!profile?.preferred_area_id);
+  const [savingNeighborhood, setSavingNeighborhood] = useState(false);
+  const [neighborhoodError, setNeighborhoodError] = useState('');
+  const [radiusMilesInput, setRadiusMilesInput] = useState(
+    metersToMilesInput(profile?.preferred_radius_m ?? 1609)
+  );
+  const profileAreaId = profile?.preferred_area_id ?? null;
   const fileRef = useRef(null);
 
   const handleOnboardingComplete = async () => {
@@ -152,11 +191,111 @@ export default function ProfilePage() {
     setInstagramUrl(profile?.instagram_url || '');
     setTiktokUrl(profile?.tiktok_url || '');
     setWebsiteUrl(profile?.website_url || '');
+    setPreferredAreaId(profile?.preferred_area_id ?? null);
+    const radiusValue = profile?.preferred_radius_m ?? 1609;
+    setPreferredRadiusM(radiusValue);
+    setRadiusMilesInput(metersToMilesInput(radiusValue));
+    setShowNeighborhoodPrompt(!profile?.preferred_area_id);
   }, [profile]);
 
   useEffect(() => {
     setCultures(cultureTags);
   }, [cultureTags]);
+
+  useEffect(() => {
+    if (profileAreaId && areaLookup && (areaLookup[profileAreaId] || areaLookup[String(profileAreaId)])) {
+      const name = areaLookup[profileAreaId] || areaLookup[String(profileAreaId)];
+      setAreaInputValue(name || '');
+    } else if (!profileAreaId) {
+      setAreaInputValue('');
+    }
+  }, [areaLookup, profileAreaId]);
+
+  useEffect(() => {
+    setRadiusMilesInput(metersToMilesInput(preferredRadiusM));
+  }, [preferredRadiusM]);
+
+  const areaOptions = useMemo(() => {
+    return Object.entries(areaLookup || {})
+      .map(([rawId, name]) => {
+        const parsed = Number(rawId);
+        const id = Number.isNaN(parsed) ? rawId : parsed;
+        return { id, name: name || '' };
+      })
+      .filter(option => option.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [areaLookup]);
+
+  const fallbackRadius = milesToMeters(radiusMilesInput || 1);
+  const normalizedRadius =
+    preferredRadiusM && preferredRadiusM > 0
+      ? preferredRadiusM
+      : fallbackRadius > 0
+        ? fallbackRadius
+        : milesToMeters(1);
+  const selectedAreaName =
+    preferredAreaId !== null && preferredAreaId !== '' && preferredAreaId !== undefined
+      ? areaLookup?.[preferredAreaId] || areaLookup?.[String(preferredAreaId)] || ''
+      : '';
+  const radiusDisplay = metersToMilesLabel(normalizedRadius);
+
+  const handleAreaInputChange = e => {
+    const value = e.target.value;
+    setAreaInputValue(value);
+    if (!value.trim()) {
+      setPreferredAreaId(null);
+      return;
+    }
+    const match = areaOptions.find(
+      option => option.name.toLowerCase() === value.trim().toLowerCase()
+    );
+    if (match) {
+      setPreferredAreaId(match.id);
+    }
+  };
+
+  const handleRadiusPreset = miles => {
+    const meters = milesToMeters(miles);
+    if (!meters || meters <= 0) return;
+    setPreferredRadiusM(meters);
+  };
+
+  const handleRadiusInputChange = e => {
+    const value = e.target.value;
+    setRadiusMilesInput(value);
+    const parsed = parseFloat(value);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      const meters = milesToMeters(parsed);
+      if (meters > 0) setPreferredRadiusM(meters);
+    }
+  };
+
+  const handleSaveNeighborhood = async () => {
+    setSavingNeighborhood(true);
+    setNeighborhoodError('');
+    let areaIdValue = null;
+    if (preferredAreaId !== null && preferredAreaId !== '' && preferredAreaId !== undefined) {
+      const numeric = Number(preferredAreaId);
+      areaIdValue = Number.isNaN(numeric) ? preferredAreaId : numeric;
+    }
+    let radiusToSave = normalizedRadius;
+    if (!radiusToSave || radiusToSave <= 0) {
+      radiusToSave = milesToMeters(1);
+      setPreferredRadiusM(radiusToSave);
+    }
+    const { error } = await updateProfile({
+      preferred_area_id: areaIdValue,
+      preferred_radius_m: radiusToSave,
+    });
+    if (error) {
+      setNeighborhoodError(error.message);
+      setToast(error.message);
+    } else {
+      setToast('Home neighborhood saved!');
+      setShowNeighborhoodPrompt(!areaIdValue);
+    }
+    setSavingNeighborhood(false);
+  };
 
   useEffect(() => {
     if (activeTab !== 'upcoming' || !user) return;
@@ -328,7 +467,7 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => {
-    if (activeTab !== 'my-events' || !user) return;
+    if (activeTab !== 'my-posts' || !user) return;
     setLoadingMyEvents(true);
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
@@ -397,46 +536,6 @@ export default function ProfilePage() {
         .map(({ _d, ...rest }) => rest);
       setMyEvents(upcoming);
       setLoadingMyEvents(false);
-    })();
-  }, [activeTab, user]);
-
-  useEffect(() => {
-    if (activeTab !== 'following' || !user) return;
-    setLoadingFollowing(true);
-    (async () => {
-      const { data, error } = await supabase
-        .from('user_follow_events')
-        .select('*')
-        .eq('follower_id', user.id)
-        .order('start_date', { ascending: true });
-      if (error) {
-        console.error(error);
-        setFollowingEvents([]);
-        setLoadingFollowing(false);
-        return;
-      }
-      const mapped = (data || []).map(ev => {
-        let img = ev.image_url || '';
-        if (ev.source === 'big_board' && img) {
-          const { data: { publicUrl } } = supabase.storage
-            .from('big-board')
-            .getPublicUrl(img);
-          img = publicUrl;
-        }
-        return {
-          id: ev.event_id,
-          slug: ev.slug,
-          title: ev.title,
-          start_date: ev.start_date,
-          start_time: ev.start_time,
-          image: img,
-          source_table: ev.source === 'big_board'
-            ? 'big_board_events'
-            : 'group_events',
-        };
-      });
-      setFollowingEvents(mapped);
-      setLoadingFollowing(false);
     })();
   }, [activeTab, user]);
 
@@ -574,7 +673,7 @@ export default function ProfilePage() {
         <OnboardingFlow onComplete={handleOnboardingComplete} />
       )}
 
-      <header className="bg-gradient-to-r from-indigo-700 to-purple-600 text-white">
+      <header className="bg-gradient-to-r from-indigo-700 to-purple-600 text-white mt-16">
         <div className="max-w-screen-md mx-auto px-4 py-10 flex flex-col sm:flex-row items-center gap-6">
           <div className="relative">
             {imageUrl ? (
@@ -680,16 +779,10 @@ export default function ProfilePage() {
             Upcoming Plans
           </button>
           <button
-            onClick={() => setActiveTab('my-events')}
-            className={`pb-1 ${activeTab === 'my-events' ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold' : 'text-gray-600'}`}
+            onClick={() => setActiveTab('my-posts')}
+            className={`pb-1 ${activeTab === 'my-posts' ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold' : 'text-gray-600'}`}
           >
-            My Events
-          </button>
-          <button
-            onClick={() => setActiveTab('following')}
-            className={`pb-1 ${activeTab === 'following' ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold' : 'text-gray-600'}`}
-          >
-            Following
+            My Posts
           </button>
           <button
             onClick={() => setActiveTab('settings')}
@@ -705,6 +798,17 @@ export default function ProfilePage() {
               <h1 className="text-4xl mt-8 font-[Barrio] text-indigo-900 mb-2">Your Email Digests</h1>
               <p className="text-gray-700">Pick the topics you want delivered in your once-a-week roundup.</p>
             </header>
+
+            {showNeighborhoodPrompt && (
+              <div className="bg-indigo-50 border border-indigo-100 text-indigo-900 px-4 py-3 rounded-lg text-sm">
+                <p>
+                  Set your home neighborhood to quickly find events near you.
+                  <a href="#home-neighborhood-control" className="ml-2 underline text-indigo-700">
+                    Set it now
+                  </a>
+                </p>
+              </div>
+            )}
 
             <section>
               <div className="flex flex-wrap justify-center gap-4">
@@ -727,6 +831,95 @@ export default function ProfilePage() {
             <section className="bg-white rounded-xl shadow-md p-6 space-y-6">
               <h2 className="text-2xl font-semibold text-gray-800">Account Settings</h2>
               <div className="space-y-4">
+                <div id="home-neighborhood-control" className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="text-sm text-gray-600">
+                      {selectedAreaName ? (
+                        <>
+                          Home neighborhood:{' '}
+                          <span className="font-medium text-gray-800">{selectedAreaName}</span>
+                          {' · '}Radius: {radiusDisplay}
+                        </>
+                      ) : (
+                        <>
+                          Home neighborhood:{' '}
+                          <span className="font-medium text-gray-800">Not set yet</span>
+                          {' · '}Radius: {radiusDisplay}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1" htmlFor="neighborhood-search">
+                      Find your neighborhood
+                    </label>
+                    <input
+                      id="neighborhood-search"
+                      type="text"
+                      value={areaInputValue}
+                      onChange={handleAreaInputChange}
+                      list="profile-area-options"
+                      placeholder="Search neighborhoods"
+                      className="w-full border rounded p-2"
+                      autoComplete="off"
+                    />
+                    <datalist id="profile-area-options">
+                      {areaOptions.map(option => (
+                        <option key={option.id} value={option.name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <span className="block text-sm text-gray-600 mb-1">Preferred radius</span>
+                    <div className="flex flex-wrap gap-2">
+                      {RADIUS_PRESETS.map(preset => {
+                        const meters = milesToMeters(preset.miles);
+                        const isActive = Math.abs(normalizedRadius - meters) <= 50;
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => handleRadiusPreset(preset.miles)}
+                            className={`px-3 py-1 rounded-full border transition ${
+                              isActive
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 flex items-center gap-3 flex-wrap">
+                      <label className="text-sm text-gray-600" htmlFor="custom-radius">
+                        Custom radius (miles)
+                      </label>
+                      <input
+                        id="custom-radius"
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={radiusMilesInput}
+                        onChange={handleRadiusInputChange}
+                        className="w-24 border rounded p-2"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveNeighborhood}
+                      disabled={savingNeighborhood}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition disabled:opacity-60"
+                    >
+                      {savingNeighborhood ? 'Saving…' : 'Save neighborhood'}
+                    </button>
+                    {neighborhoodError && (
+                      <p className="text-sm text-red-600">{neighborhoodError}</p>
+                    )}
+                  </div>
+                </div>
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Email address</label>
                   <input
@@ -838,12 +1031,12 @@ export default function ProfilePage() {
           </section>
         )}
 
-        {activeTab === 'my-events' && (
+        {activeTab === 'my-posts' && (
           <section>
             {loadingMyEvents ? (
               <div className="py-20 text-center text-gray-500">Loading…</div>
             ) : myEvents.length === 0 ? (
-              <div className="py-20 text-center text-gray-500">You have not created an event. Create an event.</div>
+              <div className="py-20 text-center text-gray-500">You haven’t created a post yet.</div>
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
                 {myEvents.map(ev => (
@@ -854,21 +1047,6 @@ export default function ProfilePage() {
           </section>
         )}
 
-        {activeTab === 'following' && (
-          <section>
-            {loadingFollowing ? (
-              <div className="py-20 text-center text-gray-500">Loading…</div>
-            ) : followingEvents.length === 0 ? (
-              <div className="py-20 text-center text-gray-500">No upcoming events.</div>
-            ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
-                {followingEvents.map(ev => (
-                  <SavedEventCard key={`${ev.source_table}-${ev.id}`} event={ev} />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
       </div>
       <Footer />
 

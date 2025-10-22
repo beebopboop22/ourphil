@@ -125,7 +125,7 @@ export default function Navbar({ style, bottomBanner }) {
               <div className="ml-auto hidden items-center gap-4 text-sm font-medium md:flex">
                 {user && (
                   <Link to="/profile" className={linkClass('/profile')}>
-                    My Plans
+                    Plans & Profile
                   </Link>
                 )}
                 <Link to="/map" className={linkClass('/map')}>
@@ -255,7 +255,7 @@ export default function Navbar({ style, bottomBanner }) {
             <div className="space-y-4">
               {user && (
                 <Link to="/profile" className="block" onClick={() => setMenuOpen(false)}>
-                  My Plans
+                  Plans & Profile
                 </Link>
               )}
               <Link to="/map" className="block" onClick={() => setMenuOpen(false)}>
