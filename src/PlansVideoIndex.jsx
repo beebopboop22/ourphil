@@ -36,6 +36,7 @@ export default function PlansVideoIndex() {
     { to: '/plans-video-oktoberfest', label: 'Oktoberfest' },
     { to: '/plans-video-peco', label: 'PECO Multicultural' },
     { to: '/plans-video-markets', label: 'Markets' },
+    { to: '/screenshots', label: 'Screenshots' },
   ];
 
   return (
