@@ -847,10 +847,21 @@ export default function ThisWeekendInPhiladelphia() {
         const latitude = toNumberOrNull(evt.latitude ?? venue?.latitude);
         const longitude = toNumberOrNull(evt.longitude ?? venue?.longitude);
         if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+        const venueSlug = Array.isArray(evt.venues)
+          ? evt.venues[0]?.slug
+          : evt.venues?.slug;
+        const detailPath =
+          evt.href ||
+          getDetailPathForItem({
+            ...evt,
+            venue_slug: venueSlug,
+          }) ||
+          null;
         return {
           ...evt,
           latitude,
           longitude,
+          detailPath,
         };
       })
       .filter(Boolean);
