@@ -13,9 +13,6 @@ import { RRule } from 'rrule';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FaFacebookF, FaInstagram, FaGlobe } from 'react-icons/fa';
 import { SiTiktok } from 'react-icons/si';
-import { createRoot } from 'react-dom/client';
-import UpcomingPlansCard from './UpcomingPlansCard.jsx';
-import exportCardImage from './utils/exportCardImage.js';
 import CultureModal from './CultureModal.jsx';
 import OnboardingFlow from './OnboardingFlow.jsx';
 
@@ -46,6 +43,49 @@ function metersToMilesLabel(meters) {
   const rounded = Math.round(miles * 10) / 10;
   const formatted = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
   return `${formatted} mi`;
+}
+
+function parseDayKey(dayKey) {
+  if (!dayKey) return null;
+  const [y, m, d] = dayKey.split('-').map(Number);
+  if ([y, m, d].some(n => Number.isNaN(n))) return null;
+  return new Date(y, m - 1, d);
+}
+
+function formatDayLabel(dayKey) {
+  const date = parseDayKey(dayKey);
+  if (!date) return 'Unknown day';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((compareDate - today) / (1000 * 60 * 60 * 24));
+  const datePart = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+  let prefix;
+  if (diffDays === 0) prefix = 'Today';
+  else if (diffDays === 1) prefix = 'Tomorrow';
+  else prefix = weekday;
+  return `${prefix} · ${datePart}`;
+}
+
+function formatTimelineTime(startTime) {
+  if (!startTime) return 'No time listed';
+  const [hourPart, minutePart = '0'] = startTime.split(':');
+  const hour = Number.parseInt(hourPart, 10);
+  const minute = Number.parseInt(minutePart, 10) || 0;
+  if (Number.isNaN(hour)) return 'No time listed';
+  const date = new Date();
+  date.setHours(hour, minute, 0, 0);
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+}
+
+function timeToMinutes(startTime) {
+  if (!startTime) return Number.POSITIVE_INFINITY;
+  const [hourPart, minutePart = '0'] = startTime.split(':');
+  const hour = Number.parseInt(hourPart, 10);
+  const minute = Number.parseInt(minutePart, 10) || 0;
+  if (Number.isNaN(hour)) return Number.POSITIVE_INFINITY;
+  return hour * 60 + minute;
 }
 
 export default function ProfilePage() {
@@ -83,6 +123,7 @@ export default function ProfilePage() {
   const [myEvents, setMyEvents] = useState([]);
   const [loadingMyEvents, setLoadingMyEvents] = useState(false);
   const [toast, setToast] = useState('');
+  const [selectedDayKey, setSelectedDayKey] = useState(null);
   const [facebookUrl, setFacebookUrl] = useState(profile?.facebook_url || '');
   const [instagramUrl, setInstagramUrl] = useState(profile?.instagram_url || '');
   const [tiktokUrl, setTiktokUrl] = useState(profile?.tiktok_url || '');
@@ -102,57 +143,6 @@ export default function ProfilePage() {
   const handleOnboardingComplete = async () => {
     await updateProfile({ onboarding_complete: true });
     setShowOnboarding(false);
-  };
-
-  const shareUpcomingPlans = async () => {
-    if (!profile?.slug) return;
-    const container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.top = '-10000px';
-    container.style.left = '0';
-    container.style.width = '540px';
-    container.style.height = '960px';
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    root.render(<UpcomingPlansCard slug={profile.slug} hideActions />);
-    // Wait for the card node to be present
-    let card = null;
-    for (let i = 0; i < 20 && !card; i++) {
-      await new Promise(r => setTimeout(r, 100));
-      card = container.querySelector('#plans-card');
-    }
-    if (!card) {
-      root.unmount();
-      container.remove();
-      return;
-    }
-    let blob;
-    try {
-      blob = await exportCardImage(card);
-    } finally {
-      root.unmount();
-      container.remove();
-    }
-    if (!blob) return;
-    const file = new File([blob], 'plans.png', { type: 'image/png' });
-    try {
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'My Philly plans' });
-      } else if (navigator.share) {
-        const url = URL.createObjectURL(blob);
-        await navigator.share({ title: 'My Philly plans', url });
-        URL.revokeObjectURL(url);
-      } else {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'plans.png';
-        link.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch (e) {
-      console.error(e);
-    }
   };
 
   // Load tags and subscriptions on mount
@@ -449,10 +439,23 @@ export default function ProfilePage() {
         .map(ev => {
           if (ev.source_table === 'events') {
             const { start, end } = parseEventsDateRange(ev.start_date, ev.end_date);
-            return { ...ev, _date: start, _end: end };
+            const validStart = start && !Number.isNaN(start.getTime()) ? start : null;
+            const validEnd = end && !Number.isNaN(end.getTime()) ? end : validStart;
+            const dayKey = validStart
+              ? `${validStart.getFullYear()}-${String(validStart.getMonth() + 1).padStart(2, '0')}-${String(
+                  validStart.getDate()
+                ).padStart(2, '0')}`
+              : null;
+            return { ...ev, _date: validStart, _end: validEnd, dayKey };
           }
-          const d = parseISODateLocal(ev.start_date);
-          return { ...ev, _date: d, _end: d };
+          const parsed = parseISODateLocal(ev.start_date);
+          const validDate = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+          const dayKey = validDate
+            ? `${validDate.getFullYear()}-${String(validDate.getMonth() + 1).padStart(2, '0')}-${String(
+                validDate.getDate()
+              ).padStart(2, '0')}`
+            : null;
+          return { ...ev, _date: validDate, _end: validDate, dayKey };
         })
         .filter(ev => {
           if (!ev._date || !ev._end) return false;
@@ -465,6 +468,53 @@ export default function ProfilePage() {
       setLoadingSaved(false);
     })();
   }, [user]);
+
+  const dayOptions = useMemo(() => {
+    const byDay = new Map();
+    savedEvents.forEach(ev => {
+      if (!ev.dayKey) return;
+      if (!byDay.has(ev.dayKey)) byDay.set(ev.dayKey, []);
+      byDay.get(ev.dayKey).push(ev);
+    });
+    return Array.from(byDay.entries())
+      .map(([key, events]) => {
+        const date = parseDayKey(key);
+        return {
+          key,
+          date,
+          label: formatDayLabel(key),
+          count: events.length,
+        };
+      })
+      .filter(option => option.date)
+      .sort((a, b) => a.date - b.date);
+  }, [savedEvents]);
+
+  useEffect(() => {
+    if (!dayOptions.length) {
+      if (selectedDayKey !== null) {
+        setSelectedDayKey(null);
+      }
+      return;
+    }
+    const hasSelected = dayOptions.some(option => option.key === selectedDayKey);
+    if (!hasSelected) {
+      setSelectedDayKey(dayOptions[0].key);
+    }
+  }, [dayOptions, selectedDayKey]);
+
+  const eventsForSelectedDay = useMemo(() => {
+    if (!selectedDayKey) return [];
+    const events = savedEvents.filter(ev => ev.dayKey === selectedDayKey);
+    return events
+      .slice()
+      .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+  }, [savedEvents, selectedDayKey]);
+
+  const selectedDayLabel = useMemo(() => {
+    const current = dayOptions.find(option => option.key === selectedDayKey);
+    return current?.label || '';
+  }, [dayOptions, selectedDayKey]);
 
   useEffect(() => {
     if (activeTab !== 'my-posts' || !user) return;
@@ -1001,32 +1051,76 @@ export default function ProfilePage() {
 
         {activeTab === 'upcoming' && (
           <section>
-            <div className="mb-4">
-              <button
-                onClick={shareUpcomingPlans}
-                className="w-full px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
-              >
-                Share upcoming plans
-              </button>
-            </div>
             {loadingSaved ? (
               <div className="py-20 text-center text-gray-500">Loading…</div>
-            ) : savedEvents.length === 0 ? (
+            ) : dayOptions.length === 0 ? (
               <div className="py-20 text-center text-gray-500">No upcoming events saved.</div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
-                {savedEvents.map(ev => (
-                  <SavedEventCard
-                    key={`${ev.source_table}-${ev.id}`}
-                    event={ev}
-                    onRemove={() =>
-                      setSavedEvents(prev =>
-                        prev.filter(e => !(e.id === ev.id && e.source_table === ev.source_table))
-                      )
-                    }
-                  />
-                ))}
-              </div>
+              <>
+                <div className="-mx-4 flex gap-3 overflow-x-auto pb-4 sm:mx-0 sm:px-0">
+                  {dayOptions.map(option => {
+                    const isActive = selectedDayKey === option.key;
+                    return (
+                      <button
+                        type="button"
+                        key={option.key}
+                        onClick={() => setSelectedDayKey(option.key)}
+                        className={`flex-shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                          isActive
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400'
+                        }`}
+                      >
+                        <div>{option.label}</div>
+                        <div className={`text-xs font-normal ${isActive ? 'text-indigo-200' : 'text-gray-500'}`}>
+                          {option.count} {option.count === 1 ? 'plan' : 'plans'}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-6 space-y-6">
+                  {selectedDayLabel && (
+                    <h3 className="text-xl font-semibold text-gray-800">{selectedDayLabel}</h3>
+                  )}
+                  {eventsForSelectedDay.length === 0 ? (
+                    <div className="py-20 text-center text-gray-500">No events scheduled for this day.</div>
+                  ) : (
+                    <div className="space-y-8">
+                      {eventsForSelectedDay.map((ev, index) => {
+                        const isLast = index === eventsForSelectedDay.length - 1;
+                        return (
+                          <div key={`${ev.source_table}-${ev.id}`} className="flex items-start gap-6">
+                            <div className="w-20 pt-2 text-right text-sm font-semibold text-gray-600">
+                              {formatTimelineTime(ev.start_time)}
+                            </div>
+                            <div className="flex-1">
+                              <div
+                                className={`relative border-l-2 border-indigo-100 pl-8 ${
+                                  isLast ? 'pb-0' : 'pb-10'
+                                }`}
+                              >
+                                <span className="absolute left-0 top-2 inline-flex h-4 w-4 -translate-x-1/2 transform items-center justify-center">
+                                  <span className="h-3 w-3 rounded-full border-2 border-white bg-indigo-500 shadow" />
+                                </span>
+                                <SavedEventCard
+                                  event={ev}
+                                  size="compact"
+                                  onRemove={() =>
+                                    setSavedEvents(prev =>
+                                      prev.filter(e => !(e.id === ev.id && e.source_table === ev.source_table))
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </section>
         )}
