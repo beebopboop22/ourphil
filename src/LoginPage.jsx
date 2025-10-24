@@ -13,6 +13,8 @@ export default function LoginPage() {
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetStatus, setResetStatus] = useState('');
 
   const [traditions, setTraditions] = useState([]);
   const [groups, setGroups]         = useState([]);
@@ -27,6 +29,21 @@ export default function LoginPage() {
     setLoading(false);
     if (error) alert(error.message);
     else window.location.href = '/';
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      setResetStatus('Enter your email above to receive a reset link.');
+      return;
+    }
+    setResetStatus('');
+    setResetting(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://www.ourphilly.org/update-password',
+    });
+    if (error) setResetStatus(`❌ ${error.message}`);
+    else setResetStatus('✅ Password reset link sent. Check your inbox.');
+    setResetting(false);
   };
 
   // load top 5 traditions
@@ -137,6 +154,17 @@ export default function LoginPage() {
           >
             {loading ? 'Logging in…' : 'Log In'}
           </button>
+          <button
+            type="button"
+            onClick={handlePasswordReset}
+            disabled={resetting}
+            className="w-full text-sm text-indigo-600 hover:underline"
+          >
+            {resetting ? 'Sending reset link…' : 'Forgot your password?'}
+          </button>
+          {resetStatus && (
+            <p className="text-sm text-gray-600 text-center mt-2">{resetStatus}</p>
+          )}
         </form>
       </div>
 
