@@ -324,7 +324,7 @@ export default function ProfilePage() {
       if (idsByTable.events?.length) {
         const { data } = await supabase
           .from('events')
-          .select('id,slug,"E Name","E Image",Dates,"End Date"')
+          .select('id,slug,"E Name","E Image",Dates,"End Date",start_time')
           .in('id', idsByTable.events);
         data?.forEach(e => {
           all.push({
@@ -334,6 +334,7 @@ export default function ProfilePage() {
             image: e['E Image'],
             start_date: e.Dates,
             end_date: e['End Date'],
+            start_time: e.start_time,
             source_table: 'events',
           });
         });
