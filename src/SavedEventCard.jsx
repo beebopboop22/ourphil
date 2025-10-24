@@ -40,7 +40,7 @@ function formatDisplayDate(date, startTime) {
   return `${prefix}, ${datePart}${timePart ? `, ${timePart}` : ''}`
 }
 
-export default function SavedEventCard({ event, onRemove }) {
+export default function SavedEventCard({ event, onRemove, size = 'default' }) {
   const {
     id,
     slug,
@@ -79,12 +79,20 @@ export default function SavedEventCard({ event, onRemove }) {
     if (wasFavorite && onRemove) onRemove()
   }
 
+  const isCompact = size === 'compact'
+
+  const containerClasses = [
+    'block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col',
+    isCompact ? 'w-full max-w-full sm:max-w-[18rem]' : 'w-full',
+  ].join(' ')
+
+  const mediaHeightClass = isCompact ? 'h-40' : 'h-48'
+
+  const titleClass = isCompact ? 'text-base' : 'text-lg'
+
   return (
-    <Link
-      to={detailPath}
-      className="block bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition flex flex-col"
-    >
-      <div className="relative w-full h-48">
+    <Link to={detailPath} className={containerClasses}>
+      <div className={`relative w-full ${mediaHeightClass}`}>
         {img && <img src={img} alt={title} className="w-full h-full object-cover" />}
         {bubbleText && (
           <div className="absolute top-2 left-2 bg-white bg-opacity-90 px-3 py-1.5 rounded-full text-sm font-semibold text-gray-800">
@@ -93,11 +101,11 @@ export default function SavedEventCard({ event, onRemove }) {
         )}
       </div>
       <div className="p-4 flex flex-col flex-1 justify-between items-center text-center">
-        <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-1">{title}</h3>
+        <h3 className={`${titleClass} font-bold text-gray-800 line-clamp-2 mb-1`}>{title}</h3>
         {isRecurring
           ? address && <p className="text-sm text-gray-600">at {address}</p>
           : venues?.name && <p className="text-sm text-gray-600">at {venues.name}</p>}
-        <div className="mt-4 w-full bg-gray-100 border-t px-3 py-2">
+        <div className={`mt-4 w-full bg-gray-100 border-t px-3 py-2 ${isCompact ? 'pt-3 pb-3' : ''}`}>
           <button
             onClick={handleFav}
             disabled={loading}
