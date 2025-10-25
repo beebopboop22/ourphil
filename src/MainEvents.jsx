@@ -259,12 +259,26 @@ async function fetchBigBoardEvents() {
   });
 }
 
-async function fetchBaseData() {
+function toPhillyISODate(date) {
+  if (!date) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: PHILLY_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+async function fetchBaseData(rangeStart, rangeEnd) {
+  const startFilter = rangeStart ? toPhillyISODate(rangeStart) : null;
+  const endFilter = rangeEnd ? toPhillyISODate(rangeEnd) : startFilter;
+
   const [areasRes, allEventsRes, traditionsRes, groupEventsRes, recurringRes, bigBoardEvents, sportsEvents] = await Promise.all([
     supabase.from('areas').select('id,name'),
-    supabase
-      .from('all_events')
-      .select(`
+    (() => {
+      let query = supabase
+        .from('all_events')
+        .select(`
         id,
         name,
         description,
@@ -277,8 +291,19 @@ async function fetchBaseData() {
         slug,
         area_id,
         venue_id(area_id, name, slug)
-      `)
-      .order('start_date', { ascending: true }),
+      `);
+
+      if (startFilter && endFilter) {
+        query = query
+          .lte('start_date', endFilter)
+          .or(
+            `and(end_date.is.null,start_date.gte.${startFilter},start_date.lte.${endFilter}),` +
+              `end_date.gte.${startFilter}`
+          );
+      }
+
+      return query.order('start_date', { ascending: true }).limit(5000);
+    })(),
     supabase
       .from('events')
       .select(`
@@ -1229,7 +1254,7 @@ export default function MainEvents() {
     (async () => {
       try {
         setLoading(true);
-        const baseData = await fetchBaseData();
+        const baseData = await fetchBaseData(rangeMeta.today.start, rangeMeta.weekend.end);
         if (cancelled) return;
         setAreaLookup(baseData.areaLookup || {});
         setSections({
