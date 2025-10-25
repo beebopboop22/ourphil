@@ -321,10 +321,11 @@ export default function ThisWeekendInPhiladelphia() {
     saturdayStart.setDate(fridayStart.getDate() + 1);
     const sundayStart = setStartOfDay(new Date(fridayStart));
     sundayStart.setDate(fridayStart.getDate() + 2);
+    const fridayKey = toPhillyISODate(fridayStart);
     const saturdayKey = toPhillyISODate(saturdayStart);
     const sundayKey = toPhillyISODate(sundayStart);
-    const weekendDayKeys = [saturdayKey, sundayKey];
-    const weekendRangeStartKey = saturdayKey;
+    const weekendDayKeys = [fridayKey, saturdayKey, sundayKey];
+    const weekendRangeStartKey = fridayKey;
     const weekendRangeEndKey = sundayKey;
 
     let fetchAllEvents = supabase
