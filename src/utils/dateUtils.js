@@ -55,6 +55,27 @@ export function getZonedDate(date = new Date(), timeZone = PHILLY_TIME_ZONE) {
   );
 }
 
+export function toPhillyISODate(date) {
+  if (!date) return '';
+  const target = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(target?.getTime?.())) return '';
+
+  if (intlApi?.DateTimeFormat) {
+    return new intlApi.DateTimeFormat('en-CA', {
+      timeZone: PHILLY_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(target);
+  }
+
+  const zoned = getZonedDate(target, PHILLY_TIME_ZONE);
+  const year = zoned.getFullYear();
+  const month = String(zoned.getMonth() + 1).padStart(2, '0');
+  const day = String(zoned.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function setStartOfDay(date) {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);

@@ -28,6 +28,7 @@ import EventsPage from './EventsPage.jsx'
 import Unsubscribe from './Unsubscribe';
 import PrivacyPage from './PrivacyPage.jsx'
 import OutletDetailPage from './OutletDetailPage';
+import NearbyEventsPage from './NearbyEventsPage.jsx';
 import BigBoardPage from './BigBoardPage.jsx';
 import AdminUsers from './AdminUsers';
 import AdminReviews from './AdminReviews';
@@ -153,6 +154,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/outlets/:slug" element={<OutletDetailPage />} />
+            <Route path="/near/:areaSlug" element={<NearbyEventsPage />} />
             <Route path="/board" element={<BigBoardPage />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/reviews" element={<AdminReviews />} />
