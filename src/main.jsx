@@ -40,6 +40,7 @@ import PlansVideoCarousel from './PlansVideoCarousel.jsx';
 import PlansVideoIndex from './PlansVideoIndex.jsx';
 import ScreenshotsPage from './ScreenshotsPage.jsx';
 import TraditionsVideo from './TraditionsVideo.jsx';
+import TraditionsPosterPage from './TraditionsPosterPage.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
 import MainEvents from './MainEvents.jsx';
@@ -218,6 +219,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   limit={30}
                 />
               }
+            />
+            <Route
+              path="/plans-video/traditions-poster"
+              element={<TraditionsPosterPage />}
             />
             <Route
               path="/plans-video-peco"
