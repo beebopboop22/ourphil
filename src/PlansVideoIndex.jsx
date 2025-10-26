@@ -33,6 +33,7 @@ export default function PlansVideoIndex() {
     { to: '/plans-video-birds', label: 'Birds' },
     { to: '/plans-video/traditions-gallery', label: 'Traditions gAllery' },
     { to: '/plans-video/traditions-video', label: 'Traditions Video' },
+    { to: '/plans-video/traditions-poster', label: 'Traditions Poster' },
     { to: '/plans-video-oktoberfest', label: 'Oktoberfest' },
     { to: '/plans-video-peco', label: 'PECO Multicultural' },
     { to: '/plans-video-markets', label: 'Markets' },
