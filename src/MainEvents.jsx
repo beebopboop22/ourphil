@@ -1648,7 +1648,10 @@ export default function MainEvents() {
         />
       </Helmet>
       <Navbar />
-      <div className="pt-24 sm:pt-28">
+      <div
+        className="pt-24 sm:pt-28"
+        style={{ paddingTop: 'calc(var(--navbar-height, 6rem) + 0.5rem)' }}
+      >
         <TopQuickLinks
           weekendCount={quickLinksCount}
           weekendHref="/this-weekend-in-philadelphia/"
