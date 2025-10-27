@@ -40,6 +40,7 @@ import PlansVideoCarousel from './PlansVideoCarousel.jsx';
 import PlansVideoIndex from './PlansVideoIndex.jsx';
 import ScreenshotsPage from './ScreenshotsPage.jsx';
 import TraditionsVideo from './TraditionsVideo.jsx';
+import TraditionsListPage from './TraditionsListPage.jsx';
 import BigBoardEventPage  from './BigBoardEventPage';
 import BigBoardCarousel from './BigBoardCarousel.jsx';
 import MainEvents from './MainEvents.jsx';
@@ -209,6 +210,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               element={<PlansVideoCarousel tag="oktoberfest" />}
             />
             <Route path="/plans-video/traditions-video" element={<TraditionsVideo />} />
+            <Route path="/plans-video/traditions-list" element={<TraditionsListPage />} />
             <Route
               path="/plans-video/traditions-gallery"
               element={
