@@ -750,11 +750,15 @@ function MapEventDetailPanel({ event, onClose, variant = 'desktop' }) {
       )
     : null;
 
+  const panelPadding = variant === 'desktop' ? 'p-6' : 'p-5';
+  const panelSizing =
+    variant === 'desktop'
+      ? 'h-full'
+      : 'max-h-[70vh] sm:max-h-[75vh]';
+
   return (
     <div
-      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border border-[#f4c9bc]/70 bg-white shadow-lg shadow-[#bf3d35]/10 ${
-        variant === 'desktop' ? 'p-6' : 'p-5'
-      }`}
+      className={`relative flex w-full flex-col overflow-hidden rounded-2xl border border-[#f4c9bc]/70 bg-white shadow-lg shadow-[#bf3d35]/10 ${panelPadding} ${panelSizing}`}
     >
       <button
         type="button"
@@ -766,10 +770,10 @@ function MapEventDetailPanel({ event, onClose, variant = 'desktop' }) {
       </button>
       {event.imageUrl && (
         <div className="mb-4 overflow-hidden rounded-xl bg-[#f7e5de]">
-          <img src={event.imageUrl} alt={event.title} className="h-48 w-full object-cover" loading="lazy" />
+          <img src={event.imageUrl} alt={event.title} className="h-40 w-full object-cover sm:h-48" loading="lazy" />
         </div>
       )}
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-700">
             {badges.map(badge => (
@@ -1400,35 +1404,45 @@ export default function DayEventsPage() {
 
         {mapEvents.length > 0 && (
           <section className="mx-auto max-w-7xl px-6 pt-8">
-            <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6">
-              <div>
-                <MonthlyEventsMap
-                  events={mapEvents}
-                  height={420}
-                  variant="panel"
-                  onSelectEvent={handleMapEventSelect}
-                  selectedEventId={selectedMapEventId}
-                />
-              </div>
-              <div className="hidden lg:block">
-                <MapEventDetailPanel
-                  event={selectedMapEvent}
-                  onClose={() => setSelectedMapEventId(null)}
-                  variant="desktop"
-                />
-              </div>
-            </div>
-            <div className={`mt-4 lg:hidden ${selectedMapEvent ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+            <div className="relative">
+              <MonthlyEventsMap
+                events={mapEvents}
+                height={560}
+                variant="panel"
+                onSelectEvent={handleMapEventSelect}
+                selectedEventId={selectedMapEventId}
+              />
+
+              {selectedMapEvent && (
+                <div className="absolute inset-y-0 left-0 hidden lg:flex lg:items-stretch lg:justify-start lg:p-4 lg:pl-6 xl:pl-8 z-20">
+                  <div className="pointer-events-auto flex h-full w-full max-w-sm">
+                    <MapEventDetailPanel
+                      event={selectedMapEvent}
+                      onClose={() => setSelectedMapEventId(null)}
+                      variant="desktop"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div
-                className={`transform-gpu transition-all duration-300 ${
-                  selectedMapEvent ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0'
+                className={`absolute inset-x-4 bottom-4 z-20 flex justify-center lg:hidden ${
+                  selectedMapEvent ? 'pointer-events-auto' : 'pointer-events-none'
                 }`}
               >
-                <MapEventDetailPanel
-                  event={selectedMapEvent}
-                  onClose={() => setSelectedMapEventId(null)}
-                  variant="mobile"
-                />
+                <div
+                  className={`pointer-events-auto w-full max-w-md transform-gpu transition-all duration-300 ${
+                    selectedMapEvent ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
+                  }`}
+                >
+                  {selectedMapEvent && (
+                    <MapEventDetailPanel
+                      event={selectedMapEvent}
+                      onClose={() => setSelectedMapEventId(null)}
+                      variant="mobile"
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </section>
