@@ -10,6 +10,8 @@ import NavTagMenu from './NavTagMenu';
 import LoginPromptModal from './LoginPromptModal';
 import NavbarSearch from './components/NavbarSearch';
 
+const DEFAULT_NAVBAR_HEIGHT = 96;
+
 export default function Navbar({ style, bottomBanner }) {
   const { user } = useContext(AuthContext);
   const location = useLocation();
@@ -51,6 +53,22 @@ export default function Navbar({ style, bottomBanner }) {
       if (observer) {
         observer.disconnect();
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const root = document.documentElement;
+    const safeHeight = Math.max(navHeight || 0, DEFAULT_NAVBAR_HEIGHT);
+    root.style.setProperty('--navbar-height', `${safeHeight}px`);
+  }, [navHeight]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    return () => {
+      document.documentElement.style.removeProperty('--navbar-height');
     };
   }, []);
 
