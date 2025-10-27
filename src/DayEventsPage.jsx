@@ -1400,35 +1400,45 @@ export default function DayEventsPage() {
 
         {mapEvents.length > 0 && (
           <section className="mx-auto max-w-7xl px-6 pt-8">
-            <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6">
-              <div>
-                <MonthlyEventsMap
-                  events={mapEvents}
-                  height={420}
-                  variant="panel"
-                  onSelectEvent={handleMapEventSelect}
-                  selectedEventId={selectedMapEventId}
-                />
-              </div>
-              <div className="hidden lg:block">
-                <MapEventDetailPanel
-                  event={selectedMapEvent}
-                  onClose={() => setSelectedMapEventId(null)}
-                  variant="desktop"
-                />
-              </div>
-            </div>
-            <div className={`mt-4 lg:hidden ${selectedMapEvent ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+            <div className="relative">
+              <MonthlyEventsMap
+                events={mapEvents}
+                height={420}
+                variant="panel"
+                onSelectEvent={handleMapEventSelect}
+                selectedEventId={selectedMapEventId}
+              />
+
+              {selectedMapEvent && (
+                <div className="absolute inset-y-0 right-0 hidden lg:flex lg:items-center lg:justify-end lg:p-4 lg:pr-6 xl:pr-8 z-20">
+                  <div className="pointer-events-auto flex h-full w-full max-w-sm">
+                    <MapEventDetailPanel
+                      event={selectedMapEvent}
+                      onClose={() => setSelectedMapEventId(null)}
+                      variant="desktop"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div
-                className={`transform-gpu transition-all duration-300 ${
-                  selectedMapEvent ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0'
+                className={`absolute inset-x-4 bottom-4 z-20 lg:hidden ${
+                  selectedMapEvent ? 'pointer-events-auto' : 'pointer-events-none'
                 }`}
               >
-                <MapEventDetailPanel
-                  event={selectedMapEvent}
-                  onClose={() => setSelectedMapEventId(null)}
-                  variant="mobile"
-                />
+                <div
+                  className={`pointer-events-auto transform-gpu transition-all duration-300 ${
+                    selectedMapEvent ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
+                  }`}
+                >
+                  {selectedMapEvent && (
+                    <MapEventDetailPanel
+                      event={selectedMapEvent}
+                      onClose={() => setSelectedMapEventId(null)}
+                      variant="mobile"
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </section>
