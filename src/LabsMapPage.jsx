@@ -3,16 +3,12 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
-import mapboxgl from 'mapbox-gl';
-import MapGL, { Layer, Marker, Popup, Source } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Helmet } from 'react-helmet';
 import { RRule } from 'rrule';
 import { supabase } from './supabaseClient.js';
-import { applyMapboxToken } from './config/mapboxToken.js';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthProvider.jsx';
 import Navbar from './Navbar.jsx';
@@ -22,6 +18,8 @@ import PostFlyerModal from './PostFlyerModal.jsx';
 import LoginPromptModal from './LoginPromptModal.jsx';
 import { MapPin } from 'lucide-react';
 import useEventFavorite from './utils/useEventFavorite.js';
+import MonthlyEventsMap from './MonthlyEventsMap.jsx';
+import MapEventDetailPanel from './components/MapEventDetailPanel.jsx';
 import {
   getWeekendWindow,
   overlaps,
@@ -30,17 +28,6 @@ import {
   setStartOfDay,
 } from './utils/dateUtils.js';
 import { getDetailPathForItem } from './utils/eventDetailPaths.js';
-
-const MAPBOX_TOKEN = applyMapboxToken(mapboxgl);
-
-const MAPBOX_STYLE = 'mapbox://styles/mapbox/light-v11';
-const DEFAULT_VIEW = {
-  latitude: 39.9526,
-  longitude: -75.1652,
-  zoom: 11.4,
-  bearing: 0,
-  pitch: 0,
-};
 const HORIZON_DAYS = 60;
 
 const SOURCE_LABELS = {
@@ -110,8 +97,6 @@ const FALLBACK_THEME = {
   color: '#facc15',
 };
 
-const CLUSTER_THEMES = EVENT_THEMES;
-
 const TAG_PILL_STYLES = [
   'bg-green-100 text-indigo-800',
   'bg-teal-100 text-teal-800',
@@ -122,9 +107,6 @@ const TAG_PILL_STYLES = [
   'bg-purple-100 text-purple-800',
   'bg-red-100 text-red-800',
 ];
-
-const LOGO_MARKER_SIZE = 48;
-const LOGO_MARKER_FALLBACK_COLOR = '#bf3d35';
 
 const dayFormatter = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
@@ -141,37 +123,6 @@ const weekdayFormatter = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
 });
 
-function hasVenueLogo(event) {
-  if (!event) return false;
-  if (!event.venueImage) return false;
-  if (typeof event.venueImage !== 'string') return true;
-  return event.venueImage.trim().length > 0;
-}
-
-function getLocationKey(event) {
-  if (!event) return null;
-  const { latitude, longitude } = event;
-  if (latitude == null || longitude == null) return null;
-  const lat = Number(latitude);
-  const lon = Number(longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return `${lat.toFixed(6)}|${lon.toFixed(6)}`;
-}
-
-function sortEventsByStart(events) {
-  return [...events].sort((a, b) => {
-    const aTime = a?.startDate instanceof Date ? a.startDate.getTime() : 0;
-    const bTime = b?.startDate instanceof Date ? b.startDate.getTime() : 0;
-    if (aTime !== bTime) return aTime - bTime;
-    const aTitle = (a?.title || '').toLowerCase();
-    const bTitle = (b?.title || '').toLowerCase();
-    if (aTitle < bTitle) return -1;
-    if (aTitle > bTitle) return 1;
-    const aId = a?.id ? String(a.id) : '';
-    const bId = b?.id ? String(b.id) : '';
-    return aId.localeCompare(bId);
-  });
-}
 
 function getEventBadgeLabel(event) {
   if (!event) return '';
@@ -433,109 +384,6 @@ function MapEventRow({ event, onHighlight }) {
   );
 }
 
-function buildClusterProperties() {
-  return CLUSTER_THEMES.reduce((acc, theme) => {
-    const propertyName = `${theme.key}Count`;
-    acc[propertyName] = [
-      '+',
-      [
-        'case',
-        ['==', ['get', 'themeKey'], theme.key],
-        1,
-        0,
-      ],
-    ];
-    return acc;
-  }, {});
-}
-
-function buildDominantThemeExpression(valueKey) {
-  if (!CLUSTER_THEMES.length) {
-    return FALLBACK_THEME[valueKey];
-  }
-
-  const letArgs = [];
-  CLUSTER_THEMES.forEach(theme => {
-    letArgs.push(`count_${theme.key}`);
-    letArgs.push(['coalesce', ['get', `${theme.key}Count`], 0]);
-  });
-
-  letArgs.push('maxCount');
-  const [firstTheme, ...restThemes] = CLUSTER_THEMES;
-  letArgs.push(
-    restThemes.reduce(
-      (acc, theme) => ['max', acc, ['var', `count_${theme.key}`]],
-      ['var', `count_${firstTheme.key}`],
-    ),
-  );
-
-  const caseExpression = ['case', ['<=', ['var', 'maxCount'], 0], FALLBACK_THEME[valueKey]];
-  CLUSTER_THEMES.forEach(theme => {
-    caseExpression.push(['==', ['var', `count_${theme.key}`], ['var', 'maxCount']]);
-    caseExpression.push(theme[valueKey]);
-  });
-  caseExpression.push(FALLBACK_THEME[valueKey]);
-
-  return ['let', ...letArgs, caseExpression];
-}
-
-const CLUSTER_PROPERTIES = buildClusterProperties();
-const CLUSTER_COLOR_EXPRESSION = buildDominantThemeExpression('color');
-const CLUSTER_EMOJI_EXPRESSION = buildDominantThemeExpression('emoji');
-
-const HEATMAP_LAYER = {
-  id: 'labs-map-heatmap',
-  type: 'heatmap',
-  source: 'labs-events',
-  maxzoom: 12,
-  paint: {
-    'heatmap-weight': [
-      'case',
-      ['all', ['has', 'themeKey'], ['has', 'themeColor']],
-      0.65,
-      0.4,
-    ],
-    'heatmap-intensity': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      6,
-      0.55,
-      12,
-      0.95,
-    ],
-    'heatmap-radius': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      5,
-      18,
-      10,
-      32,
-      12,
-      42,
-    ],
-    'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.12, 10, 0.08, 12, 0.025],
-    'heatmap-color': [
-      'interpolate',
-      ['linear'],
-      ['heatmap-density'],
-      0,
-      'rgba(15, 23, 42, 0)',
-      0.2,
-      'rgba(56, 189, 248, 0.14)',
-      0.4,
-      'rgba(129, 140, 248, 0.18)',
-      0.6,
-      'rgba(244, 114, 182, 0.22)',
-      0.8,
-      'rgba(250, 204, 21, 0.24)',
-      1,
-      'rgba(251, 191, 36, 0.26)',
-    ],
-  },
-};
-
 function resolveEventTheme(event) {
   const tagStrings = (event?.tags || [])
     .map(tag => (tag?.slug || tag?.name || '').toLowerCase())
@@ -556,200 +404,6 @@ function resolveEventTheme(event) {
 
   return FALLBACK_THEME;
 }
-
-const CLUSTER_HALO_LAYER = {
-  id: 'labs-map-cluster-halo',
-  type: 'circle',
-  source: 'labs-events',
-  filter: ['has', 'point_count'],
-  paint: {
-    'circle-color': CLUSTER_COLOR_EXPRESSION,
-    'circle-radius': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      8,
-      20,
-      12,
-      30,
-      15,
-      38,
-    ],
-    'circle-blur': 0.45,
-    'circle-opacity': 0.16,
-  },
-};
-
-const CLUSTER_LAYER = {
-  id: 'labs-map-clusters',
-  type: 'circle',
-  source: 'labs-events',
-  filter: ['has', 'point_count'],
-  paint: {
-    'circle-color': CLUSTER_COLOR_EXPRESSION,
-    'circle-radius': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      8,
-      12,
-      11,
-      18,
-      14,
-      26,
-    ],
-    'circle-stroke-width': 2,
-    'circle-stroke-color': '#111827',
-    'circle-opacity': 0.68,
-  },
-};
-
-const CLUSTER_ICON_LAYER = {
-  id: 'labs-map-cluster-icon',
-  type: 'symbol',
-  source: 'labs-events',
-  filter: ['has', 'point_count'],
-  layout: {
-    'text-field': CLUSTER_EMOJI_EXPRESSION,
-    'text-size': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      8,
-      18,
-      12,
-      24,
-      14,
-      28,
-    ],
-    'text-allow-overlap': true,
-    'text-ignore-placement': true,
-  },
-  paint: {
-    'text-color': '#f8fafc',
-    'text-halo-color': '#1e293b',
-    'text-halo-width': 1.2,
-  },
-};
-
-const CLUSTER_COUNT_LAYER = {
-  id: 'labs-map-cluster-count',
-  type: 'symbol',
-  source: 'labs-events',
-  filter: ['has', 'point_count'],
-  layout: {
-    'text-field': ['get', 'point_count_abbreviated'],
-    'text-size': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      8,
-      16,
-      12,
-      20,
-      14,
-      24,
-    ],
-    'text-offset': [0, 1.15],
-    'text-anchor': 'top',
-    'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-    'text-allow-overlap': true,
-  },
-  paint: {
-    'text-color': '#f8fafc',
-    'text-halo-color': '#1e293b',
-    'text-halo-width': 1.6,
-  },
-};
-
-const UNCLUSTERED_LAYER = {
-  id: 'labs-map-unclustered',
-  type: 'circle',
-  source: 'labs-events',
-  filter: [
-    'all',
-    ['!', ['has', 'point_count']],
-    ['!', ['boolean', ['get', 'hasVenueImage'], false]],
-  ],
-  paint: {
-    'circle-color': ['coalesce', ['get', 'themeColor'], FALLBACK_THEME.color],
-    'circle-radius': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      9,
-      5,
-      12,
-      7,
-      15,
-      9,
-    ],
-    'circle-stroke-width': 1.1,
-    'circle-stroke-color': '#111827',
-    'circle-opacity': 0.52,
-  },
-};
-
-const UNCLUSTERED_GLOW_LAYER = {
-  id: 'labs-map-unclustered-glow',
-  type: 'circle',
-  source: 'labs-events',
-  filter: [
-    'all',
-    ['!', ['has', 'point_count']],
-    ['!', ['boolean', ['get', 'hasVenueImage'], false]],
-  ],
-  paint: {
-    'circle-color': ['coalesce', ['get', 'themeColor'], FALLBACK_THEME.color],
-    'circle-radius': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      9,
-      14,
-      12,
-      18,
-      15,
-      22,
-    ],
-    'circle-opacity': 0.12,
-    'circle-blur': 0.8,
-  },
-};
-
-const UNCLUSTERED_EMOJI_LAYER = {
-  id: 'labs-map-unclustered-emoji',
-  type: 'symbol',
-  source: 'labs-events',
-  filter: [
-    'all',
-    ['!', ['has', 'point_count']],
-    ['has', 'themeEmoji'],
-    ['!', ['boolean', ['get', 'hasVenueImage'], false]],
-  ],
-  layout: {
-    'text-field': ['get', 'themeEmoji'],
-    'text-size': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      9,
-      18,
-      12,
-      22,
-      15,
-      26,
-    ],
-    'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-    'text-allow-overlap': true,
-    'text-ignore-placement': true,
-  },
-  paint: {
-    'text-color': '#f8fafc',
-    'text-halo-color': '#1e293b',
-    'text-halo-width': 1.2,
-  },
-};
 
 const DATE_PRESETS = [
   { id: 'today', label: 'Today' },
@@ -802,6 +456,35 @@ function formatTimeLabel(time) {
   const suffix = hour >= 12 ? 'PM' : 'AM';
   hour = hour % 12 || 12;
   return `${hour}:${minutes} ${suffix}`;
+}
+
+function formatMapTime(time) {
+  if (!time) return '';
+  const [hourPart = '0', minutePart = '00'] = time.split(':');
+  let hours = Number(hourPart);
+  if (!Number.isFinite(hours)) return '';
+  const minutes = minutePart.slice(0, 2);
+  const suffix = hours >= 12 ? 'p.m.' : 'a.m.';
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${suffix}`;
+}
+
+function getSourceBadge(sourceTable) {
+  switch (sourceTable) {
+    case 'events':
+      return 'Tradition';
+    case 'big_board_events':
+      return 'Submission';
+    case 'group_events':
+      return 'Group Event';
+    case 'recurring_events':
+      return 'Recurring';
+    case 'sports':
+      return 'Sports';
+    case 'all_events':
+    default:
+      return 'Listed Event';
+  }
 }
 
 function formatDateRange(event) {
@@ -1090,40 +773,8 @@ function normalizeBigBoardEvent(row) {
   };
 }
 
-function buildGeoJson(features, logoLocationKeys = null) {
-  const brandedLocations = logoLocationKeys instanceof Set ? logoLocationKeys : null;
-  return {
-    type: 'FeatureCollection',
-    features: features.map(event => ({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [event.longitude, event.latitude],
-      },
-      properties: {
-        eventId: event.id,
-        themeKey: event.themeKey || null,
-        themeEmoji: event.themeEmoji || null,
-        themeColor: event.themeColor || null,
-        hasVenueImage:
-          (brandedLocations && brandedLocations.has(getLocationKey(event))) || hasVenueLogo(event),
-      },
-    })),
-  };
-}
-
-function withinBounds(event, bounds) {
-  if (!bounds) return true;
-  const { north, south, east, west } = bounds;
-  if (event.longitude == null || event.latitude == null) return false;
-  if (event.longitude < west || event.longitude > east) return false;
-  if (event.latitude < south || event.latitude > north) return false;
-  return true;
-}
-
-function LabsMapPage({ clusterEvents = true } = {}) {
+function LabsMapPage() {
   const { user } = useContext(AuthContext);
-  const [viewState, setViewState] = useState(DEFAULT_VIEW);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [events, setEvents] = useState([]);
@@ -1132,18 +783,9 @@ function LabsMapPage({ clusterEvents = true } = {}) {
   const [customEnd, setCustomEnd] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
-  const [limitToMap, setLimitToMap] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
-  const [bounds, setBounds] = useState(null);
-  const [geoError, setGeoError] = useState('');
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [selectedLocationKey, setSelectedLocationKey] = useState(null);
-  const [selectedLocationIndex, setSelectedLocationIndex] = useState(0);
+  const [selectedMapEventId, setSelectedMapEventId] = useState(null);
   const [showFlyerModal, setShowFlyerModal] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-
-  const mapRef = useRef(null);
-  const clusteringEnabled = clusterEvents !== false;
 
   useEffect(() => {
     let cancelled = false;
@@ -1444,150 +1086,84 @@ function LabsMapPage({ clusterEvents = true } = {}) {
           return false;
         }
       }
-      if (limitToMap && bounds && event.latitude != null && event.longitude != null) {
-        if (!withinBounds(event, bounds)) {
-          return false;
-        }
-      }
       return true;
     });
-  }, [events, rangeStart, rangeEnd, searchValue, selectedTags, limitToMap, bounds]);
+  }, [events, rangeStart, rangeEnd, searchValue, selectedTags]);
 
   const eventsWithLocation = filteredEvents.filter(
     event => event.latitude != null && event.longitude != null,
   );
 
-  const eventsByLocation = useMemo(() => {
-    const groups = new Map();
-    eventsWithLocation.forEach(event => {
-      const key = getLocationKey(event);
-      if (!key) return;
-      const existing = groups.get(key);
-      if (existing) {
-        existing.push(event);
-      } else {
-        groups.set(key, [event]);
-      }
-    });
-    for (const [key, group] of groups.entries()) {
-      groups.set(key, sortEventsByStart(group));
-    }
-    return groups;
+  const mapEvents = useMemo(() => {
+    return eventsWithLocation
+      .map(event => {
+        if (event.latitude == null || event.longitude == null) {
+          return null;
+        }
+        const seenTags = new Set();
+        const mapTags = [];
+        (event.tags || []).forEach(tag => {
+          if (!tag) return;
+          const slug = tag.slug || tag.slug_id || null;
+          if (!slug || seenTags.has(slug)) return;
+          seenTags.add(slug);
+          mapTags.push({ slug, name: tag.name || tag.tag_name || slug });
+        });
+        const sourceBadge = getSourceBadge(event.source_table);
+        const timeLabel =
+          event.timeLabel ||
+          (event.start_time && event.end_time
+            ? `${formatMapTime(event.start_time)} – ${formatMapTime(event.end_time)}`
+            : event.start_time
+            ? formatMapTime(event.start_time)
+            : null);
+        const imageUrl = event.image || event.image_url || event.venueImage || '';
+
+        return {
+          id: event.id,
+          title: event.title,
+          description: event.description || '',
+          imageUrl,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          start_time: event.start_time,
+          end_time: event.end_time,
+          timeLabel,
+          detailPath: event.detailPath || null,
+          areaName: event.areaName || null,
+          area: event.area || null,
+          address: event.address || null,
+          venueName: event.venueName || null,
+          latitude: event.latitude,
+          longitude: event.longitude,
+          mapTags,
+          badges: sourceBadge ? [sourceBadge] : [],
+          source_table: event.source_table || null,
+          favoriteId: event.favoriteId || null,
+          externalUrl: event.externalUrl || event.link || null,
+          source: event.source || null,
+        };
+      })
+      .filter(Boolean);
   }, [eventsWithLocation]);
 
-  const { logoEvents, logoLocationKeys } = useMemo(() => {
-    const branded = [];
-    const keys = new Set();
-    for (const [key, eventsAtLocation] of eventsByLocation.entries()) {
-      const brandedEvent = eventsAtLocation.find(hasVenueLogo);
-      if (brandedEvent) {
-        branded.push(brandedEvent);
-        keys.add(key);
-      }
-    }
-    return { logoEvents: branded, logoLocationKeys: keys };
-  }, [eventsByLocation]);
-
-  const geoJson = useMemo(
-    () => buildGeoJson(eventsWithLocation, logoLocationKeys),
-    [eventsWithLocation, logoLocationKeys],
-  );
-
-  const eventIndex = useMemo(() => {
-    const map = new Map();
-    eventsWithLocation.forEach(event => {
-      map.set(event.id, event);
-    });
-    return map;
-  }, [eventsWithLocation]);
-
-  const selectedLocationEvents = useMemo(() => {
-    if (!selectedLocationKey) return [];
-    const eventsAtLocation = eventsByLocation.get(selectedLocationKey);
-    return eventsAtLocation ? eventsAtLocation : [];
-  }, [eventsByLocation, selectedLocationKey]);
-
-  const selectEvent = useCallback(
-    event => {
-      if (!event) {
-        setSelectedEvent(null);
-        setSelectedLocationKey(null);
-        setSelectedLocationIndex(0);
-        return;
-      }
-      setSelectedEvent(event);
-      const key = getLocationKey(event);
-      setSelectedLocationKey(key);
-      if (key) {
-        const eventsAtLocation = eventsByLocation.get(key) || [event];
-        const position = eventsAtLocation.findIndex(item => item.id === event.id);
-        setSelectedLocationIndex(position >= 0 ? position : 0);
-      } else {
-        setSelectedLocationIndex(0);
-      }
-    },
-    [eventsByLocation],
-  );
-
   useEffect(() => {
-    if (!selectedEvent) {
-      if (selectedLocationKey !== null) {
-        setSelectedLocationKey(null);
-      }
-      if (selectedLocationIndex !== 0) {
-        setSelectedLocationIndex(0);
-      }
-      return;
+    if (!selectedMapEventId) return;
+    const exists = mapEvents.some(event => event.id === selectedMapEventId);
+    if (!exists) {
+      setSelectedMapEventId(null);
     }
-    const key = getLocationKey(selectedEvent);
-    if (key !== selectedLocationKey) {
-      setSelectedLocationKey(key);
-    }
-    if (!key) {
-      if (selectedLocationIndex !== 0) {
-        setSelectedLocationIndex(0);
-      }
-      return;
-    }
-    const eventsAtLocation = eventsByLocation.get(key) || [];
-    if (!eventsAtLocation.length) {
-      setSelectedEvent(null);
-      setSelectedLocationKey(null);
-      setSelectedLocationIndex(0);
-      return;
-    }
-    const eventPosition = eventsAtLocation.findIndex(item => item.id === selectedEvent.id);
-    if (eventPosition === -1) {
-      setSelectedEvent(eventsAtLocation[0]);
-      setSelectedLocationIndex(0);
-      return;
-    }
-    if (eventPosition !== selectedLocationIndex) {
-      setSelectedLocationIndex(eventPosition);
-    }
-  }, [selectedEvent, eventsByLocation, selectedLocationKey, selectedLocationIndex]);
+  }, [mapEvents, selectedMapEventId]);
 
-  const handleCycleSelectedEvent = useCallback(
-    direction => {
-      if (!selectedLocationEvents.length) return;
-      const total = selectedLocationEvents.length;
-      const delta = direction === 'next' ? 1 : -1;
-      const nextIndex = (selectedLocationIndex + delta + total) % total;
-      const nextEvent = selectedLocationEvents[nextIndex];
-      if (nextEvent) {
-        selectEvent(nextEvent);
-      }
-    },
-    [selectedLocationEvents, selectedLocationIndex, selectEvent],
+  const selectedMapEvent = useMemo(
+    () => mapEvents.find(event => event.id === selectedMapEventId) || null,
+    [mapEvents, selectedMapEventId],
   );
 
-  useEffect(() => {
-    if (selectedEvent && !eventIndex.has(selectedEvent.id)) {
-      selectEvent(null);
-    }
-  }, [eventIndex, selectedEvent, selectEvent]);
+  const handleMapEventSelect = useCallback(event => {
+    setSelectedMapEventId(event?.id || null);
+  }, []);
 
-  const selectedEventUrl = selectedEvent?.detailPath || selectedEvent?.link || null;
   const tagOptions = useMemo(() => {
     const counts = new Map();
     filteredEvents.forEach(event => {
@@ -1610,23 +1186,13 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     });
   }, [eventsWithLocation]);
 
-  const focusEventOnMap = useCallback(
-    event => {
-      if (!event) return;
-      selectEvent(event);
-      if (event.latitude == null || event.longitude == null) {
-        return;
-      }
-      setViewState(current => ({
-        ...current,
-        longitude: event.longitude,
-        latitude: event.latitude,
-        zoom: Math.max(current.zoom, 13),
-        transitionDuration: 400,
-      }));
-    },
-    [selectEvent, setViewState],
-  );
+  const focusEventOnMap = useCallback(event => {
+    if (!event) {
+      setSelectedMapEventId(null);
+      return;
+    }
+    setSelectedMapEventId(event.id || null);
+  }, []);
 
   const handleToggleTag = useCallback(slug => {
     setSelectedTags(current =>
@@ -1642,8 +1208,7 @@ function LabsMapPage({ clusterEvents = true } = {}) {
     setDatePreset('today');
     setCustomStart('');
     setCustomEnd('');
-    setLimitToMap(false);
-    setBounds(null);
+    setSelectedMapEventId(null);
   }, []);
 
   const handleOpenEventModal = useCallback(() => {
@@ -1653,108 +1218,6 @@ function LabsMapPage({ clusterEvents = true } = {}) {
       setShowLoginPrompt(true);
     }
   }, [user, setShowFlyerModal, setShowLoginPrompt]);
-
-  const updateBounds = useCallback(map => {
-    if (!map) return;
-    const bbox = map.getBounds?.();
-    if (!bbox) return;
-    setBounds({
-      north: bbox.getNorth(),
-      south: bbox.getSouth(),
-      east: bbox.getEast(),
-      west: bbox.getWest(),
-    });
-  }, []);
-
-  const handleMove = useCallback(event => {
-    setViewState(event.viewState);
-    updateBounds(event.target);
-  }, [updateBounds]);
-
-  const handleMapLoad = useCallback(event => {
-    updateBounds(event.target);
-  }, [updateBounds]);
-
-  const handleMapClick = useCallback(
-    event => {
-      const feature = event.features?.[0];
-      if (!feature) return;
-      const map = mapRef.current?.getMap?.() || mapRef.current;
-      if (!map) return;
-
-      if (clusteringEnabled) {
-        const clusterId = feature.properties?.cluster_id;
-        if (clusterId != null) {
-          const source = map.getSource('labs-events');
-          if (source?.getClusterExpansionZoom) {
-            source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-              if (err) return;
-              setViewState(current => ({
-                ...current,
-                longitude: feature.geometry.coordinates[0],
-                latitude: feature.geometry.coordinates[1],
-                zoom,
-                transitionDuration: 400,
-              }));
-            });
-          }
-          return;
-        }
-      }
-
-      const eventId = feature.properties?.eventId;
-      if (!eventId) return;
-      const selected = eventIndex.get(eventId);
-      if (selected) {
-        selectEvent(selected);
-      }
-    },
-    [clusteringEnabled, eventIndex, selectEvent],
-  );
-
-  const handleLogoMarkerClick = useCallback((eventData, markerEvent) => {
-    markerEvent?.originalEvent?.stopPropagation?.();
-    selectEvent(eventData);
-  }, [selectEvent]);
-
-  const handleLocateMe = useCallback(() => {
-    if (isLocating) return;
-    if (!navigator?.geolocation) {
-      setGeoError('Geolocation is not available in this browser.');
-      return;
-    }
-    setIsLocating(true);
-    setGeoError('');
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        const { latitude, longitude } = position.coords;
-        setLimitToMap(true);
-        setViewState(current => ({
-          ...current,
-          latitude,
-          longitude,
-          zoom: Math.max(current.zoom ?? DEFAULT_VIEW.zoom, 13),
-          transitionDuration: 600,
-        }));
-        const map = mapRef.current?.getMap?.() || mapRef.current;
-        if (map?.flyTo) {
-          map.flyTo({
-            center: [longitude, latitude],
-            zoom: Math.max(map.getZoom?.() ?? DEFAULT_VIEW.zoom, 13),
-            essential: true,
-          });
-        }
-        updateBounds(map);
-        setIsLocating(false);
-        setGeoError('');
-      },
-      err => {
-        setGeoError(err.message || 'Unable to determine your location.');
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  }, [isLocating, updateBounds]);
 
   const activeRangeLabel = useMemo(() => {
     if (!rangeStart || !rangeEnd) return '';
@@ -1775,228 +1238,47 @@ function LabsMapPage({ clusterEvents = true } = {}) {
       </Helmet>
       <Navbar />
       <main className="pt-28 pb-16 lg:pt-32">
-        <section id="map" className="mx-auto max-w-7xl px-6">
-          <div className="relative overflow-hidden rounded-3xl border border-[#f3c7b8] bg-white/80 shadow-xl shadow-[#29313f]/10 backdrop-blur">
-            <div className="pointer-events-none absolute right-6 top-6 z-20 flex flex-col items-end gap-2 text-xs">
-              <button
-                type="button"
-                onClick={handleLocateMe}
-                disabled={isLocating}
-                className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[#bf3d35]/60 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#bf3d35] shadow-sm transition hover:border-[#bf3d35] hover:bg-[#fce7e3] disabled:cursor-not-allowed disabled:opacity-60"
+        {mapEvents.length > 0 && (
+          <section id="map" className="mx-auto max-w-7xl px-6 pt-8">
+            <div className="relative">
+              <MonthlyEventsMap
+                events={mapEvents}
+                height={560}
+                variant="panel"
+                onSelectEvent={handleMapEventSelect}
+                selectedEventId={selectedMapEventId}
+              />
+
+              {selectedMapEvent && (
+                <div className="absolute inset-y-0 left-0 hidden lg:flex lg:items-stretch lg:justify-start lg:p-4 lg:pl-6 xl:pl-8 z-20">
+                  <div className="pointer-events-auto flex h-full w-full max-w-sm">
+                    <MapEventDetailPanel
+                      event={selectedMapEvent}
+                      onClose={() => setSelectedMapEventId(null)}
+                      variant="desktop"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div
+                className={`absolute inset-x-4 bottom-4 z-20 flex justify-center lg:hidden ${selectedMapEvent ? 'pointer-events-auto' : 'pointer-events-none'}`}
               >
-                {isLocating ? 'Locating…' : 'Near me'}
-              </button>
-              {geoError && (
-                <span className="pointer-events-auto rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-[#bf3d35] shadow">
-                  {geoError}
-                </span>
-              )}
-            </div>
-            <div className="relative h-[600px]">
-              {MAPBOX_TOKEN ? (
-                <>
-                  <MapGL
-                    {...viewState}
-                    ref={mapRef}
-                    onMove={handleMove}
-                    mapStyle={MAPBOX_STYLE}
-                    mapboxAccessToken={MAPBOX_TOKEN}
-                    onLoad={handleMapLoad}
-                    interactiveLayerIds={
-                      clusteringEnabled
-                        ? [
-                            CLUSTER_LAYER.id,
-                            CLUSTER_ICON_LAYER.id,
-                            UNCLUSTERED_LAYER.id,
-                            UNCLUSTERED_EMOJI_LAYER.id,
-                          ]
-                        : [UNCLUSTERED_LAYER.id, UNCLUSTERED_EMOJI_LAYER.id]
-                    }
-                    onClick={handleMapClick}
-                    style={{ width: '100%', height: '100%' }}
-                  >
-                    <Source
-                      id="labs-events"
-                      type="geojson"
-                      data={geoJson}
-                      {...(clusteringEnabled
-                        ? {
-                            cluster: true,
-                            clusterMaxZoom: 14,
-                            clusterRadius: 32,
-                            clusterProperties: CLUSTER_PROPERTIES,
-                          }
-                        : { cluster: false })}
-                    >
-                      <Layer {...HEATMAP_LAYER} />
-                      {clusteringEnabled && <Layer {...CLUSTER_HALO_LAYER} />}
-                      {clusteringEnabled && <Layer {...CLUSTER_LAYER} />}
-                      {clusteringEnabled && <Layer {...CLUSTER_ICON_LAYER} />}
-                      {clusteringEnabled && <Layer {...CLUSTER_COUNT_LAYER} />}
-                      <Layer {...UNCLUSTERED_GLOW_LAYER} />
-                      <Layer {...UNCLUSTERED_LAYER} />
-                      <Layer {...UNCLUSTERED_EMOJI_LAYER} />
-                    </Source>
-                    {logoEvents.map(event => (
-                      <Marker
-                        key={`logo-${event.id}`}
-                        longitude={event.longitude}
-                        latitude={event.latitude}
-                        anchor="bottom"
-                      >
-                        <button
-                          type="button"
-                          onClick={markerEvent => handleLogoMarkerClick(event, markerEvent)}
-                          className="group relative flex h-12 w-12 -translate-y-2 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                          aria-label={event.venueName ? `${event.venueName} details` : event.title}
-                          style={{ width: LOGO_MARKER_SIZE, height: LOGO_MARKER_SIZE }}
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="absolute inset-0 -z-10 rounded-full opacity-60 blur-md transition group-hover:opacity-80"
-                            style={{
-                              backgroundColor: event.themeColor || LOGO_MARKER_FALLBACK_COLOR,
-                            }}
-                          />
-                          <img
-                            src={event.venueImage}
-                            alt={event.venueName ? `${event.venueName} logo` : `${event.title} logo`}
-                            className="relative h-full w-full rounded-full border-2 border-white bg-white object-cover shadow-lg"
-                            loading="lazy"
-                          />
-                        </button>
-                      </Marker>
-                    ))}
-                  {selectedEvent && selectedEvent.latitude != null && selectedEvent.longitude != null && (
-                    <Popup
-                      longitude={selectedEvent.longitude}
-                      latitude={selectedEvent.latitude}
-                      anchor="top"
-                      closeOnClick={false}
-                      onClose={() => selectEvent(null)}
-                      maxWidth="320px"
-                      className="labs-map-popup"
-                    >
-                      <div className="space-y-3 text-gray-900">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-2">
-                            {getEventBadgeLabel(selectedEvent) ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#d9e9ea] px-2 py-0.5 text-xs font-semibold uppercase tracking-widest text-[#004C55]">
-                                {getEventBadgeLabel(selectedEvent)}
-                              </span>
-                            ) : null}
-                            <h3 className="text-lg font-semibold leading-snug text-[#29313f]">
-                              {selectedEventUrl ? (
-                                selectedEvent?.detailPath ? (
-                                  <Link
-                                    to={selectedEventUrl}
-                                    className="transition hover:text-[#bf3d35]"
-                                  >
-                                    {selectedEvent.title}
-                                  </Link>
-                                ) : (
-                                  <a
-                                    href={selectedEventUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="transition hover:text-[#bf3d35]"
-                                  >
-                                    {selectedEvent.title}
-                                  </a>
-                                )
-                              ) : (
-                                selectedEvent.title
-                              )}
-                            </h3>
-                            {selectedEvent.themeEmoji && selectedEvent.themeLabel && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2 py-0.5 text-xs font-semibold text-[#29313f]">
-                                <span>{selectedEvent.themeEmoji}</span>
-                                <span>{selectedEvent.themeLabel}</span>
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => selectEvent(null)}
-                            className="-mr-1 -mt-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-2xl font-light text-gray-500 shadow-sm ring-1 ring-inset ring-white/70 transition hover:bg-white hover:text-[#29313f]"
-                            aria-label="Close event details"
-                          >
-                            <span aria-hidden="true">×</span>
-                          </button>
-                        </div>
-                        {selectedLocationEvents.length > 1 && (
-                          <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5f9] px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
-                            <button
-                              type="button"
-                              onClick={() => handleCycleSelectedEvent('prev')}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
-                              aria-label="Show previous event at this venue"
-                            >
-                              ‹
-                            </button>
-                            <span className="flex-1 text-center text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
-                              {selectedLocationIndex + 1} of {selectedLocationEvents.length} events here
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCycleSelectedEvent('next')}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-base text-[#29313f] shadow-sm transition hover:bg-[#e2e8f0]"
-                              aria-label="Show next event at this venue"
-                            >
-                              ›
-                            </button>
-                          </div>
-                        )}
-                        <p className="text-sm text-gray-600">
-                          {formatDateRange(selectedEvent)}
-                          {selectedEvent.start_time && (
-                            <>
-                              {' '}
-                              · {formatTimeLabel(selectedEvent.start_time)}
-                            </>
-                          )}
-                        </p>
-                        {selectedEvent.venueName && (
-                          <p className="text-sm text-gray-600">@ {selectedEvent.venueName}</p>
-                        )}
-                        <TagPills tags={selectedEvent.tags} variant="plain" />
-                        {selectedEventUrl && (
-                          selectedEvent?.detailPath ? (
-                            <Link
-                              to={selectedEventUrl}
-                              className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
-                            >
-                              View details →
-                            </Link>
-                          ) : (
-                            <a
-                              href={selectedEventUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 text-sm font-semibold text-[#29313f] hover:text-[#bf3d35]"
-                            >
-                              View details →
-                            </a>
-                          )
-                        )}
-                      </div>
-                    </Popup>
+                <div
+                  className={`pointer-events-auto w-full max-w-md transform-gpu transition-all duration-300 ${selectedMapEvent ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'}`}
+                >
+                  {selectedMapEvent && (
+                    <MapEventDetailPanel
+                      event={selectedMapEvent}
+                      onClose={() => setSelectedMapEventId(null)}
+                      variant="mobile"
+                    />
                   )}
-                  </MapGL>
-                </>
-              ) : (
-                <div className="flex h-full items-center justify-center bg-[#0f172a] text-center text-sm font-medium text-white/80">
-                  Map view unavailable — missing Mapbox access token.
                 </div>
-              )}
-              {loading && MAPBOX_TOKEN && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0f172a]/70 backdrop-blur-sm">
-                  <span className="text-sm font-semibold text-white">Loading events…</span>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="mx-auto max-w-7xl px-6 pt-8">
           <div className="rounded-3xl border border-[#f3c7b8] bg-white/90 p-6 shadow-xl shadow-[#29313f]/10">
