@@ -1,5 +1,5 @@
 // src/TagPage.jsx
-import React, { useEffect, useState, useMemo, useContext } from 'react'
+import React, { useEffect, useState, useMemo, useContext, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import Navbar from './Navbar'
@@ -13,6 +13,7 @@ import useEventFavorite from './utils/useEventFavorite'
 import { AuthContext } from './AuthProvider'
 import { getDetailPathForItem } from './utils/eventDetailPaths.js'
 import MonthlyEventsMap from './MonthlyEventsMap.jsx'
+import { formatEventDateRange, PHILLY_TIME_ZONE } from './utils/dateUtils'
 
 // ── Helpers ───────────────────────────────────────────────────────
 function parseISODateLocal(str) {
@@ -136,6 +137,174 @@ function resolveAreaName(evt, areaLookup = {}) {
   }
 
   return null
+}
+
+function FavoriteState({ eventId, sourceTable, children }) {
+  const state = useEventFavorite({ event_id: eventId, source_table: sourceTable })
+  return children(state)
+}
+
+function MapEventDetailPanel({ event, onClose, variant = 'desktop' }) {
+  const { user } = useContext(AuthContext)
+  const navigate = useNavigate()
+
+  if (!event) {
+    if (variant === 'mobile') {
+      return null
+    }
+    return (
+      <div className="flex h-full min-h-[360px] flex-col items-center justify-center rounded-2xl border border-[#f4c9bc]/70 bg-white/90 p-6 text-center text-sm text-[#4a5568]">
+        <p className="font-semibold text-[#29313f]">Select an event on the map to preview it here.</p>
+        <p className="mt-2 text-xs text-[#6b7280]">Tap any marker to see highlights and add it to your plans.</p>
+      </div>
+    )
+  }
+
+  const tags = Array.isArray(event.mapTags) ? event.mapTags : []
+  const badges = Array.isArray(event.badges) ? event.badges : []
+  const areaLabel = [event.areaName, event.area?.name, event.area_name]
+    .map(candidate => (typeof candidate === 'string' ? candidate.trim() : ''))
+    .find(Boolean) || null
+  const venueName = typeof event.venueName === 'string' && event.venueName.trim() ? event.venueName.trim() : null
+  const locationLabel = venueName || event.address || areaLabel
+  const detailPath = event.detailPath || null
+  const externalUrl = event.externalUrl || null
+  const dateLabel = formatEventDateRange(event.startDate, event.endDate, PHILLY_TIME_ZONE)
+  const timeLabel = event.timeLabel
+    ? event.timeLabel
+    : event.start_time && event.end_time
+    ? `${formatTime(event.start_time)} – ${formatTime(event.end_time)}`
+    : event.start_time
+    ? formatTime(event.start_time)
+    : null
+
+  const actionButton = event.source_table && event.favoriteId
+    ? (
+        <FavoriteState eventId={event.favoriteId} sourceTable={event.source_table}>
+          {({ isFavorite, toggleFavorite, loading }) => (
+            <button
+              type="button"
+              onClick={e => {
+                e.preventDefault()
+                if (!user) {
+                  navigate('/login')
+                  return
+                }
+                toggleFavorite()
+              }}
+              disabled={loading}
+              className={`inline-flex items-center justify-center rounded-full border border-indigo-600 px-5 py-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
+                isFavorite ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white'
+              }`}
+            >
+              {isFavorite ? 'In the Plans' : 'Add to Plans'}
+            </button>
+          )}
+        </FavoriteState>
+      )
+    : externalUrl
+    ? (
+        <a
+          href={externalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center rounded-full border border-indigo-600 bg-white px-5 py-2 text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-600 hover:text-white"
+        >
+          Get Tickets
+        </a>
+      )
+    : null
+
+  const panelPadding = variant === 'desktop' ? 'p-6' : 'p-5'
+  const panelSizing = variant === 'desktop' ? 'h-full' : 'max-h-[70vh] sm:max-h-[75vh]'
+
+  return (
+    <div
+      className={`relative flex w-full flex-col overflow-hidden rounded-2xl border border-[#f4c9bc]/70 bg-white shadow-lg shadow-[#bf3d35]/10 ${panelPadding} ${panelSizing}`}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-lg font-semibold text-[#9a6f62] shadow-sm ring-1 ring-inset ring-white/60 transition hover:bg-white hover:text-[#bf3d35]"
+        aria-label="Close event preview"
+      >
+        ×
+      </button>
+      {event.imageUrl && (
+        <div className="mb-4 overflow-hidden rounded-xl bg-[#f7e5de]">
+          <img src={event.imageUrl} alt={event.title} className="h-40 w-full object-cover sm:h-48" loading="lazy" />
+        </div>
+      )}
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-indigo-700">
+            {badges.map(badge => (
+              <span
+                key={badge}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                  badge === 'Tradition'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : badge === 'Submission'
+                    ? 'bg-purple-100 text-purple-800'
+                    : badge === 'Sports'
+                    ? 'bg-green-100 text-green-800'
+                    : badge === 'Recurring'
+                    ? 'bg-blue-100 text-blue-800'
+                    : badge === 'Group Event'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : badge === 'Featured'
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-indigo-100 text-indigo-800'
+                }`}
+              >
+                {badge}
+              </span>
+            ))}
+            {areaLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#f2cfc3] px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-[#29313f]">
+                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                {areaLabel}
+              </span>
+            )}
+          </div>
+          <h3 className="text-2xl font-black leading-tight text-[#29313f]">{event.title}</h3>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9a6f62]">{dateLabel}</p>
+          {timeLabel && <p className="text-sm font-medium text-[#29313f]">{timeLabel}</p>}
+          {locationLabel && (
+            <p className="flex items-center gap-2 text-sm text-[#4a5568]">
+              <MapPin className="h-4 w-4 text-[#bf3d35]" aria-hidden="true" />
+              {locationLabel}
+            </p>
+          )}
+          {event.description && <p className="text-sm leading-relaxed text-[#4a5568]">{event.description}</p>}
+        </div>
+        {tags.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {tags.map((tag, index) => (
+              <Link
+                key={tag.slug}
+                to={`/tags/${tag.slug}`}
+                className={`${pillStyles[index % pillStyles.length]} inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold transition hover:opacity-80`}
+              >
+                #{tag.name}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="mt-5 flex flex-col gap-3 border-t border-[#f4c9bc]/70 pt-4">
+        {actionButton}
+        {detailPath && (
+          <Link
+            to={detailPath}
+            className="inline-flex items-center justify-center rounded-full border border-transparent bg-[#bf3d35] px-5 py-2 text-sm font-semibold text-white shadow transition hover:bg-[#a32c2c]"
+          >
+            View event →
+          </Link>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function EventRow({ evt, tags, profileMap, areaLookup }) {
@@ -333,6 +502,7 @@ export default function TagPage() {
   const [tagMap, setTagMap] = useState({})
   const [areaLookup, setAreaLookup] = useState({})
   const [loading, setLoading] = useState(true)
+  const [selectedMapEventId, setSelectedMapEventId] = useState(null)
 
   // modal toggles
   const [showFlyerModal, setShowFlyerModal] = useState(false)
@@ -893,6 +1063,7 @@ export default function TagPage() {
           .filter(Boolean)
 
         const areaName = resolveAreaName(evt, areaLookup)
+        const venueName = venueEntries.find(entry => entry?.name)?.name || evt.venues?.name || null
 
         const startTimeLabel = evt.start_time ? formatTime(evt.start_time) : null
         const endTimeLabel = evt.end_time ? formatTime(evt.end_time) : null
@@ -902,6 +1073,44 @@ export default function TagPage() {
         } else if (startTimeLabel || endTimeLabel) {
           timeLabel = startTimeLabel || endTimeLabel
         }
+
+        const favoriteEventId = evt.isSports
+          ? null
+          : evt.favoriteId ?? (evt.isRecurring ? String(evt.id).split('::')[0] : evt.id ?? null)
+        const favoriteSource = evt.isSports
+          ? null
+          : evt.source_table ?? (
+              evt.isBigBoard
+                ? 'big_board_events'
+                : evt.isTradition
+                  ? 'events'
+                  : evt.isGroupEvent
+                    ? 'group_events'
+                    : evt.isRecurring
+                      ? 'recurring_events'
+                      : 'all_events'
+            )
+
+        const normalizedBadges = []
+        if (Array.isArray(evt.badges)) {
+          evt.badges.forEach(badge => {
+            if (typeof badge === 'string' && badge.trim()) {
+              normalizedBadges.push(badge.trim())
+            } else if (badge && typeof badge === 'object' && badge.label) {
+              normalizedBadges.push(badge.label)
+            }
+          })
+        }
+        if (!normalizedBadges.length) {
+          if (evt.isTradition) normalizedBadges.push('Tradition')
+          if (evt.isBigBoard) normalizedBadges.push('Submission')
+          if (evt.isGroupEvent) normalizedBadges.push('Group Event')
+          if (evt.isRecurring) normalizedBadges.push('Recurring')
+          if (evt.isSports) normalizedBadges.push('Sports')
+        }
+
+        const externalUrl =
+          evt.externalUrl || (evt.isSports ? evt.url || evt.ticket_url || null : null)
 
         return {
           ...evt,
@@ -913,10 +1122,32 @@ export default function TagPage() {
           areaName,
           mapTags,
           timeLabel,
+          favoriteId: favoriteEventId ?? null,
+          source_table: favoriteSource ?? null,
+          badges: normalizedBadges,
+          externalUrl,
+          venueName,
         }
       })
       .filter(Boolean)
   }, [filteredEvents, tag, tagMap, areaLookup])
+
+  useEffect(() => {
+    if (!selectedMapEventId) return
+    const exists = mapEvents.some(evt => evt.id === selectedMapEventId)
+    if (!exists) {
+      setSelectedMapEventId(null)
+    }
+  }, [mapEvents, selectedMapEventId])
+
+  const selectedMapEvent = useMemo(
+    () => mapEvents.find(evt => evt.id === selectedMapEventId) || null,
+    [mapEvents, selectedMapEventId]
+  )
+
+  const handleMapEventSelect = useCallback(event => {
+    setSelectedMapEventId(event?.id || null)
+  }, [])
 
   useEffect(() => {
     if (!upcoming.length) {
@@ -1048,7 +1279,47 @@ export default function TagPage() {
 
           {mapEvents.length > 0 && (
             <section className="mx-auto max-w-7xl px-6 pt-8">
-              <MonthlyEventsMap events={mapEvents} height={420} />
+              <div className="relative">
+                <MonthlyEventsMap
+                  events={mapEvents}
+                  height={560}
+                  variant="panel"
+                  onSelectEvent={handleMapEventSelect}
+                  selectedEventId={selectedMapEventId}
+                />
+
+                {selectedMapEvent && (
+                  <div className="absolute inset-y-0 left-0 hidden lg:flex lg:items-stretch lg:justify-start lg:p-4 lg:pl-6 xl:pl-8 z-20">
+                    <div className="pointer-events-auto flex h-full w-full max-w-sm">
+                      <MapEventDetailPanel
+                        event={selectedMapEvent}
+                        onClose={() => setSelectedMapEventId(null)}
+                        variant="desktop"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className={`absolute inset-x-4 bottom-4 z-20 flex justify-center lg:hidden ${
+                    selectedMapEvent ? 'pointer-events-auto' : 'pointer-events-none'
+                  }`}
+                >
+                  <div
+                    className={`pointer-events-auto w-full max-w-md transform-gpu transition-all duration-300 ${
+                      selectedMapEvent ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
+                    }`}
+                  >
+                    {selectedMapEvent && (
+                      <MapEventDetailPanel
+                        event={selectedMapEvent}
+                        onClose={() => setSelectedMapEventId(null)}
+                        variant="mobile"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
             </section>
           )}
 
