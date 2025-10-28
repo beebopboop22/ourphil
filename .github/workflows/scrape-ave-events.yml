@@ -1,0 +1,39 @@
+name: "The AVE Live Scraper"
+
+on:
+  schedule:
+    # Every day at 04:20 UTC (around midnight ET)
+    - cron: "20 4 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ave-live-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape-ave-live:
+    name: Run The AVE Live scraper
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Optional: set to "1" to test without writing to the DB (if supported)
+          DRY_RUN: "0"
+        run: python3 scripts/scrape-the-ave-live.py
