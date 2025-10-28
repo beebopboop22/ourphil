@@ -1,0 +1,39 @@
+name: "Helium Comedy Scraper"
+
+on:
+  schedule:
+    # Every day at 04:25 UTC (around midnight ET)
+    - cron: "25 4 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: helium-comedy-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape-helium:
+    name: Run Helium Comedy scraper
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Optional: set to "1" to dry-run without DB writes (if you add support)
+          DRY_RUN: "0"
+        run: python3 scripts/scrape-helium.py
