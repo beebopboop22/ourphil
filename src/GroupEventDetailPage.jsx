@@ -110,7 +110,7 @@ export default function GroupEventDetailPage() {
       const { data: ev } = await supabase
         .from('group_events_calendar')
         .select('*')
-        .eq('id', eventId)
+        .eq('slug', eventId)
         .single()
 
       if (!ev) {
