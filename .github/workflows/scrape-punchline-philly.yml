@@ -1,0 +1,61 @@
+name: Run Punch Line Philly scraper
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Nightly at 2:30 AM America/New_York (06:30 UTC)
+    - cron: "30 6 * * *"
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    concurrency:
+      group: punchline-scraper-${{ github.ref }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies (requirements.txt if present)
+        if: hashFiles('requirements.txt') != ''
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install minimal dependencies (fallback)
+        if: hashFiles('requirements.txt') == ''
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 python-dotenv supabase
+
+      - name: Verify required env vars
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+
+      - name: Run Punch Line scraper
+        run: |
+          python scripts/scrape-punchline-philly.py
