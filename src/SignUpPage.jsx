@@ -143,11 +143,16 @@ export default function SignUpPage() {
         />
 
         <h1 className="mt-12 relative z-10 text-3xl sm:text-4xl md:text-5xl font-[Barrio] font-black mb-2 text-center">
-          Sign up for your Digest
+          Join Our Philly—save events, follow people and tags, and get a daily digest
         </h1>
-        <p className="relative z-10 mb-8 text-center text-gray-700">
-          Subscribe to hashtags to get your custom once-a-week events newsletter
+        <p className="relative z-10 mb-4 text-center text-gray-700">
+          Create an account to save plans, follow others and tags, and stay in the loop with a daily digest of upcoming events.
         </p>
+        <ul className="relative z-10 mb-8 space-y-2 text-gray-700 list-disc list-inside">
+          <li>Save events to your plan</li>
+          <li>Follow people and tags</li>
+          <li>Post your own events</li>
+        </ul>
 
         <form onSubmit={handleSignUp} className="relative z-10 space-y-6 bg-white p-6 rounded-lg shadow-lg">
           {/* Email */}
