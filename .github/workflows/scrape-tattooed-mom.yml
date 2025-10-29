@@ -1,0 +1,60 @@
+name: Scrape — Tattooed Mom
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run 3x daily (UTC): 05:10, 13:10, 21:10  → roughly midnight/8am/4pm ET (varies with DST)
+    - cron: "10 5,13,21 * * *"
+  push:
+    paths:
+      - "scripts/scrape-tattooed-mom.py"
+      - ".github/workflows/scrape-tattooed-mom.yml"
+      - "requirements.txt"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scrape-tattooed-mom
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: "1"
+      # Secrets must be configured in your repo settings
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Optional: set a stable timezone for any local timestamps you print
+      TZ: America/New_York
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies (requirements.txt if present, otherwise minimal)
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install requests beautifulsoup4 python-dotenv supabase
+          fi
+
+      - name: Run scraper
+        run: |
+          python3 scripts/scrape-tattooed-mom.py
