@@ -5,6 +5,7 @@ import SportsEventsGrid from './SportsEventsGrid';
 import ConcertEventsGrid from './ConcertEventsGrid';
 import EventsGrid from './EventsGrid';
 import SeasonalEventsGrid from './SeasonalEvents';
+import WeekendEventsList from './WeekendEventsList';
 
 const WeekendPage = () => {
   return (
@@ -17,6 +18,7 @@ const WeekendPage = () => {
         <ConcertEventsGrid />
         <EventsGrid />
         <SeasonalEventsGrid />
+        <WeekendEventsList />
       </main>
       <Footer />
     </div>
