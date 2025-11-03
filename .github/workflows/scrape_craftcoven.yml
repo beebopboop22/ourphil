@@ -24,7 +24,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # ✅ Pin to a supported version (avoid 3.14)
+          python-version: "3.13"
           cache: "pip"
 
       - name: Install dependencies
@@ -33,14 +34,18 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
-            pip install requests beautifulsoup4 python-dotenv supabase postgrest
+            pip install requests beautifulsoup4 python-dotenv supabase postgrest playwright
           fi
+
+      # ✅ Install Playwright browser engines
+      - name: Install Playwright browsers
+        run: |
+          python -m playwright install chromium --with-deps
 
       - name: Run scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          # If your script also reads SUPABASE_KEY as a fallback:
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python scripts/scrape-craftcoven.py

@@ -3,29 +3,36 @@ name: Scrape City Winery
 on:
   schedule:
     # Runs every day at 3:00 AM UTC
-    - cron:  '0 3 * * *'
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
 jobs:
   scrape:
     name: Scrape City Winery Events
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: scrape-citywinery
+      cancel-in-progress: false
+
     env:
-      # Make sure you've added these to your repo's Secrets
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.13"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
@@ -33,4 +40,5 @@ jobs:
           fi
 
       - name: Run City Winery scraper
-        run: python scripts/scrape-citywinery.py
+        run: |
+          python scripts/scrape-citywinery.py

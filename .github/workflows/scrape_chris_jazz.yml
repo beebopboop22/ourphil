@@ -2,9 +2,9 @@
 name: Chris Jazz Cafe Scraper
 
 on:
-  # Run on a daily schedule at 8 AM UTC (adjust as needed)
+  # Run daily at 8 AM UTC
   schedule:
-    - cron: '0 8 * * *'
+    - cron: "0 8 * * *"
   # Allow manual runs from the Actions tab
   workflow_dispatch:
 
@@ -12,28 +12,35 @@ jobs:
   scrape:
     name: Run scraper
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: scrape-chris-jazz
+      cancel-in-progress: false
 
     steps:
       - name: Check out repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          # ✅ Pin to supported version (avoid 3.14 issues)
+          python-version: "3.13"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # if you don't have a requirements file, install these:
-          pip install requests beautifulsoup4 python-dotenv supabase
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install requests beautifulsoup4 python-dotenv supabase
+          fi
 
       - name: Run Chris Jazz Cafe scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          # or if you use a regular anon key:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          python3 scripts/scrape_chris_jazz.py
+          python scripts/scrape_chris_jazz.py

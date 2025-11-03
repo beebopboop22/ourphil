@@ -2,38 +2,38 @@ name: Scrape TLA Events
 
 on:
   schedule:
-    # daily at 05:00 UTC
-    - cron: '0 5 * * *'
+    # Daily at 05:00 UTC
+    - cron: "0 5 * * *"
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 20
     concurrency:
       group: scrape-tla
-      cancel-in-progress: true
+      cancel-in-progress: false
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          # ✅ Pin to supported version (avoid 3.14)
+          python-version: "3.13"
+          cache: "pip"
 
-      - name: Install lightweight deps
+      - name: Install lightweight dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 python-dotenv supabase
 
       - name: Run TLA scraper
-        run: python scripts/scrape-livingarts.py
         env:
-          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY:              ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
-          # any other env-vars you need
+        run: |
+          python scripts/scrape-livingarts.py
