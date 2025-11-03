@@ -3,29 +3,43 @@ name: "CherryStreetPier Scraper"
 on:
   schedule:
     # Daily at 04:00 UTC (midnight Eastern)
-    - cron: '0 4 * * *'
+    - cron: "0 4 * * *"
   workflow_dispatch: {}
+
+concurrency:
+  group: scrape-cherrystreetpier
+  cancel-in-progress: false
 
 jobs:
   scrape-cherrystreetpier:
     name: Run Cherry Street Pier scraper
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          # ✅ Pin to supported version to avoid Python 3.14 issues
+          python-version: "3.13"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install requests beautifulsoup4 python-dotenv supabase
+          fi
 
       - name: Run Cherry Street Pier scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python3 scripts/scrape-cherrystreetpier.py
+        run: |
+          python scripts/scrape-cherrystreetpier.py

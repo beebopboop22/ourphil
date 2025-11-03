@@ -3,7 +3,7 @@ name: Scrape Stateside Live
 on:
   schedule:
     # Runs every day at 3:10 AM UTC
-    - cron: '10 3 * * *'
+    - cron: "10 3 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -14,10 +14,13 @@ jobs:
   scrape:
     name: Scrape Stateside Live Events
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     env:
-      # Add these in your repo Settings → Secrets and variables → Actions
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,7 +28,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          # ✅ Pin to supported version (avoid Python 3.14 build issues)
+          python-version: "3.13"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -37,4 +42,5 @@ jobs:
           fi
 
       - name: Run Stateside Live scraper
-        run: python scripts/scrape-stateside-live.py
+        run: |
+          python scripts/scrape-stateside-live.py

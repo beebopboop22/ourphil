@@ -3,13 +3,18 @@ name: "Kung Fu Necktie Scraper"
 on:
   schedule:
     # Every day at 4:00 UTC (midnight Eastern)
-    - cron: '0 4 * * *'
+    - cron: "0 4 * * *"
   workflow_dispatch: {}
+
+concurrency:
+  group: scrape-kungfunecktie
+  cancel-in-progress: false
 
 jobs:
   scrape-kfn:
     name: Run Kung Fu Necktie scraper
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -18,11 +23,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          # ✅ Pin to supported version (avoid Python 3.14 build failures)
+          python-version: "3.13"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
+          python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
@@ -32,7 +39,8 @@ jobs:
       - name: Run scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: "0"
         run: |
-          python3 scripts/scrape-kung-fu-necktie.py
+          python scripts/scrape-kung-fu-necktie.py
