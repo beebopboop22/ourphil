@@ -1,14 +1,29 @@
-# React + Vite + TailWindCSS - A Template Repo
+# Our Philly Platform (Next.js)
 
-It is a template repository for you to start a project using React and TailwindCSS. You just need to create a new repository from this template repo by clicking the button at the top right corner of this page.
+This repository hosts the Our Philly community platform. The application now runs on [Next.js](https://nextjs.org/) while still leveraging the existing React component library and Tailwind CSS styling.
 
-## Watch This Video
+## Getting started
 
-https://www.youtube.com/watch?v=Zk2YJUvfsOA
+```bash
+npm install
+npm run dev
+```
 
-## Links
+Or with Yarn:
 
-- Install Node.js: https://nodejs.org/en
-- Install Vite: https://vitejs.dev/
-- TailwindCSS: https://tailwindcss.com/
-- How to Learn TailwindCSS?: https://www.youtube.com/shorts/BhasK2BPn8c
+```bash
+yarn install
+yarn dev
+```
+
+### Available scripts
+
+- `npm run dev` – start a local development server.
+- `npm run build` – create a production build.
+- `npm run start` – serve the production build.
+- `npm run lint` – run linting checks.
+
+### Additional resources
+
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Supabase JavaScript Client](https://supabase.com/docs/reference/javascript/start)
