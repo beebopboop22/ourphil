@@ -1,0 +1,42 @@
+name: Scrape Xfinity Mobile Arena Comedy
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Every day at 4:15 AM EST (09:15 UTC)
+    - cron: "15 9 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scrape-xfinity-comedy
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      PYTHONUTF8: "1"
+      TZ: America/New_York
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11 (pinned)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 python-dotenv supabase
+
+      - name: Run scraper
+        run: |
+          python scripts/scrape-xfinity-comedy.py
