@@ -30,4 +30,4 @@ jobs:
           pip install python-dotenv supabase requests beautifulsoup4
 
       - name: Scrape Fairmount Park
-        run: python scripts/scrape-fairmount-park-events.py
+        run: python scripts/upsert_fpc_events.py
