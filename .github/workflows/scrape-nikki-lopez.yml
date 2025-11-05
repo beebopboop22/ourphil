@@ -1,0 +1,54 @@
+name: Scrape Nikki Lopez Philly
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Runs every day at 4:05 AM New York time (09:05 UTC)
+    - cron: "5 9 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scrape-nikki-lopez
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    env:
+      # Required secrets (set these in your repo settings → Secrets and variables → Actions)
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Ensure UTF-8 and predictable TZ handling
+      PYTHONUTF8: "1"
+      TZ: America/New_York
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11 (pinned)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # If you have a requirements.txt, prefer that:
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install requests beautifulsoup4 python-dotenv supabase
+          fi
+
+      - name: Run scraper
+        run: |
+          python scripts/scrape-nikki-lopez.py
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Job finished at $(date)" >> $GITHUB_STEP_SUMMARY
