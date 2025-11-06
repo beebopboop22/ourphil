@@ -1,0 +1,37 @@
+name: Scrape Club 624
+
+on:
+  schedule:
+    # Run every day at 3:10 AM UTC
+    - cron: "10 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: scrape-club624
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 python-dateutil supabase
+
+      - name: Run Club 624 scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "▶️ Running scrape-club624.py"
+          python scripts/scrape-club624.py
