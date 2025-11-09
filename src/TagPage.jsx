@@ -375,11 +375,26 @@ export default function TagPage() {
       setAreaLookup(nextAreaLookup)
 
       // 2) fetch taggings
-      const { data: taggings } = await supabase
-        .from('taggings')
-        .select('taggable_type,taggable_id')
-        .eq('tag_id', t.id)
-      const byType = taggings.reduce((acc, { taggable_type, taggable_id }) => {
+      const pageSize = 1000
+      let allTaggings = []
+      let from = 0
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('taggings')
+          .select('taggable_type,taggable_id')
+          .eq('tag_id', t.id)
+          .range(from, from + pageSize - 1)
+        if (pageError) {
+          console.error('Failed to load taggings for tag', t.id, pageError)
+          break
+        }
+        const safePage = page || []
+        allTaggings = allTaggings.concat(safePage)
+        if (safePage.length < pageSize) break
+        from += pageSize
+      }
+
+      const byType = allTaggings.reduce((acc, { taggable_type, taggable_id }) => {
         acc[taggable_type] = acc[taggable_type] || []
         acc[taggable_type].push(taggable_id)
         return acc
