@@ -780,37 +780,64 @@ export default function TagPage() {
     ...recEventsList,
   ], [traditions, bigBoard, groupEvents, allEvents, recEventsList])
 
-  const upcoming = useMemo(() => {
+  const sortedEvents = useMemo(() => {
     const today0 = new Date()
-    today0.setHours(0,0,0,0)
-
-    const isUpcoming = evt => {
-      const start = evt.start || null
-      const end = evt.end || start
-      if (!start && !end) return false
-      if (start && start >= today0) return true
-      if (end && end >= today0) return true
-      return false
-    }
+    today0.setHours(0, 0, 0, 0)
 
     const getSortDate = evt => {
-      const start = evt.start || null
-      const end = evt.end || start
+      const start = evt.start instanceof Date
+        ? evt.start
+        : evt.start_date
+          ? parseISODateLocal(evt.start_date)
+          : null
+      const end = evt.end instanceof Date
+        ? evt.end
+        : evt.end_date
+          ? parseISODateLocal(evt.end_date)
+          : start
+
       if (start && start >= today0) return start
       if (end && end >= today0) return end
-      return start || end || today0
+      return end || start || today0
     }
 
-    return allList
-      .filter(isUpcoming)
-      .sort((a,b) => getSortDate(a) - getSortDate(b))
+    const future = []
+    const past = []
+
+    allList.forEach(evt => {
+      const start = evt.start instanceof Date
+        ? evt.start
+        : evt.start_date
+          ? parseISODateLocal(evt.start_date)
+          : null
+      const end = evt.end instanceof Date
+        ? evt.end
+        : evt.end_date
+          ? parseISODateLocal(evt.end_date)
+          : start
+      const isFuture = (start && start >= today0) || (end && end >= today0)
+      const sortDate = getSortDate(evt)
+      if (isFuture) {
+        future.push({ evt, sortDate })
+      } else {
+        past.push({ evt, sortDate: sortDate || end || start || today0 })
+      }
+    })
+
+    future.sort((a, b) => a.sortDate - b.sortDate)
+    past.sort((a, b) => b.sortDate - a.sortDate)
+
+    return [
+      ...future.map(entry => entry.evt),
+      ...past.map(entry => entry.evt),
+    ]
   }, [allList])
 
   const weekendRange = useMemo(() => getUpcomingWeekendRange(), [])
 
   const filteredEvents = useMemo(() => {
-    if (!upcoming.length) return []
-    const events = upcoming
+    if (!sortedEvents.length) return []
+    const events = sortedEvents
 
     const filterByRange = (rangeStart, rangeEnd) => {
       return events.filter(evt => {
@@ -847,7 +874,7 @@ export default function TagPage() {
       default:
         return events
     }
-  }, [upcoming, dateFilter, customStart, customEnd, weekendRange])
+  }, [sortedEvents, dateFilter, customStart, customEnd, weekendRange])
 
   const mapEvents = useMemo(() => {
     const baseTag = tag ? { slug: tag.slug, name: tag.name } : null
@@ -998,11 +1025,11 @@ export default function TagPage() {
   }, [])
 
   useEffect(() => {
-    if (!upcoming.length) {
+    if (!filteredEvents.length) {
       setTagMap({})
       return
     }
-    const idsByType = upcoming.reduce((acc, evt) => {
+    const idsByType = filteredEvents.reduce((acc, evt) => {
       if (!evt.source_table || !evt.taggableId) return acc
       const key = evt.source_table
       if (!acc[key]) acc[key] = new Set()
@@ -1043,7 +1070,7 @@ export default function TagPage() {
       .catch(err => {
         console.error('Tag map fetch error', err)
       })
-  }, [upcoming])
+  }, [filteredEvents])
 
   if (loading) return <p className="text-center py-20">Loading…</p>
   if (!tag)    return <p className="text-center py-20 text-red-600">Tag not found</p>
@@ -1062,7 +1089,7 @@ export default function TagPage() {
         <title>#{tag.name} events in Philadelphia | Our Philly</title>
         <meta
           name="description"
-          content={`Explore ${eventCount || 'upcoming'} ${tag.name} events in Philadelphia with Our Philly.`}
+          content={`Explore ${eventCount || 'the best'} ${tag.name} events in Philadelphia with Our Philly.`}
         />
       </Helmet>
 
@@ -1074,8 +1101,8 @@ export default function TagPage() {
               <div className="flex flex-col gap-5">
                 <h1 className="text-4xl font-black leading-tight text-[#29313f] sm:text-5xl">
                   {eventCount > 0
-                    ? `${eventCount} upcoming #${tag.name} events in the city`
-                    : `Upcoming #${tag.name} events in the city`}
+                    ? `${eventCount} #${tag.name} events in the city`
+                    : `#${tag.name} events in the city`}
                 </h1>
                 <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-wide text-[#bf3d35]">
                   <label className="flex items-center gap-2 text-[#bf3d35]">
