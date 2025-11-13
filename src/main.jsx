@@ -56,6 +56,7 @@ import RecurringPage from './RecurringEventPage.jsx'
 import SportsEventPage from './SportsEventPage.jsx'
 import AboutPage from './AboutPage.jsx'
 import MailingListPage from './MailingListPage.jsx'
+import NewsletterPage from './NewsletterPage.jsx'
 import ThisWeekendInPhiladelphia from './ThisWeekendInPhiladelphia.jsx';
 import ThisMonthInPhiladelphia from './ThisMonthInPhiladelphia.jsx';
 import PhiladelphiaEventsIndex from './PhiladelphiaEventsIndex.jsx';
@@ -266,6 +267,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/tags/:slug" element={<TagPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/mailing-list" element={<MailingListPage />} />
+            <Route path="/newsletter" element={<NewsletterPage />} />
             <Route path="/traditions-faq" element={<TraditionsFAQ />} />
             <Route path="/groups-faq" element={<GroupsFAQ />} />
             <Route path="/about" element={<AboutPage />} />
