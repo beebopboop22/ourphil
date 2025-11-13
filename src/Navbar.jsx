@@ -199,6 +199,12 @@ export default function Navbar({ style, bottomBanner }) {
                       >
                         Contact
                       </Link>
+                      <Link
+                        to="/newsletter"
+                        className="block px-4 py-2 text-sm text-gray-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+                      >
+                        Newsletter
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -286,6 +292,9 @@ export default function Navbar({ style, bottomBanner }) {
                 </button>
                 <Link to="/contact" className="block" onClick={() => setMenuOpen(false)}>
                   Contact
+                </Link>
+                <Link to="/newsletter" className="block" onClick={() => setMenuOpen(false)}>
+                  Newsletter
                 </Link>
               </div>
             </div>
