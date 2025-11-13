@@ -1,4 +1,4 @@
-name: Scrape Fillmore Events
+name: Scrape Foundry Events
 
 on:
   schedule:
@@ -36,4 +36,4 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          python scripts/scrape-foundry.py
+          python scripts/scrape_foundry.py

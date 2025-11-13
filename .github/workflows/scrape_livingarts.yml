@@ -2,7 +2,6 @@ name: Scrape TLA Events
 
 on:
   schedule:
-    # Daily at 05:00 UTC
     - cron: "0 5 * * *"
   workflow_dispatch:
 
@@ -21,8 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          # ✅ Pin to supported version (avoid 3.14)
-          python-version: "3.13"
+          python-version: "3.11"     # <-- FIX: fully supported
           cache: "pip"
 
       - name: Install lightweight dependencies
